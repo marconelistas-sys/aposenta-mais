@@ -288,6 +288,19 @@
     flex-direction: column;
   }
 
+  .privacy-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .privacy-card--highlight {
+    grid-column: auto;
+  }
+
+  .danger-zone {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .mobile-nav {
     position: fixed;
     z-index: 60;

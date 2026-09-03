@@ -1,20 +1,28 @@
 import { defaultPlan } from '../data/mock-plan.js'
-import { parseStoredState, stateVersion } from './state-storage.js'
+import {
+  loadStoredState,
+  removeStoredState,
+  sanitizeStoredState,
+  stateVersion,
+  storageKeys
+} from './state-storage.js'
 
-const storageKey = 'aposenta-plus-state-v2'
-const legacyStorageKey = 'aposenta-plus-state-v1'
+const unavailableStorage = {
+  getItem: () => null,
+  setItem: () => { throw new Error('Armazenamento indisponível') },
+  removeItem: () => { throw new Error('Armazenamento indisponível') }
+}
 
-function readSavedState() {
+function resolveStorage() {
   try {
-    const current = localStorage.getItem(storageKey)
-    const legacy = localStorage.getItem(legacyStorageKey)
-    return parseStoredState(current || legacy)
+    return globalThis.localStorage || unavailableStorage
   } catch {
-    return parseStoredState(null)
+    return unavailableStorage
   }
 }
 
-const savedState = readSavedState()
+const appStorage = resolveStorage()
+const savedState = loadStoredState(appStorage)
 
 export const state = {
   ...savedState,
@@ -23,9 +31,16 @@ export const state = {
 
 export function saveState() {
   try {
-    localStorage.setItem(storageKey, JSON.stringify(state))
+    appStorage.setItem(storageKeys.current, JSON.stringify(state))
+    try {
+      appStorage.removeItem(storageKeys.deletionMarker)
+    } catch {
+      // A versão atual tem precedência sobre um marcador antigo.
+    }
+    return true
   } catch {
     // O aplicativo continua funcional quando o armazenamento está indisponível.
+    return false
   }
 }
 
@@ -66,12 +81,21 @@ export function setChartRange(range) {
 }
 
 export function resetState() {
-  state.valuesHidden = false
-  state.plan = { ...defaultPlan }
-  state.activeChartRange = 'retirement'
-  state.reminderEnabled = true
-  state.isDemo = true
-  state.lastUpdatedAt = null
-  state.scenarios = []
-  saveState()
+  Object.assign(state, sanitizeStoredState({ plan: { ...defaultPlan }, isDemo: true }), { dataDeleted: false })
+  const saved = saveState()
+  const failedKeys = saved ? [] : [storageKeys.current]
+  if (saved) {
+    try {
+      appStorage.removeItem(storageKeys.legacy)
+    } catch {
+      failedKeys.push(storageKeys.legacy)
+    }
+  }
+  return { success: failedKeys.length === 0, failedKeys }
+}
+
+export function deleteLocalData() {
+  const result = removeStoredState(appStorage)
+  Object.assign(state, sanitizeStoredState({ plan: { ...defaultPlan }, isDemo: true }), { dataDeleted: true })
+  return result
 }

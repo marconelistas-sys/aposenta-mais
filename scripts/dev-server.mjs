@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, isAbsolute, join, normalize, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { securityHeaders } from './security-headers.mjs'
 
 const projectRoot = normalize(join(fileURLToPath(new URL('.', import.meta.url)), '..'))
 const requestedPort = Number(process.env.PORT || 4173)
@@ -45,11 +46,15 @@ const server = createServer(async (request, response) => {
     const body = await readFile(filePath)
     response.writeHead(200, {
       'Content-Type': mimeTypes[extname(filePath)] || 'application/octet-stream',
-      'Cache-Control': 'no-store'
+      'Cache-Control': 'no-store',
+      ...securityHeaders
     })
     response.end(body)
   } catch {
-    response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' })
+    response.writeHead(500, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      ...securityHeaders
+    })
     response.end('Não foi possível carregar o Aposenta+.')
   }
 })

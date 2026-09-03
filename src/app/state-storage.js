@@ -1,6 +1,11 @@
 import { defaultPlan } from '../data/mock-plan.js'
 
 export const stateVersion = 2
+export const storageKeys = Object.freeze({
+  current: 'aposenta-plus-state-v2',
+  legacy: 'aposenta-plus-state-v1',
+  deletionMarker: 'aposenta-plus-deleted-v1'
+})
 
 const planRules = {
   currentAge: [16, 99],
@@ -72,4 +77,67 @@ export function parseStoredState(serialized) {
   } catch {
     return sanitizeStoredState({})
   }
+}
+
+export function loadStoredState(storage) {
+  try {
+    const current = storage.getItem(storageKeys.current)
+    if (current) return parseStoredState(current)
+
+    const legacy = storage.getItem(storageKeys.legacy)
+    if (!legacy) {
+      const emptyState = parseStoredState(null)
+      emptyState.dataDeleted = storage.getItem(storageKeys.deletionMarker) === '1'
+      return emptyState
+    }
+
+    const migrated = parseStoredState(legacy)
+    try {
+      storage.setItem(storageKeys.current, JSON.stringify(migrated))
+      storage.removeItem(storageKeys.legacy)
+    } catch {
+      // Mantém o legado quando a migração não puder ser concluída.
+    }
+    return migrated
+  } catch {
+    return parseStoredState(null)
+  }
+}
+
+export function removeStoredState(storage) {
+  const failedKeys = []
+
+  for (const key of [storageKeys.current, storageKeys.legacy]) {
+    try {
+      storage.removeItem(key)
+    } catch {
+      failedKeys.push(key)
+    }
+  }
+
+  try {
+    storage.setItem(storageKeys.deletionMarker, '1')
+  } catch {
+    failedKeys.push(storageKeys.deletionMarker)
+  }
+
+  return { success: failedKeys.length === 0, failedKeys }
+}
+
+export function createExportableState(candidate) {
+  const safe = sanitizeStoredState(candidate)
+  return {
+    version: safe.version,
+    valuesHidden: safe.valuesHidden,
+    reminderEnabled: safe.reminderEnabled,
+    isDemo: safe.isDemo,
+    lastUpdatedAt: safe.lastUpdatedAt,
+    activeChartRange: safe.activeChartRange,
+    plan: safe.plan,
+    scenarios: safe.scenarios
+  }
+}
+
+export function serializeExportableState(candidate) {
+  return JSON.stringify(createExportableState(candidate), null, 2)
 }

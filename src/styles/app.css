@@ -584,6 +584,15 @@ input:focus-visible,
   background: var(--color-danger-soft);
 }
 
+.button--danger {
+  color: white;
+  background: var(--color-danger);
+}
+
+.button--danger:hover {
+  filter: brightness(0.92);
+}
+
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1826,6 +1835,104 @@ body.values-hidden .simulation-form input {
 .data-actions {
   display: flex;
   gap: 10px;
+}
+
+.danger-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.danger-zone strong,
+.danger-zone p {
+  display: block;
+}
+
+.danger-zone p,
+.privacy-shortcut {
+  margin: 4px 0 0;
+  color: var(--color-ink-muted);
+  font-size: 11px;
+}
+
+.privacy-shortcut a {
+  color: var(--color-brand);
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
+.privacy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.privacy-card {
+  padding: 26px;
+}
+
+.privacy-card h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.privacy-card p,
+.privacy-list {
+  margin: 0;
+  color: var(--color-ink-soft);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.privacy-card .button {
+  margin-top: 18px;
+}
+
+.privacy-card--highlight {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 16px;
+  color: var(--color-green);
+  background: var(--color-green-soft);
+}
+
+.privacy-list {
+  padding-left: 20px;
+}
+
+.privacy-list li + li {
+  margin-top: 8px;
+}
+
+.empty-data {
+  max-width: 680px;
+  margin: 55px auto;
+  padding: 44px;
+  text-align: center;
+}
+
+.empty-data > svg {
+  color: var(--color-green);
+}
+
+.empty-data h1 {
+  margin: 10px 0;
+  font-size: clamp(28px, 4vw, 42px);
+}
+
+.empty-data > p:not(.eyebrow) {
+  max-width: 520px;
+  margin: 0 auto 24px;
+  color: var(--color-ink-soft);
+  line-height: 1.65;
+}
+
+.empty-data .data-actions {
+  justify-content: center;
 }
 
 .toast-region {

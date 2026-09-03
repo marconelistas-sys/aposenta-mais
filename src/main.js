@@ -1,6 +1,7 @@
 import { appLayout } from './app/layout.js'
 import {
   addScenario,
+  deleteLocalData,
   removeScenario,
   resetState,
   saveState,
@@ -15,11 +16,13 @@ import { renderContent } from './features/content/content.js'
 import { renderDashboard } from './features/dashboard/dashboard.js'
 import { renderPlan } from './features/plan/plan.js'
 import { renderProfile } from './features/profile/profile.js'
+import { renderDeletedState, renderPrivacy } from './features/privacy/privacy.js'
 import {
   renderSimulationResult,
   renderSimulations
 } from './features/simulations/simulations.js'
 import { formatCurrency, parseNumber } from './shared/formatters.js'
+import { serializeExportableState } from './app/state-storage.js'
 
 const app = document.querySelector('#app')
 const toastRegion = document.querySelector('#toast-region')
@@ -29,7 +32,8 @@ const routes = {
   '/plano': renderPlan,
   '/simulacoes': renderSimulations,
   '/conteudos': renderContent,
-  '/perfil': renderProfile
+  '/perfil': renderProfile,
+  '/privacidade': renderPrivacy
 }
 
 function currentPath() {
@@ -56,7 +60,10 @@ function restoreSimulationForm(values) {
 function render({ focusMain = false } = {}) {
   const pathname = currentPath()
   const simulationValues = pathname === '/simulacoes' ? captureSimulationForm() : null
-  const pageRenderer = routes[pathname] || renderDashboard
+  const selectedRenderer = routes[pathname] || renderDashboard
+  const pageRenderer = state.dataDeleted && !['/perfil', '/privacidade'].includes(pathname)
+    ? renderDeletedState
+    : selectedRenderer
   app.innerHTML = appLayout(pageRenderer(), pathname)
   restoreSimulationForm(simulationValues)
   document.body.classList.toggle('values-hidden', state.valuesHidden)
@@ -75,9 +82,12 @@ function navigate(href) {
 let toastTimer
 function showToast(message) {
   window.clearTimeout(toastTimer)
-  toastRegion.innerHTML = `<div class="toast">${message}</div>`
+  const toast = document.createElement('div')
+  toast.className = 'toast'
+  toast.textContent = String(message)
+  toastRegion.replaceChildren(toast)
   toastTimer = window.setTimeout(() => {
-    toastRegion.innerHTML = ''
+    toastRegion.replaceChildren()
   }, 3200)
 }
 
@@ -96,16 +106,20 @@ function simulationInputFromForm(form) {
 }
 
 function exportData() {
-  const file = new Blob([JSON.stringify(state, null, 2)], {
-    type: 'application/json'
-  })
-  const url = URL.createObjectURL(file)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'aposenta-plus-dados.json'
-  link.click()
-  URL.revokeObjectURL(url)
-  showToast('Arquivo preparado com seus dados do plano.')
+  try {
+    const file = new Blob([serializeExportableState(state)], {
+      type: 'application/json'
+    })
+    const url = URL.createObjectURL(file)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'aposenta-plus-dados.json'
+    link.click()
+    URL.revokeObjectURL(url)
+    showToast('Arquivo preparado com seus dados do plano.')
+  } catch {
+    showToast('Não foi possível exportar seus dados. Tente novamente.')
+  }
 }
 
 document.addEventListener('click', (event) => {
@@ -203,9 +217,26 @@ document.addEventListener('click', (event) => {
 
   if (event.target.closest('[data-reset-data]')) {
     if (!window.confirm('Restaurar os dados de demonstração? Seus ajustes e cenários salvos serão removidos.')) return
-    resetState()
+    const result = resetState()
+    if (!result.success) {
+      showToast('A demonstração foi aberta, mas dados anteriores podem não ter sido removidos. Tente apagar os dados novamente.')
+      render()
+      return
+    }
     render()
     showToast('Dados de exemplo restaurados.')
+    return
+  }
+
+  if (event.target.closest('[data-delete-data]')) {
+    const confirmed = window.confirm('Apagar de forma irreversível o plano, os cenários e as preferências salvos neste navegador?')
+    if (!confirmed) return
+
+    const result = deleteLocalData()
+    render()
+    showToast(result.success
+      ? 'Seus dados locais foram apagados.'
+      : 'Não foi possível apagar todos os dados. Verifique o navegador e tente novamente.')
   }
 })
 
@@ -244,7 +275,11 @@ document.addEventListener('submit', (event) => {
     })
     showToast('Projeção atualizada.')
   } catch (error) {
-    resultContainer.innerHTML = `<div class="form-error" role="alert">${error.message}</div>`
+    const errorBox = document.createElement('div')
+    errorBox.className = 'form-error'
+    errorBox.setAttribute('role', 'alert')
+    errorBox.textContent = String(error.message)
+    resultContainer.replaceChildren(errorBox)
   }
 })
 
