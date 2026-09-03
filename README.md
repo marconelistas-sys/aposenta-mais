@@ -9,6 +9,9 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 - Simulador com cálculo instantâneo no navegador.
 - Área de conteúdos e preferências.
 - Opção para ocultar valores e exportar os dados locais.
+- Exclusão irreversível do plano, cenários e preferências armazenados localmente.
+- Aviso de privacidade acessível pela aplicação.
+- Política de Segurança de Conteúdo e cabeçalhos defensivos no servidor local.
 - Motor financeiro isolado da interface.
 - Gráfico patrimonial calculado pelo mesmo motor da projeção.
 - Estado local validado e versionado.
@@ -49,7 +52,8 @@ aposenta-plus/
 │   └── favicon.svg
 ├── scripts/
 │   ├── build.mjs
-│   └── dev-server.mjs
+│   ├── dev-server.mjs
+│   └── security-headers.mjs
 ├── src/
 │   ├── app/
 │   │   ├── layout.js
@@ -63,6 +67,7 @@ aposenta-plus/
 │   │   ├── dashboard/
 │   │   ├── plan/
 │   │   ├── profile/
+│   │   ├── privacy/
 │   │   └── simulations/
 │   ├── shared/
 │   │   ├── formatters.js
@@ -82,17 +87,17 @@ aposenta-plus/
 
 - A primeira versão não usa dependências. Isso reduz instalação, risco de pacote e tempo para iniciar.
 - A regra de projeção fica em `src/domain`. A interface não contém fórmulas financeiras.
-- O estado usa `localStorage`. Nenhum dado sai do navegador.
+- O estado usa `localStorage`. O protótipo não possui conta, API ou sincronização e não envia esses dados a um servidor.
 - Valores futuros usam retorno real. Isso mantém a leitura em poder de compra de hoje.
 - O nome técnico do pacote usa `aposenta-plus`, pois o caractere `+` costuma exigir tratamento especial em URLs e ferramentas.
 
 ## Limites do MVP
 
-O cálculo serve para educação e planejamento inicial. Ele não implementa regras oficiais do INSS, tributação, taxas de produtos ou recomendações personalizadas. Uma versão com dados reais deve incluir revisão jurídica, regras previdenciárias versionadas, consentimento e controles de segurança.
+O cálculo serve para educação e planejamento inicial. Ele não implementa regras oficiais do INSS, tributação, taxas de produtos ou recomendações personalizadas. Uma versão com dados reais deve incluir revisão jurídica, regras previdenciárias versionadas, controlador e contato de privacidade, base legal, consentimento quando aplicável e controles de segurança. O armazenamento local não é criptografado e pode ser acessado por pessoas, extensões ou scripts com acesso ao perfil do navegador.
 
 ## Próximas etapas sugeridas
 
-1. Criar onboarding e cadastro do perfil previdenciário.
+1. Definir requisitos jurídicos e de segurança antes de criar contas ou servidor.
 2. Importar histórico de contribuições.
 3. Versionar regras do INSS por vigência.
 4. Salvar e comparar cenários.

@@ -2,6 +2,21 @@ import { state } from '../../app/state.js'
 import { icon } from '../../shared/icons.js'
 
 export function renderProfile() {
+  if (state.dataDeleted) {
+    return `
+      <section class="empty-data panel">
+        ${icon('shield', 28)}
+        <p class="eyebrow">DADOS APAGADOS</p>
+        <h1>Este navegador não tem um plano salvo.</h1>
+        <p>Seu plano, seus cenários e suas preferências foram removidos. Carregue a demonstração somente se quiser explorar o produto novamente.</p>
+        <div class="data-actions">
+          <button class="button button--primary" type="button" data-reset-data>Carregar demonstração</button>
+          <a class="button button--secondary" href="/privacidade" data-route>Ver aviso de privacidade</a>
+        </div>
+      </section>
+    `
+  }
+
   return `
     <section class="page-heading page-heading--inner">
       <div>
@@ -43,12 +58,20 @@ export function renderProfile() {
           </div>
           <div class="data-explanation">
             ${icon('lock', 21)}
-            <p>Este MVP salva suas preferências apenas no navegador. Nenhuma informação é enviada para um servidor.</p>
+            <p>Este MVP salva seu plano, seus cenários e suas preferências apenas neste navegador. Nenhuma informação financeira é enviada para um servidor de aplicação.</p>
           </div>
           <div class="data-actions">
             <button class="button button--secondary" type="button" data-export-data>${icon('download', 17)} Exportar meus dados</button>
             <button class="button button--danger-ghost" type="button" data-reset-data>Restaurar dados de exemplo</button>
           </div>
+          <div class="danger-zone">
+            <div>
+              <strong>Apagar meus dados</strong>
+              <p>Você pode exportar uma cópia antes de remover plano, cenários e preferências deste navegador.</p>
+            </div>
+            <button class="button button--danger" type="button" data-delete-data>Apagar meus dados</button>
+          </div>
+          <p class="privacy-shortcut"><a href="/privacidade" data-route>Leia o aviso de privacidade</a> antes de usar dados reais.</p>
         </section>
 
         <section class="panel settings-card settings-card--compact">

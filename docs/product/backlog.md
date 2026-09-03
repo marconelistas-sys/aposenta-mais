@@ -47,3 +47,20 @@
 - Confirmação antes da restauração dos dados.
 - Persistência da preferência de lembrete.
 - Correções para progresso acessível e resultados com renda igual a zero.
+
+## Sprint 3: privacidade concluída
+
+- US-020: exportação limitada aos campos conhecidos e sanitizados.
+- US-021 parcial: exclusão dos dados locais sem criação de conta ou servidor.
+- Aviso de privacidade no produto com dados, finalidade, retenção e limites.
+- Migração segura do armazenamento legado e remoção das duas chaves conhecidas.
+- Mitigação de injeção HTML em mensagens de erro e notificações.
+- Política de Segurança de Conteúdo e cabeçalhos defensivos no servidor local.
+
+## Próximas prioridades
+
+1. P0: definir controlador, contato de privacidade, base legal e prazos antes de uma beta com servidor.
+2. P0: desenhar autenticação, autorização, recuperação de conta e criptografia para dados remotos.
+3. P1: registrar consentimentos somente para finalidades que de fato dependam dele.
+4. P1: definir processo auditável para acesso, correção, portabilidade e exclusão.
+5. P2: avaliar integração com Meu INSS ou Open Finance após análise jurídica e de segurança.

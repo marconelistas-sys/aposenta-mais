@@ -79,7 +79,7 @@ export function appLayout(content, pathname) {
       </div>
     </header>
 
-    ${state.isDemo ? `
+    ${state.isDemo && !state.dataDeleted ? `
       <aside class="demo-banner" aria-label="Modo de demonstração">
         ${icon('info', 18)}
         <span>Você está vendo dados de demonstração.</span>
@@ -98,7 +98,7 @@ export function appLayout(content, pathname) {
           <span>Seus dados ficam neste dispositivo.</span>
         </div>
         <p>Estimativas para planejamento. Valores futuros não são garantidos.</p>
-        <a href="/perfil" data-route>Privacidade e dados</a>
+        <a href="/privacidade" data-route>Privacidade e dados</a>
       </div>
     </footer>
 
