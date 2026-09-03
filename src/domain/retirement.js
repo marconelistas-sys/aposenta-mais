@@ -97,6 +97,24 @@ export function projectRetirement(input) {
   }
 }
 
+export function projectAssetSeries(input, requestedYears) {
+  validateProjectionInput(input)
+  const totalYears = input.retirementAge - input.currentAge
+  const years = Math.max(1, Math.min(Math.floor(requestedYears), totalYears))
+  const monthlyRate = (1 + input.annualRealReturn) ** (1 / 12) - 1
+
+  return Array.from({ length: years + 1 }, (_, year) => {
+    const months = year * 12
+    const growthFactor = (1 + monthlyRate) ** months
+    const contributionFactor = futureValueFactor(monthlyRate, months)
+    return {
+      year,
+      age: input.currentAge + year,
+      assets: input.currentAssets * growthFactor + input.monthlyContribution * contributionFactor
+    }
+  })
+}
+
 export function yearsUntilGoal(input, maximumYears = 60) {
   validateProjectionInput(input)
 

@@ -1,31 +1,46 @@
 import { defaultPlan } from '../data/mock-plan.js'
+import {
+  loadStoredState,
+  removeStoredState,
+  sanitizeStoredState,
+  stateVersion,
+  storageKeys
+} from './state-storage.js'
 
-const storageKey = 'aposenta-plus-state-v1'
+const unavailableStorage = {
+  getItem: () => null,
+  setItem: () => { throw new Error('Armazenamento indisponível') },
+  removeItem: () => { throw new Error('Armazenamento indisponível') }
+}
 
-function readSavedState() {
+function resolveStorage() {
   try {
-    return JSON.parse(localStorage.getItem(storageKey) || '{}')
+    return globalThis.localStorage || unavailableStorage
   } catch {
-    return {}
+    return unavailableStorage
   }
 }
 
-const savedState = readSavedState()
+const appStorage = resolveStorage()
+const savedState = loadStoredState(appStorage)
 
 export const state = {
-  valuesHidden: Boolean(savedState.valuesHidden),
-  plan: {
-    ...defaultPlan,
-    ...(savedState.plan || {})
-  },
-  activeChartRange: savedState.activeChartRange || 'retirement'
+  ...savedState,
+  version: stateVersion
 }
 
 export function saveState() {
   try {
-    localStorage.setItem(storageKey, JSON.stringify(state))
+    appStorage.setItem(storageKeys.current, JSON.stringify(state))
+    try {
+      appStorage.removeItem(storageKeys.deletionMarker)
+    } catch {
+      // A versão atual tem precedência sobre um marcador antigo.
+    }
+    return true
   } catch {
     // O aplicativo continua funcional quando o armazenamento está indisponível.
+    return false
   }
 }
 
@@ -36,6 +51,27 @@ export function toggleValues() {
 
 export function updatePlan(patch) {
   state.plan = { ...state.plan, ...patch }
+  state.isDemo = false
+  state.lastUpdatedAt = new Date().toISOString()
+  saveState()
+}
+
+export function toggleReminder() {
+  state.reminderEnabled = !state.reminderEnabled
+  saveState()
+}
+
+export function addScenario(name, plan) {
+  if (state.scenarios.length >= 3) {
+    throw new RangeError('Você pode salvar até três cenários.')
+  }
+  const id = globalThis.crypto?.randomUUID?.() || `scenario-${Date.now()}`
+  state.scenarios.push({ id, name: name.trim().slice(0, 40), plan: { ...plan }, createdAt: new Date().toISOString() })
+  saveState()
+}
+
+export function removeScenario(id) {
+  state.scenarios = state.scenarios.filter((scenario) => scenario.id !== id)
   saveState()
 }
 
@@ -45,8 +81,21 @@ export function setChartRange(range) {
 }
 
 export function resetState() {
-  state.valuesHidden = false
-  state.plan = { ...defaultPlan }
-  state.activeChartRange = 'retirement'
-  saveState()
+  Object.assign(state, sanitizeStoredState({ plan: { ...defaultPlan }, isDemo: true }), { dataDeleted: false })
+  const saved = saveState()
+  const failedKeys = saved ? [] : [storageKeys.current]
+  if (saved) {
+    try {
+      appStorage.removeItem(storageKeys.legacy)
+    } catch {
+      failedKeys.push(storageKeys.legacy)
+    }
+  }
+  return { success: failedKeys.length === 0, failedKeys }
+}
+
+export function deleteLocalData() {
+  const result = removeStoredState(appStorage)
+  Object.assign(state, sanitizeStoredState({ plan: { ...defaultPlan }, isDemo: true }), { dataDeleted: true })
+  return result
 }

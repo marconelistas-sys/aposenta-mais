@@ -1,6 +1,7 @@
-import { user } from '../data/mock-plan.js'
 import { state } from './state.js'
 import { icon } from '../shared/icons.js'
+import { authState } from './auth-state.js'
+import { escapeHtml } from '../shared/formatters.js'
 
 const navigation = [
   { href: '/', label: 'Visão geral', icon: 'home' },
@@ -43,6 +44,9 @@ export function logo() {
 export function appLayout(content, pathname) {
   const visibilityLabel = state.valuesHidden ? 'Mostrar valores' : 'Ocultar valores'
   const visibilityIcon = state.valuesHidden ? 'eyeOff' : 'eye'
+  const accountLabel = authState.authenticated
+    ? escapeHtml(authState.user?.email || 'Conta conectada')
+    : 'Entrar'
 
   return `
     <header class="app-header">
@@ -73,12 +77,23 @@ export function appLayout(content, pathname) {
             ${icon('bell', 20)}
             <span class="notification-dot" aria-hidden="true"></span>
           </button>
-          <a class="avatar" href="/perfil" data-route aria-label="Abrir perfil de ${user.firstName}">
-            ${user.initials}
-          </a>
+          ${authState.authenticated ? `
+            <button class="icon-button" type="button" data-auth-logout aria-label="Sair da conta" title="Sair da conta">${icon('logout', 19)}</button>
+            <a class="avatar" href="/perfil" data-route aria-label="Abrir perfil de ${accountLabel}">AP</a>
+          ` : `
+            <a class="auth-entry" href="/entrar" data-route>${accountLabel}</a>
+          `}
         </div>
       </div>
     </header>
+
+    ${state.isDemo && !state.dataDeleted ? `
+      <aside class="demo-banner" aria-label="Modo de demonstração">
+        ${icon('info', 18)}
+        <span>Você está vendo dados de demonstração.</span>
+        <a href="/simulacoes" data-route>Inserir meus dados</a>
+      </aside>
+    ` : ''}
 
     <main id="conteudo" class="page-shell" tabindex="-1">
       ${content}
@@ -91,7 +106,7 @@ export function appLayout(content, pathname) {
           <span>Seus dados ficam neste dispositivo.</span>
         </div>
         <p>Estimativas para planejamento. Valores futuros não são garantidos.</p>
-        <a href="/perfil" data-route>Privacidade e dados</a>
+        <a href="/privacidade" data-route>Privacidade e dados</a>
       </div>
     </footer>
 

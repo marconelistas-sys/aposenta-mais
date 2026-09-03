@@ -1,46 +1,46 @@
-import { projectRetirement } from '../../domain/retirement.js'
-import { user } from '../../data/mock-plan.js'
+import { projectAssetSeries, projectRetirement } from '../../domain/retirement.js'
 import { state } from '../../app/state.js'
 import {
   formatCompactCurrency,
   formatCurrency,
   formatPercent,
+  formatUpdateTime,
   privateCurrency
 } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 
 const chartRanges = {
-  five: {
-    label: '5 anos',
-    endValue: 276000,
-    path: 'M18 190 C88 187 115 169 162 165 S242 140 292 139 S375 107 430 104 S514 78 574 63'
-  },
-  ten: {
-    label: '10 anos',
-    endValue: 493000,
-    path: 'M18 192 C76 190 114 181 160 174 S237 151 292 142 S382 112 432 99 S520 61 574 43'
-  },
-  retirement: {
-    label: 'Até a aposentadoria',
-    endValue: null,
-    path: 'M18 194 C81 193 114 188 160 178 S241 159 292 142 S381 112 432 86 S520 39 574 19'
-  }
+  five: { label: '5 anos', years: 5 },
+  ten: { label: '10 anos', years: 10 },
+  retirement: { label: 'Até a aposentadoria', years: null }
 }
 
 function privacyLabel(value) {
   return state.valuesHidden ? 'Valor oculto' : formatCurrency(value)
 }
 
-function chartMarkup(projectedAssets) {
+function chartMarkup(plan) {
   const selected = chartRanges[state.activeChartRange] || chartRanges.retirement
-  const endValue = selected.endValue || projectedAssets
+  const totalYears = plan.retirementAge - plan.currentAge
+  const years = selected.years ? Math.min(selected.years, totalYears) : totalYears
+  const series = projectAssetSeries(plan, years)
+  const maximum = Math.max(...series.map((point) => point.assets), 1)
+  const points = series.map((point, index) => {
+    const x = 18 + (556 * index) / Math.max(series.length - 1, 1)
+    const y = 194 - (174 * point.assets) / maximum
+    return { ...point, x, y }
+  })
+  const path = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ')
+  const lastPoint = points.at(-1)
+  const endValue = lastPoint.assets
+  const currentYear = new Date().getFullYear()
 
   return `
-    <div class="chart" role="img" aria-label="Projeção de patrimônio até ${formatCurrency(endValue)}">
+    <div class="chart" role="img" aria-label="${state.valuesHidden ? `Projeção calculada de patrimônio em ${years} anos. Valores ocultos.` : `Projeção calculada de patrimônio de ${formatCurrency(plan.currentAssets)} até ${formatCurrency(endValue)} em ${years} anos.`}">
       <div class="chart__y-axis" aria-hidden="true">
-        <span>${formatCompactCurrency(endValue)}</span>
-        <span>${formatCompactCurrency(endValue * 0.66)}</span>
-        <span>${formatCompactCurrency(endValue * 0.33)}</span>
+        <span>${formatCompactCurrency(maximum)}</span>
+        <span>${formatCompactCurrency(maximum * 0.66)}</span>
+        <span>${formatCompactCurrency(maximum * 0.33)}</span>
         <span>R$ 0</span>
       </div>
       <svg class="chart__svg" viewBox="0 0 600 220" preserveAspectRatio="none" aria-hidden="true">
@@ -56,15 +56,15 @@ function chartMarkup(projectedAssets) {
           <line x1="18" y1="136" x2="580" y2="136" />
           <line x1="18" y1="194" x2="580" y2="194" />
         </g>
-        <path class="chart__area" d="${selected.path} L574 194 L18 194 Z" />
-        <path class="chart__line" d="${selected.path}" />
-        <circle class="chart__point" cx="574" cy="${state.activeChartRange === 'retirement' ? 19 : state.activeChartRange === 'ten' ? 43 : 63}" r="5" />
-        <circle class="chart__point-ring" cx="574" cy="${state.activeChartRange === 'retirement' ? 19 : state.activeChartRange === 'ten' ? 43 : 63}" r="9" />
+        <path class="chart__area" d="${path} L${lastPoint.x.toFixed(2)} 194 L18 194 Z" />
+        <path class="chart__line" d="${path}" />
+        <circle class="chart__point" cx="${lastPoint.x.toFixed(2)}" cy="${lastPoint.y.toFixed(2)}" r="5" />
+        <circle class="chart__point-ring" cx="${lastPoint.x.toFixed(2)}" cy="${lastPoint.y.toFixed(2)}" r="9" />
       </svg>
       <div class="chart__x-axis" aria-hidden="true">
         <span>Hoje</span>
-        <span>${state.activeChartRange === 'five' ? '3 anos' : state.activeChartRange === 'ten' ? '5 anos' : '2039'}</span>
-        <span>${state.activeChartRange === 'five' ? '5 anos' : state.activeChartRange === 'ten' ? '10 anos' : '2052'}</span>
+        <span>${currentYear + Math.round(years / 2)}</span>
+        <span>${currentYear + years}</span>
       </div>
     </div>
   `
@@ -72,25 +72,25 @@ function chartMarkup(projectedAssets) {
 
 export function renderDashboard() {
   const result = projectRetirement(state.plan)
-  const incomeProgress = Math.min(
-    result.projectedMonthlyIncome / state.plan.targetMonthlyIncome,
-    1
-  )
+  const incomeProgress = state.plan.targetMonthlyIncome === 0
+    ? 1
+    : Math.min(Math.max(result.projectedMonthlyIncome / state.plan.targetMonthlyIncome, 0), 1)
   const investmentIncome = result.projectedInvestmentIncome
   const expectedYear = new Date().getFullYear() +
     (state.plan.retirementAge - state.plan.currentAge)
-  const increase = 200
+  const increase = Math.max(0, Math.min(200, 4000 - state.plan.monthlyContribution))
+  const canUseQuickAdjustment = increase > 0
 
   return `
     <section class="page-heading page-heading--dashboard">
       <div>
         <p class="eyebrow">SEU FUTURO FINANCEIRO</p>
-        <h1>Olá, ${user.firstName}. Seu plano está no caminho.</h1>
+        <h1>${result.goalReached ? 'Sua meta está coberta neste cenário.' : 'Seu plano mostra o próximo ajuste.'}</h1>
         <p>Veja o que mudou e qual é o próximo passo para a sua meta.</p>
       </div>
       <div class="last-update">
         <span class="status-dot" aria-hidden="true"></span>
-        Plano atualizado ${user.planUpdatedAt.toLowerCase()}
+        Atualização: ${formatUpdateTime(state.lastUpdatedAt)}
       </div>
     </section>
 
@@ -119,7 +119,7 @@ export function renderDashboard() {
           <span style="width: ${incomeProgress * 100}%"></span>
         </div>
         <div class="income-card__footer">
-          <span>${icon('trendUp', 18)} Seu plano avançou 3% nos últimos 6 meses</span>
+          <span>${icon(result.goalReached ? 'check' : 'trendUp', 18)} ${result.goalReached ? 'Meta coberta pelas premissas atuais' : `Lacuna mensal de ${formatCurrency(Math.max(result.monthlyIncomeGap, 0))}`}</span>
           <a class="text-link text-link--light" href="/plano" data-route>
             Ver meu plano ${icon('arrowRight', 17)}
           </a>
@@ -129,12 +129,18 @@ export function renderDashboard() {
       <article class="next-action-card">
         <div class="next-action-card__icon">${icon('sparkles', 22)}</div>
         <p class="eyebrow eyebrow--dark">PRÓXIMA MELHOR AÇÃO</p>
-        <h2>Chegue mais perto com um pequeno ajuste.</h2>
-        <p>Ao aumentar seu aporte em <strong>${formatCurrency(increase)}</strong>, você pode reduzir o caminho até sua meta.</p>
-        <button class="button button--dark button--full" type="button" data-apply-adjustment>
-          Aplicar aporte de ${formatCurrency(state.plan.monthlyContribution + increase)}
-          ${icon('arrowRight', 18)}
-        </button>
+        <h2>${canUseQuickAdjustment ? 'Chegue mais perto com um pequeno ajuste.' : 'Compare uma nova combinação.'}</h2>
+        <p>${canUseQuickAdjustment ? `Ao aumentar seu aporte em <strong>${formatCurrency(increase)}</strong>, você pode reduzir o caminho até sua meta.` : 'Use o simulador para testar idade, renda desejada e outras premissas.'}</p>
+        ${canUseQuickAdjustment ? `
+          <button class="button button--dark button--full" type="button" data-apply-adjustment>
+            Aplicar aporte de ${formatCurrency(state.plan.monthlyContribution + increase)}
+            ${icon('arrowRight', 18)}
+          </button>
+        ` : `
+          <a class="button button--dark button--full" href="/simulacoes" data-route>
+            Abrir simulador ${icon('arrowRight', 18)}
+          </a>
+        `}
         <a class="text-link" href="/simulacoes" data-route>Ver como calculamos</a>
       </article>
     </section>
@@ -163,7 +169,7 @@ export function renderDashboard() {
         <div>
           <p>Aporte mensal atual</p>
           <strong class="money-value">${privateCurrency(state.plan.monthlyContribution, state.valuesHidden)}</strong>
-          <span>Último ajuste há 3 meses</span>
+          <span>${state.isDemo ? 'Valor de demonstração' : 'Valor salvo no dispositivo'}</span>
         </div>
         <a href="/plano" data-route aria-label="Ver aporte mensal">${icon('chevronRight', 19)}</a>
       </article>
@@ -187,7 +193,7 @@ export function renderDashboard() {
             `).join('')}
           </div>
         </div>
-        ${chartMarkup(result.projectedAssets)}
+        ${chartMarkup(state.plan)}
         <div class="chart-insight">
           <span class="chart-insight__icon">${icon('trendUp', 18)}</span>
           <p>Mantendo seu plano, você pode chegar a <strong class="money-value">${privateCurrency(result.projectedAssets, state.valuesHidden)}</strong> em valores de hoje.</p>
@@ -204,7 +210,7 @@ export function renderDashboard() {
             ${icon('pie', 20, 'panel__header-icon')}
           </div>
           <div class="income-sources__content">
-            <div class="donut" style="--first-share: ${Math.round((state.plan.expectedMonthlyBenefit / result.projectedMonthlyIncome) * 100)}%" role="img" aria-label="Distribuição entre INSS e investimentos">
+            <div class="donut" style="--first-share: ${result.projectedMonthlyIncome > 0 ? Math.min(Math.round((state.plan.expectedMonthlyBenefit / result.projectedMonthlyIncome) * 100), 100) : 0}%" role="img" aria-label="Distribuição entre benefício e investimentos">
               <div>
                 <span>Total</span>
                 <strong class="money-value">${privateCurrency(result.projectedMonthlyIncome, state.valuesHidden)}</strong>
@@ -227,8 +233,8 @@ export function renderDashboard() {
         <article class="panel confidence-card">
           <div class="confidence-card__icon">${icon('shield', 22)}</div>
           <div>
-            <h3>Plano com premissas saudáveis</h3>
-            <p>Seu retorno real está em 5% ao ano e a retirada em 4%.</p>
+            <h3>Premissas visíveis e ajustáveis</h3>
+            <p>Retorno real de ${formatPercent(state.plan.annualRealReturn)} ao ano e retirada de ${formatPercent(state.plan.annualWithdrawalRate)}.</p>
           </div>
           <a href="/simulacoes" data-route aria-label="Ver premissas">${icon('chevronRight', 19)}</a>
         </article>

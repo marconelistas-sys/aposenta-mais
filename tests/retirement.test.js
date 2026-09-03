@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  projectAssetSeries,
   projectRetirement,
   validateProjectionInput,
   yearsUntilGoal
@@ -97,4 +98,30 @@ test('encontra o primeiro prazo anual que alcança a meta', () => {
   })
 
   assert.equal(years, 26)
+})
+
+test('gera série anual coerente com a projeção final', () => {
+  const series = projectAssetSeries(baseInput, 30)
+  const result = projectRetirement(baseInput)
+
+  assert.equal(series.length, 31)
+  assertClose(series.at(-1).assets, result.projectedAssets)
+})
+
+test('mantém resultados finitos quando renda desejada e benefício são zero', () => {
+  const result = projectRetirement({
+    ...baseInput,
+    targetMonthlyIncome: 0,
+    expectedMonthlyBenefit: 0
+  })
+
+  for (const value of Object.values(result)) {
+    if (typeof value === 'number') assert.equal(Number.isFinite(value), true)
+  }
+})
+
+test('mais aporte não reduz o patrimônio projetado', () => {
+  const base = projectRetirement(baseInput)
+  const increased = projectRetirement({ ...baseInput, monthlyContribution: 1500 })
+  assert.ok(increased.projectedAssets > base.projectedAssets)
 })

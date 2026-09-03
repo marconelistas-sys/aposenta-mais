@@ -1,10 +1,14 @@
 import { appLayout } from './app/layout.js'
 import {
+  addScenario,
+  deleteLocalData,
+  removeScenario,
   resetState,
   saveState,
   setChartRange,
   state,
   toggleValues,
+  toggleReminder,
   updatePlan
 } from './app/state.js'
 import { projectRetirement } from './domain/retirement.js'
@@ -12,11 +16,28 @@ import { renderContent } from './features/content/content.js'
 import { renderDashboard } from './features/dashboard/dashboard.js'
 import { renderPlan } from './features/plan/plan.js'
 import { renderProfile } from './features/profile/profile.js'
+import { renderDeletedState, renderPrivacy } from './features/privacy/privacy.js'
 import {
   renderSimulationResult,
   renderSimulations
 } from './features/simulations/simulations.js'
 import { formatCurrency, parseNumber } from './shared/formatters.js'
+import { serializeExportableState } from './app/state-storage.js'
+import {
+  authState,
+  loadAuthState,
+  login,
+  logout,
+  recoverAccount,
+  registerAccount,
+  updatePassword
+} from './app/auth-state.js'
+import {
+  renderLogin,
+  renderNewPassword,
+  renderRecovery,
+  renderRegister
+} from './features/auth/auth.js'
 
 const app = document.querySelector('#app')
 const toastRegion = document.querySelector('#toast-region')
@@ -26,7 +47,12 @@ const routes = {
   '/plano': renderPlan,
   '/simulacoes': renderSimulations,
   '/conteudos': renderContent,
-  '/perfil': renderProfile
+  '/perfil': renderProfile,
+  '/privacidade': renderPrivacy,
+  '/entrar': renderLogin,
+  '/cadastro': renderRegister,
+  '/recuperar-senha': renderRecovery,
+  '/nova-senha': renderNewPassword
 }
 
 function currentPath() {
@@ -34,10 +60,31 @@ function currentPath() {
   return path || '/'
 }
 
+function captureSimulationForm() {
+  const form = document.querySelector('[data-simulation-form]')
+  if (!form) return null
+  return Object.fromEntries(new FormData(form).entries())
+}
+
+function restoreSimulationForm(values) {
+  if (!values) return
+  const form = document.querySelector('[data-simulation-form]')
+  if (!form) return
+  for (const [name, value] of Object.entries(values)) {
+    const field = form.elements.namedItem(name)
+    if (field) field.value = value
+  }
+}
+
 function render({ focusMain = false } = {}) {
   const pathname = currentPath()
-  const pageRenderer = routes[pathname] || renderDashboard
+  const simulationValues = pathname === '/simulacoes' ? captureSimulationForm() : null
+  const selectedRenderer = routes[pathname] || renderDashboard
+  const pageRenderer = state.dataDeleted && !['/perfil', '/privacidade'].includes(pathname)
+    ? renderDeletedState
+    : selectedRenderer
   app.innerHTML = appLayout(pageRenderer(), pathname)
+  restoreSimulationForm(simulationValues)
   document.body.classList.toggle('values-hidden', state.valuesHidden)
 
   if (focusMain) {
@@ -54,9 +101,12 @@ function navigate(href) {
 let toastTimer
 function showToast(message) {
   window.clearTimeout(toastTimer)
-  toastRegion.innerHTML = `<div class="toast">${message}</div>`
+  const toast = document.createElement('div')
+  toast.className = 'toast'
+  toast.textContent = String(message)
+  toastRegion.replaceChildren(toast)
   toastTimer = window.setTimeout(() => {
-    toastRegion.innerHTML = ''
+    toastRegion.replaceChildren()
   }, 3200)
 }
 
@@ -75,19 +125,23 @@ function simulationInputFromForm(form) {
 }
 
 function exportData() {
-  const file = new Blob([JSON.stringify({ plan: state.plan }, null, 2)], {
-    type: 'application/json'
-  })
-  const url = URL.createObjectURL(file)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'aposenta-plus-dados.json'
-  link.click()
-  URL.revokeObjectURL(url)
-  showToast('Arquivo preparado com seus dados do plano.')
+  try {
+    const file = new Blob([serializeExportableState(state)], {
+      type: 'application/json'
+    })
+    const url = URL.createObjectURL(file)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'aposenta-plus-dados.json'
+    link.click()
+    URL.revokeObjectURL(url)
+    showToast('Arquivo preparado com seus dados do plano.')
+  } catch {
+    showToast('Não foi possível exportar seus dados. Tente novamente.')
+  }
 }
 
-document.addEventListener('click', (event) => {
+document.addEventListener('click', async (event) => {
   const routeLink = event.target.closest('[data-route]')
   if (routeLink) {
     event.preventDefault()
@@ -103,7 +157,18 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target.closest('[data-notifications]')) {
-    showToast('Tudo certo. Seu plano está atualizado.')
+    showToast('A central de notificações entra em uma próxima etapa.')
+    return
+  }
+
+  if (event.target.closest('[data-auth-logout]')) {
+    try {
+      await logout()
+      navigate('/entrar')
+      showToast('Sessão encerrada.')
+    } catch (error) {
+      showToast(error.message)
+    }
     return
   }
 
@@ -132,11 +197,46 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target.closest('[data-reminder]')) {
-    const reminder = event.target.closest('[data-reminder]')
-    const active = reminder.getAttribute('aria-checked') === 'true'
-    reminder.setAttribute('aria-checked', String(!active))
-    reminder.classList.toggle('is-active', !active)
-    showToast(!active ? 'Lembrete mensal ativado.' : 'Lembrete mensal desativado.')
+    toggleReminder()
+    render()
+    showToast(state.reminderEnabled ? 'Lembrete mensal ativado.' : 'Lembrete mensal desativado.')
+    return
+  }
+
+  if (event.target.closest('[data-apply-simulation]')) {
+    const form = document.querySelector('[data-simulation-form]')
+    try {
+      const plan = simulationInputFromForm(form)
+      projectRetirement(plan)
+      updatePlan(plan)
+      navigate('/')
+      showToast('Simulação aplicada ao plano principal.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  if (event.target.closest('[data-save-scenario]')) {
+    const form = document.querySelector('[data-simulation-form]')
+    const name = new FormData(form).get('scenarioName')?.trim()
+    try {
+      const plan = simulationInputFromForm(form)
+      projectRetirement(plan)
+      addScenario(name || `Cenário ${state.scenarios.length + 1}`, plan)
+      render()
+      showToast('Cenário salvo para comparação.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  const removeScenarioButton = event.target.closest('[data-remove-scenario]')
+  if (removeScenarioButton) {
+    removeScenario(removeScenarioButton.dataset.removeScenario)
+    render()
+    showToast('Cenário excluído.')
     return
   }
 
@@ -146,9 +246,27 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target.closest('[data-reset-data]')) {
-    resetState()
+    if (!window.confirm('Restaurar os dados de demonstração? Seus ajustes e cenários salvos serão removidos.')) return
+    const result = resetState()
+    if (!result.success) {
+      showToast('A demonstração foi aberta, mas dados anteriores podem não ter sido removidos. Tente apagar os dados novamente.')
+      render()
+      return
+    }
     render()
     showToast('Dados de exemplo restaurados.')
+    return
+  }
+
+  if (event.target.closest('[data-delete-data]')) {
+    const confirmed = window.confirm('Apagar de forma irreversível o plano, os cenários e as preferências salvos neste navegador?')
+    if (!confirmed) return
+
+    const result = deleteLocalData()
+    render()
+    showToast(result.success
+      ? 'Seus dados locais foram apagados.'
+      : 'Não foi possível apagar todos os dados. Verifique o navegador e tente novamente.')
   }
 })
 
@@ -170,7 +288,55 @@ document.addEventListener('change', (event) => {
   }
 })
 
-document.addEventListener('submit', (event) => {
+document.addEventListener('submit', async (event) => {
+  const authForm = event.target.closest('[data-auth-form]')
+  if (authForm) {
+    event.preventDefault()
+    const submitButton = authForm.querySelector('[type="submit"]')
+    const feedback = document.querySelector('[data-auth-feedback]')
+    const data = new FormData(authForm)
+    const action = authForm.dataset.authForm
+    submitButton.disabled = true
+    feedback.textContent = ''
+    feedback.classList.remove('is-error')
+
+    try {
+      let result
+      if (action === 'login') {
+        await login({ email: data.get('email'), password: data.get('password') })
+        navigate('/perfil')
+        showToast('Login realizado.')
+        return
+      }
+      if (action === 'register') {
+        result = await registerAccount({
+          email: data.get('email'),
+          password: data.get('password'),
+          acceptedTerms: data.get('acceptedTerms') === 'on'
+        })
+      }
+      if (action === 'recover') result = await recoverAccount({ email: data.get('email') })
+      if (action === 'password') {
+        if (data.get('password') !== data.get('passwordConfirmation')) {
+          throw new Error('As senhas informadas não são iguais.')
+        }
+        result = await updatePassword({ password: data.get('password') })
+        Object.assign(authState, { authenticated: false, user: null })
+        navigate('/entrar')
+        showToast(result.message)
+        return
+      }
+      feedback.textContent = result?.message || 'Operação concluída.'
+      authForm.reset()
+    } catch (error) {
+      feedback.textContent = error.message
+      feedback.classList.add('is-error')
+    } finally {
+      submitButton.disabled = false
+    }
+    return
+  }
+
   const form = event.target.closest('[data-simulation-form]')
   if (!form) return
   event.preventDefault()
@@ -187,7 +353,11 @@ document.addEventListener('submit', (event) => {
     })
     showToast('Projeção atualizada.')
   } catch (error) {
-    resultContainer.innerHTML = `<div class="form-error" role="alert">${error.message}</div>`
+    const errorBox = document.createElement('div')
+    errorBox.className = 'form-error'
+    errorBox.setAttribute('role', 'alert')
+    errorBox.textContent = String(error.message)
+    resultContainer.replaceChildren(errorBox)
   }
 })
 
@@ -195,3 +365,4 @@ window.addEventListener('popstate', () => render({ focusMain: true }))
 
 saveState()
 render()
+loadAuthState().then(() => render())
