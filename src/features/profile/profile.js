@@ -1,5 +1,4 @@
 import { state } from '../../app/state.js'
-import { user } from '../../data/mock-plan.js'
 import { icon } from '../../shared/icons.js'
 
 export function renderProfile() {
@@ -14,8 +13,8 @@ export function renderProfile() {
 
     <section class="profile-layout">
       <aside class="panel profile-summary">
-        <div class="profile-avatar">${user.initials}</div>
-        <h2>${user.firstName} P.</h2>
+        <div class="profile-avatar">AP</div>
+        <h2>${state.isDemo ? 'Plano de demonstração' : 'Meu plano'}</h2>
         <p>Plano pessoal</p>
         <span class="profile-status"><i></i> Plano ativo</span>
       </aside>
@@ -32,8 +31,8 @@ export function renderProfile() {
           </div>
           <div class="settings-row">
             <div class="settings-row__icon">${icon('bell', 20)}</div>
-            <div><strong>Lembrete mensal</strong><p>Receba um lembrete local para revisar seu aporte.</p></div>
-            <button class="switch is-active" type="button" role="switch" aria-checked="true" data-reminder aria-label="Ativar lembrete mensal"><span></span></button>
+            <div><strong>Preferência de lembrete</strong><p>Salve sua escolha neste dispositivo. As notificações entram em uma próxima etapa.</p></div>
+            <button class="switch ${state.reminderEnabled ? 'is-active' : ''}" type="button" role="switch" aria-checked="${state.reminderEnabled}" data-reminder aria-label="Ativar lembrete mensal"><span></span></button>
           </div>
         </section>
 

@@ -1,10 +1,13 @@
 import { appLayout } from './app/layout.js'
 import {
+  addScenario,
+  removeScenario,
   resetState,
   saveState,
   setChartRange,
   state,
   toggleValues,
+  toggleReminder,
   updatePlan
 } from './app/state.js'
 import { projectRetirement } from './domain/retirement.js'
@@ -34,10 +37,28 @@ function currentPath() {
   return path || '/'
 }
 
+function captureSimulationForm() {
+  const form = document.querySelector('[data-simulation-form]')
+  if (!form) return null
+  return Object.fromEntries(new FormData(form).entries())
+}
+
+function restoreSimulationForm(values) {
+  if (!values) return
+  const form = document.querySelector('[data-simulation-form]')
+  if (!form) return
+  for (const [name, value] of Object.entries(values)) {
+    const field = form.elements.namedItem(name)
+    if (field) field.value = value
+  }
+}
+
 function render({ focusMain = false } = {}) {
   const pathname = currentPath()
+  const simulationValues = pathname === '/simulacoes' ? captureSimulationForm() : null
   const pageRenderer = routes[pathname] || renderDashboard
   app.innerHTML = appLayout(pageRenderer(), pathname)
+  restoreSimulationForm(simulationValues)
   document.body.classList.toggle('values-hidden', state.valuesHidden)
 
   if (focusMain) {
@@ -75,7 +96,7 @@ function simulationInputFromForm(form) {
 }
 
 function exportData() {
-  const file = new Blob([JSON.stringify({ plan: state.plan }, null, 2)], {
+  const file = new Blob([JSON.stringify(state, null, 2)], {
     type: 'application/json'
   })
   const url = URL.createObjectURL(file)
@@ -103,7 +124,7 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target.closest('[data-notifications]')) {
-    showToast('Tudo certo. Seu plano está atualizado.')
+    showToast('A central de notificações entra em uma próxima etapa.')
     return
   }
 
@@ -132,11 +153,46 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target.closest('[data-reminder]')) {
-    const reminder = event.target.closest('[data-reminder]')
-    const active = reminder.getAttribute('aria-checked') === 'true'
-    reminder.setAttribute('aria-checked', String(!active))
-    reminder.classList.toggle('is-active', !active)
-    showToast(!active ? 'Lembrete mensal ativado.' : 'Lembrete mensal desativado.')
+    toggleReminder()
+    render()
+    showToast(state.reminderEnabled ? 'Lembrete mensal ativado.' : 'Lembrete mensal desativado.')
+    return
+  }
+
+  if (event.target.closest('[data-apply-simulation]')) {
+    const form = document.querySelector('[data-simulation-form]')
+    try {
+      const plan = simulationInputFromForm(form)
+      projectRetirement(plan)
+      updatePlan(plan)
+      navigate('/')
+      showToast('Simulação aplicada ao plano principal.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  if (event.target.closest('[data-save-scenario]')) {
+    const form = document.querySelector('[data-simulation-form]')
+    const name = new FormData(form).get('scenarioName')?.trim()
+    try {
+      const plan = simulationInputFromForm(form)
+      projectRetirement(plan)
+      addScenario(name || `Cenário ${state.scenarios.length + 1}`, plan)
+      render()
+      showToast('Cenário salvo para comparação.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  const removeScenarioButton = event.target.closest('[data-remove-scenario]')
+  if (removeScenarioButton) {
+    removeScenario(removeScenarioButton.dataset.removeScenario)
+    render()
+    showToast('Cenário excluído.')
     return
   }
 
@@ -146,6 +202,7 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target.closest('[data-reset-data]')) {
+    if (!window.confirm('Restaurar os dados de demonstração? Seus ajustes e cenários salvos serão removidos.')) return
     resetState()
     render()
     showToast('Dados de exemplo restaurados.')

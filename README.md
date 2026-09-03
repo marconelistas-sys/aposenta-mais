@@ -10,6 +10,10 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 - Área de conteúdos e preferências.
 - Opção para ocultar valores e exportar os dados locais.
 - Motor financeiro isolado da interface.
+- Gráfico patrimonial calculado pelo mesmo motor da projeção.
+- Estado local validado e versionado.
+- Comparação de até três cenários salvos no dispositivo.
+- Aplicação de uma simulação ao plano principal.
 - Testes automatizados com o executor nativo do Node.js.
 - Build estático sem dependências externas.
 

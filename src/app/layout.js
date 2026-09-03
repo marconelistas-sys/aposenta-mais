@@ -1,4 +1,3 @@
-import { user } from '../data/mock-plan.js'
 import { state } from './state.js'
 import { icon } from '../shared/icons.js'
 
@@ -73,12 +72,20 @@ export function appLayout(content, pathname) {
             ${icon('bell', 20)}
             <span class="notification-dot" aria-hidden="true"></span>
           </button>
-          <a class="avatar" href="/perfil" data-route aria-label="Abrir perfil de ${user.firstName}">
-            ${user.initials}
+          <a class="avatar" href="/perfil" data-route aria-label="Abrir perfil do plano">
+            AP
           </a>
         </div>
       </div>
     </header>
+
+    ${state.isDemo ? `
+      <aside class="demo-banner" aria-label="Modo de demonstração">
+        ${icon('info', 18)}
+        <span>Você está vendo dados de demonstração.</span>
+        <a href="/simulacoes" data-route>Inserir meus dados</a>
+      </aside>
+    ` : ''}
 
     <main id="conteudo" class="page-shell" tabindex="-1">
       ${content}

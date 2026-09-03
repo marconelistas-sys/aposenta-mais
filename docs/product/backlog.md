@@ -37,3 +37,13 @@
 - US-021: excluir conta e dados.
 - US-022: manter auditoria dos cálculos.
 
+## Sprint de modernização concluído
+
+- Gráfico patrimonial calculado com a mesma entrada do motor.
+- Estado local validado, migrado e limitado aos campos conhecidos.
+- Identificação explícita dos dados de demonstração.
+- Aplicação de uma simulação ao plano principal.
+- Persistência e comparação de até três cenários.
+- Confirmação antes da restauração dos dados.
+- Persistência da preferência de lembrete.
+- Correções para progresso acessível e resultados com renda igual a zero.

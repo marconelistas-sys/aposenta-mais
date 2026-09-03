@@ -31,7 +31,7 @@ export function renderPlan() {
           <span>Renda projetada</span>
           <strong class="money-value">${privateCurrency(result.projectedMonthlyIncome, state.valuesHidden)}</strong>
         </div>
-        <div class="progress-track" role="progressbar" aria-label="Progresso da meta" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(result.progress * 100)}">
+        <div class="progress-track" role="progressbar" aria-label="Progresso da meta" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(Math.max(Math.round(result.progress * 100), 0), 100)}">
           <span style="width: ${Math.min(result.progress * 100, 100)}%"></span>
         </div>
         <p class="goal-card__caption">Você construiu ${formatPercent(result.progress)} do patrimônio necessário para essa renda.</p>
@@ -47,10 +47,11 @@ export function renderPlan() {
             ${privateCurrency(state.plan.monthlyContribution, state.valuesHidden)}
           </output>
         </div>
-        <label class="range-label" for="monthly-contribution">
+        <label class="range-control-label" for="monthly-contribution">Aporte mensal</label>
+        <div class="range-label" aria-hidden="true">
           <span>R$ 500</span>
           <span>R$ 4.000</span>
-        </label>
+        </div>
         <input
           id="monthly-contribution"
           class="range-input"
