@@ -23,6 +23,21 @@ import {
 } from './features/simulations/simulations.js'
 import { formatCurrency, parseNumber } from './shared/formatters.js'
 import { serializeExportableState } from './app/state-storage.js'
+import {
+  authState,
+  loadAuthState,
+  login,
+  logout,
+  recoverAccount,
+  registerAccount,
+  updatePassword
+} from './app/auth-state.js'
+import {
+  renderLogin,
+  renderNewPassword,
+  renderRecovery,
+  renderRegister
+} from './features/auth/auth.js'
 
 const app = document.querySelector('#app')
 const toastRegion = document.querySelector('#toast-region')
@@ -33,7 +48,11 @@ const routes = {
   '/simulacoes': renderSimulations,
   '/conteudos': renderContent,
   '/perfil': renderProfile,
-  '/privacidade': renderPrivacy
+  '/privacidade': renderPrivacy,
+  '/entrar': renderLogin,
+  '/cadastro': renderRegister,
+  '/recuperar-senha': renderRecovery,
+  '/nova-senha': renderNewPassword
 }
 
 function currentPath() {
@@ -122,7 +141,7 @@ function exportData() {
   }
 }
 
-document.addEventListener('click', (event) => {
+document.addEventListener('click', async (event) => {
   const routeLink = event.target.closest('[data-route]')
   if (routeLink) {
     event.preventDefault()
@@ -139,6 +158,17 @@ document.addEventListener('click', (event) => {
 
   if (event.target.closest('[data-notifications]')) {
     showToast('A central de notificações entra em uma próxima etapa.')
+    return
+  }
+
+  if (event.target.closest('[data-auth-logout]')) {
+    try {
+      await logout()
+      navigate('/entrar')
+      showToast('Sessão encerrada.')
+    } catch (error) {
+      showToast(error.message)
+    }
     return
   }
 
@@ -258,7 +288,51 @@ document.addEventListener('change', (event) => {
   }
 })
 
-document.addEventListener('submit', (event) => {
+document.addEventListener('submit', async (event) => {
+  const authForm = event.target.closest('[data-auth-form]')
+  if (authForm) {
+    event.preventDefault()
+    const submitButton = authForm.querySelector('[type="submit"]')
+    const feedback = document.querySelector('[data-auth-feedback]')
+    const data = new FormData(authForm)
+    const action = authForm.dataset.authForm
+    submitButton.disabled = true
+    feedback.textContent = ''
+    feedback.classList.remove('is-error')
+
+    try {
+      let result
+      if (action === 'login') {
+        await login({ email: data.get('email'), password: data.get('password') })
+        navigate('/perfil')
+        showToast('Login realizado.')
+        return
+      }
+      if (action === 'register') {
+        result = await registerAccount({
+          email: data.get('email'),
+          password: data.get('password'),
+          acceptedTerms: data.get('acceptedTerms') === 'on'
+        })
+      }
+      if (action === 'recover') result = await recoverAccount({ email: data.get('email') })
+      if (action === 'password') {
+        if (data.get('password') !== data.get('passwordConfirmation')) {
+          throw new Error('As senhas informadas não são iguais.')
+        }
+        result = await updatePassword({ password: data.get('password') })
+      }
+      feedback.textContent = result?.message || 'Operação concluída.'
+      authForm.reset()
+    } catch (error) {
+      feedback.textContent = error.message
+      feedback.classList.add('is-error')
+    } finally {
+      submitButton.disabled = false
+    }
+    return
+  }
+
   const form = event.target.closest('[data-simulation-form]')
   if (!form) return
   event.preventDefault()
@@ -287,3 +361,4 @@ window.addEventListener('popstate', () => render({ focusMain: true }))
 
 saveState()
 render()
+loadAuthState().then(() => render())

@@ -2,12 +2,12 @@
 
 ## Objetivo
 
-Definir e implementar a base de identidade do Aposenta+ para que cada usuário acesse somente seus próprios dados. A Sprint não deve armazenar senhas ou tokens de sessão no `localStorage`.
+Definir e implementar a base de identidade do Aposenta+ sem enviar o plano financeiro ao servidor. A Sprint não deve armazenar senhas ou tokens de sessão no `localStorage`.
 
-## Decisões P0 antes da implementação
+## Decisões P0
 
-1. Escolher um provedor de identidade gerenciado ou justificar uma implementação própria.
-2. Definir a API, o banco de dados, a hospedagem e a gestão de segredos.
+1. Provedor escolhido: Supabase Auth no plano Free para desenvolvimento e MVP inicial.
+2. O backend Node acessa a API Auth. Tokens permanecem em cookies `HttpOnly`.
 3. Definir controlador, contato de privacidade, base legal e termos aplicáveis.
 4. Definir como dados locais serão migrados para uma conta somente após consentimento explícito.
 5. Aprovar o modelo de ameaças para cadastro, login, sessão e recuperação de acesso.
@@ -36,7 +36,7 @@ Critérios de aceite:
 - O servidor aplica proteção contra CSRF quando necessária.
 - Tentativas recebem limitação por conta e origem, com resposta que evita enumeração de usuários.
 - O logout invalida a sessão no servidor e remove o cookie.
-- A autorização verifica o proprietário em todo acesso a plano e cenário.
+- A futura sincronização deverá verificar o proprietário em todo acesso a plano e cenário.
 
 ### US-024: recuperar acesso
 
@@ -55,8 +55,8 @@ Como usuário, quero acompanhar e reforçar a segurança da minha conta.
 
 Critérios de aceite:
 
-- O produto oferece autenticação multifator ou documenta sua entrega como bloqueador da beta.
-- O usuário visualiza e encerra sessões ativas.
+- O produto documenta autenticação multifator como bloqueador da beta.
+- A gestão de múltiplas sessões fica registrada para a próxima etapa.
 - Mudanças de e-mail, senha e MFA exigem confirmação reforçada.
 - Alertas de segurança não expõem dados do plano.
 
@@ -74,25 +74,37 @@ Critérios de aceite:
 ## Testes obrigatórios
 
 - Cadastro, verificação, login, logout e recuperação.
-- Autorização horizontal entre dois usuários.
+- Autorização horizontal entre dois usuários quando o plano for sincronizado.
 - Expiração, revogação e rotação de sessão.
 - Limitação de tentativas e resistência a enumeração.
 - CSRF, XSS e injeção nos pontos de entrada.
 - Exclusão de conta e dados, incluindo tratamento de backups.
 - Migração local somente após confirmação do usuário.
 
-## Fora do escopo até aprovação das decisões P0
+## Fora do escopo desta entrega
 
 - Integração com Meu INSS ou Open Finance.
 - Login social adicional.
 - Recomendações financeiras personalizadas.
 - Importação automática dos dados locais para uma conta.
+- Sincronização do plano com PostgreSQL e autorização horizontal de dados financeiros.
+- MFA e gestão de múltiplas sessões.
+- Exclusão administrativa da conta Supabase.
+
+## Resultado da implementação
+
+- Cadastro, confirmação, login, logout, recuperação e troca de senha implementados.
+- Sessão renovável em cookies protegidos, sem token no `localStorage`.
+- Origem validada em operações mutáveis.
+- Limitação de tentativas aplicada a cadastro, login e recuperação.
+- Interface informa quando o Supabase ainda não foi configurado.
+- Testes usam respostas simuladas e não exigem uma conta paga.
 
 ## Definition of Done
 
 - Arquitetura e modelo de ameaças revisados.
 - Contrato da API versionado.
 - Testes automatizados aprovados em integração contínua.
-- Revisão de segurança sem achados críticos ou altos.
+- Revisão de segurança local sem achados críticos ou altos.
 - Aviso de privacidade atualizado antes da coleta remota.
 - Procedimento de incidentes, exclusão e recuperação documentado.

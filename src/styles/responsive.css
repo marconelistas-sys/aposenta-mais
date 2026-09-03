@@ -301,6 +301,24 @@
     flex-direction: column;
   }
 
+  .auth-layout {
+    min-height: auto;
+  }
+
+  .auth-card {
+    padding: 26px 20px;
+  }
+
+  .auth-links {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .account-status {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .mobile-nav {
     position: fixed;
     z-index: 60;

@@ -12,6 +12,8 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 - Exclusão irreversível do plano, cenários e preferências armazenados localmente.
 - Aviso de privacidade acessível pela aplicação.
 - Política de Segurança de Conteúdo e cabeçalhos defensivos no servidor local.
+- Cadastro, login, recuperação de senha e logout integrados ao Supabase Auth.
+- Sessão em cookies `HttpOnly`, sem tokens no `localStorage`.
 - Motor financeiro isolado da interface.
 - Gráfico patrimonial calculado pelo mesmo motor da projeção.
 - Estado local validado e versionado.
@@ -29,6 +31,17 @@ npm run dev
 ```
 
 Abra `http://127.0.0.1:4173`.
+
+Para ativar o Supabase Auth no plano gratuito, copie `.env.example` para `.env`, preencha a URL e a chave publicável do projeto e carregue as variáveis antes de iniciar o servidor. O Node.js não lê o arquivo `.env` automaticamente.
+
+```bash
+set -a
+source .env
+set +a
+npm run dev
+```
+
+Sem essas variáveis, a aplicação continua em modo de demonstração e informa que as contas ainda não foram configuradas. Consulte `docs/security/supabase-auth.md` para configurar URLs e modelos de e-mail.
 
 Para validar todo o projeto:
 
@@ -69,6 +82,8 @@ aposenta-plus/
 │   │   ├── profile/
 │   │   ├── privacy/
 │   │   └── simulations/
+│   ├── server/
+│   │   └── auth/
 │   ├── shared/
 │   │   ├── formatters.js
 │   │   └── icons.js
@@ -87,7 +102,8 @@ aposenta-plus/
 
 - A primeira versão não usa dependências. Isso reduz instalação, risco de pacote e tempo para iniciar.
 - A regra de projeção fica em `src/domain`. A interface não contém fórmulas financeiras.
-- O estado usa `localStorage`. O protótipo não possui conta, API ou sincronização e não envia esses dados a um servidor.
+- O plano financeiro continua em `localStorage` nesta Sprint. O Supabase recebe somente dados de identidade e autenticação quando configurado.
+- Tokens de acesso e renovação ficam em cookies `HttpOnly` controlados pelo backend Node.
 - Valores futuros usam retorno real. Isso mantém a leitura em poder de compra de hoje.
 - O nome técnico do pacote usa `aposenta-plus`, pois o caractere `+` costuma exigir tratamento especial em URLs e ferramentas.
 

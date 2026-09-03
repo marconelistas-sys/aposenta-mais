@@ -1,5 +1,7 @@
 import { state } from './state.js'
 import { icon } from '../shared/icons.js'
+import { authState } from './auth-state.js'
+import { escapeHtml } from '../shared/formatters.js'
 
 const navigation = [
   { href: '/', label: 'Visão geral', icon: 'home' },
@@ -42,6 +44,9 @@ export function logo() {
 export function appLayout(content, pathname) {
   const visibilityLabel = state.valuesHidden ? 'Mostrar valores' : 'Ocultar valores'
   const visibilityIcon = state.valuesHidden ? 'eyeOff' : 'eye'
+  const accountLabel = authState.authenticated
+    ? escapeHtml(authState.user?.email || 'Conta conectada')
+    : 'Entrar'
 
   return `
     <header class="app-header">
@@ -72,9 +77,12 @@ export function appLayout(content, pathname) {
             ${icon('bell', 20)}
             <span class="notification-dot" aria-hidden="true"></span>
           </button>
-          <a class="avatar" href="/perfil" data-route aria-label="Abrir perfil do plano">
-            AP
-          </a>
+          ${authState.authenticated ? `
+            <button class="icon-button" type="button" data-auth-logout aria-label="Sair da conta" title="Sair da conta">${icon('logout', 19)}</button>
+            <a class="avatar" href="/perfil" data-route aria-label="Abrir perfil de ${accountLabel}">AP</a>
+          ` : `
+            <a class="auth-entry" href="/entrar" data-route>${accountLabel}</a>
+          `}
         </div>
       </div>
     </header>

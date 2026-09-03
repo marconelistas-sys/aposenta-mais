@@ -1,4 +1,6 @@
 import { state } from '../../app/state.js'
+import { authState } from '../../app/auth-state.js'
+import { escapeHtml } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 
 export function renderProfile() {
@@ -35,6 +37,24 @@ export function renderProfile() {
       </aside>
 
       <div class="profile-settings">
+        <section class="panel settings-card">
+          <div class="panel__header">
+            <div><p class="eyebrow">CONTA</p><h2>${authState.authenticated ? 'Sessão ativa' : 'Acesso entre dispositivos'}</h2></div>
+            ${icon('user', 21, 'panel__header-icon')}
+          </div>
+          ${authState.authenticated ? `
+            <div class="account-status">
+              <div><strong>${escapeHtml(authState.user?.email || '')}</strong><p>Autenticação gerenciada pelo Supabase. O plano financeiro continua local nesta Sprint.</p></div>
+              <button class="button button--secondary" type="button" data-auth-logout>${icon('logout', 17)} Sair</button>
+            </div>
+          ` : `
+            <div class="account-status">
+              <div><strong>Nenhuma conta conectada</strong><p>Entre ou crie uma conta. Seus dados financeiros não serão enviados ao Supabase nesta Sprint.</p></div>
+              <a class="button button--primary" href="/entrar" data-route>Entrar</a>
+            </div>
+          `}
+        </section>
+
         <section class="panel settings-card">
           <div class="panel__header">
             <div><p class="eyebrow">EXPERIÊNCIA</p><h2>Preferências</h2></div>
