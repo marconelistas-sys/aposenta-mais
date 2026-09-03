@@ -24,6 +24,17 @@ O plano, os cenários e as preferências continuam locais. Esta Sprint não sinc
 4. Preencha `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `APP_ORIGIN`.
 5. Use `COOKIE_SECURE=true` em produção com HTTPS.
 
+Carregue o arquivo e valide a conexão sem criar uma conta:
+
+```bash
+set -a
+source .env
+set +a
+npm run check:auth-config
+```
+
+O resultado deve confirmar `connected`, o provedor de e-mail e a exigência de confirmação. O comando não imprime a chave.
+
 Nunca coloque a chave `service_role` neste projeto ou no navegador. A chave publicável identifica o projeto. Row Level Security continua obrigatória para qualquer tabela exposta.
 
 ## URLs permitidas

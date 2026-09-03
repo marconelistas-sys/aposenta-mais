@@ -43,6 +43,12 @@ npm run dev
 
 Sem essas variáveis, a aplicação continua em modo de demonstração e informa que as contas ainda não foram configuradas. Consulte `docs/security/supabase-auth.md` para configurar URLs e modelos de e-mail.
 
+Para validar a URL e a chave publicável sem criar usuários:
+
+```bash
+npm run check:auth-config
+```
+
 Para validar todo o projeto:
 
 ```bash
