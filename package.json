@@ -1,0 +1,18 @@
+{
+  "name": "aposenta-plus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MVP web do Aposenta+, planejamento de aposentadoria com privacidade local.",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "start": "node scripts/dev-server.mjs",
+    "check": "node --check src/main.js && node --check src/domain/retirement.js && node --check scripts/dev-server.mjs && node --check scripts/build.mjs",
+    "test": "node --test",
+    "build": "node scripts/build.mjs",
+    "validate": "npm run check && npm test && npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

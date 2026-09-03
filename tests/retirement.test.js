@@ -1,0 +1,100 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+import {
+  projectRetirement,
+  validateProjectionInput,
+  yearsUntilGoal
+} from '../src/domain/retirement.js'
+
+const baseInput = {
+  currentAge: 35,
+  retirementAge: 65,
+  currentAssets: 50000,
+  monthlyContribution: 1000,
+  annualRealReturn: 0.05,
+  targetMonthlyIncome: 8000,
+  expectedMonthlyBenefit: 3500,
+  annualWithdrawalRate: 0.04
+}
+
+function assertClose(actual, expected, tolerance = 0.02) {
+  assert.ok(
+    Math.abs(actual - expected) <= tolerance,
+    `Esperava ${expected}, recebeu ${actual}`
+  )
+}
+
+test('projeta patrimônio e renda para o cenário base', () => {
+  const result = projectRetirement(baseInput)
+
+  assert.equal(result.months, 360)
+  assertClose(result.projectedAssets, 1031473.03)
+  assertClose(result.targetAssets, 1350000)
+  assertClose(result.projectedMonthlyIncome, 6938.24)
+  assertClose(result.monthlyIncomeGap, 1061.76)
+  assertClose(result.requiredMonthlyContribution, 1390.65)
+  assert.equal(result.goalReached, false)
+})
+
+test('calcula aportes sem retorno real', () => {
+  const result = projectRetirement({
+    ...baseInput,
+    currentAssets: 0,
+    annualRealReturn: 0
+  })
+
+  assert.equal(result.projectedAssets, 360000)
+  assert.equal(result.monthlyRate, 0)
+  assert.equal(result.requiredMonthlyContribution, 3750)
+})
+
+test('identifica meta atingida', () => {
+  const result = projectRetirement({
+    ...baseInput,
+    currentAssets: 500000,
+    monthlyContribution: 4000
+  })
+
+  assert.equal(result.goalReached, true)
+  assert.ok(result.monthlyIncomeGap < 0)
+  assert.ok(result.progress > 1)
+})
+
+test('trata renda já coberta pelo benefício', () => {
+  const result = projectRetirement({
+    ...baseInput,
+    targetMonthlyIncome: 3000,
+    expectedMonthlyBenefit: 3500
+  })
+
+  assert.equal(result.targetAssets, 0)
+  assert.equal(result.progress, 1)
+  assert.equal(result.requiredMonthlyContribution, 0)
+  assert.equal(result.goalReached, true)
+})
+
+test('rejeita idades e valores inválidos', () => {
+  assert.throws(
+    () => validateProjectionInput({ ...baseInput, retirementAge: 30 }),
+    /maior que a idade atual/
+  )
+  assert.throws(
+    () => validateProjectionInput({ ...baseInput, currentAssets: -1 }),
+    /não pode ser negativo/
+  )
+  assert.throws(
+    () => validateProjectionInput({ ...baseInput, annualWithdrawalRate: 0 }),
+    /taxa de retirada/
+  )
+})
+
+test('encontra o primeiro prazo anual que alcança a meta', () => {
+  const years = yearsUntilGoal({
+    ...baseInput,
+    retirementAge: 65,
+    monthlyContribution: 2000
+  })
+
+  assert.equal(years, 26)
+})
