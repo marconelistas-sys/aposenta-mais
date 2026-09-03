@@ -1,4 +1,5 @@
 import { defaultPlan } from '../data/mock-plan.js'
+import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import {
   loadStoredState,
   removeStoredState,
@@ -56,6 +57,13 @@ export function updatePlan(patch) {
   saveState()
 }
 
+export function updateCashFlow(patch) {
+  state.cashFlow = { ...state.cashFlow, ...patch }
+  state.isDemo = false
+  state.lastUpdatedAt = new Date().toISOString()
+  saveState()
+}
+
 export function toggleReminder() {
   state.reminderEnabled = !state.reminderEnabled
   saveState()
@@ -81,14 +89,16 @@ export function setChartRange(range) {
 }
 
 export function resetState() {
-  Object.assign(state, sanitizeStoredState({ plan: { ...defaultPlan }, isDemo: true }), { dataDeleted: false })
+  Object.assign(state, sanitizeStoredState({ plan: { ...defaultPlan }, cashFlow: { ...defaultCashFlow }, isDemo: true }), { dataDeleted: false })
   const saved = saveState()
   const failedKeys = saved ? [] : [storageKeys.current]
   if (saved) {
-    try {
-      appStorage.removeItem(storageKeys.legacy)
-    } catch {
-      failedKeys.push(storageKeys.legacy)
+    for (const key of [storageKeys.legacy, storageKeys.oldest]) {
+      try {
+        appStorage.removeItem(key)
+      } catch {
+        failedKeys.push(key)
+      }
     }
   }
   return { success: failedKeys.length === 0, failedKeys }
@@ -96,6 +106,6 @@ export function resetState() {
 
 export function deleteLocalData() {
   const result = removeStoredState(appStorage)
-  Object.assign(state, sanitizeStoredState({ plan: { ...defaultPlan }, isDemo: true }), { dataDeleted: true })
+  Object.assign(state, sanitizeStoredState({ plan: { ...defaultPlan }, cashFlow: { ...defaultCashFlow }, isDemo: true }), { dataDeleted: true })
   return result
 }
