@@ -1,12 +1,98 @@
 openapi: 3.1.0
 info:
   title: Aposenta+ API
-  version: 0.1.0
-  description: Contrato inicial para execução futura de projeções no servidor.
+  version: 0.2.0
+  description: Contrato da autenticação e da execução futura de projeções no servidor.
 servers:
-  - url: /api/v1
+  - url: /api
 paths:
-  /retirement-goals/{goalId}/projection-runs:
+  /auth/status:
+    get:
+      summary: Consulta a configuração e a sessão atual
+      responses:
+        '200':
+          description: Estado da autenticação
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatus'
+  /auth/register:
+    post:
+      summary: Solicita a criação de uma conta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '202':
+          description: Solicitação aceita sem revelar se a conta já existe
+  /auth/login:
+    post:
+      summary: Autentica com e-mail e senha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Sessão criada em cookies HttpOnly
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        '401':
+          description: Credenciais não aceitas
+  /auth/recover:
+    post:
+      summary: Solicita recuperação de acesso
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  maxLength: 254
+      responses:
+        '202':
+          description: Solicitação aceita sem revelar se a conta existe
+  /auth/logout:
+    post:
+      summary: Revoga e remove a sessão atual
+      responses:
+        '200':
+          description: Sessão encerrada
+  /auth/password:
+    post:
+      summary: Atualiza a senha durante uma sessão válida de recuperação
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+      responses:
+        '200':
+          description: Senha atualizada, sessões revogadas e cookies removidos
+        '401':
+          description: Sessão ausente ou expirada
+        '502':
+          description: Senha atualizada, mas a revogação global das sessões não foi confirmada
+  /v1/retirement-goals/{goalId}/projection-runs:
     post:
       summary: Executa uma projeção determinística
       parameters:
@@ -35,6 +121,44 @@ paths:
                 $ref: '#/components/schemas/ProjectionResult'
 components:
   schemas:
+    AuthStatus:
+      type: object
+      required: [configured, authenticated]
+      properties:
+        configured:
+          type: boolean
+        authenticated:
+          type: boolean
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            email:
+              type: string
+              format: email
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          maxLength: 128
+    RegisterRequest:
+      allOf:
+        - $ref: '#/components/schemas/LoginRequest'
+        - type: object
+          required: [acceptedTerms]
+          properties:
+            password:
+              minLength: 12
+            acceptedTerms:
+              type: boolean
+              const: true
     ProjectionRequest:
       type: object
       required:
@@ -78,4 +202,3 @@ components:
           type: array
           items:
             type: string
-

@@ -15,7 +15,7 @@ export function renderPrivacy() {
         ${icon('shield', 24)}
         <div>
           <h2>Resumo direto</h2>
-          <p>O Aposenta+ não possui cadastro, login, servidor de aplicação, API ou banco de dados. Plano, cenários e preferências ficam no armazenamento local deste navegador e não são enviados pela aplicação.</p>
+          <p>Plano, cenários e preferências continuam no armazenamento local deste navegador. Quando a conta Supabase estiver configurada, e-mail e sessão serão processados pelo serviço de autenticação, sem enviar o plano financeiro nesta Sprint.</p>
         </div>
       </article>
 
@@ -46,7 +46,7 @@ export function renderPrivacy() {
 
       <article class="panel privacy-card">
         <h2>Próxima etapa do produto</h2>
-        <p>Antes de uma versão com contas ou servidor de aplicação, deverão ser definidos controlador, contato de privacidade, base legal, prazos e processo para atender direitos previstos na LGPD.</p>
+        <p>Antes de ativar contas para usuários reais, deverão ser definidos controlador, contato de privacidade, base legal, prazos e processo para atender direitos previstos na LGPD.</p>
       </article>
     </section>
   `

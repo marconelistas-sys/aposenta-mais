@@ -60,7 +60,7 @@ test('exclusão remove dados persistidos sem restaurá-los', () => {
 test('aviso explica armazenamento, retenção, controles e limites', () => {
   const html = renderPrivacy()
 
-  assert.match(html, /não possui cadastro, login, servidor de aplicação, API ou banco de dados/i)
+  assert.match(html, /e-mail e sessão serão processados pelo serviço de autenticação/i)
   assert.match(html, /armazenamento local/i)
   assert.match(html, /até você usar “Apagar meus dados”/i)
   assert.match(html, /não criptografia/i)
