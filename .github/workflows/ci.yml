@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, sprint-1]
+    branches: [main, "sprint-*"]
 
 permissions:
   contents: read
@@ -17,4 +17,3 @@ jobs:
         with:
           node-version: 20
       - run: npm run validate
-
