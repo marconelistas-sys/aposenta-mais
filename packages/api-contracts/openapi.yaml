@@ -1,0 +1,81 @@
+openapi: 3.1.0
+info:
+  title: Aposenta+ API
+  version: 0.1.0
+  description: Contrato inicial para execução futura de projeções no servidor.
+servers:
+  - url: /api/v1
+paths:
+  /retirement-goals/{goalId}/projection-runs:
+    post:
+      summary: Executa uma projeção determinística
+      parameters:
+        - in: path
+          name: goalId
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectionRequest'
+      responses:
+        '200':
+          description: Projeção concluída
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionResult'
+components:
+  schemas:
+    ProjectionRequest:
+      type: object
+      required:
+        - assumptionSetVersion
+        - targetMonthlyIncome
+        - expectedMonthlyBenefit
+      properties:
+        assumptionSetVersion:
+          type: string
+          example: BR-2026.09.1
+        targetMonthlyIncome:
+          type: string
+          pattern: '^\\d+\\.\\d{2}$'
+          example: '12000.00'
+        expectedMonthlyBenefit:
+          type: string
+          pattern: '^\\d+\\.\\d{2}$'
+          example: '4500.00'
+    ProjectionResult:
+      type: object
+      required:
+        - projectionRunId
+        - calculationVersion
+        - assumptionSetVersion
+        - amountBasis
+        - monthlyIncomeGap
+      properties:
+        projectionRunId:
+          type: string
+        calculationVersion:
+          type: string
+        assumptionSetVersion:
+          type: string
+        amountBasis:
+          type: string
+          enum: [REAL_TODAY]
+        monthlyIncomeGap:
+          type: string
+          example: '7500.00'
+        warnings:
+          type: array
+          items:
+            type: string
+
