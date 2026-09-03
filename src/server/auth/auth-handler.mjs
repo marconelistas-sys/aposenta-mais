@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import { clearSessionCookies, parseCookies, sessionCookies, authCookieNames } from './cookies.mjs'
 import { readAuthConfig } from './config.mjs'
 import { createRateLimiter } from './rate-limiter.mjs'
@@ -39,11 +41,32 @@ function clientAddress(request) {
   return request.socket?.remoteAddress || 'unknown'
 }
 
+function accountKey(email, pathname) {
+  const normalized = typeof email === 'string' ? email.trim().toLowerCase() : 'invalid'
+  const fingerprint = createHash('sha256').update(normalized).digest('hex')
+  return `${fingerprint}:${pathname}`
+}
+
+function consumeLimit(response, limiter, key) {
+  const rate = limiter.consume(key)
+  response.setHeader('RateLimit-Remaining', String(rate.remaining))
+  if (!rate.allowed) {
+    json(response, 429, { error: 'Muitas tentativas. Aguarde antes de tentar novamente.' }, { 'Retry-After': String(rate.retryAfter) })
+    return false
+  }
+  return true
+}
+
 function sessionPayload(user) {
   return { authenticated: true, user: { id: user.id, email: user.email || '' } }
 }
 
-export function createAuthHandler({ env = process.env, fetchImpl = fetch, limiter = createRateLimiter() } = {}) {
+export function createAuthHandler({
+  env = process.env,
+  fetchImpl = fetch,
+  limiter = createRateLimiter(),
+  accountLimiter = createRateLimiter()
+} = {}) {
   const config = readAuthConfig(env)
   const auth = config.configured ? createSupabaseAuth({ ...config, fetchImpl }) : null
 
@@ -100,17 +123,13 @@ export function createAuthHandler({ env = process.env, fetchImpl = fetch, limite
 
     const sensitiveRoutes = new Set(['/api/auth/register', '/api/auth/login', '/api/auth/recover'])
     if (sensitiveRoutes.has(url.pathname)) {
-      const rate = limiter.consume(`${clientAddress(request)}:${url.pathname}`)
-      response.setHeader('RateLimit-Remaining', String(rate.remaining))
-      if (!rate.allowed) {
-        json(response, 429, { error: 'Muitas tentativas. Aguarde antes de tentar novamente.' }, { 'Retry-After': String(rate.retryAfter) })
-        return true
-      }
+      if (!consumeLimit(response, limiter, `${clientAddress(request)}:${url.pathname}`)) return true
     }
 
     try {
       if (request.method === 'POST' && url.pathname === '/api/auth/register') {
         const { email, password, acceptedTerms } = await readJson(request)
+        if (!consumeLimit(response, accountLimiter, accountKey(email, url.pathname))) return true
         if (!validEmail(email) || !validPassword(password) || acceptedTerms !== true) {
           json(response, 400, { error: 'Revise o e-mail, a senha e a aceitação dos termos.' })
           return true
@@ -122,6 +141,7 @@ export function createAuthHandler({ env = process.env, fetchImpl = fetch, limite
 
       if (request.method === 'POST' && url.pathname === '/api/auth/login') {
         const { email, password } = await readJson(request)
+        if (!consumeLimit(response, accountLimiter, accountKey(email, url.pathname))) return true
         if (!validEmail(email) || typeof password !== 'string') {
           json(response, 401, { error: loginMessage })
           return true
@@ -134,6 +154,7 @@ export function createAuthHandler({ env = process.env, fetchImpl = fetch, limite
 
       if (request.method === 'POST' && url.pathname === '/api/auth/recover') {
         const { email } = await readJson(request)
+        if (!consumeLimit(response, accountLimiter, accountKey(email, url.pathname))) return true
         if (validEmail(email)) await auth.recover(email.trim().toLowerCase(), `${config.appOrigin}/api/auth/confirm?next=/nova-senha`)
         json(response, 202, { message: genericAuthMessage })
         return true
@@ -141,7 +162,7 @@ export function createAuthHandler({ env = process.env, fetchImpl = fetch, limite
 
       if (request.method === 'POST' && url.pathname === '/api/auth/logout') {
         const session = await requireUser(request, response)
-        if (session) await auth.signOut(session.accessToken).catch(() => {})
+        if (session) await auth.signOut(session.accessToken, 'local').catch(() => {})
         response.setHeader('Set-Cookie', clearSessionCookies(config.secureCookies))
         json(response, 200, { authenticated: false })
         return true
@@ -159,7 +180,14 @@ export function createAuthHandler({ env = process.env, fetchImpl = fetch, limite
           return true
         }
         await auth.updatePassword(session.accessToken, password)
-        json(response, 200, { message: 'Senha atualizada.' })
+        response.setHeader('Set-Cookie', clearSessionCookies(config.secureCookies))
+        try {
+          await auth.signOut(session.accessToken, 'global')
+        } catch {
+          json(response, 502, { error: 'A senha foi atualizada, mas não foi possível encerrar todas as sessões. Entre novamente e revise a segurança da conta.' })
+          return true
+        }
+        json(response, 200, { message: 'Senha atualizada. Entre novamente.', authenticated: false })
         return true
       }
 

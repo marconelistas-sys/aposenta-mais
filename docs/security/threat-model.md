@@ -17,7 +17,7 @@ O escopo é a aplicação estática e seu armazenamento local. Os ativos são pl
 | Roubo de token por XSS | tomada de sessão | tokens em cookies `HttpOnly`, CSP e saída dinâmica escapada | scripts da origem ainda podem agir em nome do usuário |
 | CSRF | ação não solicitada na conta | `SameSite=Lax` e validação exata de `Origin` em operações mutáveis | configuração incorreta de `APP_ORIGIN` bloqueia operações legítimas |
 | Enumeração de conta | descoberta de e-mails cadastrados | respostas genéricas em cadastro, recuperação e falha de login | tempo de resposta do provedor ainda deve ser monitorado |
-| Força bruta | acesso indevido por tentativas repetidas | limite por endereço e rota | limitador em memória não cobre várias instâncias |
+| Força bruta | acesso indevido por tentativas repetidas | limite por endereço, rota e hash do e-mail normalizado | limitador em memória não cobre várias instâncias |
 | Sessão expirada ou forjada | acesso indevido | consulta `getUser` ao Supabase e renovação server-side | disponibilidade depende do serviço externo |
 
 ## Premissas

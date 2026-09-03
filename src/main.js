@@ -321,6 +321,10 @@ document.addEventListener('submit', async (event) => {
           throw new Error('As senhas informadas não são iguais.')
         }
         result = await updatePassword({ password: data.get('password') })
+        Object.assign(authState, { authenticated: false, user: null })
+        navigate('/entrar')
+        showToast(result.message)
+        return
       }
       feedback.textContent = result?.message || 'Operação concluída.'
       authForm.reset()

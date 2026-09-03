@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { Readable } from 'node:stream'
 
 import { createAuthHandler } from '../src/server/auth/auth-handler.mjs'
+import { createRateLimiter } from '../src/server/auth/rate-limiter.mjs'
 
 const env = {
   SUPABASE_URL: 'https://project.supabase.co',
@@ -11,11 +12,11 @@ const env = {
   COOKIE_SECURE: 'false'
 }
 
-function request(method, body, headers = {}) {
+function request(method, body, headers = {}, remoteAddress = '127.0.0.1') {
   const stream = Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))])
   stream.method = method
   stream.headers = headers
-  stream.socket = { remoteAddress: '127.0.0.1' }
+  stream.socket = { remoteAddress }
   return stream
 }
 
@@ -30,8 +31,8 @@ function response() {
   }
 }
 
-async function call(handler, path, { method = 'GET', body, headers = {} } = {}) {
-  const req = request(method, body, headers)
+async function call(handler, path, { method = 'GET', body, headers = {}, remoteAddress } = {}) {
+  const req = request(method, body, headers, remoteAddress)
   const res = response()
   const handled = await handler(req, res, new URL(path, 'http://127.0.0.1:4173'))
   return { handled, status: res.status, headers: res.headers, body: JSON.parse(res.body) }
@@ -153,5 +154,89 @@ test('logout revoga a sessão e expira os cookies', async () => {
   assert.equal(result.status, 200)
   assert.equal(result.body.authenticated, false)
   assert.ok(result.headers['Set-Cookie'].every((value) => value.includes('Max-Age=0')))
-  assert.ok(calls.some(({ url }) => url.endsWith('/logout')))
+  assert.ok(calls.some(({ url }) => url.endsWith('/logout?scope=local')))
+})
+
+test('limita tentativas da mesma conta mesmo quando o endereço muda', async () => {
+  const accountLimiter = createRateLimiter({ limit: 1 })
+  const handler = createAuthHandler({
+    env,
+    accountLimiter,
+    fetchImpl: async () => ({ ok: false, status: 400, json: async () => ({ error_code: 'invalid_credentials' }) })
+  })
+  const options = {
+    method: 'POST',
+    body: { email: 'PESSOA@example.com', password: 'incorreta' },
+    headers: { origin: env.APP_ORIGIN }
+  }
+
+  const first = await call(handler, '/api/auth/login', { ...options, remoteAddress: '10.0.0.1' })
+  const second = await call(handler, '/api/auth/login', { ...options, remoteAddress: '10.0.0.2' })
+  const differentAccount = await call(handler, '/api/auth/login', {
+    ...options,
+    body: { ...options.body, email: 'outra@example.com' },
+    remoteAddress: '10.0.0.3'
+  })
+
+  assert.equal(first.status, 401)
+  assert.equal(second.status, 429)
+  assert.equal(differentAccount.status, 401)
+})
+
+test('troca de senha revoga todas as sessões e exige novo login', async () => {
+  const calls = []
+  const handler = createAuthHandler({
+    env,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options })
+      if (url.endsWith('/user') && options.method === 'GET') {
+        return { ok: true, json: async () => ({ id: 'user-1', email: 'pessoa@example.com' }) }
+      }
+      return { ok: true, json: async () => ({}) }
+    }
+  })
+  const result = await call(handler, '/api/auth/password', {
+    method: 'POST',
+    body: { password: 'nova-senha-segura-123' },
+    headers: { origin: env.APP_ORIGIN, cookie: 'aposenta-access=access-secret' }
+  })
+
+  assert.equal(result.status, 200)
+  assert.equal(result.body.authenticated, false)
+  assert.ok(result.headers['Set-Cookie'].every((value) => value.includes('Max-Age=0')))
+  assert.ok(calls.some(({ url }) => url.endsWith('/logout?scope=global')))
+})
+
+test('troca de senha remove cookies mesmo quando a revogação global falha', async () => {
+  const handler = createAuthHandler({
+    env,
+    fetchImpl: async (url, options) => {
+      if (url.endsWith('/user') && options.method === 'GET') {
+        return { ok: true, json: async () => ({ id: 'user-1', email: 'pessoa@example.com' }) }
+      }
+      if (url.endsWith('/logout?scope=global')) {
+        return { ok: false, status: 503, json: async () => ({ error_code: 'temporarily_unavailable' }) }
+      }
+      return { ok: true, json: async () => ({}) }
+    }
+  })
+  const result = await call(handler, '/api/auth/password', {
+    method: 'POST',
+    body: { password: 'nova-senha-segura-123' },
+    headers: { origin: env.APP_ORIGIN, cookie: 'aposenta-access=access-secret' }
+  })
+
+  assert.equal(result.status, 502)
+  assert.match(result.body.error, /senha foi atualizada/)
+  assert.ok(result.headers['Set-Cookie'].every((value) => value.includes('Max-Age=0')))
+})
+
+test('cookie malformado não derruba a consulta de sessão', async () => {
+  const handler = createAuthHandler({ env, fetchImpl: async () => { throw new Error('não deve chamar') } })
+  const result = await call(handler, '/api/auth/status', {
+    headers: { cookie: 'aposenta-access=%E0%A4%A' }
+  })
+
+  assert.equal(result.status, 200)
+  assert.equal(result.body.authenticated, false)
 })

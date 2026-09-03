@@ -11,7 +11,12 @@ export function parseCookies(header = '') {
     header.split(';').map((part) => part.trim()).filter(Boolean).map((part) => {
       const separator = part.indexOf('=')
       if (separator < 0) return [part, '']
-      return [part.slice(0, separator), decodeURIComponent(part.slice(separator + 1))]
+      const value = part.slice(separator + 1)
+      try {
+        return [part.slice(0, separator), decodeURIComponent(value)]
+      } catch {
+        return [part.slice(0, separator), '']
+      }
     })
   )
 }

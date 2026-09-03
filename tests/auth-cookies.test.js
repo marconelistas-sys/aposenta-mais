@@ -39,3 +39,7 @@ test('logout expira os dois cookies', () => {
   assert.equal(cookies.length, 2)
   assert.ok(cookies.every((value) => value.includes('Max-Age=0')))
 })
+
+test('ignora valor de cookie com codificação inválida', () => {
+  assert.equal(parseCookies('aposenta-access=%E0%A4%A')['aposenta-access'], '')
+})

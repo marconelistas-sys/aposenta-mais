@@ -10,8 +10,9 @@
 - Cookies `HttpOnly` e `SameSite=Lax`.
 - Cookies `Secure` em produção.
 - Verificação da identidade no Supabase em cada consulta de sessão.
-- Verificação de origem e limite de tentativas em memória.
+- Verificação de origem e limite de tentativas em memória por endereço e hash SHA-256 do e-mail normalizado.
 - Respostas genéricas para cadastro, recuperação e falha de login.
+- Revogação global das sessões depois da troca de senha.
 
 O plano, os cenários e as preferências continuam locais. Esta Sprint não sincroniza dados financeiros.
 

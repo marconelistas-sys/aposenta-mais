@@ -87,9 +87,11 @@ paths:
                   maxLength: 128
       responses:
         '200':
-          description: Senha atualizada
+          description: Senha atualizada, sessões revogadas e cookies removidos
         '401':
           description: Sessão ausente ou expirada
+        '502':
+          description: Senha atualizada, mas a revogação global das sessões não foi confirmada
   /v1/retirement-goals/{goalId}/projection-runs:
     post:
       summary: Executa uma projeção determinística

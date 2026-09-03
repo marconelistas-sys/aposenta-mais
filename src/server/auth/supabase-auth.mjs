@@ -38,8 +38,9 @@ export function createSupabaseAuth({ url, anonKey, fetchImpl = fetch }) {
     getUser(accessToken) {
       return request('/user', { method: 'GET', accessToken })
     },
-    signOut(accessToken) {
-      return request('/logout', { accessToken })
+    signOut(accessToken, scope = 'local') {
+      const allowedScope = ['global', 'local', 'others'].includes(scope) ? scope : 'local'
+      return request(`/logout?scope=${allowedScope}`, { accessToken })
     },
     recover(email, redirectTo) {
       return request(`/recover?redirect_to=${encodeURIComponent(redirectTo)}`, { body: { email } })

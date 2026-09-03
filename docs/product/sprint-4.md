@@ -97,6 +97,9 @@ Critérios de aceite:
 - Sessão renovável em cookies protegidos, sem token no `localStorage`.
 - Origem validada em operações mutáveis.
 - Limitação de tentativas aplicada a cadastro, login e recuperação.
+- Limitação combinada por endereço e hash SHA-256 do e-mail normalizado.
+- Troca de senha encerra todas as sessões e exige novo login.
+- Cookies malformados são descartados sem interromper a aplicação.
 - Interface informa quando o Supabase ainda não foi configurado.
 - Testes usam respostas simuladas e não exigem uma conta paga.
 

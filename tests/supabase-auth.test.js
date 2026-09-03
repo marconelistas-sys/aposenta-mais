@@ -37,3 +37,19 @@ test('traduz falhas do Supabase sem carregar sua mensagem para a interface', asy
     return true
   })
 })
+
+test('envia o escopo de revogação ao encerrar sessões', async () => {
+  let capturedUrl
+  const auth = createSupabaseAuth({
+    url: 'https://project.supabase.co',
+    anonKey: 'anon-key',
+    fetchImpl: async (url) => {
+      capturedUrl = url
+      return { ok: true, json: async () => ({}) }
+    }
+  })
+
+  await auth.signOut('access-secret', 'global')
+
+  assert.equal(capturedUrl, 'https://project.supabase.co/auth/v1/logout?scope=global')
+})
