@@ -149,10 +149,26 @@ paths:
       responses:
         '200':
           description: Cópia criada ou atualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [exists, updatedAt, consentVersion]
+                properties:
+                  exists:
+                    type: boolean
+                  updatedAt:
+                    type: [string, 'null']
+                    format: date-time
+                  consentVersion:
+                    type: string
         '400':
           description: Consentimento ausente ou documento inválido
         '401':
           description: Sessão ausente ou expirada
+        '503':
+          description: API de autenticação ainda não configurada
     delete:
       summary: Exclui a cópia financeira e o registro de consentimento
       responses:
