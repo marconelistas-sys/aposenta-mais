@@ -38,12 +38,9 @@ npm run dev
 
 Abra `http://127.0.0.1:4173`.
 
-Para ativar o Supabase Auth no plano gratuito, copie `.env.example` para `.env`, preencha a URL e a chave publicável do projeto e carregue as variáveis antes de iniciar o servidor. O Node.js não lê o arquivo `.env` automaticamente.
+Para ativar o Supabase Auth no plano gratuito, copie `.env.example` para `.env` e preencha a URL e a chave publicável do projeto. O comando de desenvolvimento carrega o arquivo automaticamente.
 
 ```bash
-set -a
-source .env
-set +a
 npm run dev
 ```
 
