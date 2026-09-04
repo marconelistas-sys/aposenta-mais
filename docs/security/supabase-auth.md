@@ -14,7 +14,7 @@
 - Respostas genéricas para cadastro, recuperação e falha de login.
 - Revogação global das sessões depois da troca de senha.
 
-O plano, os cenários e as preferências continuam locais. Esta Sprint não sincroniza dados financeiros.
+O plano, o fluxo de caixa e os cenários continuam locais por padrão. A Sprint 6 adiciona uma cópia financeira manual, separada do login e condicionada a consentimento explícito. Preferências visuais continuam somente no dispositivo.
 
 ## Criar o projeto gratuito
 
@@ -36,6 +36,18 @@ npm run check:auth-config
 O resultado deve confirmar `connected`, o provedor de e-mail e a exigência de confirmação. O comando não imprime a chave.
 
 Nunca coloque a chave `service_role` neste projeto ou no navegador. A chave publicável identifica o projeto. Row Level Security continua obrigatória para qualquer tabela exposta.
+
+## Ativar a cópia financeira
+
+Execute `supabase/migrations/202609040001_sprint_6_financial_plans.sql` no SQL Editor do projeto. Como alternativa, vincule o Supabase CLI ao projeto e execute `supabase db push`.
+
+Depois da migração, confira no painel:
+
+- RLS habilitada e forçada em `public.financial_plans`.
+- Quatro políticas para `select`, `insert`, `update` e `delete`.
+- Ausência de permissão para `anon`.
+- Acesso concedido somente ao papel `authenticated`.
+- Uma conta não consegue consultar nem alterar a linha de outra conta.
 
 ## URLs permitidas
 

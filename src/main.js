@@ -3,6 +3,7 @@ import {
   addScenario,
   deleteLocalData,
   removeScenario,
+  replaceFinancialData,
   resetState,
   saveState,
   setChartRange,
@@ -12,6 +13,14 @@ import {
   updatePlan,
   updateCashFlow
 } from './app/state.js'
+import {
+  deleteRemoteState,
+  loadRemoteState,
+  loadSyncState,
+  resetSyncState,
+  saveRemoteState,
+  syncState
+} from './app/sync-state.js'
 import { calculateCashFlow } from './domain/cash-flow.js'
 import { projectRetirement } from './domain/retirement.js'
 import { renderContent } from './features/content/content.js'
@@ -183,8 +192,42 @@ document.addEventListener('click', async (event) => {
   if (event.target.closest('[data-auth-logout]')) {
     try {
       await logout()
+      resetSyncState()
       navigate('/entrar')
       showToast('Sessão encerrada.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  if (event.target.closest('[data-sync-pull]')) {
+    if (!window.confirm('Substituir o plano, o fluxo de caixa e os cenários locais pela cópia remota?')) return
+    try {
+      const remote = await loadRemoteState()
+      replaceFinancialData(remote.state)
+      await loadSyncState()
+      render()
+      showToast('Cópia remota aplicada neste dispositivo.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  if (event.target.closest('[data-sync-refresh]')) {
+    await loadSyncState()
+    render()
+    showToast(syncState.available ? 'Estado da cópia remota atualizado.' : syncState.error)
+    return
+  }
+
+  if (event.target.closest('[data-sync-delete]')) {
+    if (!window.confirm('Excluir de forma irreversível a cópia financeira armazenada no Supabase? Os dados locais serão mantidos.')) return
+    try {
+      await deleteRemoteState()
+      render()
+      showToast('Cópia remota e consentimento excluídos. Seus dados locais foram mantidos.')
     } catch (error) {
       showToast(error.message)
     }
@@ -317,6 +360,28 @@ document.addEventListener('change', (event) => {
 })
 
 document.addEventListener('submit', async (event) => {
+  const syncForm = event.target.closest('[data-sync-consent-form]')
+  if (syncForm) {
+    event.preventDefault()
+    const accepted = new FormData(syncForm).get('acceptedSyncConsent') === 'on'
+    if (!accepted) {
+      showToast('Confirme o consentimento antes de criar a cópia remota.')
+      return
+    }
+    if (syncState.exists && !window.confirm('Substituir a cópia remota pelos dados atuais deste dispositivo?')) return
+    const submitButton = syncForm.querySelector('[type="submit"]')
+    submitButton.disabled = true
+    try {
+      await saveRemoteState(state)
+      render()
+      showToast('Cópia remota atualizada com seu consentimento.')
+    } catch (error) {
+      submitButton.disabled = false
+      showToast(error.message)
+    }
+    return
+  }
+
   const cashFlowForm = event.target.closest('[data-cash-flow-form]')
   if (cashFlowForm) {
     event.preventDefault()
@@ -348,6 +413,7 @@ document.addEventListener('submit', async (event) => {
       let result
       if (action === 'login') {
         await login({ email: data.get('email'), password: data.get('password') })
+        await loadSyncState()
         navigate('/perfil')
         showToast('Login realizado.')
         return
@@ -409,4 +475,7 @@ window.addEventListener('popstate', () => render({ focusMain: true }))
 
 saveState()
 render()
-loadAuthState().then(() => render())
+loadAuthState().then(async () => {
+  if (authState.authenticated) await loadSyncState()
+  render()
+})

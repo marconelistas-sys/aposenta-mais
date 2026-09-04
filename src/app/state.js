@@ -64,6 +64,17 @@ export function updateCashFlow(patch) {
   saveState()
 }
 
+export function replaceFinancialData(candidate) {
+  const safe = sanitizeStoredState({ ...candidate, isDemo: false })
+  state.plan = safe.plan
+  state.cashFlow = safe.cashFlow
+  state.scenarios = safe.scenarios
+  state.lastUpdatedAt = safe.lastUpdatedAt || new Date().toISOString()
+  state.isDemo = false
+  state.dataDeleted = false
+  saveState()
+}
+
 export function toggleReminder() {
   state.reminderEnabled = !state.reminderEnabled
   saveState()

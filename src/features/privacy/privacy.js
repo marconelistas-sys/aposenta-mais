@@ -15,7 +15,7 @@ export function renderPrivacy() {
         ${icon('shield', 24)}
         <div>
           <h2>Resumo direto</h2>
-          <p>Plano, fluxo de caixa, cenários e preferências continuam no armazenamento local deste navegador. Quando a conta Supabase estiver configurada, e-mail e sessão serão processados pelo serviço de autenticação, sem enviar dados financeiros nesta Sprint.</p>
+          <p>Plano, fluxo de caixa, cenários e preferências ficam no armazenamento local deste navegador por padrão. Uma cópia financeira só é enviada ao Supabase quando você autoriza e solicita o envio. Entrar na conta não envia o plano automaticamente.</p>
         </div>
       </article>
 
@@ -26,12 +26,13 @@ export function renderPrivacy() {
           <li>Receitas, despesas, dívidas e reserva de emergência para calcular o aporte sustentável.</li>
           <li>Cenários salvos para comparar alternativas.</li>
           <li>Preferências visuais e de lembrete para personalizar a experiência.</li>
+          <li>Versão e data do consentimento quando você cria uma cópia remota.</li>
         </ul>
       </article>
 
       <article class="panel privacy-card">
         <h2>Armazenamento e retenção</h2>
-        <p>Os dados permanecem no perfil deste navegador até você usar “Apagar meus dados”, limpar os dados do site ou remover o perfil do navegador. Não há sincronização entre dispositivos.</p>
+        <p>Os dados locais permanecem até você usar “Apagar meus dados”, limpar o site ou remover o perfil do navegador. Uma cópia autorizada permanece no Supabase até você usar “Excluir cópia remota” ou excluir a conta.</p>
       </article>
 
       <article class="panel privacy-card">
@@ -41,13 +42,13 @@ export function renderPrivacy() {
 
       <article class="panel privacy-card">
         <h2>Seus controles</h2>
-        <p>Você pode exportar uma cópia ou apagar plano, fluxo de caixa, cenários e preferências na tela Perfil. A exclusão local é irreversível neste dispositivo.</p>
+        <p>Você pode exportar ou apagar dados locais. Com uma conta, pode criar, restaurar e excluir uma cópia remota. Exclusão local e remota são controles independentes.</p>
         <a class="button button--secondary" href="/perfil" data-route>Gerenciar meus dados</a>
       </article>
 
       <article class="panel privacy-card">
         <h2>Próxima etapa do produto</h2>
-        <p>Antes de ativar contas para usuários reais, deverão ser definidos controlador, contato de privacidade, base legal, prazos e processo para atender direitos previstos na LGPD.</p>
+        <p>Antes de ativar a sincronização para usuários reais, deverão ser definidos controlador, contato de privacidade, base legal, prazos, atendimento aos direitos da LGPD e validação da segurança no projeto hospedado.</p>
       </article>
     </section>
   `

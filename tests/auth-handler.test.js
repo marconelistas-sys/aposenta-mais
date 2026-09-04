@@ -4,6 +4,7 @@ import { Readable } from 'node:stream'
 
 import { createAuthHandler } from '../src/server/auth/auth-handler.mjs'
 import { createRateLimiter } from '../src/server/auth/rate-limiter.mjs'
+import { syncConsentVersion } from '../src/shared/sync-contract.js'
 
 const env = {
   SUPABASE_URL: 'https://project.supabase.co',
@@ -239,4 +240,117 @@ test('cookie malformado não derruba a consulta de sessão', async () => {
 
   assert.equal(result.status, 200)
   assert.equal(result.body.authenticated, false)
+})
+
+test('sincronização exige uma sessão válida', async () => {
+  const handler = createAuthHandler({
+    env,
+    fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({ error_code: 'expired' }) })
+  })
+  const result = await call(handler, '/api/sync/status')
+
+  assert.equal(result.status, 401)
+})
+
+test('login não envia dados financeiros automaticamente', async () => {
+  const calls = []
+  const handler = createAuthHandler({
+    env,
+    fetchImpl: async (url) => {
+      calls.push(url)
+      return {
+        ok: true,
+        json: async () => ({
+          access_token: 'access-secret',
+          refresh_token: 'refresh-secret',
+          expires_in: 3600,
+          user: { id: 'user-1', email: 'pessoa@example.com' }
+        })
+      }
+    }
+  })
+
+  await call(handler, '/api/auth/login', {
+    method: 'POST',
+    body: { email: 'pessoa@example.com', password: 'senha-segura-123' },
+    headers: { origin: env.APP_ORIGIN }
+  })
+
+  assert.equal(calls.length, 1)
+  assert.doesNotMatch(calls[0], /rest\/v1/)
+})
+
+test('envio remoto exige a versão atual do consentimento', async () => {
+  const handler = createAuthHandler({
+    env,
+    fetchImpl: async (url) => {
+      if (url.endsWith('/auth/v1/user')) {
+        return { ok: true, json: async () => ({ id: 'user-1', email: 'pessoa@example.com' }) }
+      }
+      throw new Error('não deve gravar')
+    }
+  })
+  const result = await call(handler, '/api/sync/data', {
+    method: 'POST',
+    body: { acceptedSyncConsent: false, consentVersion: syncConsentVersion, state: {} },
+    headers: { origin: env.APP_ORIGIN, cookie: 'aposenta-access=access-secret' }
+  })
+
+  assert.equal(result.status, 400)
+  assert.match(result.body.error, /consentimento/i)
+})
+
+test('grava somente o documento financeiro sanitizado', async () => {
+  let remoteBody
+  const handler = createAuthHandler({
+    env,
+    fetchImpl: async (url, options) => {
+      if (url.endsWith('/auth/v1/user')) {
+        return { ok: true, json: async () => ({ id: 'user-1', email: 'pessoa@example.com' }) }
+      }
+      if (url.includes('/rest/v1/financial_plans')) {
+        remoteBody = JSON.parse(options.body)
+        return { ok: true, json: async () => [{ updated_at: '2026-09-04T00:00:00Z' }] }
+      }
+      throw new Error('rota inesperada')
+    }
+  })
+  const result = await call(handler, '/api/sync/data', {
+    method: 'POST',
+    body: {
+      acceptedSyncConsent: true,
+      consentVersion: syncConsentVersion,
+      state: { plan: { currentAge: 48, secret: 'remover' }, token: 'remover' }
+    },
+    headers: { origin: env.APP_ORIGIN, cookie: 'aposenta-access=access-secret' }
+  })
+
+  assert.equal(result.status, 200)
+  assert.equal(remoteBody.user_id, 'user-1')
+  assert.equal(remoteBody.payload.plan.currentAge, 48)
+  assert.equal('secret' in remoteBody.payload.plan, false)
+  assert.equal('token' in remoteBody.payload, false)
+  assert.equal('valuesHidden' in remoteBody.payload, false)
+})
+
+test('exclusão remota usa o usuário da sessão', async () => {
+  let deleteUrl
+  const handler = createAuthHandler({
+    env,
+    fetchImpl: async (url, options) => {
+      if (url.endsWith('/auth/v1/user')) {
+        return { ok: true, json: async () => ({ id: 'user-1', email: 'pessoa@example.com' }) }
+      }
+      deleteUrl = url
+      assert.equal(options.method, 'DELETE')
+      return { ok: true, json: async () => null }
+    }
+  })
+  const result = await call(handler, '/api/sync/data', {
+    method: 'DELETE',
+    headers: { origin: env.APP_ORIGIN, cookie: 'aposenta-access=access-secret' }
+  })
+
+  assert.equal(result.status, 200)
+  assert.match(deleteUrl, /user_id=eq.user-1/)
 })

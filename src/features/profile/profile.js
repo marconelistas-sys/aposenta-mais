@@ -1,6 +1,7 @@
 import { state } from '../../app/state.js'
 import { authState } from '../../app/auth-state.js'
-import { escapeHtml } from '../../shared/formatters.js'
+import { syncState } from '../../app/sync-state.js'
+import { escapeHtml, formatUpdateTime } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 
 export function renderProfile() {
@@ -13,6 +14,8 @@ export function renderProfile() {
         <p>Seu plano, seu fluxo de caixa, seus cenários e suas preferências foram removidos. Carregue a demonstração somente se quiser explorar o produto novamente.</p>
         <div class="data-actions">
           <button class="button button--primary" type="button" data-reset-data>Carregar demonstração</button>
+          ${authState.authenticated && syncState.exists ? '<button class="button button--secondary" type="button" data-sync-pull>Restaurar cópia remota</button>' : ''}
+          ${authState.authenticated && syncState.exists ? '<button class="button button--danger-ghost" type="button" data-sync-delete>Excluir cópia remota</button>' : ''}
           <a class="button button--secondary" href="/privacidade" data-route>Ver aviso de privacidade</a>
         </div>
       </section>
@@ -44,16 +47,53 @@ export function renderProfile() {
           </div>
           ${authState.authenticated ? `
             <div class="account-status">
-              <div><strong>${escapeHtml(authState.user?.email || '')}</strong><p>Autenticação gerenciada pelo Supabase. O plano e o fluxo de caixa continuam locais nesta Sprint.</p></div>
+              <div><strong>${escapeHtml(authState.user?.email || '')}</strong><p>Autenticação gerenciada pelo Supabase. Seus dados financeiros só são enviados quando você autoriza uma cópia remota.</p></div>
               <button class="button button--secondary" type="button" data-auth-logout>${icon('logout', 17)} Sair</button>
             </div>
           ` : `
             <div class="account-status">
-              <div><strong>Nenhuma conta conectada</strong><p>Entre ou crie uma conta. Seus dados financeiros não serão enviados ao Supabase nesta Sprint.</p></div>
+              <div><strong>Nenhuma conta conectada</strong><p>Entre ou crie uma conta. O login não envia seus dados financeiros automaticamente.</p></div>
               <a class="button button--primary" href="/entrar" data-route>Entrar</a>
             </div>
           `}
         </section>
+
+        ${authState.authenticated ? `
+          <section class="panel settings-card sync-card">
+            <div class="panel__header">
+              <div><p class="eyebrow">SINCRONIZAÇÃO OPCIONAL</p><h2>Cópia entre dispositivos</h2></div>
+              ${icon('download', 21, 'panel__header-icon')}
+            </div>
+            ${syncState.loading || syncState.available === null ? `
+              <p class="sync-message">Consultando sua cópia remota.</p>
+            ` : syncState.available === false ? `
+              <p class="sync-message sync-message--error">${escapeHtml(syncState.error || 'A sincronização ainda não está disponível.')}</p>
+              <button class="button button--secondary sync-refresh" type="button" data-sync-refresh>Tentar novamente</button>
+            ` : `
+              <div class="sync-status">
+                <div>
+                  <strong>${syncState.exists ? 'Cópia remota disponível' : 'Nenhuma cópia remota'}</strong>
+                  <p>${syncState.exists ? `Atualizada em ${formatUpdateTime(syncState.updatedAt)}.` : 'Seus dados continuam apenas neste navegador.'}</p>
+                </div>
+                <span class="profile-status"><i></i> ${syncState.exists ? 'Ativa' : 'Local'}</span>
+              </div>
+              <form class="sync-consent-form" data-sync-consent-form>
+                <label class="checkbox-row">
+                  <input name="acceptedSyncConsent" type="checkbox" required />
+                  <span>Autorizo o armazenamento de uma cópia do plano, fluxo de caixa e cenários no Supabase até que eu solicite a exclusão.</span>
+                </label>
+                <button class="button button--primary" type="submit">${syncState.exists ? 'Atualizar cópia remota' : 'Criar cópia remota'}</button>
+              </form>
+              ${syncState.exists ? `
+                <div class="data-actions sync-actions">
+                  <button class="button button--secondary" type="button" data-sync-pull>Usar cópia remota neste dispositivo</button>
+                  <button class="button button--danger-ghost" type="button" data-sync-delete>Excluir cópia remota</button>
+                </div>
+              ` : ''}
+              <p class="privacy-shortcut">A sincronização é manual. Entrar na conta não envia seus dados automaticamente.</p>
+            `}
+          </section>
+        ` : ''}
 
         <section class="panel settings-card">
           <div class="panel__header">
@@ -78,7 +118,7 @@ export function renderProfile() {
           </div>
           <div class="data-explanation">
             ${icon('lock', 21)}
-            <p>Este MVP salva seu plano, seu fluxo de caixa, seus cenários e suas preferências apenas neste navegador. Nenhuma informação financeira é enviada para um servidor de aplicação.</p>
+            <p>Por padrão, este MVP salva seu plano, fluxo de caixa, cenários e preferências apenas neste navegador. A cópia remota depende de uma ação e de consentimento explícitos.</p>
           </div>
           <div class="data-actions">
             <button class="button button--secondary" type="button" data-export-data>${icon('download', 17)} Exportar meus dados</button>
