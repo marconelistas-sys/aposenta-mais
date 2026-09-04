@@ -106,6 +106,7 @@ paths:
           description: Sessão ausente ou expirada
         '503':
           description: API de autenticação ainda não configurada
+  /sync/data:
     get:
       summary: Obtém a cópia financeira do usuário autenticado
       responses:
