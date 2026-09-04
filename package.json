@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node --env-file=.env scripts/dev-server.mjs",
     "start": "node scripts/dev-server.mjs",
-    "check": "node --check src/main.js && node --check src/domain/retirement.js && node --check src/domain/cash-flow.js && node --check src/features/cash-flow/cash-flow.js && node --check src/server/auth/auth-handler.mjs && node --check src/server/auth/supabase-auth.mjs && node --check scripts/dev-server.mjs && node --check scripts/build.mjs && node --check scripts/check-supabase-auth.mjs",
+    "check": "node --check src/main.js && node --check src/app/sync-state.js && node --check src/domain/retirement.js && node --check src/domain/cash-flow.js && node --check src/features/cash-flow/cash-flow.js && node --check src/server/auth/auth-handler.mjs && node --check src/server/auth/supabase-auth.mjs && node --check src/server/data/supabase-data.mjs && node --check scripts/dev-server.mjs && node --check scripts/build.mjs && node --check scripts/check-supabase-auth.mjs",
     "check:auth-config": "node --env-file=.env scripts/check-supabase-auth.mjs",
     "test": "node --test",
     "build": "node scripts/build.mjs",
