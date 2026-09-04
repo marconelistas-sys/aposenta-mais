@@ -6,6 +6,7 @@ import {
   loadStoredState,
   parseStoredState,
   removeStoredState,
+  sanitizeCashFlow,
   sanitizePlan,
   sanitizeStoredState,
   serializeExportableState,
@@ -33,6 +34,13 @@ test('ignora números inválidos e propriedades desconhecidas do plano', () => {
   assert.equal(plan.currentAge, 39)
   assert.equal(plan.currentAssets, 120000)
   assert.equal('unknown' in plan, false)
+})
+
+test('sanitiza o fluxo de caixa e mantém apenas campos aprovados', () => {
+  const cashFlow = sanitizeCashFlow({ recurringIncome: 15000, essentialExpenses: -1, secret: 123 })
+  assert.equal(cashFlow.recurringIncome, 15000)
+  assert.equal(cashFlow.essentialExpenses, 5500)
+  assert.equal('secret' in cashFlow, false)
 })
 
 test('migra estado antigo e limita cenários a três', () => {
@@ -77,10 +85,11 @@ test('mantém o legado quando não consegue concluir a migração', () => {
   assert.equal(storage.memory.has(storageKeys.legacy), true)
 })
 
-test('apaga apenas as duas chaves do Aposenta+', () => {
+test('apaga apenas as chaves do Aposenta+', () => {
   const storage = memoryStorage({
     [storageKeys.current]: '{}',
     [storageKeys.legacy]: '{}',
+    [storageKeys.oldest]: '{}',
     'outro-aplicativo': 'preservar'
   })
 
@@ -104,7 +113,7 @@ test('tenta apagar todas as chaves mesmo quando uma remoção falha', () => {
 
   const result = removeStoredState(storage)
 
-  assert.deepEqual(attempted, [storageKeys.current, storageKeys.legacy])
+  assert.deepEqual(attempted, [storageKeys.current, storageKeys.legacy, storageKeys.oldest])
   assert.equal(result.success, false)
   assert.deepEqual(result.failedKeys, [storageKeys.current])
 })
@@ -137,6 +146,7 @@ test('exporta somente campos aprovados e dados sanitizados', () => {
     'lastUpdatedAt',
     'activeChartRange',
     'plan',
+    'cashFlow',
     'scenarios'
   ])
   assert.equal(parsed.plan.currentAge, 47)

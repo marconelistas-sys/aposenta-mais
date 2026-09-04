@@ -57,10 +57,19 @@
 - Mitigação de injeção HTML em mensagens de erro e notificações.
 - Política de Segurança de Conteúdo e cabeçalhos defensivos no servidor local.
 
+## Sprint 5: fluxo de caixa concluída
+
+- Receitas recorrentes e eventuais separadas.
+- Despesas essenciais, variáveis, dívidas e gastos anuais provisionados.
+- Reserva de emergência separada da aposentadoria.
+- Saldo, taxa de poupança, comprometimento e aporte sustentável calculados localmente.
+- Cenários Atual, Sustentável e Meta integrados ao motor de aposentadoria.
+- Exportação, restauração, exclusão e migração atualizadas para a versão 3 do estado.
+
 ## Próximas prioridades
 
 1. P0: definir controlador, contato de privacidade, base legal e prazos antes de uma beta com servidor.
-2. P0: desenhar autenticação, autorização, recuperação de conta e criptografia para dados remotos.
-3. P1: registrar consentimentos somente para finalidades que de fato dependam dele.
+2. P0: desenhar sincronização opcional com RLS e consentimento explícito, sem importação automática dos dados locais.
+3. P1: separar valores planejados e realizados por mês.
 4. P1: definir processo auditável para acesso, correção, portabilidade e exclusão.
 5. P2: avaliar integração com Meu INSS ou Open Finance após análise jurídica e de segurança.

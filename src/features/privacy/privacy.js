@@ -15,7 +15,7 @@ export function renderPrivacy() {
         ${icon('shield', 24)}
         <div>
           <h2>Resumo direto</h2>
-          <p>Plano, cenários e preferências continuam no armazenamento local deste navegador. Quando a conta Supabase estiver configurada, e-mail e sessão serão processados pelo serviço de autenticação, sem enviar o plano financeiro nesta Sprint.</p>
+          <p>Plano, fluxo de caixa, cenários e preferências continuam no armazenamento local deste navegador. Quando a conta Supabase estiver configurada, e-mail e sessão serão processados pelo serviço de autenticação, sem enviar dados financeiros nesta Sprint.</p>
         </div>
       </article>
 
@@ -23,6 +23,7 @@ export function renderPrivacy() {
         <h2>Dados e finalidade</h2>
         <ul class="privacy-list">
           <li>Idade, patrimônio, aporte, renda desejada e premissas para calcular projeções.</li>
+          <li>Receitas, despesas, dívidas e reserva de emergência para calcular o aporte sustentável.</li>
           <li>Cenários salvos para comparar alternativas.</li>
           <li>Preferências visuais e de lembrete para personalizar a experiência.</li>
         </ul>
@@ -40,7 +41,7 @@ export function renderPrivacy() {
 
       <article class="panel privacy-card">
         <h2>Seus controles</h2>
-        <p>Você pode exportar uma cópia ou apagar plano, cenários e preferências na tela Perfil. A exclusão local é irreversível neste dispositivo.</p>
+        <p>Você pode exportar uma cópia ou apagar plano, fluxo de caixa, cenários e preferências na tela Perfil. A exclusão local é irreversível neste dispositivo.</p>
         <a class="button button--secondary" href="/perfil" data-route>Gerenciar meus dados</a>
       </article>
 

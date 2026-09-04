@@ -28,6 +28,14 @@
   .simulator-layout {
     grid-template-columns: minmax(0, 1fr) 350px;
   }
+
+  .cash-flow-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .cash-flow-result {
+    position: static;
+  }
 }
 
 @media (max-width: 820px) {
@@ -61,14 +69,14 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .metrics-grid .metric-card:last-child,
   .articles-grid .article-card:last-child {
     grid-column: 1 / -1;
   }
 
   .plan-overview,
   .plan-details-grid,
-  .simulator-layout {
+  .simulator-layout,
+  .cash-scenarios__grid {
     grid-template-columns: 1fr;
   }
 

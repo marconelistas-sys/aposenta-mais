@@ -12,6 +12,7 @@ const { addScenario, deleteLocalData, resetState, state } = await import('../src
 const { renderDashboard } = await import('../src/features/dashboard/dashboard.js')
 const { renderPrivacy } = await import('../src/features/privacy/privacy.js')
 const { renderSimulations } = await import('../src/features/simulations/simulations.js')
+const { renderCashFlow } = await import('../src/features/cash-flow/cash-flow.js')
 
 test('oculta valores dos cenários e do texto acessível do gráfico', () => {
   resetState()
@@ -53,8 +54,20 @@ test('exclusão remove dados persistidos sem restaurá-los', () => {
   assert.equal(result.success, true)
   assert.equal(memory.has('aposenta-plus-state-v1'), false)
   assert.equal(memory.has('aposenta-plus-state-v2'), false)
+  assert.equal(memory.has('aposenta-plus-state-v3'), false)
   assert.equal(state.scenarios.length, 0)
   assert.equal(state.dataDeleted, true)
+})
+
+test('fluxo de caixa explica dados locais e oculta valores', () => {
+  resetState()
+  state.valuesHidden = true
+
+  const html = renderCashFlow()
+
+  assert.match(html, /Dados mantidos neste dispositivo/)
+  assert.match(html, /Receitas eventuais não foram usadas/)
+  assert.match(html, /R\$ •••••/)
 })
 
 test('aviso explica armazenamento, retenção, controles e limites', () => {
