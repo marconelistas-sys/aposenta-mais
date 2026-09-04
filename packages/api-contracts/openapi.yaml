@@ -6,6 +6,38 @@ info:
 servers:
   - url: /api
 paths:
+  /exchange-rates:
+    get:
+      summary: Obtém a última cotação pública de referência do BCE
+      responses:
+        '200':
+          description: Taxas com EUR como base, data, fonte e estado de atualização
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [base, date, fetchedAt, source, sourceUrl, stale, rates]
+                properties:
+                  base:
+                    type: string
+                    const: EUR
+                  date:
+                    type: string
+                    format: date
+                  fetchedAt:
+                    type: [string, 'null']
+                    format: date-time
+                  source:
+                    type: string
+                    const: Banco Central Europeu
+                  sourceUrl:
+                    type: string
+                    format: uri
+                  stale:
+                    type: boolean
+                  rates:
+                    type: object
+                    required: [BRL, EUR, USD, CHF]
   /auth/status:
     get:
       summary: Consulta a configuração e a sessão atual
@@ -145,7 +177,7 @@ paths:
                   const: true
                 consentVersion:
                   type: string
-                  const: 2026-09-04-v1
+                  const: 2026-09-04-v4
                 state:
                   $ref: '#/components/schemas/FinancialState'
       responses:
@@ -262,7 +294,7 @@ components:
     FinancialState:
       type: object
       additionalProperties: false
-      required: [version, lastUpdatedAt, plan, cashFlow, scenarios]
+      required: [version, lastUpdatedAt, currency, exchangeRates, customCategories, plan, cashFlow, scenarios]
       properties:
         version:
           type: integer
@@ -271,6 +303,16 @@ components:
         lastUpdatedAt:
           type: [string, 'null']
           format: date-time
+        currency:
+          type: string
+          enum: [BRL, EUR, USD, CHF]
+        exchangeRates:
+          type: object
+        customCategories:
+          type: array
+          maxItems: 30
+          items:
+            type: object
         plan:
           type: object
         cashFlow:

@@ -1,10 +1,18 @@
 import { state } from '../../app/state.js'
-import { projectRetirement } from '../../domain/retirement.js'
-import { formatCurrency, formatPercent, privateCurrency } from '../../shared/formatters.js'
+import { projectRetirementWithSchedules } from '../../domain/retirement.js'
+import { retirementContributionSchedules } from '../../domain/cash-flow.js'
+import { formatCompactCurrency, formatCurrency, formatPercent, privateCurrency } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 
 export function renderPlan() {
-  const result = projectRetirement(state.plan)
+  const schedules = retirementContributionSchedules(
+    state.cashFlow,
+    state.currency,
+    state.exchangeRates,
+    state.customCategories
+  )
+  const result = projectRetirementWithSchedules(state.plan, schedules)
+  const money = (value) => privateCurrency(value, state.valuesHidden, false, state.currency)
 
   return `
     <section class="page-heading page-heading--inner">
@@ -23,13 +31,13 @@ export function renderPlan() {
         <div class="panel__header">
           <div>
             <p class="eyebrow">META DE RENDA</p>
-            <h2 class="money-value">${privateCurrency(state.plan.targetMonthlyIncome, state.valuesHidden)} <small>por mês</small></h2>
+            <h2 class="money-value">${money(state.plan.targetMonthlyIncome)} <small>por mês</small></h2>
           </div>
           <div class="goal-card__icon">${icon('target', 23)}</div>
         </div>
         <div class="goal-progress-row">
           <span>Renda projetada</span>
-          <strong class="money-value">${privateCurrency(result.projectedMonthlyIncome, state.valuesHidden)}</strong>
+          <strong class="money-value">${money(result.projectedMonthlyIncome)}</strong>
         </div>
         <div class="progress-track" role="progressbar" aria-label="Progresso da meta" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(Math.max(Math.round(result.progress * 100), 0), 100)}">
           <span style="width: ${Math.min(result.progress * 100, 100)}%"></span>
@@ -44,13 +52,13 @@ export function renderPlan() {
             <h2>Ajuste o seu ritmo</h2>
           </div>
           <output class="contribution-output money-value" for="monthly-contribution">
-            ${privateCurrency(state.plan.monthlyContribution, state.valuesHidden)}
+            ${money(state.plan.monthlyContribution)}
           </output>
         </div>
         <label class="range-control-label" for="monthly-contribution">Aporte mensal</label>
         <div class="range-label" aria-hidden="true">
-          <span>R$ 500</span>
-          <span>R$ 4.000</span>
+          <span>${formatCurrency(500, false, state.currency)}</span>
+          <span>${formatCurrency(4000, false, state.currency)}</span>
         </div>
         <input
           id="monthly-contribution"
@@ -65,7 +73,7 @@ export function renderPlan() {
         />
         <div class="contribution-recommendation">
           ${icon('sparkles', 18)}
-          <p>O aporte estimado para atingir sua meta é <strong>${formatCurrency(result.requiredMonthlyContribution)}</strong> por mês.</p>
+          <p>O aporte adicional estimado é <strong>${formatCurrency(result.requiredMonthlyContribution, false, state.currency)}</strong> por mês. A previdência atual soma <strong>${formatCurrency(result.currentScheduledMonthlyContribution, false, state.currency)}</strong>.</p>
         </div>
       </article>
     </section>
@@ -87,7 +95,7 @@ export function renderPlan() {
           </li>
           <li>
             <span></span>
-            <div><strong>Primeiro R$ 500 mil</strong><small>Com o aporte e retorno atuais</small></div>
+            <div><strong>Primeiros ${formatCompactCurrency(500000, state.currency)}</strong><small>Com o aporte e retorno atuais</small></div>
             <time>2036</time>
           </li>
           <li>
@@ -109,7 +117,7 @@ export function renderPlan() {
         <dl class="assumptions-list">
           <div><dt>Retorno real anual</dt><dd>${formatPercent(state.plan.annualRealReturn)}</dd></div>
           <div><dt>Taxa de retirada</dt><dd>${formatPercent(state.plan.annualWithdrawalRate)}</dd></div>
-          <div><dt>Benefício estimado</dt><dd class="money-value">${privateCurrency(state.plan.expectedMonthlyBenefit, state.valuesHidden)}</dd></div>
+          <div><dt>Benefício estimado</dt><dd class="money-value">${money(state.plan.expectedMonthlyBenefit)}</dd></div>
           <div><dt>Horizonte</dt><dd>${result.months / 12} anos</dd></div>
         </dl>
         <a class="button button--secondary button--full" href="/simulacoes" data-route>Testar outras premissas</a>

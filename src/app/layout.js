@@ -2,6 +2,7 @@ import { state } from './state.js'
 import { icon } from '../shared/icons.js'
 import { authState } from './auth-state.js'
 import { escapeHtml } from '../shared/formatters.js'
+import { syncState } from './sync-state.js'
 
 const navigation = [
   { href: '/', label: 'Visão geral', icon: 'home' },
@@ -50,6 +51,9 @@ export function appLayout(content, pathname) {
   const accountLabel = authState.authenticated
     ? escapeHtml(authState.user?.email || 'Conta conectada')
     : 'Entrar'
+  const footerDataMessage = authState.authenticated && syncState.exists
+    ? 'Cópia remota ativa. Gerencie ou exclua em Perfil e dados.'
+    : 'Plano salvo neste navegador. Sem envio financeiro automático.'
 
   return `
     <header class="app-header">
@@ -85,6 +89,7 @@ export function appLayout(content, pathname) {
             <a class="avatar" href="/perfil" data-route aria-label="Abrir perfil de ${accountLabel}">AP</a>
           ` : `
             <a class="auth-entry" href="/entrar" data-route>${accountLabel}</a>
+            ${authState.configured === false ? '' : '<a class="account-cta" href="/cadastro" data-route data-product-event="create_account_click">Criar conta</a>'}
           `}
         </div>
       </div>
@@ -93,8 +98,8 @@ export function appLayout(content, pathname) {
     ${state.isDemo && !state.dataDeleted ? `
       <aside class="demo-banner" aria-label="Modo de demonstração">
         ${icon('info', 18)}
-        <span>Você está vendo dados de demonstração.</span>
-        <a href="/fluxo-caixa" data-route>Inserir meus dados</a>
+        <span>Demonstração ativa. Use sem informar nome, CPF ou e-mail.</span>
+        <a href="/fluxo-caixa" data-route>Calcular com meus dados</a>
       </aside>
     ` : ''}
 
@@ -106,7 +111,7 @@ export function appLayout(content, pathname) {
       <div class="app-footer__inner">
         <div class="footer-trust">
           ${icon('shield', 17)}
-          <span>Seus dados ficam neste dispositivo.</span>
+          <span>${footerDataMessage}</span>
         </div>
         <p>Estimativas para planejamento. Valores futuros não são garantidos.</p>
         <a href="/privacidade" data-route>Privacidade e dados</a>

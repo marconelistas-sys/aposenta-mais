@@ -1,6 +1,8 @@
-import { projectAssetSeries, projectRetirement } from '../../domain/retirement.js'
-import { calculateCashFlow } from '../../domain/cash-flow.js'
+import { projectAssetSeriesWithSchedules, projectRetirementWithSchedules } from '../../domain/retirement.js'
+import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { state } from '../../app/state.js'
+import { authState } from '../../app/auth-state.js'
+import { syncState } from '../../app/sync-state.js'
 import {
   formatCompactCurrency,
   formatCurrency,
@@ -9,6 +11,9 @@ import {
   privateCurrency
 } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
+import { currencies, currencySymbol } from '../../shared/currencies.js'
+import { renderPremiumPromo } from '../premium/premium.js'
+import { exchangeRate } from '../../shared/exchange-rates.js'
 
 const chartRanges = {
   five: { label: '5 anos', years: 5 },
@@ -17,18 +22,79 @@ const chartRanges = {
 }
 
 function privacyLabel(value) {
-  return state.valuesHidden ? 'Valor oculto' : formatCurrency(value)
+  return state.valuesHidden ? 'Valor oculto' : formatCurrency(value, false, state.currency)
 }
 
-function chartMarkup(plan) {
+function currencySelector() {
+  return `
+    <label class="currency-selector">
+      <span>Moeda do plano</span>
+      <select data-currency aria-describedby="currency-help">
+        ${Object.values(currencies).map((currency) => `
+          <option value="${currency.code}" ${state.currency === currency.code ? 'selected' : ''}>${currency.code} · ${currency.symbol}</option>
+        `).join('')}
+      </select>
+      <small id="currency-help">Totais convertidos para esta moeda</small>
+    </label>
+  `
+}
+
+function exchangeRatePanel() {
+  const date = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' })
+    .format(new Date(`${state.exchangeRates.date}T00:00:00Z`))
+  const otherCurrencies = Object.keys(currencies).filter((code) => code !== state.currency)
+  return `
+    <aside class="exchange-rate-panel" aria-label="Cotações usadas na conversão">
+      <div>
+        <span class="exchange-rate-panel__icon">${icon('refresh', 18)}</span>
+        <div>
+          <strong>Cotação de referência · ${date}</strong>
+          <span>${state.exchangeRates.source}${state.exchangeRates.stale ? ' · última disponível' : ' · atualizada'}</span>
+        </div>
+      </div>
+      <dl>
+        ${otherCurrencies.map((code) => `
+          <div><dt>1 ${code}</dt><dd>${exchangeRate(code, state.currency, state.exchangeRates).toLocaleString('pt-BR', { maximumFractionDigits: 4 })} ${state.currency}</dd></div>
+        `).join('')}
+      </dl>
+      <a href="${state.exchangeRates.sourceUrl}" target="_blank" rel="noreferrer">Consultar fonte</a>
+    </aside>
+  `
+}
+
+function privacyStatus() {
+  const message = authState.authenticated && syncState.exists
+    ? 'Cópia remota ativa, vinculada à sua conta.'
+    : authState.authenticated
+      ? 'Conta conectada. Seu plano continua somente neste dispositivo.'
+      : 'Dados financeiros somente neste dispositivo.'
+  const detail = authState.authenticated
+    ? 'Criar ou entrar na conta não envia o plano financeiro.'
+    : 'Use sem informar nome, CPF ou e-mail.'
+
+  return `
+    <aside class="privacy-status" aria-label="Estado de privacidade dos seus dados">
+      <span class="privacy-status__icon">${icon('shield', 20)}</span>
+      <div><strong>${message}</strong><span>${detail}</span></div>
+      <a href="/privacidade" data-route>Como seus dados são protegidos</a>
+    </aside>
+  `
+}
+
+function niceMaximum(value) {
+  const magnitude = 10 ** Math.floor(Math.log10(Math.max(value, 1)))
+  return Math.ceil(value / magnitude) * magnitude
+}
+
+function chartMarkup(plan, schedules) {
   const selected = chartRanges[state.activeChartRange] || chartRanges.retirement
   const totalYears = plan.retirementAge - plan.currentAge
   const years = selected.years ? Math.min(selected.years, totalYears) : totalYears
-  const series = projectAssetSeries(plan, years)
-  const maximum = Math.max(...series.map((point) => point.assets), 1)
+  const series = projectAssetSeriesWithSchedules(plan, schedules, years)
+  const maximum = niceMaximum(Math.max(...series.map((point) => point.assets), 1))
   const points = series.map((point, index) => {
-    const x = 18 + (556 * index) / Math.max(series.length - 1, 1)
-    const y = 194 - (174 * point.assets) / maximum
+    const x = 88 + (512 * index) / Math.max(series.length - 1, 1)
+    const y = 198 - (176 * point.assets) / maximum
     return { ...point, x, y }
   })
   const path = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ')
@@ -37,14 +103,8 @@ function chartMarkup(plan) {
   const currentYear = new Date().getFullYear()
 
   return `
-    <div class="chart" role="img" aria-label="${state.valuesHidden ? `Projeção calculada de patrimônio em ${years} anos. Valores ocultos.` : `Projeção calculada de patrimônio de ${formatCurrency(plan.currentAssets)} até ${formatCurrency(endValue)} em ${years} anos.`}">
-      <div class="chart__y-axis" aria-hidden="true">
-        <span>${formatCompactCurrency(maximum)}</span>
-        <span>${formatCompactCurrency(maximum * 0.66)}</span>
-        <span>${formatCompactCurrency(maximum * 0.33)}</span>
-        <span>R$ 0</span>
-      </div>
-      <svg class="chart__svg" viewBox="0 0 600 220" preserveAspectRatio="none" aria-hidden="true">
+    <div class="chart chart--patrimony" role="img" aria-label="${state.valuesHidden ? `Projeção calculada de patrimônio em ${years} anos. Valores ocultos.` : `Projeção calculada de patrimônio de ${formatCurrency(plan.currentAssets, false, state.currency)} até ${formatCurrency(endValue, false, state.currency)} em ${years} anos.`}">
+      <svg class="chart__svg" viewBox="0 0 620 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <defs>
           <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="#58a481" stop-opacity="0.32" />
@@ -52,47 +112,69 @@ function chartMarkup(plan) {
           </linearGradient>
         </defs>
         <g class="chart__grid">
-          <line x1="18" y1="20" x2="580" y2="20" />
-          <line x1="18" y1="78" x2="580" y2="78" />
-          <line x1="18" y1="136" x2="580" y2="136" />
-          <line x1="18" y1="194" x2="580" y2="194" />
+          <line x1="88" y1="22" x2="600" y2="22" />
+          <line x1="88" y1="80.7" x2="600" y2="80.7" />
+          <line x1="88" y1="139.3" x2="600" y2="139.3" />
+          <line x1="88" y1="198" x2="600" y2="198" />
         </g>
-        <path class="chart__area" d="${path} L${lastPoint.x.toFixed(2)} 194 L18 194 Z" />
-        <path class="chart__line" d="${path}" />
-        <circle class="chart__point" cx="${lastPoint.x.toFixed(2)}" cy="${lastPoint.y.toFixed(2)}" r="5" />
-        <circle class="chart__point-ring" cx="${lastPoint.x.toFixed(2)}" cy="${lastPoint.y.toFixed(2)}" r="9" />
+        <g class="chart__labels">
+          <text x="78" y="25">${state.valuesHidden ? '•••' : formatCompactCurrency(maximum, state.currency)}</text>
+          <text x="78" y="84">${state.valuesHidden ? '•••' : formatCompactCurrency(maximum * 0.66, state.currency)}</text>
+          <text x="78" y="143">${state.valuesHidden ? '•••' : formatCompactCurrency(maximum * 0.33, state.currency)}</text>
+          <text x="78" y="202">${currencySymbol(state.currency)} 0</text>
+          <text x="88" y="226" text-anchor="start">Hoje</text>
+          <text x="344" y="226" text-anchor="middle">${currentYear + Math.round(years / 2)}</text>
+          <text x="600" y="226" text-anchor="end">${currentYear + years}</text>
+        </g>
+        <path class="chart__area" vector-effect="non-scaling-stroke" d="${path} L${lastPoint.x.toFixed(2)} 198 L88 198 Z" />
+        <path class="chart__line" vector-effect="non-scaling-stroke" d="${path}" />
+        <circle class="chart__point" vector-effect="non-scaling-stroke" cx="${lastPoint.x.toFixed(2)}" cy="${lastPoint.y.toFixed(2)}" r="5" />
+        <circle class="chart__point-ring" vector-effect="non-scaling-stroke" cx="${lastPoint.x.toFixed(2)}" cy="${lastPoint.y.toFixed(2)}" r="9" />
       </svg>
-      <div class="chart__x-axis" aria-hidden="true">
-        <span>Hoje</span>
-        <span>${currentYear + Math.round(years / 2)}</span>
-        <span>${currentYear + years}</span>
-      </div>
     </div>
   `
 }
 
 export function renderDashboard() {
-  const result = projectRetirement(state.plan)
-  const cashFlow = calculateCashFlow(state.cashFlow, result.requiredMonthlyContribution)
+  const schedules = retirementContributionSchedules(
+    state.cashFlow,
+    state.currency,
+    state.exchangeRates,
+    state.customCategories
+  )
+  const result = projectRetirementWithSchedules(state.plan, schedules)
+  const cashFlow = calculateMultiCurrencyCashFlow(
+    state.cashFlow,
+    state.currency,
+    state.exchangeRates,
+    result.requiredMonthlyContribution,
+    state.customCategories
+  )
   const incomeProgress = state.plan.targetMonthlyIncome === 0
     ? 1
     : Math.min(Math.max(result.projectedMonthlyIncome / state.plan.targetMonthlyIncome, 0), 1)
   const investmentIncome = result.projectedInvestmentIncome
   const expectedYear = new Date().getFullYear() +
     (state.plan.retirementAge - state.plan.currentAge)
-  const increase = Math.max(0, Math.min(200, 4000 - state.plan.monthlyContribution))
-  const canUseQuickAdjustment = increase > 0
+  const money = (value) => privateCurrency(value, state.valuesHidden, false, state.currency)
+  const visibleMoney = (value) => formatCurrency(value, false, state.currency)
+  const heading = state.isDemo
+    ? 'Veja se seu plano de aposentadoria cabe na sua vida.'
+    : `Seu plano cobre ${formatPercent(incomeProgress)} da renda desejada.`
 
   return `
     <section class="page-heading page-heading--dashboard">
       <div>
-        <p class="eyebrow">SEU FUTURO FINANCEIRO</p>
-        <h1>${result.goalReached ? 'Sua meta está coberta neste cenário.' : 'Seu plano mostra o próximo ajuste.'}</h1>
-        <p>Veja o que mudou e qual é o próximo passo para a sua meta.</p>
+        <p class="eyebrow">VISÃO GERAL</p>
+        <h1>${heading}</h1>
+        <p>${state.isDemo ? 'Faça uma simulação gratuita e ajuste o orçamento sem criar conta.' : 'Veja o ajuste com maior impacto no seu objetivo.'}</p>
       </div>
-      <div class="last-update">
-        <span class="status-dot" aria-hidden="true"></span>
-        Atualização: ${formatUpdateTime(state.lastUpdatedAt)}
+      <div class="dashboard-tools">
+        ${currencySelector()}
+        <div class="last-update">
+          <span class="status-dot" aria-hidden="true"></span>
+          Atualização: ${formatUpdateTime(state.lastUpdatedAt)}
+        </div>
       </div>
     </section>
 
@@ -103,11 +185,11 @@ export function renderDashboard() {
           <span class="income-card__badge">Em valores de hoje</span>
         </div>
         <div class="income-card__amount money-value" aria-label="${privacyLabel(result.projectedMonthlyIncome)}">
-          ${privateCurrency(result.projectedMonthlyIncome, state.valuesHidden)}
+          ${money(result.projectedMonthlyIncome)}
           <small>por mês</small>
         </div>
         <div class="income-card__goal-row">
-          <span>Meta: <strong class="money-value">${privateCurrency(state.plan.targetMonthlyIncome, state.valuesHidden)}</strong></span>
+          <span>Meta: <strong class="money-value">${money(state.plan.targetMonthlyIncome)}</strong></span>
           <strong>${formatPercent(incomeProgress)} alcançado</strong>
         </div>
         <div
@@ -121,31 +203,20 @@ export function renderDashboard() {
           <span style="width: ${incomeProgress * 100}%"></span>
         </div>
         <div class="income-card__footer">
-          <span>${icon(result.goalReached ? 'check' : 'trendUp', 18)} ${result.goalReached ? 'Meta coberta pelas premissas atuais' : `Lacuna mensal de ${formatCurrency(Math.max(result.monthlyIncomeGap, 0))}`}</span>
-          <a class="text-link text-link--light" href="/plano" data-route>
-            Ver meu plano ${icon('arrowRight', 17)}
-          </a>
+          <span>${icon(result.goalReached ? 'check' : 'trendUp', 18)} ${result.goalReached ? 'Meta coberta pelas premissas atuais' : `Lacuna mensal de ${visibleMoney(Math.max(result.monthlyIncomeGap, 0))}`}</span>
+          <div class="income-card__actions">
+            <a class="button button--light" href="${state.isDemo ? '/fluxo-caixa' : '/plano'}" data-route>
+              ${state.isDemo ? 'Calcular com meus dados' : 'Ajustar meu plano'} ${icon('arrowRight', 17)}
+            </a>
+            <a class="text-link text-link--light" href="/simulacoes" data-route>Ver como calculamos</a>
+          </div>
         </div>
       </article>
-
-      <article class="next-action-card">
-        <div class="next-action-card__icon">${icon('sparkles', 22)}</div>
-        <p class="eyebrow eyebrow--dark">PRÓXIMA MELHOR AÇÃO</p>
-        <h2>${canUseQuickAdjustment ? 'Chegue mais perto com um pequeno ajuste.' : 'Compare uma nova combinação.'}</h2>
-        <p>${canUseQuickAdjustment ? `Ao aumentar seu aporte em <strong>${formatCurrency(increase)}</strong>, você pode reduzir o caminho até sua meta.` : 'Use o simulador para testar idade, renda desejada e outras premissas.'}</p>
-        ${canUseQuickAdjustment ? `
-          <button class="button button--dark button--full" type="button" data-apply-adjustment>
-            Aplicar aporte de ${formatCurrency(state.plan.monthlyContribution + increase)}
-            ${icon('arrowRight', 18)}
-          </button>
-        ` : `
-          <a class="button button--dark button--full" href="/simulacoes" data-route>
-            Abrir simulador ${icon('arrowRight', 18)}
-          </a>
-        `}
-        <a class="text-link" href="/simulacoes" data-route>Ver como calculamos</a>
-      </article>
     </section>
+
+    ${privacyStatus()}
+
+    ${exchangeRatePanel()}
 
     <section class="metrics-grid" aria-label="Indicadores do plano">
       <article class="metric-card">
@@ -161,25 +232,16 @@ export function renderDashboard() {
         <div class="metric-card__icon metric-card__icon--blue">${icon('wallet', 21)}</div>
         <div>
           <p>Patrimônio projetado</p>
-          <strong class="money-value">${privateCurrency(result.projectedAssets, state.valuesHidden)}</strong>
+          <strong class="money-value">${money(result.projectedAssets)}</strong>
           <span>Em valores de hoje</span>
         </div>
         <a href="/plano" data-route aria-label="Ver patrimônio projetado">${icon('chevronRight', 19)}</a>
       </article>
       <article class="metric-card">
-        <div class="metric-card__icon metric-card__icon--sand">${icon('trendUp', 21)}</div>
-        <div>
-          <p>Aporte mensal atual</p>
-          <strong class="money-value">${privateCurrency(state.plan.monthlyContribution, state.valuesHidden)}</strong>
-          <span>${state.isDemo ? 'Valor de demonstração' : 'Valor salvo no dispositivo'}</span>
-        </div>
-        <a href="/plano" data-route aria-label="Ver aporte mensal">${icon('chevronRight', 19)}</a>
-      </article>
-      <article class="metric-card">
         <div class="metric-card__icon metric-card__icon--green">${icon('wallet', 21)}</div>
         <div>
           <p>Aporte sustentável</p>
-          <strong class="money-value">${privateCurrency(cashFlow.sustainableContribution, state.valuesHidden)}</strong>
+          <strong class="money-value">${money(cashFlow.sustainableContribution)}</strong>
           <span>${cashFlow.isDeficit ? 'Revise o déficit mensal' : 'Após despesas e reserva'}</span>
         </div>
         <a href="/fluxo-caixa" data-route aria-label="Ver fluxo de caixa">${icon('chevronRight', 19)}</a>
@@ -204,10 +266,10 @@ export function renderDashboard() {
             `).join('')}
           </div>
         </div>
-        ${chartMarkup(state.plan)}
+        ${chartMarkup(state.plan, schedules)}
         <div class="chart-insight">
           <span class="chart-insight__icon">${icon('trendUp', 18)}</span>
-          <p>Mantendo seu plano, você pode chegar a <strong class="money-value">${privateCurrency(result.projectedAssets, state.valuesHidden)}</strong> em valores de hoje.</p>
+          <p>Mantendo seu plano e as contribuições previdenciárias, você pode chegar a <strong class="money-value">${money(result.projectedAssets)}</strong> em valores de hoje.</p>
         </div>
       </article>
 
@@ -224,17 +286,17 @@ export function renderDashboard() {
             <div class="donut" style="--first-share: ${result.projectedMonthlyIncome > 0 ? Math.min(Math.round((state.plan.expectedMonthlyBenefit / result.projectedMonthlyIncome) * 100), 100) : 0}%" role="img" aria-label="Distribuição entre benefício e investimentos">
               <div>
                 <span>Total</span>
-                <strong class="money-value">${privateCurrency(result.projectedMonthlyIncome, state.valuesHidden)}</strong>
+                <strong class="money-value">${money(result.projectedMonthlyIncome)}</strong>
               </div>
             </div>
             <ul class="source-list">
               <li>
                 <span class="source-dot source-dot--inss"></span>
-                <div><span>Benefício estimado</span><strong class="money-value">${privateCurrency(state.plan.expectedMonthlyBenefit, state.valuesHidden)}</strong></div>
+                <div><span>Benefício estimado</span><strong class="money-value">${money(state.plan.expectedMonthlyBenefit)}</strong></div>
               </li>
               <li>
                 <span class="source-dot source-dot--investments"></span>
-                <div><span>Investimentos</span><strong class="money-value">${privateCurrency(investmentIncome, state.valuesHidden)}</strong></div>
+                <div><span>Investimentos</span><strong class="money-value">${money(investmentIncome)}</strong></div>
               </li>
             </ul>
           </div>
@@ -251,5 +313,7 @@ export function renderDashboard() {
         </article>
       </div>
     </section>
+
+    ${renderPremiumPromo({ compact: true })}
   `
 }

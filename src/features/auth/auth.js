@@ -8,9 +8,9 @@ function unavailableMessage() {
     : ''
 }
 
-function authShell(title, description, content) {
+function authShell(title, description, content, benefits = '') {
   return `
-    <section class="auth-layout">
+    <section class="auth-layout${benefits ? ' auth-layout--benefits' : ''}">
       <div class="panel auth-card">
         <div class="auth-card__icon">${icon('lock', 24)}</div>
         <p class="eyebrow">CONTA APOSENTA+</p>
@@ -20,6 +20,7 @@ function authShell(title, description, content) {
         ${content}
         <div class="auth-feedback" data-auth-feedback aria-live="polite"></div>
       </div>
+      ${benefits}
     </section>
   `
 }
@@ -47,10 +48,23 @@ export function renderRegister() {
       <label>E-mail<input name="email" type="email" autocomplete="email" maxlength="254" required /></label>
       <label>Senha<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required aria-describedby="password-help" /></label>
       <p id="password-help" class="field-help">Use pelo menos 12 caracteres. Evite senhas reutilizadas.</p>
-      <label class="checkbox-row"><input name="acceptedTerms" type="checkbox" required /><span>Li o <a href="/privacidade" data-route>aviso de privacidade</a> e aceito os termos desta versão.</span></label>
+      <p class="registration-privacy">Leia o <a href="/privacidade" data-route>aviso de privacidade</a>. O cadastro envia seu e-mail e dados de autenticação ao Supabase, mas não envia seu plano financeiro.</p>
+      <label class="checkbox-row"><input name="acceptedTerms" type="checkbox" required /><span>Entendi que esta é uma versão experimental e desejo criar a conta.</span></label>
       <button class="button button--primary button--full" type="submit">Criar conta</button>
     </form>
     <div class="auth-links"><a href="/entrar" data-route>Já tenho uma conta</a></div>
+  `, `
+    <aside class="register-benefits" aria-labelledby="register-benefits-title">
+      <span class="premium-badge">Conta gratuita</span>
+      <p class="eyebrow">SEU PLANO COM CONTINUIDADE</p>
+      <h2 id="register-benefits-title">Comece individual. Prepare o planejamento a dois.</h2>
+      <ul>
+        <li>${icon('download', 19)}<div><strong>Cópia remota sob seu controle</strong><span>Você decide quando enviar seus dados.</span></div></li>
+        <li>${icon('user', 19)}<div><strong>Acesso em outros dispositivos</strong><span>Restaure sua cópia quando precisar.</span></div></li>
+        <li>${icon('target', 19)}<div><strong>Pronto para o futuro Premium</strong><span>Planejamento familiar está em preparação.</span></div></li>
+      </ul>
+      <p class="premium-trust">${icon('shield', 16)} Criar conta não envia dados financeiros automaticamente.</p>
+    </aside>
   `)
 }
 

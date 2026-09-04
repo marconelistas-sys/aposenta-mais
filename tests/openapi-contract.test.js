@@ -22,3 +22,10 @@ test('separa status e operações de dados em rotas distintas', () => {
   assert.match(data, /^    post:/m)
   assert.match(data, /^    delete:/m)
 })
+
+test('cópia financeira exige uma moeda base permitida', () => {
+  const schema = contract.match(/^    FinancialState:[\s\S]*?(?=^    [A-Z][A-Za-z]+:)/m)?.[0] || ''
+
+  assert.match(schema, /required: \[version, lastUpdatedAt, currency, exchangeRates, customCategories, plan, cashFlow, scenarios\]/)
+  assert.match(schema, /currency:[\s\S]*enum: \[BRL, EUR, USD, CHF\]/)
+})

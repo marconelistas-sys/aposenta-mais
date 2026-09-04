@@ -2,28 +2,35 @@
 
 ## Resumo
 
-O Aposenta+ mantém o plano financeiro e o fluxo de caixa no armazenamento local do navegador. Quando a conta está ativada, o Supabase processa e-mail, credenciais, identificadores técnicos e sessão. Uma cópia do plano, fluxo de caixa e cenários só é enviada após uma ação manual e consentimento explícito. O login não envia o documento financeiro.
+O Aposenta+ mantém o plano financeiro e o fluxo de caixa no armazenamento local do navegador. A pessoa pode usar os cálculos sem informar nome, CPF ou e-mail. Isso não torna os dados anônimos. Quando uma conta é criada, o Supabase processa e-mail, credenciais, identificadores técnicos e sessão. Uma cópia financeira só é enviada após ação manual e consentimento explícito.
 
 ## O que é armazenado e por quê
 
 - Idade, patrimônio, aporte, renda desejada e premissas para calcular projeções.
-- Receitas recorrentes e eventuais, despesas, dívidas, gastos anuais e reserva de emergência para calcular o fluxo de caixa.
-- Cenários para permitir comparações.
+- Lançamentos de receitas e despesas com descrição, valor, moeda, categoria, frequência e prazo para calcular o fluxo de caixa.
+- Dados reconhecidos em extratos TXT escolhidos pelo usuário. O arquivo é lido localmente e não é enviado ao servidor.
+- Cenários com plano, orçamento e moeda para permitir comparação e restauração.
+- Taxa pública, fonte e data do Banco Central Europeu para converter os totais na visão geral.
+- Categorias personalizadas para organizar o orçamento.
 - Preferências de visibilidade, lembrete e gráfico para manter a experiência escolhida.
 - E-mail e dados técnicos de autenticação para criar e proteger a conta quando o Supabase estiver configurado.
 - Versão e data do consentimento para demonstrar a autorização da cópia remota.
 
 ## Onde e por quanto tempo
 
-Plano, fluxo de caixa, cenários e preferências ficam no perfil do navegador usado. Permanecem até o usuário escolher “Apagar meus dados”, limpar os dados do site ou remover o perfil do navegador. A cópia financeira autorizada fica no PostgreSQL do Supabase até o usuário escolher “Excluir cópia remota” ou excluir a conta. Preferências visuais não entram na cópia remota.
+Plano, fluxo de caixa, cenários, moedas, categorias e preferências ficam no perfil do navegador usado. Permanecem até o usuário escolher “Apagar dados deste navegador”, limpar os dados do site ou remover o perfil do navegador. A cópia financeira autorizada fica no PostgreSQL do Supabase até o usuário escolher “Excluir cópia remota”. A exclusão da conta ainda depende de processo administrativo. Preferências visuais não entram na cópia remota.
+
+O servidor consulta o arquivo público de taxas do BCE. Nenhum lançamento ou identificador de conta é enviado nessa consulta. A fotografia cambial usada no cálculo acompanha a exportação e a cópia remota para permitir conferência.
+
+Não existe conexão direta com Open Finance nesta versão. Uma integração futura deverá iniciar no ambiente da instituição receptora, informar a finalidade e obter consentimento antes do compartilhamento.
 
 ## Controles do usuário
 
-O perfil permite exportar uma cópia JSON, apagar os dados locais, criar ou atualizar uma cópia remota, restaurar essa cópia e excluí-la. Excluir dados locais não exclui a cópia remota. Excluir a cópia remota não altera os dados locais. O logout encerra a sessão, mas não exclui dados.
+O perfil permite exportar uma cópia JSON, apagar os dados deste navegador, criar ou atualizar uma cópia remota, restaurar essa cópia e excluí-la. Excluir dados locais não exclui a cópia remota. Excluir a cópia remota não altera os dados locais. O logout encerra a sessão, mas não exclui dados.
 
 ## Limites
 
-Ocultar valores é uma escolha visual, não criptografia. Pessoas com acesso ao dispositivo, extensões e scripts executados na mesma origem podem alcançar o armazenamento local. Arquivos exportados ficam sob a guarda do usuário.
+Ocultar valores é uma escolha visual, não criptografia. Pessoas com acesso ao dispositivo, extensões e scripts executados na mesma origem podem alcançar o armazenamento local. Quando existe cópia remota, ela é vinculada ao identificador da conta e não é anônima. O Supabase processa autenticação e cópia remota como fornecedor técnico. Arquivos exportados ficam sob a guarda do usuário.
 
 ## Pendências antes de usuários reais
 

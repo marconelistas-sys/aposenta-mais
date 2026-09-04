@@ -1,17 +1,25 @@
 import { appLayout } from './app/layout.js'
 import {
+  addCashFlowItem,
+  addCustomCategory,
   addScenario,
   deleteLocalData,
+  importCashFlowItems,
+  loadScenario,
+  removeCashFlowItem,
   removeScenario,
   replaceFinancialData,
   resetState,
   saveState,
   setChartRange,
+  setCashFlowReferenceMonth,
+  setCurrency,
   state,
   toggleValues,
   toggleReminder,
   updatePlan,
-  updateCashFlow
+  updateCashFlow,
+  updateCashFlowItem
 } from './app/state.js'
 import {
   deleteRemoteState,
@@ -21,8 +29,8 @@ import {
   saveRemoteState,
   syncState
 } from './app/sync-state.js'
-import { calculateCashFlow } from './domain/cash-flow.js'
-import { projectRetirement } from './domain/retirement.js'
+import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from './domain/cash-flow.js'
+import { projectRetirementWithSchedules } from './domain/retirement.js'
 import { renderContent } from './features/content/content.js'
 import { renderDashboard } from './features/dashboard/dashboard.js'
 import { renderCashFlow } from './features/cash-flow/cash-flow.js'
@@ -33,7 +41,7 @@ import {
   renderSimulationResult,
   renderSimulations
 } from './features/simulations/simulations.js'
-import { formatCurrency, parseNumber } from './shared/formatters.js'
+import { formatCurrency, parseNumber, privateCurrency } from './shared/formatters.js'
 import { serializeExportableState } from './app/state-storage.js'
 import {
   authState,
@@ -50,6 +58,11 @@ import {
   renderRecovery,
   renderRegister
 } from './features/auth/auth.js'
+import { renderPremium } from './features/premium/premium.js'
+import { trackProductEvent } from './app/product-events.js'
+import { categoryById } from './data/cash-flow-categories.js'
+import { loadExchangeRates } from './app/exchange-rate-state.js'
+import { parseStatementText } from './domain/statement-import.js'
 
 const app = document.querySelector('#app')
 const toastRegion = document.querySelector('#toast-region')
@@ -65,7 +78,8 @@ const routes = {
   '/entrar': renderLogin,
   '/cadastro': renderRegister,
   '/recuperar-senha': renderRecovery,
-  '/nova-senha': renderNewPassword
+  '/nova-senha': renderNewPassword,
+  '/premium': renderPremium
 }
 
 function currentPath() {
@@ -100,10 +114,20 @@ function render({ focusMain = false } = {}) {
   restoreSimulationForm(simulationValues)
   document.body.classList.toggle('values-hidden', state.valuesHidden)
 
+  document.querySelectorAll('[data-product-impression]').forEach((element) => {
+    const eventName = element.dataset.productImpression
+    const impressionKey = `${pathname}:${eventName}:${state.isDemo}:${authState.authenticated}`
+    if (trackedProductImpressions.has(impressionKey)) return
+    trackedProductImpressions.add(impressionKey)
+    trackProductEvent(eventName)
+  })
+
   if (focusMain) {
     document.querySelector('#conteudo')?.focus({ preventScroll: true })
   }
 }
+
+const trackedProductImpressions = new Set()
 
 function navigate(href) {
   if (currentPath() !== href) window.history.pushState({}, '', href)
@@ -137,19 +161,75 @@ function simulationInputFromForm(form) {
   }
 }
 
-function cashFlowInputFromForm(form) {
+function reserveInputFromForm(form) {
   const data = new FormData(form)
   return {
-    recurringIncome: parseNumber(data.get('recurringIncome')),
-    occasionalIncome: parseNumber(data.get('occasionalIncome')),
-    essentialExpenses: parseNumber(data.get('essentialExpenses')),
-    variableExpenses: parseNumber(data.get('variableExpenses')),
-    debtPayments: parseNumber(data.get('debtPayments')),
-    annualExpenses: parseNumber(data.get('annualExpenses')),
     currentEmergencyReserve: parseNumber(data.get('currentEmergencyReserve')),
     emergencyReserveTarget: parseNumber(data.get('emergencyReserveTarget')),
     reserveBuildMonths: Math.round(parseNumber(data.get('reserveBuildMonths')))
   }
+}
+
+function cashItemInputFromForm(form) {
+  const category = categoryById(form.elements.namedItem('categoryId').value, state.customCategories)
+  if (!category) throw new TypeError('Selecione uma categoria válida.')
+  const recordKind = form.elements.namedItem('recordKind').value
+  return {
+    type: category.type,
+    categoryId: category.id,
+    description: form.elements.namedItem('description').value,
+    amount: parseNumber(form.elements.namedItem('amount').value),
+    currency: form.elements.namedItem('currency').value,
+    frequency: recordKind === 'actual' ? 'occasional' : form.elements.namedItem('frequency').value,
+    startDate: form.elements.namedItem('startDate').value,
+    endDate: form.elements.namedItem('endDate').value,
+    recordKind
+  }
+}
+
+function syncCashItemRecordFields(form) {
+  if (!form) return
+  const isActual = form.elements.namedItem('recordKind').value === 'actual'
+  const frequency = form.elements.namedItem('frequency')
+  const startDate = form.elements.namedItem('startDate')
+  if (isActual) frequency.value = 'occasional'
+  frequency.disabled = isActual
+  startDate.required = isActual
+}
+
+function openCashItemDialog(id) {
+  const item = state.cashFlow.items.find((candidate) => candidate.id === id)
+  const dialog = document.querySelector('[data-cash-item-dialog]')
+  const form = dialog?.querySelector('[data-cash-item-edit-form]')
+  if (!item || !dialog || !form) throw new TypeError('Lançamento não encontrado.')
+  for (const field of ['itemId', 'categoryId', 'description', 'amount', 'currency', 'frequency', 'startDate', 'endDate', 'recordKind']) {
+    const input = form.elements.namedItem(field)
+    if (input) input.value = item[field] || ''
+  }
+  const imported = item.source === 'txt'
+  form.elements.namedItem('recordKind').disabled = imported
+  form.querySelector('[data-cash-edit-source]').textContent = imported
+    ? 'Item importado. A origem e a classificação como realizado são preservadas.'
+    : 'Item manual. Você pode alterar todos os campos.'
+  syncCashItemRecordFields(form)
+  if (typeof dialog.showModal === 'function') dialog.showModal()
+  else dialog.setAttribute('open', '')
+}
+
+function closeCashItemDialog() {
+  const dialog = document.querySelector('[data-cash-item-dialog]')
+  if (!dialog) return
+  if (typeof dialog.close === 'function') dialog.close()
+  else dialog.removeAttribute('open')
+}
+
+function currentRetirementSchedules() {
+  return retirementContributionSchedules(
+    state.cashFlow,
+    state.currency,
+    state.exchangeRates,
+    state.customCategories
+  )
 }
 
 function exportData() {
@@ -170,6 +250,9 @@ function exportData() {
 }
 
 document.addEventListener('click', async (event) => {
+  const productEventTarget = event.target.closest('[data-product-event]')
+  if (productEventTarget) trackProductEvent(productEventTarget.dataset.productEvent)
+
   const routeLink = event.target.closest('[data-route]')
   if (routeLink) {
     event.preventDefault()
@@ -235,18 +318,24 @@ document.addEventListener('click', async (event) => {
   }
 
   if (event.target.closest('[data-apply-sustainable-contribution]')) {
-    const retirement = projectRetirement(state.plan)
-    const cashFlow = calculateCashFlow(state.cashFlow, retirement.requiredMonthlyContribution)
+    const retirement = projectRetirementWithSchedules(state.plan, currentRetirementSchedules())
+    const cashFlow = calculateMultiCurrencyCashFlow(
+      state.cashFlow,
+      state.currency,
+      state.exchangeRates,
+      retirement.requiredMonthlyContribution,
+      state.customCategories
+    )
     updatePlan({ monthlyContribution: cashFlow.sustainableContribution })
     render()
-    showToast(`Aporte sustentável de ${formatCurrency(cashFlow.sustainableContribution)} aplicado ao plano.`)
+    showToast(`Aporte sustentável de ${formatCurrency(cashFlow.sustainableContribution, false, state.currency)} aplicado ao plano.`)
     return
   }
 
   if (event.target.closest('[data-apply-adjustment]')) {
     updatePlan({ monthlyContribution: Math.min(state.plan.monthlyContribution + 200, 4000) })
     render()
-    showToast(`Novo aporte de ${formatCurrency(state.plan.monthlyContribution)} salvo.`)
+    showToast(`Novo aporte de ${formatCurrency(state.plan.monthlyContribution, false, state.currency)} salvo.`)
     return
   }
 
@@ -278,7 +367,7 @@ document.addEventListener('click', async (event) => {
     const form = document.querySelector('[data-simulation-form]')
     try {
       const plan = simulationInputFromForm(form)
-      projectRetirement(plan)
+      projectRetirementWithSchedules(plan, currentRetirementSchedules())
       updatePlan(plan)
       navigate('/')
       showToast('Simulação aplicada ao plano principal.')
@@ -293,7 +382,7 @@ document.addEventListener('click', async (event) => {
     const name = new FormData(form).get('scenarioName')?.trim()
     try {
       const plan = simulationInputFromForm(form)
-      projectRetirement(plan)
+      projectRetirementWithSchedules(plan, currentRetirementSchedules())
       addScenario(name || `Cenário ${state.scenarios.length + 1}`, plan)
       render()
       showToast('Cenário salvo para comparação.')
@@ -311,13 +400,49 @@ document.addEventListener('click', async (event) => {
     return
   }
 
+  const loadScenarioButton = event.target.closest('[data-load-scenario]')
+  if (loadScenarioButton) {
+    if (!window.confirm('Carregar este cenário como plano principal e substituir os dados atuais?')) return
+    try {
+      loadScenario(loadScenarioButton.dataset.loadScenario)
+      navigate('/')
+      showToast('Cenário carregado como plano principal.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  const editCashItemButton = event.target.closest('[data-edit-cash-item]')
+  if (editCashItemButton) {
+    try {
+      openCashItemDialog(editCashItemButton.dataset.editCashItem)
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  if (event.target.closest('[data-close-cash-item-dialog]')) {
+    closeCashItemDialog()
+    return
+  }
+
+  const removeCashItemButton = event.target.closest('[data-remove-cash-item]')
+  if (removeCashItemButton) {
+    removeCashFlowItem(removeCashItemButton.dataset.removeCashItem)
+    render()
+    showToast('Lançamento excluído.')
+    return
+  }
+
   if (event.target.closest('[data-export-data]')) {
     exportData()
     return
   }
 
   if (event.target.closest('[data-reset-data]')) {
-    if (!window.confirm('Restaurar os dados de demonstração? Seu fluxo de caixa, ajustes e cenários salvos serão removidos.')) return
+    if (!window.confirm('Restaurar os dados de demonstração? Seu plano, lançamentos, categorias e cenários salvos serão removidos.')) return
     const result = resetState()
     if (!result.success) {
       showToast('A demonstração foi aberta, mas dados anteriores podem não ter sido removidos. Tente apagar os dados novamente.')
@@ -330,13 +455,13 @@ document.addEventListener('click', async (event) => {
   }
 
   if (event.target.closest('[data-delete-data]')) {
-    const confirmed = window.confirm('Apagar de forma irreversível o plano, o fluxo de caixa, os cenários e as preferências salvos neste navegador?')
+    const confirmed = window.confirm('Apagar de forma irreversível o plano, os lançamentos, as categorias, os cenários, as moedas e as preferências deste navegador?')
     if (!confirmed) return
 
     const result = deleteLocalData()
     render()
     showToast(result.success
-      ? 'Seus dados locais foram apagados.'
+      ? 'Os dados deste navegador foram apagados.'
       : 'Não foi possível apagar todos os dados. Verifique o navegador e tente novamente.')
   }
 })
@@ -349,10 +474,58 @@ document.addEventListener('input', (event) => {
   event.target.style.setProperty('--range-progress', `${((value - 500) / 3500) * 100}%`)
 
   const output = document.querySelector('.contribution-output')
-  if (output) output.textContent = state.valuesHidden ? 'R$ •••••' : formatCurrency(value)
+  if (output) output.textContent = privateCurrency(value, state.valuesHidden, false, state.currency)
 })
 
-document.addEventListener('change', (event) => {
+document.addEventListener('change', async (event) => {
+  if (event.target.matches('select[name="recordKind"]')) {
+    syncCashItemRecordFields(event.target.closest('form'))
+    return
+  }
+
+  if (event.target.matches('[data-cash-flow-month]')) {
+    try {
+      setCashFlowReferenceMonth(event.target.value)
+      render()
+      showToast('Mês de comparação atualizado.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  if (event.target.matches('[data-statement-file]')) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (file.size > 1024 * 1024) {
+      showToast('O arquivo deve ter no máximo 1 MB.')
+      event.target.value = ''
+      return
+    }
+    try {
+      const parsed = parseStatementText(await file.text(), {
+        defaultCurrency: state.currency,
+        customCategories: state.customCategories,
+        maximumRows: Math.max(100 - state.cashFlow.items.length, 0)
+      })
+      const importedCount = importCashFlowItems(parsed.items)
+      render()
+      showToast(`${importedCount} lançamentos importados.${parsed.errors.length ? ` ${parsed.errors.length} linhas exigem revisão.` : ''}`)
+    } catch (error) {
+      showToast(error.message)
+      event.target.value = ''
+    }
+    return
+  }
+
+  if (event.target.matches('[data-currency]')) {
+    const previousCurrency = state.currency
+    setCurrency(event.target.value)
+    render()
+    showToast(`Visão geral alterada de ${previousCurrency} para ${state.currency}. Valores do plano foram convertidos pela cotação exibida.`)
+    return
+  }
+
   if (event.target.matches('[data-plan-contribution]')) {
     render()
     showToast('Aporte atualizado no seu plano.')
@@ -382,16 +555,54 @@ document.addEventListener('submit', async (event) => {
     return
   }
 
-  const cashFlowForm = event.target.closest('[data-cash-flow-form]')
-  if (cashFlowForm) {
+  const cashItemEditForm = event.target.closest('[data-cash-item-edit-form]')
+  if (cashItemEditForm) {
     event.preventDefault()
     try {
-      const cashFlow = cashFlowInputFromForm(cashFlowForm)
-      const retirement = projectRetirement(state.plan)
-      calculateCashFlow(cashFlow, retirement.requiredMonthlyContribution)
-      updateCashFlow(cashFlow)
+      const id = cashItemEditForm.elements.namedItem('itemId').value
+      updateCashFlowItem(id, cashItemInputFromForm(cashItemEditForm))
       render()
-      showToast('Fluxo de caixa salvo neste dispositivo.')
+      showToast('Lançamento atualizado.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  const cashItemForm = event.target.closest('[data-cash-item-form]')
+  if (cashItemForm) {
+    event.preventDefault()
+    try {
+      addCashFlowItem(cashItemInputFromForm(cashItemForm))
+      render()
+      showToast('Lançamento adicionado e convertido na visão geral.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  const categoryForm = event.target.closest('[data-category-form]')
+  if (categoryForm) {
+    event.preventDefault()
+    const data = new FormData(categoryForm)
+    try {
+      addCustomCategory(data.get('categoryName'), data.get('categoryType'))
+      render()
+      showToast('Categoria criada.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  const reserveForm = event.target.closest('[data-reserve-form]')
+  if (reserveForm) {
+    event.preventDefault()
+    try {
+      updateCashFlow({ ...state.cashFlow, ...reserveInputFromForm(reserveForm) })
+      render()
+      showToast('Reserva atualizada.')
     } catch (error) {
       showToast(error.message)
     }
@@ -424,6 +635,7 @@ document.addEventListener('submit', async (event) => {
           password: data.get('password'),
           acceptedTerms: data.get('acceptedTerms') === 'on'
         })
+        trackProductEvent('register_success')
       }
       if (action === 'recover') result = await recoverAccount({ email: data.get('email') })
       if (action === 'password') {
@@ -455,7 +667,7 @@ document.addEventListener('submit', async (event) => {
 
   try {
     const simulationPlan = simulationInputFromForm(form)
-    const result = projectRetirement(simulationPlan)
+    const result = projectRetirementWithSchedules(simulationPlan, currentRetirementSchedules())
     resultContainer.innerHTML = renderSimulationResult(result, simulationPlan)
     resultContainer.closest('.simulation-result')?.scrollIntoView({
       behavior: 'smooth',
@@ -475,7 +687,7 @@ window.addEventListener('popstate', () => render({ focusMain: true }))
 
 saveState()
 render()
-loadAuthState().then(async () => {
+Promise.all([loadAuthState(), loadExchangeRates()]).then(async () => {
   if (authState.authenticated) await loadSyncState()
   render()
 })

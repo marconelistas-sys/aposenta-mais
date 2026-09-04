@@ -1,6 +1,6 @@
 /**
  * Motor de projeção financeira do Aposenta+.
- * Todos os valores monetários usam reais e todas as taxas usam formato decimal.
+ * Todos os valores monetários usam a moeda base do cenário e as taxas usam formato decimal.
  */
 
 const numericFields = [
@@ -56,6 +56,29 @@ function futureValueFactor(monthlyRate, months) {
   return ((1 + monthlyRate) ** months - 1) / monthlyRate
 }
 
+function monthKey(value) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) throw new TypeError('A data de referência não é válida.')
+  return date.getUTCFullYear() * 12 + date.getUTCMonth()
+}
+
+function scheduledAmountForMonth(schedules, referenceMonth) {
+  return schedules.reduce((total, schedule) => {
+    const start = schedule.startDate ? monthKey(`${schedule.startDate}T00:00:00Z`) : -Infinity
+    const end = schedule.endDate ? monthKey(`${schedule.endDate}T00:00:00Z`) : Infinity
+    return referenceMonth >= start && referenceMonth <= end ? total + schedule.amount : total
+  }, 0)
+}
+
+function validateSchedules(schedules) {
+  if (!Array.isArray(schedules)) throw new TypeError('As contribuições programadas precisam formar uma lista.')
+  for (const schedule of schedules) {
+    if (!Number.isFinite(schedule.amount) || schedule.amount < 0) {
+      throw new RangeError('Cada contribuição programada precisa ter um valor válido.')
+    }
+  }
+}
+
 export function projectRetirement(input) {
   validateProjectionInput(input)
 
@@ -97,6 +120,44 @@ export function projectRetirement(input) {
   }
 }
 
+export function projectRetirementWithSchedules(input, schedules = [], asOfDate = new Date()) {
+  validateProjectionInput(input)
+  validateSchedules(schedules)
+  const base = projectRetirement(input)
+  const startMonth = monthKey(asOfDate)
+  let scheduledContributionFutureValue = 0
+  let scheduledContributionTotal = 0
+
+  for (let month = 0; month < base.months; month += 1) {
+    const scheduled = scheduledAmountForMonth(schedules, startMonth + month)
+    scheduledContributionFutureValue = scheduledContributionFutureValue * (1 + base.monthlyRate) + scheduled
+    scheduledContributionTotal += scheduled
+  }
+
+  const futureCurrentAssets = input.currentAssets * ((1 + base.monthlyRate) ** base.months)
+  const contributionFactor = futureValueFactor(base.monthlyRate, base.months)
+  const futureBaseContributions = input.monthlyContribution * contributionFactor
+  const projectedAssets = futureCurrentAssets + futureBaseContributions + scheduledContributionFutureValue
+  const missingAssets = Math.max(base.targetAssets - futureCurrentAssets - scheduledContributionFutureValue, 0)
+  const requiredMonthlyContribution = contributionFactor === 0 ? 0 : missingAssets / contributionFactor
+  const projectedInvestmentIncome = projectedAssets * input.annualWithdrawalRate / 12
+  const projectedMonthlyIncome = input.expectedMonthlyBenefit + projectedInvestmentIncome
+
+  return {
+    ...base,
+    projectedAssets,
+    projectedInvestmentIncome,
+    projectedMonthlyIncome,
+    monthlyIncomeGap: input.targetMonthlyIncome - projectedMonthlyIncome,
+    requiredMonthlyContribution,
+    progress: base.targetAssets === 0 ? 1 : projectedAssets / base.targetAssets,
+    goalReached: projectedAssets >= base.targetAssets,
+    scheduledContributionFutureValue,
+    scheduledContributionTotal,
+    currentScheduledMonthlyContribution: scheduledAmountForMonth(schedules, startMonth)
+  }
+}
+
 export function projectAssetSeries(input, requestedYears) {
   validateProjectionInput(input)
   const totalYears = input.retirementAge - input.currentAge
@@ -113,6 +174,56 @@ export function projectAssetSeries(input, requestedYears) {
       assets: input.currentAssets * growthFactor + input.monthlyContribution * contributionFactor
     }
   })
+}
+
+export function projectAssetSeriesDetailed(input, requestedYears) {
+  return projectAssetSeries(input, requestedYears).map((point) => {
+    const contributedCapital = input.currentAssets + input.monthlyContribution * point.year * 12
+    return {
+      ...point,
+      contributedCapital,
+      investmentGrowth: point.assets - contributedCapital
+    }
+  })
+}
+
+export function projectAssetSeriesWithSchedules(input, schedules = [], requestedYears, asOfDate = new Date()) {
+  validateProjectionInput(input)
+  validateSchedules(schedules)
+  const totalYears = input.retirementAge - input.currentAge
+  const years = Math.max(1, Math.min(Math.floor(requestedYears), totalYears))
+  const monthlyRate = (1 + input.annualRealReturn) ** (1 / 12) - 1
+  const startMonth = monthKey(asOfDate)
+  let assets = input.currentAssets
+  let contributedCapital = input.currentAssets
+  let scheduledContributionTotal = 0
+  const series = [{
+    year: 0,
+    age: input.currentAge,
+    assets,
+    contributedCapital,
+    scheduledContributionTotal,
+    investmentGrowth: 0
+  }]
+
+  for (let month = 0; month < years * 12; month += 1) {
+    const scheduled = scheduledAmountForMonth(schedules, startMonth + month)
+    assets = assets * (1 + monthlyRate) + input.monthlyContribution + scheduled
+    contributedCapital += input.monthlyContribution + scheduled
+    scheduledContributionTotal += scheduled
+    if ((month + 1) % 12 === 0) {
+      const year = (month + 1) / 12
+      series.push({
+        year,
+        age: input.currentAge + year,
+        assets,
+        contributedCapital,
+        scheduledContributionTotal,
+        investmentGrowth: assets - contributedCapital
+      })
+    }
+  }
+  return series
 }
 
 export function yearsUntilGoal(input, maximumYears = 60) {

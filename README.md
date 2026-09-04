@@ -7,9 +7,17 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 - Painel responsivo com renda estimada, meta, patrimônio e fontes de renda.
 - Plano com ajuste de aporte mensal.
 - Simulador com cálculo instantâneo no navegador.
-- Fluxo de caixa com receitas, despesas, provisão anual e reserva de emergência.
+- Fluxo de caixa por lançamento, com moeda, categoria, frequência e reserva de emergência.
 - Cálculo de saldo, taxa de poupança, comprometimento e aporte sustentável.
 - Comparação entre aporte atual, sustentável e necessário para a meta.
+- Receitas e despesas em BRL, EUR, USD ou CHF, consolidadas na moeda da visão geral.
+- Cotação pública do Banco Central Europeu com fonte, data e estado de atualização.
+- Categorias comuns de internet banking e criação simplificada de novas categorias.
+- Datas de início e fim para receitas, despesas e contribuições recorrentes.
+- Importação local de até 100 lançamentos por arquivo TXT.
+- Comparação mensal entre orçamento planejado e valores realizados.
+- Edição de lançamentos sem exclusão, com preservação da origem importada.
+- Contribuições de previdência complementar no orçamento e no patrimônio projetado.
 - Área de conteúdos e preferências.
 - Opção para ocultar valores e exportar os dados locais.
 - Exclusão irreversível do plano, cenários e preferências armazenados localmente.
@@ -20,23 +28,26 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 - Sincronização financeira manual e opcional após consentimento explícito.
 - PostgreSQL com uma linha por usuário e políticas RLS para todas as operações.
 - Restauração e exclusão independentes da cópia remota.
+- Estado de privacidade visível para uso local, conta e cópia remota.
 - Motor financeiro isolado da interface.
 - Gráfico patrimonial calculado pelo mesmo motor da projeção.
 - Estado local validado e versionado.
-- Comparação de até três cenários salvos no dispositivo.
-- Aplicação de uma simulação ao plano principal.
+- Comparação de até três cenários salvos no dispositivo com gráfico por retorno real.
+- Restauração do plano, orçamento e moeda a partir de um cenário salvo.
 - Testes automatizados com o executor nativo do Node.js.
-- Build estático sem dependências externas.
+- Build estático sem dependências de pacotes npm.
 
 ## Como executar
 
 Você precisa do Node.js 20 ou superior.
 
 ```bash
-npm run dev
+./run-app.sh
 ```
 
 Abra `http://127.0.0.1:4173`.
+
+O script valida o Node.js, o npm, o arquivo `.env` e as variáveis do Supabase antes de iniciar o servidor. Como alternativa, execute `npm run dev` diretamente.
 
 Para ativar o Supabase Auth no plano gratuito, copie `.env.example` para `.env` e preencha a URL e a chave publicável do projeto. O comando de desenvolvimento carrega o arquivo automaticamente.
 
@@ -45,6 +56,10 @@ npm run dev
 ```
 
 Sem essas variáveis, a aplicação continua em modo de demonstração e informa que as contas ainda não foram configuradas. Consulte `docs/security/supabase-auth.md` para configurar URLs e modelos de e-mail.
+
+Na visão geral, escolha BRL, EUR, USD ou CHF. A troca converte os valores do plano pela cotação exibida. Cada lançamento do orçamento mantém sua moeda original. Planos salvos antes dessa opção são migrados para BRL.
+
+O servidor consulta a taxa diária oficial do Banco Central Europeu e mantém cache por seis horas. Quando a consulta falha, o dashboard identifica a última referência embutida como desatualizada. Nenhum dado financeiro é enviado ao BCE.
 
 Para ativar a cópia remota, aplique a migração da Sprint 6 no projeto Supabase:
 
@@ -133,6 +148,10 @@ aposenta-plus/
 - O aporte atual não é descontado como despesa para evitar dupla contagem.
 - Tokens de acesso e renovação ficam em cookies `HttpOnly` controlados pelo backend Node.
 - Valores futuros usam retorno real. Isso mantém a leitura em poder de compra de hoje.
+- A projeção usa capitalização mensal equivalente à taxa real efetiva anual de cada cenário.
+- Contribuições previdenciárias reduzem o saldo disponível do orçamento e entram como aportes programados no motor patrimonial.
+- O importador TXT processa o arquivo no navegador e não envia o extrato ao servidor.
+- As taxas cambiais servem para planejamento. Elas não representam preço de compra ou venda de moeda.
 - O nome técnico do pacote usa `aposenta-plus`, pois o caractere `+` costuma exigir tratamento especial em URLs e ferramentas.
 
 ## Limites do MVP
@@ -143,7 +162,8 @@ O cálculo serve para educação e planejamento inicial. Ele não implementa reg
 
 1. Definir controlador, contato de privacidade, base legal e retenção antes da beta pública com conta.
 2. Aplicar e validar a migração da Sprint 6 no projeto hospedado.
-3. Separar valores planejados e realizados por mês.
-4. Definir resolução de conflitos antes de uma sincronização automática.
-5. Importar histórico de contribuições e versionar regras do INSS.
-6. Verificar disponibilidade de marca e domínio para Aposenta+.
+3. Exibir uma prévia com mapeamento e duplicidades antes de importar.
+4. Contratar ou integrar uma instituição receptora participante antes de conectar o Open Finance.
+5. Definir resolução de conflitos antes de uma sincronização automática.
+6. Importar histórico de contribuições e versionar regras do INSS.
+7. Verificar disponibilidade de marca e domínio para Aposenta+.

@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Permitir que uma pessoa autenticada crie uma cópia remota do plano, fluxo de caixa e cenários. O login não envia dados financeiros. Cada gravação depende de uma ação manual e de consentimento explícito.
+Permitir que uma pessoa autenticada crie uma cópia remota da moeda base, plano, fluxo de caixa e cenários. O login não envia dados financeiros. Cada gravação depende de uma ação manual e de consentimento explícito.
 
 ## Histórias
 

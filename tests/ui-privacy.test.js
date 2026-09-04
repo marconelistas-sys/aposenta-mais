@@ -55,6 +55,9 @@ test('exclusão remove dados persistidos sem restaurá-los', () => {
   assert.equal(memory.has('aposenta-plus-state-v1'), false)
   assert.equal(memory.has('aposenta-plus-state-v2'), false)
   assert.equal(memory.has('aposenta-plus-state-v3'), false)
+  assert.equal(memory.has('aposenta-plus-state-v4'), false)
+  assert.equal(memory.has('aposenta-plus-state-v5'), false)
+  assert.equal(memory.has('aposenta-plus-state-v6'), false)
   assert.equal(state.scenarios.length, 0)
   assert.equal(state.dataDeleted, true)
 })
@@ -65,19 +68,32 @@ test('fluxo de caixa explica dados locais e oculta valores', () => {
 
   const html = renderCashFlow()
 
-  assert.match(html, /Dados mantidos neste dispositivo/)
+  assert.match(html, /Cálculo local, sem envio automático/)
   assert.match(html, /Receitas eventuais não foram usadas/)
   assert.match(html, /R\$ •••••/)
+  assert.match(html, /Importar extrato TXT/)
+  assert.match(html, /name="startDate"/)
+  assert.match(html, /name="endDate"/)
+  assert.match(html, /Previdência complementar/)
+  assert.match(html, /processado neste navegador/)
+  assert.match(html, /name="recordKind"/)
+  assert.match(html, /data-cash-flow-month/)
+  assert.match(html, /PLANEJADO E REALIZADO/)
+  assert.match(html, /data-edit-cash-item=/)
+  assert.match(html, /data-cash-item-dialog/)
+  assert.match(html, /data-cash-item-edit-form/)
+  assert.match(html, /Salvar alterações/)
 })
 
 test('aviso explica armazenamento, retenção, controles e limites', () => {
   const html = renderPrivacy()
 
-  assert.match(html, /Entrar na conta não envia o plano automaticamente/i)
+  assert.match(html, /Criar uma conta não envia o plano financeiro/i)
   assert.match(html, /consentimento/i)
-  assert.match(html, /armazenamento local/i)
-  assert.match(html, /até você usar “Apagar meus dados”/i)
+  assert.match(html, /neste navegador/i)
+  assert.match(html, /até você usar “Apagar dados deste navegador”/i)
   assert.match(html, /não criptografia/i)
+  assert.match(html, /não são anônimos/i)
   assert.match(html, /LGPD/)
 })
 
@@ -85,6 +101,7 @@ test('restauração remota sanitiza dados e preserva preferências do dispositiv
   resetState()
   state.valuesHidden = true
   replaceFinancialData({
+    currency: 'EUR',
     plan: { currentAge: 51, secret: 'remover' },
     cashFlow: { recurringIncome: 18000 },
     scenarios: []
@@ -93,5 +110,6 @@ test('restauração remota sanitiza dados e preserva preferências do dispositiv
   assert.equal(state.plan.currentAge, 51)
   assert.equal('secret' in state.plan, false)
   assert.equal(state.cashFlow.recurringIncome, 18000)
+  assert.equal(state.currency, 'EUR')
   assert.equal(state.valuesHidden, true)
 })

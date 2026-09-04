@@ -25,7 +25,8 @@ const paths = {
   help: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.6 1.5c-.9 1.1-2.7 1.4-2.7 3.5M12 18h.01"/>',
   logout: '<path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>',
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
-  close: '<path d="M18 6 6 18M6 6l12 12"/>'
+  close: '<path d="M18 6 6 18M6 6l12 12"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'
 }
 
 export function icon(name, size = 20, className = '') {

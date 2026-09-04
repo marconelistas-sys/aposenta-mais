@@ -6,7 +6,7 @@ export function renderPrivacy() {
       <div>
         <p class="eyebrow">PRIVACIDADE</p>
         <h1>Seus dados ficam sob seu controle.</h1>
-        <p>Entenda o que este protótipo guarda, por quê e como remover tudo.</p>
+        <p>Entenda o que fica no navegador, o que identifica sua conta e quando uma cópia é enviada.</p>
       </div>
     </section>
 
@@ -15,7 +15,7 @@ export function renderPrivacy() {
         ${icon('shield', 24)}
         <div>
           <h2>Resumo direto</h2>
-          <p>Plano, fluxo de caixa, cenários e preferências ficam no armazenamento local deste navegador por padrão. Uma cópia financeira só é enviada ao Supabase quando você autoriza e solicita o envio. Entrar na conta não envia o plano automaticamente.</p>
+          <p>Você pode explorar o Aposenta+ sem informar sua identidade. Se criar uma conta, seu e-mail identifica esse acesso. Seu plano financeiro continua local até você autorizar e solicitar uma cópia remota vinculada à conta.</p>
         </div>
       </article>
 
@@ -23,21 +23,35 @@ export function renderPrivacy() {
         <h2>Dados e finalidade</h2>
         <ul class="privacy-list">
           <li>Idade, patrimônio, aporte, renda desejada e premissas para calcular projeções.</li>
-          <li>Receitas, despesas, dívidas e reserva de emergência para calcular o aporte sustentável.</li>
-          <li>Cenários salvos para comparar alternativas.</li>
+          <li>Lançamentos, descrições, moedas, categorias, frequências e prazos para calcular o aporte sustentável.</li>
+          <li>Cenários salvos para comparar e restaurar plano, orçamento e moeda.</li>
           <li>Preferências visuais e de lembrete para personalizar a experiência.</li>
+          <li>Cotação pública do BCE, com fonte e data, para converter totais na moeda da visão geral.</li>
           <li>Versão e data do consentimento quando você cria uma cópia remota.</li>
         </ul>
       </article>
 
       <article class="panel privacy-card">
         <h2>Armazenamento e retenção</h2>
-        <p>Os dados locais permanecem até você usar “Apagar meus dados”, limpar o site ou remover o perfil do navegador. Uma cópia autorizada permanece no Supabase até você usar “Excluir cópia remota” ou excluir a conta.</p>
+        <p>Os dados locais permanecem até você usar “Apagar dados deste navegador”, limpar o site ou remover o perfil do navegador. Uma cópia autorizada permanece no Supabase até você usar “Excluir cópia remota”. A exclusão da conta ainda depende de um processo administrativo.</p>
+      </article>
+
+      <article class="panel privacy-card">
+        <h2>Proteções implementadas</h2>
+        <ul class="privacy-list">
+          <li>Os cálculos financeiros são executados neste navegador.</li>
+          <li>O arquivo TXT é lido localmente. O arquivo original não é enviado ao servidor.</li>
+          <li>O servidor consulta somente a cotação pública. Nenhum lançamento é enviado ao BCE.</li>
+          <li>Criar uma conta não envia o plano financeiro.</li>
+          <li>A sessão usa cookies HttpOnly, sem tokens no localStorage.</li>
+          <li>A cópia remota exige login, ação manual e consentimento.</li>
+          <li>O banco foi preparado para limitar cada conta à própria linha. A configuração hospedada ainda precisa de validação operacional.</li>
+        </ul>
       </article>
 
       <article class="panel privacy-card">
         <h2>Limites importantes</h2>
-        <p>Ocultar valores é apenas uma proteção visual, não criptografia. Extensões, pessoas com acesso ao dispositivo e scripts maliciosos podem alcançar o armazenamento do navegador. O arquivo exportado também fica sob sua responsabilidade.</p>
+        <p>Dados financeiros não são anônimos quando ficam vinculados a uma conta. Ocultar valores é uma proteção visual, não criptografia. Extensões, pessoas com acesso ao dispositivo e scripts maliciosos podem alcançar o armazenamento do navegador.</p>
       </article>
 
       <article class="panel privacy-card">

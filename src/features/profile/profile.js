@@ -52,11 +52,28 @@ export function renderProfile() {
             </div>
           ` : `
             <div class="account-status">
-              <div><strong>Nenhuma conta conectada</strong><p>Entre ou crie uma conta. O login não envia seus dados financeiros automaticamente.</p></div>
-              <a class="button button--primary" href="/entrar" data-route>Entrar</a>
+              <div><strong>Nenhuma conta conectada</strong><p>Crie uma conta grátis para acessar sua cópia em outros dispositivos. O cadastro não envia seus dados financeiros automaticamente.</p></div>
+              <div class="account-actions">
+                ${authState.configured === false ? '' : '<a class="button button--primary" href="/cadastro" data-route data-product-event="create_account_click">Criar conta grátis</a>'}
+                <a class="button button--secondary" href="/entrar" data-route>Já tenho conta</a>
+              </div>
             </div>
           `}
         </section>
+
+        ${authState.authenticated ? `
+          <section class="panel settings-card profile-premium-card">
+            <div>
+              <div class="premium-label-row">
+                <p class="eyebrow">APOSENTA+ PREMIUM</p>
+                <span class="premium-badge">Em breve</span>
+              </div>
+              <h2>Inclua quem planeja a vida financeira com você.</h2>
+              <p>Organizem o orçamento da casa e comparem as metas do casal em um só painel.</p>
+            </div>
+            <a class="button button--secondary" href="/premium" data-route data-product-event="premium_view">Conhecer o Premium</a>
+          </section>
+        ` : ''}
 
         ${authState.authenticated ? `
           <section class="panel settings-card sync-card">
@@ -80,7 +97,7 @@ export function renderProfile() {
               <form class="sync-consent-form" data-sync-consent-form>
                 <label class="checkbox-row">
                   <input name="acceptedSyncConsent" type="checkbox" required />
-                  <span>Autorizo o armazenamento de uma cópia do plano, fluxo de caixa e cenários no Supabase até que eu solicite a exclusão.</span>
+                  <span>Autorizo enviar e armazenar no Supabase uma cópia do plano, lançamentos manuais ou importados, prazos, categorias, cenários, moedas e cotação usada, vinculada à minha conta. Posso excluir essa cópia aqui. A exclusão remota não apaga os dados deste navegador.</span>
                 </label>
                 <button class="button button--primary" type="submit">${syncState.exists ? 'Atualizar cópia remota' : 'Criar cópia remota'}</button>
               </form>
@@ -118,7 +135,7 @@ export function renderProfile() {
           </div>
           <div class="data-explanation">
             ${icon('lock', 21)}
-            <p>Por padrão, este MVP salva seu plano, fluxo de caixa, cenários e preferências apenas neste navegador. A cópia remota depende de uma ação e de consentimento explícitos.</p>
+            <p>Por padrão, este MVP salva plano, lançamentos, categorias, cenários, moedas e preferências neste navegador. Criar uma conta envia dados de acesso ao Supabase, mas não envia o plano financeiro. A cópia remota depende de ação e consentimento explícitos.</p>
           </div>
           <div class="data-actions">
             <button class="button button--secondary" type="button" data-export-data>${icon('download', 17)} Exportar meus dados</button>
@@ -126,10 +143,10 @@ export function renderProfile() {
           </div>
           <div class="danger-zone">
             <div>
-              <strong>Apagar meus dados</strong>
-              <p>Você pode exportar uma cópia antes de remover plano, fluxo de caixa, cenários e preferências deste navegador.</p>
+              <strong>Apagar dados deste navegador</strong>
+              <p>Você pode exportar uma cópia antes de remover plano, lançamentos, categorias, cenários, moedas e preferências deste navegador.</p>
             </div>
-            <button class="button button--danger" type="button" data-delete-data>Apagar meus dados</button>
+            <button class="button button--danger" type="button" data-delete-data>Apagar dados deste navegador</button>
           </div>
           <p class="privacy-shortcut"><a href="/privacidade" data-route>Leia o aviso de privacidade</a> antes de usar dados reais.</p>
         </section>

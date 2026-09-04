@@ -2,8 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  projectAssetSeriesDetailed,
   projectAssetSeries,
+  projectAssetSeriesWithSchedules,
   projectRetirement,
+  projectRetirementWithSchedules,
   validateProjectionInput,
   yearsUntilGoal
 } from '../src/domain/retirement.js'
@@ -108,6 +111,15 @@ test('gera série anual coerente com a projeção final', () => {
   assertClose(series.at(-1).assets, result.projectedAssets)
 })
 
+test('decompõe o saldo entre capital aportado e rendimento real composto', () => {
+  const series = projectAssetSeriesDetailed(baseInput, 30)
+  const last = series.at(-1)
+
+  assert.equal(last.contributedCapital, baseInput.currentAssets + baseInput.monthlyContribution * 360)
+  assertClose(last.contributedCapital + last.investmentGrowth, last.assets)
+  assert.ok(last.investmentGrowth > 0)
+})
+
 test('mantém resultados finitos quando renda desejada e benefício são zero', () => {
   const result = projectRetirement({
     ...baseInput,
@@ -124,4 +136,26 @@ test('mais aporte não reduz o patrimônio projetado', () => {
   const base = projectRetirement(baseInput)
   const increased = projectRetirement({ ...baseInput, monthlyContribution: 1500 })
   assert.ok(increased.projectedAssets > base.projectedAssets)
+})
+
+test('contribuições previdenciárias programadas aumentam o patrimônio somente durante o prazo', () => {
+  const input = {
+    ...baseInput,
+    currentAge: 40,
+    retirementAge: 42,
+    currentAssets: 0,
+    monthlyContribution: 100,
+    annualRealReturn: 0,
+    targetMonthlyIncome: 0,
+    expectedMonthlyBenefit: 0
+  }
+  const schedules = [{ amount: 50, startDate: '2026-09-01', endDate: '2027-08-31' }]
+  const result = projectRetirementWithSchedules(input, schedules, new Date('2026-09-04T12:00:00Z'))
+  const series = projectAssetSeriesWithSchedules(input, schedules, 2, new Date('2026-09-04T12:00:00Z'))
+
+  assert.equal(result.scheduledContributionTotal, 600)
+  assert.equal(result.currentScheduledMonthlyContribution, 50)
+  assert.equal(result.projectedAssets, 3000)
+  assert.equal(series.at(-1).assets, 3000)
+  assert.equal(series.at(-1).scheduledContributionTotal, 600)
 })

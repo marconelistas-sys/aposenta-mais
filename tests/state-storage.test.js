@@ -43,6 +43,22 @@ test('sanitiza o fluxo de caixa e mantém apenas campos aprovados', () => {
   assert.equal('secret' in cashFlow, false)
 })
 
+test('migra lançamentos antigos para planejados e extratos para realizados', () => {
+  const cashFlow = sanitizeCashFlow({
+    referenceMonth: '2026-09',
+    items: [
+      { id: 'old', type: 'income', categoryId: 'salary', amount: 1000, currency: 'BRL', frequency: 'monthly' },
+      { id: 'txt', type: 'expense', categoryId: 'groceries', amount: 50, currency: 'BRL', frequency: 'occasional', source: 'txt', startDate: '2026-09-04' },
+      { id: 'invalid-actual', type: 'expense', categoryId: 'groceries', amount: 20, currency: 'BRL', frequency: 'occasional', recordKind: 'actual' }
+    ]
+  })
+
+  assert.equal(cashFlow.referenceMonth, '2026-09')
+  assert.equal(cashFlow.items[0].recordKind, 'planned')
+  assert.equal(cashFlow.items[1].recordKind, 'actual')
+  assert.equal(cashFlow.items.length, 2)
+})
+
 test('migra estado antigo e limita cenários a três', () => {
   const scenarios = Array.from({ length: 5 }, (_, index) => ({
     id: `s-${index}`,
@@ -53,7 +69,13 @@ test('migra estado antigo e limita cenários a três', () => {
 
   assert.equal(state.version, stateVersion)
   assert.equal(state.activeChartRange, 'retirement')
+  assert.equal(state.currency, 'BRL')
   assert.equal(state.scenarios.length, 3)
+})
+
+test('preserva apenas moedas base permitidas', () => {
+  assert.equal(sanitizeStoredState({ currency: 'eur' }).currency, 'EUR')
+  assert.equal(sanitizeStoredState({ currency: 'BTC' }).currency, 'BRL')
 })
 
 test('preserva um plano salvo na versão antiga como dado do usuário', () => {
@@ -89,7 +111,11 @@ test('apaga apenas as chaves do Aposenta+', () => {
   const storage = memoryStorage({
     [storageKeys.current]: '{}',
     [storageKeys.legacy]: '{}',
+    [storageKeys.older]: '{}',
     [storageKeys.oldest]: '{}',
+    [storageKeys.earlier]: '{}',
+    [storageKeys.earliest]: '{}',
+    [storageKeys.original]: '{}',
     'outro-aplicativo': 'preservar'
   })
 
@@ -113,7 +139,7 @@ test('tenta apagar todas as chaves mesmo quando uma remoção falha', () => {
 
   const result = removeStoredState(storage)
 
-  assert.deepEqual(attempted, [storageKeys.current, storageKeys.legacy, storageKeys.oldest])
+  assert.deepEqual(attempted, [storageKeys.current, storageKeys.legacy, storageKeys.older, storageKeys.oldest, storageKeys.earlier, storageKeys.earliest, storageKeys.original])
   assert.equal(result.success, false)
   assert.deepEqual(result.failedKeys, [storageKeys.current])
 })
@@ -145,11 +171,15 @@ test('exporta somente campos aprovados e dados sanitizados', () => {
     'isDemo',
     'lastUpdatedAt',
     'activeChartRange',
+    'currency',
+    'exchangeRates',
+    'customCategories',
     'plan',
     'cashFlow',
     'scenarios'
   ])
   assert.equal(parsed.plan.currentAge, 47)
+  assert.equal(parsed.currency, 'BRL')
   assert.equal('segredo' in parsed.plan, false)
   assert.equal('token' in parsed, false)
 })
