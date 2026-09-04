@@ -17,6 +17,9 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 - Política de Segurança de Conteúdo e cabeçalhos defensivos no servidor local.
 - Cadastro, login, recuperação de senha e logout integrados ao Supabase Auth.
 - Sessão em cookies `HttpOnly`, sem tokens no `localStorage`.
+- Sincronização financeira manual e opcional após consentimento explícito.
+- PostgreSQL com uma linha por usuário e políticas RLS para todas as operações.
+- Restauração e exclusão independentes da cópia remota.
 - Motor financeiro isolado da interface.
 - Gráfico patrimonial calculado pelo mesmo motor da projeção.
 - Estado local validado e versionado.
@@ -42,6 +45,14 @@ npm run dev
 ```
 
 Sem essas variáveis, a aplicação continua em modo de demonstração e informa que as contas ainda não foram configuradas. Consulte `docs/security/supabase-auth.md` para configurar URLs e modelos de e-mail.
+
+Para ativar a cópia remota, aplique a migração da Sprint 6 no projeto Supabase:
+
+```bash
+supabase db push
+```
+
+Você também pode executar o arquivo `supabase/migrations/202609040001_sprint_6_financial_plans.sql` no SQL Editor do Supabase. A aplicação usa apenas a chave publicável e o token da sessão do usuário. Não configure uma chave `service_role` neste fluxo.
 
 Para validar a URL e a chave publicável sem criar usuários:
 
@@ -92,7 +103,8 @@ aposenta-plus/
 │   │   ├── privacy/
 │   │   └── simulations/
 │   ├── server/
-│   │   └── auth/
+│   │   ├── auth/
+│   │   └── data/
 │   ├── shared/
 │   │   ├── formatters.js
 │   │   └── icons.js
@@ -103,6 +115,8 @@ aposenta-plus/
 │   └── main.js
 ├── tests/
 │   └── retirement.test.js
+├── supabase/
+│   └── migrations/
 ├── index.html
 └── package.json
 ```
@@ -111,7 +125,9 @@ aposenta-plus/
 
 - A primeira versão não usa dependências. Isso reduz instalação, risco de pacote e tempo para iniciar.
 - A regra de projeção fica em `src/domain`. A interface não contém fórmulas financeiras.
-- O plano e o fluxo de caixa continuam em `localStorage` nesta Sprint. O Supabase recebe somente dados de identidade e autenticação quando configurado.
+- O plano e o fluxo de caixa continuam em `localStorage` por padrão. O Supabase recebe uma cópia financeira somente após ação e consentimento explícitos.
+- A sincronização é manual. O login consulta o estado da cópia, mas não envia o documento financeiro.
+- A cópia remota não inclui preferências visuais, credenciais ou tokens.
 - Receitas eventuais não financiam automaticamente compromissos recorrentes.
 - A reserva de emergência fica separada do patrimônio de aposentadoria.
 - O aporte atual não é descontado como despesa para evitar dupla contagem.
@@ -126,7 +142,8 @@ O cálculo serve para educação e planejamento inicial. Ele não implementa reg
 ## Próximas etapas sugeridas
 
 1. Definir controlador, contato de privacidade, base legal e retenção antes da beta pública com conta.
-2. Sincronizar dados financeiros somente após consentimento explícito, com PostgreSQL e RLS.
+2. Aplicar e validar a migração da Sprint 6 no projeto hospedado.
 3. Separar valores planejados e realizados por mês.
-4. Importar histórico de contribuições e versionar regras do INSS.
-5. Verificar disponibilidade de marca e domínio para Aposenta+.
+4. Definir resolução de conflitos antes de uma sincronização automática.
+5. Importar histórico de contribuições e versionar regras do INSS.
+6. Verificar disponibilidade de marca e domínio para Aposenta+.

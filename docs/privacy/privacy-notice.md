@@ -2,7 +2,7 @@
 
 ## Resumo
 
-O Aposenta+ mantém o plano financeiro e o fluxo de caixa no armazenamento local do navegador. Quando a conta está ativada, o Supabase processa e-mail, credenciais, identificadores técnicos e sessão para cadastro, login, confirmação e recuperação de acesso. Dados financeiros não são enviados ao Supabase nesta Sprint.
+O Aposenta+ mantém o plano financeiro e o fluxo de caixa no armazenamento local do navegador. Quando a conta está ativada, o Supabase processa e-mail, credenciais, identificadores técnicos e sessão. Uma cópia do plano, fluxo de caixa e cenários só é enviada após uma ação manual e consentimento explícito. O login não envia o documento financeiro.
 
 ## O que é armazenado e por quê
 
@@ -11,14 +11,15 @@ O Aposenta+ mantém o plano financeiro e o fluxo de caixa no armazenamento local
 - Cenários para permitir comparações.
 - Preferências de visibilidade, lembrete e gráfico para manter a experiência escolhida.
 - E-mail e dados técnicos de autenticação para criar e proteger a conta quando o Supabase estiver configurado.
+- Versão e data do consentimento para demonstrar a autorização da cópia remota.
 
 ## Onde e por quanto tempo
 
-Plano, fluxo de caixa, cenários e preferências ficam no perfil do navegador usado. Permanecem até o usuário escolher “Apagar meus dados”, limpar os dados do site ou remover o perfil do navegador. Dados de identidade e autenticação ficam no projeto Supabase conforme a configuração de retenção do serviço. Não há sincronização de dados financeiros entre dispositivos nesta Sprint.
+Plano, fluxo de caixa, cenários e preferências ficam no perfil do navegador usado. Permanecem até o usuário escolher “Apagar meus dados”, limpar os dados do site ou remover o perfil do navegador. A cópia financeira autorizada fica no PostgreSQL do Supabase até o usuário escolher “Excluir cópia remota” ou excluir a conta. Preferências visuais não entram na cópia remota.
 
 ## Controles do usuário
 
-O perfil permite exportar uma cópia JSON e apagar os dados locais. A exclusão local é irreversível. Restaurar a demonstração é uma ação separada. O logout encerra a sessão no navegador e solicita a revogação ao Supabase.
+O perfil permite exportar uma cópia JSON, apagar os dados locais, criar ou atualizar uma cópia remota, restaurar essa cópia e excluí-la. Excluir dados locais não exclui a cópia remota. Excluir a cópia remota não altera os dados locais. O logout encerra a sessão, mas não exclui dados.
 
 ## Limites
 
@@ -26,4 +27,4 @@ Ocultar valores é uma escolha visual, não criptografia. Pessoas com acesso ao 
 
 ## Pendências antes de usuários reais
 
-O controlador, o contato de privacidade, as bases legais, os prazos de retenção e o processo de atendimento aos direitos previstos na LGPD ainda devem ser definidos. A conta deve permanecer desativada publicamente até essa definição. Esta documentação não declara conformidade integral com a lei.
+O controlador, o contato de privacidade, a validação da base legal, os prazos de retenção e o processo de atendimento aos direitos previstos na LGPD ainda devem ser definidos. A sincronização deve permanecer desativada publicamente até essa definição e a validação da migração hospedada. Esta documentação não declara conformidade integral com a lei.

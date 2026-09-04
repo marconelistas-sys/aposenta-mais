@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Aposenta+ API
-  version: 0.2.0
-  description: Contrato da autenticação e da execução futura de projeções no servidor.
+  version: 0.3.0
+  description: Contrato da autenticação, sincronização opcional e execução futura de projeções no servidor.
 servers:
   - url: /api
 paths:
@@ -92,6 +92,91 @@ paths:
           description: Sessão ausente ou expirada
         '502':
           description: Senha atualizada, mas a revogação global das sessões não foi confirmada
+  /sync/status:
+    get:
+      summary: Consulta se o usuário possui uma cópia financeira remota
+      responses:
+        '200':
+          description: Estado da cópia remota
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncStatus'
+        '401':
+          description: Sessão ausente ou expirada
+        '503':
+          description: API de autenticação ainda não configurada
+    get:
+      summary: Obtém a cópia financeira do usuário autenticado
+      responses:
+        '200':
+          description: Cópia financeira encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state, updatedAt, consentVersion]
+                properties:
+                  state:
+                    $ref: '#/components/schemas/FinancialState'
+                  updatedAt:
+                    type: string
+                    format: date-time
+                  consentVersion:
+                    type: string
+        '401':
+          description: Sessão ausente ou expirada
+        '404':
+          description: Nenhuma cópia encontrada
+    post:
+      summary: Cria ou atualiza uma cópia após consentimento explícito
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [acceptedSyncConsent, consentVersion, state]
+              properties:
+                acceptedSyncConsent:
+                  type: boolean
+                  const: true
+                consentVersion:
+                  type: string
+                  const: 2026-09-04-v1
+                state:
+                  $ref: '#/components/schemas/FinancialState'
+      responses:
+        '200':
+          description: Cópia criada ou atualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [exists, updatedAt, consentVersion]
+                properties:
+                  exists:
+                    type: boolean
+                  updatedAt:
+                    type: [string, 'null']
+                    format: date-time
+                  consentVersion:
+                    type: string
+        '400':
+          description: Consentimento ausente ou documento inválido
+        '401':
+          description: Sessão ausente ou expirada
+        '503':
+          description: API de autenticação ainda não configurada
+    delete:
+      summary: Exclui a cópia financeira e o registro de consentimento
+      responses:
+        '200':
+          description: Cópia remota excluída, sem alterar dados locais
+        '401':
+          description: Sessão ausente ou expirada
   /v1/retirement-goals/{goalId}/projection-runs:
     post:
       summary: Executa uma projeção determinística
@@ -159,6 +244,41 @@ components:
             acceptedTerms:
               type: boolean
               const: true
+    SyncStatus:
+      type: object
+      additionalProperties: false
+      required: [available, exists, updatedAt, consentVersion]
+      properties:
+        available:
+          type: boolean
+        exists:
+          type: boolean
+        updatedAt:
+          type: [string, 'null']
+          format: date-time
+        consentVersion:
+          type: [string, 'null']
+    FinancialState:
+      type: object
+      additionalProperties: false
+      required: [version, lastUpdatedAt, plan, cashFlow, scenarios]
+      properties:
+        version:
+          type: integer
+          minimum: 1
+          maximum: 100
+        lastUpdatedAt:
+          type: [string, 'null']
+          format: date-time
+        plan:
+          type: object
+        cashFlow:
+          type: object
+        scenarios:
+          type: array
+          maxItems: 3
+          items:
+            type: object
     ProjectionRequest:
       type: object
       required:

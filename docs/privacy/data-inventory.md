@@ -10,8 +10,10 @@
 | Metadados técnicos | dado técnico local | aplicação | versão, modo de demonstração, última atualização | validar e migrar o estado | local até exclusão pelo usuário ou navegador |
 | Identidade | dado pessoal | usuário e Supabase Auth | e-mail, identificador de usuário, confirmação | criar e identificar a conta | projeto Supabase conforme política aprovada |
 | Autenticação | credencial e metadado de segurança | usuário, aplicação e Supabase Auth | hash de senha no provedor, tokens, endereço de rede, eventos de acesso | autenticar, renovar e proteger a sessão | projeto Supabase conforme política aprovada |
+| Cópia financeira remota | dado pessoal financeiro | usuário e aplicação | plano, fluxo de caixa e até três cenários | permitir restauração manual em outro dispositivo | PostgreSQL do Supabase até exclusão remota ou da conta |
+| Consentimento de sincronização | metadado de conformidade | usuário e aplicação | versão e data do consentimento | registrar a autorização da cópia remota | mesma linha da cópia financeira até exclusão remota ou da conta |
 
-O plano financeiro não é compartilhado. Quando a conta está configurada, identidade e autenticação são processadas pelo Supabase. A eliminação local usa as ações do perfil ou os controles do navegador. A exclusão da conta remota ainda precisa de um fluxo administrativo antes da beta.
+O plano financeiro não é compartilhado com terceiros. Quando a conta está configurada, identidade e autenticação são processadas pelo Supabase. A cópia financeira depende de consentimento explícito. A eliminação local e a exclusão remota são ações separadas. A exclusão da conta de autenticação ainda precisa de um fluxo administrativo antes da beta.
 
 ## Chaves técnicas
 

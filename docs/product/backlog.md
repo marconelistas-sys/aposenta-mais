@@ -66,10 +66,20 @@
 - Cenários Atual, Sustentável e Meta integrados ao motor de aposentadoria.
 - Exportação, restauração, exclusão e migração atualizadas para a versão 3 do estado.
 
+## Sprint 6: sincronização opcional concluída no código
+
+- Cópia remota manual após consentimento explícito.
+- Restauração com confirmação antes de substituir os dados locais.
+- Exclusão remota independente da exclusão local.
+- Documento financeiro sanitizado sem preferências ou tokens.
+- Migração PostgreSQL com RLS forçada e acesso por usuário.
+- Contrato da API e testes de autorização, consentimento e exclusão.
+
 ## Próximas prioridades
 
 1. P0: definir controlador, contato de privacidade, base legal e prazos antes de uma beta com servidor.
-2. P0: desenhar sincronização opcional com RLS e consentimento explícito, sem importação automática dos dados locais.
+2. P0: aplicar e validar a migração da Sprint 6 no projeto Supabase hospedado.
 3. P1: separar valores planejados e realizados por mês.
-4. P1: definir processo auditável para acesso, correção, portabilidade e exclusão.
-5. P2: avaliar integração com Meu INSS ou Open Finance após análise jurídica e de segurança.
+4. P1: definir resolução de conflitos e histórico antes da sincronização automática.
+5. P1: definir processo auditável para acesso, correção, portabilidade e exclusão.
+6. P2: avaliar integração com Meu INSS ou Open Finance após análise jurídica e de segurança.

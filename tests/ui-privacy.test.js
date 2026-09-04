@@ -8,7 +8,7 @@ globalThis.localStorage = {
   removeItem: (key) => memory.delete(key)
 }
 
-const { addScenario, deleteLocalData, resetState, state } = await import('../src/app/state.js')
+const { addScenario, deleteLocalData, replaceFinancialData, resetState, state } = await import('../src/app/state.js')
 const { renderDashboard } = await import('../src/features/dashboard/dashboard.js')
 const { renderPrivacy } = await import('../src/features/privacy/privacy.js')
 const { renderSimulations } = await import('../src/features/simulations/simulations.js')
@@ -73,9 +73,25 @@ test('fluxo de caixa explica dados locais e oculta valores', () => {
 test('aviso explica armazenamento, retenção, controles e limites', () => {
   const html = renderPrivacy()
 
-  assert.match(html, /e-mail e sessão serão processados pelo serviço de autenticação/i)
+  assert.match(html, /Entrar na conta não envia o plano automaticamente/i)
+  assert.match(html, /consentimento/i)
   assert.match(html, /armazenamento local/i)
   assert.match(html, /até você usar “Apagar meus dados”/i)
   assert.match(html, /não criptografia/i)
   assert.match(html, /LGPD/)
+})
+
+test('restauração remota sanitiza dados e preserva preferências do dispositivo', () => {
+  resetState()
+  state.valuesHidden = true
+  replaceFinancialData({
+    plan: { currentAge: 51, secret: 'remover' },
+    cashFlow: { recurringIncome: 18000 },
+    scenarios: []
+  })
+
+  assert.equal(state.plan.currentAge, 51)
+  assert.equal('secret' in state.plan, false)
+  assert.equal(state.cashFlow.recurringIncome, 18000)
+  assert.equal(state.valuesHidden, true)
 })

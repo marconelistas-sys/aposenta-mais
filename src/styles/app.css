@@ -2091,6 +2091,64 @@ body.values-hidden .simulation-form input {
   display: block;
 }
 
+.sync-message {
+  margin: 18px 0 0;
+  padding: 14px;
+  border-radius: 10px;
+  color: var(--color-ink-soft);
+  background: #f7f9f7;
+  font-size: 11px;
+}
+
+.sync-message--error {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.sync-refresh {
+  margin-top: 10px;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 18px;
+  padding: 15px;
+  border-radius: 12px;
+  background: #f7f9f7;
+}
+
+.sync-status strong,
+.sync-status p {
+  display: block;
+}
+
+.sync-status p {
+  margin: 4px 0 0;
+  color: var(--color-ink-muted);
+  font-size: 11px;
+}
+
+.sync-consent-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.sync-consent-form .button {
+  justify-self: start;
+}
+
+.sync-actions {
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
 .account-status p {
   margin: 4px 0 0;
   color: var(--color-ink-muted);

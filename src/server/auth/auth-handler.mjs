@@ -4,6 +4,9 @@ import { clearSessionCookies, parseCookies, sessionCookies, authCookieNames } fr
 import { readAuthConfig } from './config.mjs'
 import { createRateLimiter } from './rate-limiter.mjs'
 import { createSupabaseAuth } from './supabase-auth.mjs'
+import { createSupabaseData } from '../data/supabase-data.mjs'
+import { createExportableState } from '../../app/state-storage.js'
+import { financialPayload, syncConsentVersion } from '../../shared/sync-contract.js'
 
 const genericAuthMessage = 'Se os dados estiverem corretos, você receberá as próximas instruções.'
 const loginMessage = 'Não foi possível entrar com essas credenciais.'
@@ -65,10 +68,12 @@ export function createAuthHandler({
   env = process.env,
   fetchImpl = fetch,
   limiter = createRateLimiter(),
-  accountLimiter = createRateLimiter()
+  accountLimiter = createRateLimiter(),
+  dataLimiter = createRateLimiter({ limit: 30 })
 } = {}) {
   const config = readAuthConfig(env)
   const auth = config.configured ? createSupabaseAuth({ ...config, fetchImpl }) : null
+  const data = config.configured ? createSupabaseData({ ...config, fetchImpl }) : null
 
   async function requireUser(request, response) {
     const cookies = parseCookies(request.headers.cookie)
@@ -99,7 +104,9 @@ export function createAuthHandler({
   }
 
   return async function handleAuth(request, response, url) {
-    if (!url.pathname.startsWith('/api/auth/')) return false
+    const isAuthPath = url.pathname.startsWith('/api/auth/')
+    const isSyncPath = url.pathname.startsWith('/api/sync/')
+    if (!isAuthPath && !isSyncPath) return false
 
     if (request.method === 'GET' && url.pathname === '/api/auth/status') {
       if (!config.configured) {
@@ -127,6 +134,73 @@ export function createAuthHandler({
     }
 
     try {
+      if (isSyncPath) {
+        const session = await requireUser(request, response)
+        if (!session) {
+          json(response, 401, { error: 'Entre na sua conta para usar a sincronização.' })
+          return true
+        }
+
+        if (request.method !== 'GET' && !consumeLimit(response, dataLimiter, `${session.user.id}:${url.pathname}`)) {
+          return true
+        }
+
+        if (request.method === 'GET' && url.pathname === '/api/sync/status') {
+          const remote = await data.getPlan(session.user.id, session.accessToken)
+          json(response, 200, {
+            available: true,
+            exists: Boolean(remote),
+            updatedAt: remote?.updated_at || null,
+            consentVersion: remote?.consent_version || null
+          })
+          return true
+        }
+
+        if (request.method === 'GET' && url.pathname === '/api/sync/data') {
+          const remote = await data.getPlan(session.user.id, session.accessToken)
+          if (!remote) {
+            json(response, 404, { error: 'Nenhuma cópia remota foi encontrada.' })
+            return true
+          }
+          json(response, 200, {
+            state: remote.payload,
+            updatedAt: remote.updated_at,
+            consentVersion: remote.consent_version
+          })
+          return true
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/sync/data') {
+          const body = await readJson(request)
+          if (body.acceptedSyncConsent !== true || body.consentVersion !== syncConsentVersion) {
+            json(response, 400, { error: 'Confirme o consentimento para criar a cópia remota.' })
+            return true
+          }
+          const safeState = financialPayload(createExportableState(body.state))
+          const remote = await data.upsertPlan(
+            session.user.id,
+            safeState,
+            syncConsentVersion,
+            session.accessToken
+          )
+          json(response, 200, {
+            exists: true,
+            updatedAt: remote?.updated_at || null,
+            consentVersion: syncConsentVersion
+          })
+          return true
+        }
+
+        if (request.method === 'DELETE' && url.pathname === '/api/sync/data') {
+          await data.deletePlan(session.user.id, session.accessToken)
+          json(response, 200, { exists: false, deleted: true })
+          return true
+        }
+
+        json(response, 404, { error: 'Rota de sincronização não encontrada.' })
+        return true
+      }
+
       if (request.method === 'POST' && url.pathname === '/api/auth/register') {
         const { email, password, acceptedTerms } = await readJson(request)
         if (!consumeLimit(response, accountLimiter, accountKey(email, url.pathname))) return true
@@ -215,6 +289,8 @@ export function createAuthHandler({
         json(response, 401, { error: loginMessage })
       } else if (sensitiveRoutes.has(url.pathname)) {
         json(response, 202, { message: genericAuthMessage })
+      } else if (isSyncPath) {
+        json(response, 502, { error: 'Não foi possível acessar a cópia remota.' })
       } else {
         json(response, 502, { error: 'O serviço de autenticação não respondeu.' })
       }
