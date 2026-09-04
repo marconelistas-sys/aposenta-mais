@@ -104,7 +104,8 @@ paths:
                 $ref: '#/components/schemas/SyncStatus'
         '401':
           description: Sessão ausente ou expirada
-  /sync/data:
+        '503':
+          description: API de autenticação ainda não configurada
     get:
       summary: Obtém a cópia financeira do usuário autenticado
       responses:
