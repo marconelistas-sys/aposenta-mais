@@ -6,12 +6,15 @@ import { escapeHtml } from '../shared/formatters.js'
 const navigation = [
   { href: '/', label: 'Visão geral', icon: 'home' },
   { href: '/plano', label: 'Meu plano', icon: 'target' },
+  { href: '/fluxo-caixa', label: 'Fluxo de caixa', icon: 'wallet' },
   { href: '/simulacoes', label: 'Simulações', icon: 'calculator' },
   { href: '/conteudos', label: 'Conteúdos', icon: 'book' }
 ]
 
 const mobileNavigation = [
-  ...navigation.slice(0, 3),
+  navigation[0],
+  navigation[2],
+  navigation[3],
   { href: '/perfil', label: 'Perfil', icon: 'user' }
 ]
 
@@ -91,7 +94,7 @@ export function appLayout(content, pathname) {
       <aside class="demo-banner" aria-label="Modo de demonstração">
         ${icon('info', 18)}
         <span>Você está vendo dados de demonstração.</span>
-        <a href="/simulacoes" data-route>Inserir meus dados</a>
+        <a href="/fluxo-caixa" data-route>Inserir meus dados</a>
       </aside>
     ` : ''}
 

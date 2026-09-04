@@ -7,6 +7,9 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 - Painel responsivo com renda estimada, meta, patrimônio e fontes de renda.
 - Plano com ajuste de aporte mensal.
 - Simulador com cálculo instantâneo no navegador.
+- Fluxo de caixa com receitas, despesas, provisão anual e reserva de emergência.
+- Cálculo de saldo, taxa de poupança, comprometimento e aporte sustentável.
+- Comparação entre aporte atual, sustentável e necessário para a meta.
 - Área de conteúdos e preferências.
 - Opção para ocultar valores e exportar os dados locais.
 - Exclusão irreversível do plano, cenários e preferências armazenados localmente.
@@ -32,12 +35,9 @@ npm run dev
 
 Abra `http://127.0.0.1:4173`.
 
-Para ativar o Supabase Auth no plano gratuito, copie `.env.example` para `.env`, preencha a URL e a chave publicável do projeto e carregue as variáveis antes de iniciar o servidor. O Node.js não lê o arquivo `.env` automaticamente.
+Para ativar o Supabase Auth no plano gratuito, copie `.env.example` para `.env` e preencha a URL e a chave publicável do projeto. O comando de desenvolvimento carrega o arquivo automaticamente.
 
 ```bash
-set -a
-source .env
-set +a
 npm run dev
 ```
 
@@ -78,11 +78,14 @@ aposenta-plus/
 │   │   ├── layout.js
 │   │   └── state.js
 │   ├── data/
+│   │   ├── mock-cash-flow.js
 │   │   └── mock-plan.js
 │   ├── domain/
+│   │   ├── cash-flow.js
 │   │   └── retirement.js
 │   ├── features/
 │   │   ├── content/
+│   │   ├── cash-flow/
 │   │   ├── dashboard/
 │   │   ├── plan/
 │   │   ├── profile/
@@ -108,7 +111,10 @@ aposenta-plus/
 
 - A primeira versão não usa dependências. Isso reduz instalação, risco de pacote e tempo para iniciar.
 - A regra de projeção fica em `src/domain`. A interface não contém fórmulas financeiras.
-- O plano financeiro continua em `localStorage` nesta Sprint. O Supabase recebe somente dados de identidade e autenticação quando configurado.
+- O plano e o fluxo de caixa continuam em `localStorage` nesta Sprint. O Supabase recebe somente dados de identidade e autenticação quando configurado.
+- Receitas eventuais não financiam automaticamente compromissos recorrentes.
+- A reserva de emergência fica separada do patrimônio de aposentadoria.
+- O aporte atual não é descontado como despesa para evitar dupla contagem.
 - Tokens de acesso e renovação ficam em cookies `HttpOnly` controlados pelo backend Node.
 - Valores futuros usam retorno real. Isso mantém a leitura em poder de compra de hoje.
 - O nome técnico do pacote usa `aposenta-plus`, pois o caractere `+` costuma exigir tratamento especial em URLs e ferramentas.
@@ -119,9 +125,8 @@ O cálculo serve para educação e planejamento inicial. Ele não implementa reg
 
 ## Próximas etapas sugeridas
 
-1. Definir requisitos jurídicos e de segurança antes de criar contas ou servidor.
-2. Importar histórico de contribuições.
-3. Versionar regras do INSS por vigência.
-4. Salvar e comparar cenários.
-5. Adicionar autenticação e API com controles de privacidade.
-6. Verificar disponibilidade de marca e domínio para Aposenta+.
+1. Definir controlador, contato de privacidade, base legal e retenção antes da beta pública com conta.
+2. Sincronizar dados financeiros somente após consentimento explícito, com PostgreSQL e RLS.
+3. Separar valores planejados e realizados por mês.
+4. Importar histórico de contribuições e versionar regras do INSS.
+5. Verificar disponibilidade de marca e domínio para Aposenta+.

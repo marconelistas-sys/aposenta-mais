@@ -1,4 +1,5 @@
 import { projectAssetSeries, projectRetirement } from '../../domain/retirement.js'
+import { calculateCashFlow } from '../../domain/cash-flow.js'
 import { state } from '../../app/state.js'
 import {
   formatCompactCurrency,
@@ -72,6 +73,7 @@ function chartMarkup(plan) {
 
 export function renderDashboard() {
   const result = projectRetirement(state.plan)
+  const cashFlow = calculateCashFlow(state.cashFlow, result.requiredMonthlyContribution)
   const incomeProgress = state.plan.targetMonthlyIncome === 0
     ? 1
     : Math.min(Math.max(result.projectedMonthlyIncome / state.plan.targetMonthlyIncome, 0), 1)
@@ -172,6 +174,15 @@ export function renderDashboard() {
           <span>${state.isDemo ? 'Valor de demonstração' : 'Valor salvo no dispositivo'}</span>
         </div>
         <a href="/plano" data-route aria-label="Ver aporte mensal">${icon('chevronRight', 19)}</a>
+      </article>
+      <article class="metric-card">
+        <div class="metric-card__icon metric-card__icon--green">${icon('wallet', 21)}</div>
+        <div>
+          <p>Aporte sustentável</p>
+          <strong class="money-value">${privateCurrency(cashFlow.sustainableContribution, state.valuesHidden)}</strong>
+          <span>${cashFlow.isDeficit ? 'Revise o déficit mensal' : 'Após despesas e reserva'}</span>
+        </div>
+        <a href="/fluxo-caixa" data-route aria-label="Ver fluxo de caixa">${icon('chevronRight', 19)}</a>
       </article>
     </section>
 

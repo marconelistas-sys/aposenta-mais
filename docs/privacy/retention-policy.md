@@ -12,7 +12,7 @@ A aplicação não possui cópia remota, rotina de backup ou período automátic
 
 ## Exclusão
 
-A exclusão tenta remover as chaves atual e legada. As tentativas são independentes para reduzir o risco de uma falha impedir a limpeza da outra chave. Chaves que não pertencem ao Aposenta+ são preservadas.
+A exclusão tenta remover a chave atual e as duas chaves legadas. As tentativas são independentes para reduzir o risco de uma falha impedir a limpeza das outras chaves. Chaves que não pertencem ao Aposenta+ são preservadas.
 
 ## Evolução necessária
 

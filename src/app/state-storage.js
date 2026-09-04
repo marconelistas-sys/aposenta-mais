@@ -1,11 +1,25 @@
 import { defaultPlan } from '../data/mock-plan.js'
+import { defaultCashFlow } from '../data/mock-cash-flow.js'
 
-export const stateVersion = 2
+export const stateVersion = 3
 export const storageKeys = Object.freeze({
-  current: 'aposenta-plus-state-v2',
-  legacy: 'aposenta-plus-state-v1',
+  current: 'aposenta-plus-state-v3',
+  legacy: 'aposenta-plus-state-v2',
+  oldest: 'aposenta-plus-state-v1',
   deletionMarker: 'aposenta-plus-deleted-v1'
 })
+
+const cashFlowRules = {
+  recurringIncome: [0, 1000000000],
+  occasionalIncome: [0, 1000000000],
+  essentialExpenses: [0, 1000000000],
+  variableExpenses: [0, 1000000000],
+  debtPayments: [0, 1000000000],
+  annualExpenses: [0, 1000000000],
+  currentEmergencyReserve: [0, 1000000000],
+  emergencyReserveTarget: [0, 1000000000],
+  reserveBuildMonths: [1, 120]
+}
 
 const planRules = {
   currentAge: [16, 99],
@@ -37,6 +51,17 @@ export function sanitizePlan(candidate = {}) {
   return plan
 }
 
+export function sanitizeCashFlow(candidate = {}) {
+  const source = candidate && typeof candidate === 'object' ? candidate : {}
+  const cashFlow = { ...defaultCashFlow }
+
+  for (const [field, rule] of Object.entries(cashFlowRules)) {
+    if (validNumber(source[field], rule)) cashFlow[field] = source[field]
+  }
+  cashFlow.reserveBuildMonths = Math.round(cashFlow.reserveBuildMonths)
+  return cashFlow
+}
+
 function sanitizeScenario(scenario) {
   if (!scenario || typeof scenario !== 'object') return null
   const name = typeof scenario.name === 'string' ? scenario.name.trim().slice(0, 40) : ''
@@ -66,6 +91,7 @@ export function sanitizeStoredState(candidate) {
       ? source.activeChartRange
       : 'retirement',
     plan: sanitizePlan(source.plan),
+    cashFlow: sanitizeCashFlow(source.cashFlow),
     scenarios
   }
 }
@@ -84,7 +110,8 @@ export function loadStoredState(storage) {
     const current = storage.getItem(storageKeys.current)
     if (current) return parseStoredState(current)
 
-    const legacy = storage.getItem(storageKeys.legacy)
+    const legacyKey = storage.getItem(storageKeys.legacy) ? storageKeys.legacy : storageKeys.oldest
+    const legacy = storage.getItem(legacyKey)
     if (!legacy) {
       const emptyState = parseStoredState(null)
       emptyState.dataDeleted = storage.getItem(storageKeys.deletionMarker) === '1'
@@ -94,7 +121,7 @@ export function loadStoredState(storage) {
     const migrated = parseStoredState(legacy)
     try {
       storage.setItem(storageKeys.current, JSON.stringify(migrated))
-      storage.removeItem(storageKeys.legacy)
+      storage.removeItem(legacyKey)
     } catch {
       // Mantém o legado quando a migração não puder ser concluída.
     }
@@ -107,7 +134,7 @@ export function loadStoredState(storage) {
 export function removeStoredState(storage) {
   const failedKeys = []
 
-  for (const key of [storageKeys.current, storageKeys.legacy]) {
+  for (const key of [storageKeys.current, storageKeys.legacy, storageKeys.oldest]) {
     try {
       storage.removeItem(key)
     } catch {
@@ -134,6 +161,7 @@ export function createExportableState(candidate) {
     lastUpdatedAt: safe.lastUpdatedAt,
     activeChartRange: safe.activeChartRange,
     plan: safe.plan,
+    cashFlow: safe.cashFlow,
     scenarios: safe.scenarios
   }
 }

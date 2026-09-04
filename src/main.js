@@ -9,11 +9,14 @@ import {
   state,
   toggleValues,
   toggleReminder,
-  updatePlan
+  updatePlan,
+  updateCashFlow
 } from './app/state.js'
+import { calculateCashFlow } from './domain/cash-flow.js'
 import { projectRetirement } from './domain/retirement.js'
 import { renderContent } from './features/content/content.js'
 import { renderDashboard } from './features/dashboard/dashboard.js'
+import { renderCashFlow } from './features/cash-flow/cash-flow.js'
 import { renderPlan } from './features/plan/plan.js'
 import { renderProfile } from './features/profile/profile.js'
 import { renderDeletedState, renderPrivacy } from './features/privacy/privacy.js'
@@ -45,6 +48,7 @@ const toastRegion = document.querySelector('#toast-region')
 const routes = {
   '/': renderDashboard,
   '/plano': renderPlan,
+  '/fluxo-caixa': renderCashFlow,
   '/simulacoes': renderSimulations,
   '/conteudos': renderContent,
   '/perfil': renderProfile,
@@ -124,6 +128,21 @@ function simulationInputFromForm(form) {
   }
 }
 
+function cashFlowInputFromForm(form) {
+  const data = new FormData(form)
+  return {
+    recurringIncome: parseNumber(data.get('recurringIncome')),
+    occasionalIncome: parseNumber(data.get('occasionalIncome')),
+    essentialExpenses: parseNumber(data.get('essentialExpenses')),
+    variableExpenses: parseNumber(data.get('variableExpenses')),
+    debtPayments: parseNumber(data.get('debtPayments')),
+    annualExpenses: parseNumber(data.get('annualExpenses')),
+    currentEmergencyReserve: parseNumber(data.get('currentEmergencyReserve')),
+    emergencyReserveTarget: parseNumber(data.get('emergencyReserveTarget')),
+    reserveBuildMonths: Math.round(parseNumber(data.get('reserveBuildMonths')))
+  }
+}
+
 function exportData() {
   try {
     const file = new Blob([serializeExportableState(state)], {
@@ -135,7 +154,7 @@ function exportData() {
     link.download = 'aposenta-plus-dados.json'
     link.click()
     URL.revokeObjectURL(url)
-    showToast('Arquivo preparado com seus dados do plano.')
+    showToast('Arquivo preparado com os dados do plano e do fluxo de caixa.')
   } catch {
     showToast('Não foi possível exportar seus dados. Tente novamente.')
   }
@@ -169,6 +188,15 @@ document.addEventListener('click', async (event) => {
     } catch (error) {
       showToast(error.message)
     }
+    return
+  }
+
+  if (event.target.closest('[data-apply-sustainable-contribution]')) {
+    const retirement = projectRetirement(state.plan)
+    const cashFlow = calculateCashFlow(state.cashFlow, retirement.requiredMonthlyContribution)
+    updatePlan({ monthlyContribution: cashFlow.sustainableContribution })
+    render()
+    showToast(`Aporte sustentável de ${formatCurrency(cashFlow.sustainableContribution)} aplicado ao plano.`)
     return
   }
 
@@ -246,7 +274,7 @@ document.addEventListener('click', async (event) => {
   }
 
   if (event.target.closest('[data-reset-data]')) {
-    if (!window.confirm('Restaurar os dados de demonstração? Seus ajustes e cenários salvos serão removidos.')) return
+    if (!window.confirm('Restaurar os dados de demonstração? Seu fluxo de caixa, ajustes e cenários salvos serão removidos.')) return
     const result = resetState()
     if (!result.success) {
       showToast('A demonstração foi aberta, mas dados anteriores podem não ter sido removidos. Tente apagar os dados novamente.')
@@ -259,7 +287,7 @@ document.addEventListener('click', async (event) => {
   }
 
   if (event.target.closest('[data-delete-data]')) {
-    const confirmed = window.confirm('Apagar de forma irreversível o plano, os cenários e as preferências salvos neste navegador?')
+    const confirmed = window.confirm('Apagar de forma irreversível o plano, o fluxo de caixa, os cenários e as preferências salvos neste navegador?')
     if (!confirmed) return
 
     const result = deleteLocalData()
@@ -289,6 +317,22 @@ document.addEventListener('change', (event) => {
 })
 
 document.addEventListener('submit', async (event) => {
+  const cashFlowForm = event.target.closest('[data-cash-flow-form]')
+  if (cashFlowForm) {
+    event.preventDefault()
+    try {
+      const cashFlow = cashFlowInputFromForm(cashFlowForm)
+      const retirement = projectRetirement(state.plan)
+      calculateCashFlow(cashFlow, retirement.requiredMonthlyContribution)
+      updateCashFlow(cashFlow)
+      render()
+      showToast('Fluxo de caixa salvo neste dispositivo.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
   const authForm = event.target.closest('[data-auth-form]')
   if (authForm) {
     event.preventDefault()

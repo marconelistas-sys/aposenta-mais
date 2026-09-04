@@ -24,12 +24,9 @@ O plano, os cenários e as preferências continuam locais. Esta Sprint não sinc
 4. Preencha `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `APP_ORIGIN`.
 5. Use `COOKIE_SECURE=true` em produção com HTTPS.
 
-Carregue o arquivo e valide a conexão sem criar uma conta:
+Valide a conexão sem criar uma conta. O comando carrega `.env` automaticamente:
 
 ```bash
-set -a
-source .env
-set +a
 npm run check:auth-config
 ```
 
