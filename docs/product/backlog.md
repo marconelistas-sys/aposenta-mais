@@ -1,5 +1,19 @@
 # Backlog inicial
 
+## Estado consolidado após Sprint 33
+
+Sprints 29 a 33 implementadas sequencialmente: formulários contextuais, prazo mensal comum, retiradas opcionais para déficits, edição de contas/movimentos e conferência manual de saldos. [Entregas e limites](sprints-29-33.md). As listas históricas abaixo registram prioridades anteriores e não substituem esta seção.
+
+Próximas prioridades:
+
+1. Validar fluxo visual em desktop e celular, teclado e testes observados com usuários.
+2. Projetar fase posterior à aposentadoria, com despesas, resgates, custos e impostos explícitos.
+3. Conciliação por movimento e integração controlada entre contas, orçamento e Carteira, sem dupla contagem.
+4. Definir titularidade dos planos locais, migração e isolamento por conta em dispositivos compartilhados.
+5. Calendário de vencimentos, dívidas e metas com prazo.
+
+Bloqueios do beta permanecem: RLS com duas contas no Supabase, validação hospedada de restauração/exclusão/conflitos e aprovação jurídica responsável. O fechamento da tela não cifra os dados do navegador.
+
 ## Épico 1: perfil financeiro
 
 - US-001: criar conta e autenticar-se.

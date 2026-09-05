@@ -3,6 +3,7 @@ import { variableView } from './features/dashboard/variable-contributions.js'
 import { guideBudgetForm, showFormError } from './app/form-guidance.js'
 import { changeAccounts } from './app/accounts.js'
 import { renderAccounts } from './features/accounts/accounts.js'
+import { previewReconciliation } from './features/accounts/reconciliation.js'
 import { canRenderFinancialPage, closeLocalPlan, openLocalPlan, localLockKey, isPublicPage } from './app/local-access.js'
 import { renderWelcome } from './features/welcome/welcome.js'
 import { renderGuidedPlan } from './features/welcome/guided-plan.js'
@@ -173,6 +174,7 @@ function simulationInputFromForm(form) {
   return {
     currentAge: parseNumber(data.get('currentAge')),
     retirementAge: parseNumber(data.get('retirementAge')),
+    retirementMonth: parseNumber(data.get('currentAge')) === state.plan.currentAge && parseNumber(data.get('retirementAge')) === state.plan.retirementAge ? state.plan.retirementMonth : null,
     currentAssets: parseNumber(data.get('currentAssets')),
     monthlyContribution: parseNumber(data.get('monthlyContribution')),
     targetMonthlyIncome: parseNumber(data.get('targetMonthlyIncome')),
@@ -822,6 +824,13 @@ document.addEventListener('change', async (event) => {
 })
 
 document.addEventListener('submit', async (event) => {
+  const reconciliationForm = event.target.closest('[data-reconciliation-form]')
+  if (reconciliationForm) {
+    event.preventDefault()
+    if (!reconciliationForm.reportValidity()) return
+    try { previewReconciliation(new FormData(reconciliationForm)); render() } catch (error) { showFormError(reconciliationForm, error.message) }
+    return
+  }
   const accountForm = event.target.closest('[data-account-form], [data-movement-form]')
   if (accountForm) {
     event.preventDefault()

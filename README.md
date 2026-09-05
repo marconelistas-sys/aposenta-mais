@@ -4,6 +4,10 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 
 ## O que está pronto
 
+- Prazo mensal confirmado compartilhado por orçamento e projeção, incluindo o período final parcial.
+- Cenário opcional de retiradas de investimentos disponíveis, com déficits não financiados explícitos.
+- Edição de contas e movimentos e conferência manual de saldo contra extrato, sem ajustes automáticos.
+
 - Cadastro guiado com moeda, frequência mensal, anual ou única e períodos opcionais.
 - Contas manuais e transferências, com saldos separados do orçamento e do patrimônio.
 - Comparação de aportes limitados à capacidade mensal, verificações de consistência e liquidez declarada por investimento.

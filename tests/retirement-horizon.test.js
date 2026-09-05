@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { sanitizeStoredState } from '../src/app/state-storage.js'
-import { projectRetirement, projectAssetSeriesWithSchedules, retirementMonths } from '../src/domain/retirement.js'
+import { projectRetirement, projectRetirementWithSchedules, projectAssetSeriesWithSchedules, retirementMonths } from '../src/domain/retirement.js'
 const date = new Date('2026-01-01T00:00:00Z')
 test('mês confirmado alinha motor e último ponto parcial do gráfico', () => {
   const state = sanitizeStoredState({ plan: { currentAge: 40, retirementAge: 65, currentAssets: 1000, monthlyContribution: 100, annualRealReturn: 0 }, cashFlow: { retirementMonth: '2027-02' } })
@@ -17,4 +17,11 @@ test('mês já alcançado não cria aportes e planos antigos seguem idades', () 
   assert.equal(projectRetirement(state.plan, date).noTimeRemaining, true)
   assert.equal(projectAssetSeriesWithSchedules(state.plan, [], undefined, date).length, 1)
   assert.equal(retirementMonths({ ...state.plan, retirementMonth: null }, date), 12)
+})
+test('previdência e último ponto usam o mesmo prazo confirmado de dois meses', () => {
+  const state = sanitizeStoredState({ plan: { currentAge: 40, retirementAge: 65, currentAssets: 1000, monthlyContribution: 100, annualRealReturn: 0 }, cashFlow: { retirementMonth: '2026-03' } })
+  const schedules = [{ amount: 50, startDate: '2026-01-01', endDate: '2026-01-31' }]
+  const result = projectRetirementWithSchedules(state.plan, schedules, date)
+  assert.equal(result.projectedAssets, 1250)
+  assert.equal(projectAssetSeriesWithSchedules(state.plan, schedules, undefined, date).at(-1).assets, 1250)
 })
