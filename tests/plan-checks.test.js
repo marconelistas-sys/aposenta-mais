@@ -6,7 +6,8 @@ test('identifica lacunas, salário sem término e benefício não orçado sem mo
   const state = sanitizeStoredState({ plan: { expectedMonthlyBenefit: 1000 }, cashFlow: { items: [{ id: 's', type: 'income', categoryId: 'salary', amount: 100, currency: 'BRL', frequency: 'monthly' }], retirementMonth: '2026-01' } })
   const before = JSON.stringify(state)
   const ids = planChecks(state).map(check => check.id)
-  for (const id of ['missing-expense', 'salary-open', 'benefit-not-budgeted', 'dates-differ']) assert.ok(ids.includes(id))
+  for (const id of ['missing-expense', 'salary-open', 'benefit-not-budgeted']) assert.ok(ids.includes(id))
+  assert.ok(!ids.includes('dates-differ'))
   assert.equal(JSON.stringify(state), before)
 })
 test('verificações removem alerta corrigido e não contam realizados como renda prevista', () => {

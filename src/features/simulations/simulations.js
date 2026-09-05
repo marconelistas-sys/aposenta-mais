@@ -142,7 +142,7 @@ function scenarioComparisonChart() {
       series: projectAssetSeriesWithSchedules(
         plan,
         schedulesFor(scenario.cashFlow),
-        plan.retirementAge - plan.currentAge
+        undefined
       )
     }
   })

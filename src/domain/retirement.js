@@ -150,11 +150,17 @@ function validateInvestments(input) {
   }
 }
 
-export function projectRetirement(input) {
+export function retirementMonths(input, asOfDate = new Date()) {
+  if (!input.retirementMonth) return Math.round((input.retirementAge - input.currentAge) * 12)
+  if (!/^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(input.retirementMonth)) throw new RangeError('Mês de aposentadoria inválido.')
+  return Math.max(0, Math.min(1200, monthKey(`${input.retirementMonth}-01T00:00:00Z`) - monthKey(asOfDate)))
+}
+
+export function projectRetirement(input, asOfDate = new Date()) {
   validateProjectionInput(input)
   validateInvestments(input)
 
-  const months = Math.round((input.retirementAge - input.currentAge) * 12)
+  const months = retirementMonths(input, asOfDate)
   const defaultMonthlyRate = monthlyRate(input.annualRealReturn)
   const contributionFactor = blendedContributionFactor(input, months)
   const futureCurrentAssets = currentAssetsAtMonth(input, months)
@@ -179,6 +185,7 @@ export function projectRetirement(input) {
 
   return {
     months,
+    noTimeRemaining: months === 0,
     monthlyRate: defaultMonthlyRate,
     currentAssets: currentAssets(input),
     futureCurrentAssets,
@@ -197,7 +204,7 @@ export function projectRetirement(input) {
 export function projectRetirementWithSchedules(input, schedules = [], asOfDate = new Date()) {
   validateProjectionInput(input)
   validateSchedules(schedules)
-  const base = projectRetirement(input)
+  const base = projectRetirement(input, asOfDate)
   const startMonth = monthKey(asOfDate)
   let scheduledContributionFutureValue = 0
   let scheduledContributionTotal = 0
@@ -231,15 +238,17 @@ export function projectRetirementWithSchedules(input, schedules = [], asOfDate =
   }
 }
 
-export function projectAssetSeries(input, requestedYears) {
+export function projectAssetSeries(input, requestedYears, asOfDate = new Date()) {
   validateProjectionInput(input)
   validateInvestments(input)
-  const totalYears = input.retirementAge - input.currentAge
-  const years = Math.max(1, Math.min(Math.floor(requestedYears), totalYears))
+  const monthsTotal = Math.min(retirementMonths(input, asOfDate), Math.max(0, Math.round((requestedYears ?? 100) * 12)))
+  const points = [0]
+  for (let month = 12; month < monthsTotal; month += 12) points.push(month)
+  if (monthsTotal > 0) points.push(monthsTotal)
   const defaultMonthlyRate = monthlyRate(input.annualRealReturn)
 
-  return Array.from({ length: years + 1 }, (_, year) => {
-    const months = year * 12
+  return points.map(months => {
+    const year = months / 12
     const contributionFactor = blendedContributionFactor(input, months)
     return {
       year,
@@ -264,8 +273,7 @@ export function projectAssetSeriesWithSchedules(input, schedules = [], requested
   validateProjectionInput(input)
   validateInvestments(input)
   validateSchedules(schedules)
-  const totalYears = input.retirementAge - input.currentAge
-  const years = Math.max(1, Math.min(Math.floor(requestedYears), totalYears))
+  const monthsTotal = Math.min(retirementMonths(input, asOfDate), Math.max(0, Math.round((requestedYears ?? 100) * 12)))
   const defaultMonthlyRate = monthlyRate(input.annualRealReturn)
   const startMonth = monthKey(asOfDate)
   const buckets = investmentBuckets(input).map((investment) => ({
@@ -290,7 +298,7 @@ export function projectAssetSeriesWithSchedules(input, schedules = [], requested
     investmentGrowth: 0
   }]
 
-  for (let month = 0; month < years * 12; month += 1) {
+  for (let month = 0; month < monthsTotal; month += 1) {
     const scheduled = scheduledAmountForMonth(schedules, startMonth + month)
     for (const bucket of buckets) bucket.assets *= 1 + bucket.rate
     for (const bucket of contributionBuckets) {
@@ -302,7 +310,7 @@ export function projectAssetSeriesWithSchedules(input, schedules = [], requested
       + contributionAssets
     contributedCapital += input.monthlyContribution + scheduled
     scheduledContributionTotal += scheduled
-    if ((month + 1) % 12 === 0) {
+    if ((month + 1) % 12 === 0 || month + 1 === monthsTotal) {
       const year = (month + 1) / 12
       series.push({
         year,
@@ -325,6 +333,7 @@ export function yearsUntilGoal(input, maximumYears = 60) {
   for (let years = 1; years <= validMaximum; years += 1) {
     const result = projectRetirement({
       ...input,
+      retirementMonth: null,
       retirementAge: input.currentAge + years
     })
     if (result.goalReached) return years
