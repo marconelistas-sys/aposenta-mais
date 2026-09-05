@@ -100,8 +100,8 @@ export function renderPlan() {
           </li>
           <li>
             <span></span>
-            <div><strong>Meta de aposentadoria</strong><small>Previsão aos ${state.plan.retirementAge} anos</small></div>
-            <time>${new Date().getFullYear() + state.plan.retirementAge - state.plan.currentAge}</time>
+            <div><strong>Meta de aposentadoria</strong><small>${state.plan.retirementMonth ? 'Mês confirmado' : `Previsão aos ${state.plan.retirementAge} anos`}</small></div>
+            <time>${state.plan.retirementMonth || new Date().getFullYear() + state.plan.retirementAge - state.plan.currentAge}</time>
           </li>
         </ol>
       </article>

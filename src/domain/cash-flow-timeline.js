@@ -1,6 +1,7 @@
 import { calculateMultiCurrencyCashFlow } from './cash-flow.js'
 
 export function retirementMonth(plan, today = new Date()) {
+  if (plan.retirementMonth) return plan.retirementMonth
   const months = Math.round((plan.retirementAge - plan.currentAge) * 12)
   if (!Number.isFinite(months) || months < 0 || months > 1200) throw new RangeError('Prazo de aposentadoria inválido.')
   return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + months, 1)).toISOString().slice(0, 7)

@@ -186,6 +186,7 @@ function legacyCashFlowItems(source, currency) {
 export function sanitizePlan(candidate = {}) {
   const source = candidate && typeof candidate === 'object' ? candidate : {}
   const plan = { ...defaultPlan }
+  plan.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
 
   for (const [field, rule] of Object.entries(planRules)) {
     if (validNumber(source[field], rule)) plan[field] = source[field]
@@ -241,9 +242,9 @@ function sanitizeScenario(scenario, customCategories) {
     name,
     createdAt: typeof scenario.createdAt === 'string' ? scenario.createdAt : null,
     currency: normalizeCurrency(scenario.currency),
-    plan: sanitizePlan(scenario.plan),
+    plan: sanitizePlan({ ...scenario.plan, retirementMonth: scenario.cashFlow?.retirementMonth || scenario.plan?.retirementMonth }),
     cashFlow: scenario.cashFlow
-      ? sanitizeCashFlow(scenario.cashFlow, scenario.currency, customCategories)
+      ? sanitizeCashFlow({ ...scenario.cashFlow, retirementMonth: scenario.cashFlow.retirementMonth || scenario.plan?.retirementMonth }, scenario.currency, customCategories)
       : null
   }
 }
@@ -268,8 +269,8 @@ export function sanitizeStoredState(candidate) {
     currency,
     exchangeRates: sanitizeExchangeRates(source.exchangeRates || bundledExchangeRates),
     customCategories,
-    plan: sanitizePlan(source.plan),
-    cashFlow: sanitizeCashFlow(source.cashFlow, currency, customCategories),
+    plan: sanitizePlan({ ...source.plan, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }),
+    cashFlow: sanitizeCashFlow({ ...source.cashFlow, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }, currency, customCategories),
     scenarios
   }
 }

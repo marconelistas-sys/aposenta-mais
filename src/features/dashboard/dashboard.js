@@ -1,4 +1,4 @@
-import { projectAssetSeriesWithSchedules, projectRetirementWithSchedules } from '../../domain/retirement.js'
+import { projectAssetSeriesWithSchedules, projectRetirementWithSchedules, retirementMonths } from '../../domain/retirement.js'
 import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { state } from '../../app/state.js'
 import { renderVariableContributions } from './variable-contributions.js'
@@ -90,12 +90,12 @@ function niceMaximum(value) {
 
 function chartMarkup(plan, schedules) {
   const selected = chartRanges[state.activeChartRange] || chartRanges.retirement
-  const totalYears = plan.retirementAge - plan.currentAge
+  const totalYears = retirementMonths(plan) / 12
   const years = selected.years ? Math.min(selected.years, totalYears) : totalYears
   const series = projectAssetSeriesWithSchedules(plan, schedules, years)
   const maximum = niceMaximum(Math.max(...series.map((point) => point.assets), 1))
   const points = series.map((point, index) => {
-    const x = 88 + (512 * index) / Math.max(series.length - 1, 1)
+    const x = 88 + 512 * point.year / Math.max(years, 1 / 12)
     const y = 198 - (176 * point.assets) / maximum
     return { ...point, x, y }
   })
@@ -156,8 +156,7 @@ export function renderDashboard() {
     ? 1
     : Math.min(Math.max(result.projectedMonthlyIncome / state.plan.targetMonthlyIncome, 0), 1)
   const investmentIncome = result.projectedInvestmentIncome
-  const expectedYear = new Date().getFullYear() +
-    (state.plan.retirementAge - state.plan.currentAge)
+  const expectedYear = state.plan.retirementMonth ? Number(state.plan.retirementMonth.slice(0, 4)) : new Date().getFullYear() + (state.plan.retirementAge - state.plan.currentAge)
   const money = (value) => privateCurrency(value, state.valuesHidden, false, state.currency)
   const visibleMoney = (value) => formatCurrency(value, false, state.currency)
   const heading = state.isDemo
@@ -232,7 +231,7 @@ export function renderDashboard() {
         <div>
           <p>Previsão de aposentadoria</p>
           <strong>Setembro de ${expectedYear}</strong>
-          <span>Aos ${state.plan.retirementAge} anos</span>
+          <span>${state.plan.retirementMonth ? `Em ${state.plan.retirementMonth}` : `Aos ${state.plan.retirementAge} anos`}</span>
         </div>
         <a href="/plano" data-route aria-label="Ver previsão de aposentadoria">${icon('chevronRight', 19)}</a>
       </article>

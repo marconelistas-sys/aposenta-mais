@@ -2,7 +2,7 @@ import { state } from '../../app/state.js'
 import { renderLiquidity, liquidityLabels } from './liquidity.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { resolveInvestmentRealReturn } from '../../domain/investment-returns.js'
-import { projectRetirementWithSchedules } from '../../domain/retirement.js'
+import { projectRetirementWithSchedules, retirementMonths } from '../../domain/retirement.js'
 import { escapeHtml, formatPercent, privateCurrency } from '../../shared/formatters.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { icon } from '../../shared/icons.js'
@@ -72,7 +72,7 @@ function sourceDetail(investment, realReturn) {
 }
 
 function investmentList() {
-  const years = state.plan.retirementAge - state.plan.currentAge
+  const years = retirementMonths(state.plan) / 12
   const investments = state.plan.investments || []
   if (investments.length === 0) {
     return `
@@ -107,7 +107,7 @@ function investmentList() {
             <div><dt>Liquidez declarada</dt><dd>${liquidityLabels[investment.liquidity] || liquidityLabels.unknown}</dd></div>
             <div><dt>Aporte mensal</dt><dd>${privateCurrency(investment.monthlyContribution, state.valuesHidden, false, state.currency)}</dd></div>
             <div><dt>Retorno usado</dt><dd>${formatPercent(rate)} real ao ano</dd></div>
-            <div><dt>Valor aos ${state.plan.retirementAge}</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}</dd></div>
+            <div><dt>Valor no prazo confirmado do plano</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}</dd></div>
           </dl>
           <p class="investment-return-source">${sourceDetail(investment, rate)}</p>
           <div class="investment-card__actions">

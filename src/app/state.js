@@ -58,6 +58,11 @@ export function toggleValues() {
 
 export function updatePlan(patch) {
   const nextPlan = { ...state.plan, ...patch }
+  if ((patch.retirementAge !== undefined && patch.retirementAge !== state.plan.retirementAge) || (patch.currentAge !== undefined && patch.currentAge !== state.plan.currentAge)) {
+    const now = new Date()
+    nextPlan.retirementMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + Math.round((nextPlan.retirementAge - nextPlan.currentAge) * 12), 1)).toISOString().slice(0, 7)
+    state.cashFlow.retirementMonth = nextPlan.retirementMonth
+  }
   if (Array.isArray(nextPlan.investments) && nextPlan.investments.length > 0) {
     const currentContribution = nextPlan.investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
     const requestedContribution = Number.isFinite(patch.monthlyContribution)
@@ -192,6 +197,7 @@ function validateIncomeEnd(item) {
 
 export function setBudgetRetirementMonth(month) {
   if (typeof month !== 'string' || !/^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(month)) throw new RangeError('Informe um mês entre 2000 e 2199.')
+  state.plan.retirementMonth = month
   updateCashFlow({ retirementMonth: month })
 }
 
