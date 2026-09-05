@@ -21,3 +21,11 @@ Sprint 29 validada com 192 testes e integrada antes do início da Sprint 30.
 O mês confirmado passa a orientar a projeção e o orçamento. Na leitura de planos antigos, o mês confirmado no orçamento é a referência quando existe. Planos sem mês usam as idades. O motor e o gráfico incluem meses parciais, e o prazo é recalculado a partir do mês atual, não do mês consultado no orçamento. Alterar idades gera novo mês estimado para ambos os módulos. Datas manuais dos lançamentos são preservadas. O mês já alcançado resulta em zero meses de acumulação, com alerta para revisar a meta. Não é uma projeção de vida após aposentadoria.
 
 Campo aditivo `plan.retirementMonth`, transportado em exportação e cenários, com consentimento remoto v10. Sem alteração de rendimentos ou somas de patrimônio inicial.
+
+Sprint 30 validada com 194 testes.
+
+## Sprint 31
+
+Checkbox de comparação com retiradas, desligado por padrão. Retira de investimentos declarados disponíveis, na ordem da Carteira, após rendimento do mês. Não retira de saldo restrito ou não classificado, previdência, contas ou reserva. Evita aportes regulares quando falta caixa. Se não há recursos suficientes, informa déficit não financiado, sem criar saldo negativo nos investimentos. Contribuição previdenciária sem financiamento não é criada como patrimônio fictício.
+
+O modelo não inclui impostos, custos de resgate, prazos operacionais nem a fase completa de aposentadoria. Não substitui o cenário principal e não afirma viabilidade. Sprint 31 validada com 197 testes, incluindo esgotamento de liquidez, não utilização da reserva e preservação do modo sem retiradas.

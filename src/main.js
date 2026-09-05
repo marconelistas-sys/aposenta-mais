@@ -1,4 +1,5 @@
 import { appLayout } from './app/layout.js'
+import { variableView } from './features/dashboard/variable-contributions.js'
 import { guideBudgetForm, showFormError } from './app/form-guidance.js'
 import { changeAccounts } from './app/accounts.js'
 import { renderAccounts } from './features/accounts/accounts.js'
@@ -702,6 +703,7 @@ document.addEventListener('input', (event) => {
 })
 
 document.addEventListener('change', async (event) => {
+  if (event.target.matches('[data-withdraw-deficits]')) { variableView.withdrawDeficits = event.target.checked; render(); return }
   const budgetForm = event.target.closest('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]')
   if (budgetForm) guideBudgetForm(budgetForm, state.customCategories)
   if (event.target.matches('[data-timeline-period]')) {
