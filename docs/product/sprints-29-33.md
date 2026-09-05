@@ -29,3 +29,7 @@ Sprint 30 validada com 194 testes.
 Checkbox de comparação com retiradas, desligado por padrão. Retira de investimentos declarados disponíveis, na ordem da Carteira, após rendimento do mês. Não retira de saldo restrito ou não classificado, previdência, contas ou reserva. Evita aportes regulares quando falta caixa. Se não há recursos suficientes, informa déficit não financiado, sem criar saldo negativo nos investimentos. Contribuição previdenciária sem financiamento não é criada como patrimônio fictício.
 
 O modelo não inclui impostos, custos de resgate, prazos operacionais nem a fase completa de aposentadoria. Não substitui o cenário principal e não afirma viabilidade. Sprint 31 validada com 197 testes, incluindo esgotamento de liquidez, não utilização da reserva e preservação do modo sem retiradas.
+
+## Sprint 32
+
+Editar conta ou movimento preenche o formulário existente. Salvar preserva o identificador e substitui o registro, sem criar duplicidade. Cancelar limpa a edição. Conta com movimentos não pode mudar de moeda, e alterar a data de abertura não pode invalidar datas de movimentos. Validações ocorrem antes de gravar o conjunto. Saldos são recalculados com as correções. Sprint validada com 200 testes.
