@@ -4,6 +4,10 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 
 ## O que está pronto
 
+- Cadastro guiado com moeda, frequência mensal, anual ou única e períodos opcionais.
+- Contas manuais e transferências, com saldos separados do orçamento e do patrimônio.
+- Comparação de aportes limitados à capacidade mensal, verificações de consistência e liquidez declarada por investimento.
+
 - Entrada sem valores, fechamento do plano local após logout e reabertura explícita, sem apagar o armazenamento automaticamente.
 - Construção guiada em quatro etapas até a visão completa do orçamento e aposentadoria, com patrimônio inicial explícito.
 

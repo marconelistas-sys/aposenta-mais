@@ -23,3 +23,13 @@ O documento financeiro versão 10 recebe `cashFlow.ledger` como extensão aditiv
 Testes unitários, verificação sintática, build e diff antes de cada integração. Testes de CSS não substituem inspeção visual no navegador. Nenhuma homologação hospedada ou liberação jurídica faz parte destas entregas.
 
 Primeiro bloco: 181 testes aprovados, incluindo cadastro multimoeda, datas, transferências entre moedas, referências inválidas, exportação e exclusão protegida de contas com movimentos.
+
+Sprint 26: comparação do aporte constante com aportes limitados à capacidade recorrente mensal, do mês atual até a idade de aposentadoria. Formação de reserva reduz a capacidade até atingir a meta. Preserva retornos específicos, patrimônio inicial e previdência mensal, sem duplicá-la. Déficits ficam informados como não financiados, não geram retiradas automáticas do patrimônio. Não altera o cenário principal nem unifica o mês explícito do orçamento com as idades do plano.
+
+Sprint 27: alertas de receitas e despesas ausentes, salário sem término, prazo divergente, lançamento único sem data, benefício não orçado, possíveis benefícios duplicados e separação entre contas, reserva e investimentos. Links levam aos cadastros de correção. Os alertas não corrigem nem aprovam dados automaticamente.
+
+Sprint 28: liquidez declarada como disponível, restrita ou não informada. Investimentos anteriores e patrimônio agregado começam como não informados. Cobertura usa somente saldo declarado disponível dividido pela despesa prevista do mês selecionado, sem somar reserva ou contas. Não projeta resgates ou liquidez futura. Campo aditivo `liquidity` na Carteira, consentimento remoto v9 e atualização do inventário de dados.
+
+Revisão final também usa centavos inteiros nos saldos das contas e rejeita movimentos com mais de duas casas decimais. Armazenamento por conta, integração automática das contas ao orçamento, edição direta de contas, retirada para cobrir déficits e unificação do prazo patrimonial permanecem no backlog.
+
+Segundo bloco: 190 testes aprovados em `npm run validate`, com build e verificações sintáticas. `git diff --check` sem erros. Nenhuma inspeção visual realizada nesta sessão.

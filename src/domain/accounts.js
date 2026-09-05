@@ -6,12 +6,14 @@ export function validDate(value) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
 }
 const validId = id => typeof id === 'string' && /^[\w:-]{1,80}$/.test(id)
+const hasCents = value => Math.abs(value * 100 - Math.round(value * 100)) < 0.0001
 export function validateAccount(account) {
-  if (!validId(account.id) || typeof account.name !== 'string' || !account.name.trim() || account.name.length > 60 || !Object.hasOwn(currencies, account.currency) || !Number.isFinite(account.openingBalance) || Math.abs(account.openingBalance) > 1e9 || !validDate(account.openingDate)) throw new RangeError('Revise nome, moeda, data e saldo inicial da conta.')
+  if (!validId(account.id) || typeof account.name !== 'string' || !account.name.trim() || account.name.length > 60 || !Object.hasOwn(currencies, account.currency) || !Number.isFinite(account.openingBalance) || !hasCents(account.openingBalance) || Math.abs(account.openingBalance) > 1e9 || !validDate(account.openingDate)) throw new RangeError('Revise nome, moeda, data e saldo inicial da conta. Use até duas casas decimais.')
 }
 export function validateMovement(movement, accounts) {
   const from = accounts.find(account => account.id === movement.accountId)
   const to = accounts.find(account => account.id === movement.destinationId)
+  if (!hasCents(movement.amount) || (movement.type === 'transfer' && !hasCents(movement.receivedAmount))) throw new RangeError('Use até duas casas decimais nos valores.')
   if (!validId(movement.id) || !from || !['income', 'expense', 'transfer'].includes(movement.type) || !validDate(movement.date) || movement.date < from.openingDate || !Number.isFinite(movement.amount) || movement.amount <= 0 || movement.amount > 1e9) throw new RangeError('Revise a conta, o valor e a data do movimento.')
   if (movement.type === 'transfer' && (!to || to.id === from.id || movement.date < to.openingDate || !Number.isFinite(movement.receivedAmount) || movement.receivedAmount <= 0 || movement.receivedAmount > 1e9 || (to.currency === from.currency && movement.receivedAmount !== movement.amount))) throw new RangeError('Revise o destino e o valor recebido. Na mesma moeda, os valores devem ser iguais.')
 }
@@ -32,11 +34,11 @@ export function sanitizeLedger(value) {
 export function accountBalances(ledger, date) {
   if (!validDate(date)) throw new RangeError('Data de consulta inválida.')
   return ledger.accounts.filter(account => account.openingDate <= date).map(account => {
-    let balance = account.openingBalance
+    let cents = Math.round(account.openingBalance * 100)
     for (const movement of ledger.movements.filter(item => item.date <= date)) {
-      if (movement.accountId === account.id) balance += movement.type === 'income' ? movement.amount : -movement.amount
-      if (movement.type === 'transfer' && movement.destinationId === account.id) balance += movement.receivedAmount
+      if (movement.accountId === account.id) cents += Math.round(movement.amount * 100) * (movement.type === 'income' ? 1 : -1)
+      if (movement.type === 'transfer' && movement.destinationId === account.id) cents += Math.round(movement.receivedAmount * 100)
     }
-    return { ...account, balance }
+    return { ...account, balance: cents / 100 }
   })
 }

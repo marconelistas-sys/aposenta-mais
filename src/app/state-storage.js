@@ -90,6 +90,7 @@ export function sanitizeInvestment(investment, index = 0) {
     id: safeId(investment.id, `investment-${index + 1}`),
     name,
     assetClass,
+    liquidity: ['available', 'restricted'].includes(investment.liquidity) ? investment.liquidity : 'unknown',
     amount,
     monthlyContribution,
     returnType,

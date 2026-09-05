@@ -30,3 +30,10 @@ test('reserva é formada sem aporte extra e déficit fica explicitamente não fi
   assert.equal(result.projectedAssets, 10000)
   assert.equal(result.deficitTotal, 5500)
 })
+test('previdência mensal entra uma vez quando capacidade suporta todos os aportes', () => {
+  const state = fixture(null)
+  state.cashFlow.items.push({ id: 'p', categoryId: 'private-pension', type: 'expense', amount: 50, currency: 'BRL', frequency: 'monthly' })
+  const result = compareVariableContributions(state, date)
+  assert.equal(result.projectedAssets, 11800)
+  assert.equal(result.projectedAssets, result.baseline.projectedAssets)
+})
