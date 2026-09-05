@@ -355,6 +355,30 @@ function exportData() {
 }
 
 document.addEventListener('click', async (event) => {
+  const ledgerEdit = event.target.closest('[data-account-edit], [data-movement-edit]')
+  if (ledgerEdit) {
+    const isAccount = ledgerEdit.hasAttribute('data-account-edit')
+    const item = (isAccount ? state.cashFlow.ledger.accounts : state.cashFlow.ledger.movements).find(item => item.id === (ledgerEdit.dataset.accountEdit || ledgerEdit.dataset.movementEdit))
+    const form = document.querySelector(isAccount ? '[data-account-form]' : '[data-movement-form]')
+    if (!item || !form) return
+    form.reset()
+    for (const [key, value] of Object.entries(item)) {
+      const field = form.elements.namedItem(key)
+      if (field) field.value = value ?? ''
+    }
+    form.querySelector('[data-ledger-edit-label]').textContent = isAccount ? 'Editando conta' : 'Editando movimento'
+    form.closest('details').open = true
+    form.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    form.querySelector('input:not([type="hidden"]), select')?.focus({ preventScroll: true })
+    return
+  }
+  if (event.target.closest('[data-ledger-cancel]')) {
+    const form = event.target.closest('form')
+    form.reset()
+    form.querySelector('[data-ledger-edit-label]').textContent = 'Novo registro'
+    form.querySelector('[data-form-error]')?.remove()
+    return
+  }
   const accountRemove = event.target.closest('[data-account-remove], [data-movement-remove]')
   if (accountRemove) {
     if (!window.confirm('Excluir este registro? O saldo será recalculado.')) return
