@@ -185,6 +185,8 @@
 
 ## Próximas prioridades
 
+Execução solicitada em cinco sprints: [24 a 28](sprints-24-28.md). Cadastro multimoeda no wizard, contas manuais, aportes variáveis, consistência e liquidez. Armazenamento por conta permanece pendente de política de titularidade e migração.
+
 Repriorização solicitada para interface: Sprints 22 e 23 entregam entrada explicativa, alinhamento, fechamento visual do plano e fluxo guiado. Próximas: Sprint 24, contas e transferências. Sprint 25, aportes variáveis e prazo patrimonial. Sprint 26, armazenamento por conta e dispositivo compartilhado. [Planejamento e limites](sprints-22-23-interface-guiada.md).
 
 Incorporação do projeto vizinho: [análise do finapp](analise-finapp.md). Cobertura estática da reserva, sensibilidade de despesas e momentos da aposentadoria implementados. Contas e transferências mantêm prioridade. Auditorias de reconciliação e classificação de liquidez entram depois dessa base. Metas e visão nominal ficam em P2, Monte Carlo e consórcios em P3.
