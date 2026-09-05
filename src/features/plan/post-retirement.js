@@ -1,21 +1,6 @@
-import { state } from '../../app/state.js'
-import { projectPostRetirement, sanitizeDecumulation } from '../../domain/post-retirement.js'
-import { privateCurrency } from '../../shared/formatters.js'
+import { renderViability } from './viability.js'
 
+// Same financial engine as the dashboard, without restarting the portfolio.
 export function renderPostRetirement() {
-  const settings = sanitizeDecumulation(state.plan.decumulation)
-  const result = projectPostRetirement(state, settings)
-  const money = value => privateCurrency(value, state.valuesHidden, true, state.currency)
-  return `<section class="page-heading"><div><p class="eyebrow">DEPOIS DE ACUMULAR</p><h1>Vida após a aposentadoria</h1><p>Confira por quanto tempo o patrimônio cobre suas despesas nas premissas cadastradas.</p></div><a href="/" data-route>Voltar à visão geral</a></section>
-  <section class="panel settings-card"><h2>Premissas do período</h2><p>O saldo inicial vem da projeção atual, sem somar contas bancárias novamente. O modelo considera todo o patrimônio resgatável na aposentadoria, inclusive investimentos hoje restritos. Confirme essa hipótese. Mantém os rendimentos individuais cadastrados, sem novos aportes regulares.</p>
-  ${state.valuesHidden ? '<p>Mostre os valores para alterar as premissas.</p>' : `<form data-decumulation-form><div class="form-grid form-grid--two">
-  <label class="form-field"><span>Anos após aposentar</span><input type="number" name="years" min="1" max="60" step="1" value="${settings.years}" required /></label>
-  <label class="form-field"><span>Despesas usadas</span><select name="expenseMode"><option value="target" ${settings.expenseMode === 'target' ? 'selected' : ''}>Renda desejada como despesa mensal total</option><option value="budget" ${settings.expenseMode === 'budget' ? 'selected' : ''}>Orçamento, dívidas e metas cadastradas</option></select></label>
-  <label class="form-field"><span>Custo anual sobre patrimônio (%)</span><input type="number" name="annualFee" min="0" max="10" step="0.01" value="${settings.annualFee * 100}" required /></label>
-  <label class="form-field"><span>Desconto efetivo sobre resgates brutos (%)</span><input type="number" name="withdrawalTax" min="0" max="60" step="0.01" value="${settings.withdrawalTax * 100}" required /></label>
-  <label><input type="checkbox" name="benefitIncluded" ${settings.benefitIncluded ? 'checked' : ''} /> Já cadastrei o benefício estimado como receita no orçamento. Não somar novamente.</label></div><div class="wizard-actions"><button class="button button--primary">Salvar e calcular</button></div></form>`}
-  <p>Valores reais, com poder de compra de hoje. A coluna nominal aplica a inflação cadastrada desde hoje. O desconto dos resgates é uma hipótese informada por você, não um cálculo tributário por produto. Custos e descontos começam em zero até sua revisão. Despesas anuais seguem provisionamento mensal. O superávit é reinvestido. Não há garantia de retorno.</p></section>
-  <section class="panel settings-card"><h2>${result.firstShortfall ? `Primeira falta de recursos: ${result.firstShortfall}` : 'Sem falta de recursos no horizonte simulado'}</h2><p>Início em ${result.start}, patrimônio ${money(result.initialAssets)}. Saldo final ${money(result.endingAssets)}.</p>
-  <div class="table-scroll" role="region" aria-label="Evolução anual após aposentadoria" tabindex="0"><table><caption>Fechamento de cada ano da aposentadoria. Receitas e despesas do último mês.</caption><thead><tr><th scope="col">Mês</th><th scope="col">Receita</th><th scope="col">Despesa</th><th scope="col">Saldo real</th><th scope="col">Saldo nominal</th></tr></thead><tbody>${result.rows.filter((row, index) => (index + 1) % 12 === 0).map(row => `<tr><th scope="row">${row.month}</th><td>${money(row.income)}</td><td>${money(row.expenses)}</td><td>${money(row.assets)}</td><td>${money(row.nominalAssets)}</td></tr>`).join('')}</tbody></table></div>
-  <details><summary>Detalhamento mensal de resgates, custos e falta de recursos</summary><div class="table-scroll" role="region" aria-label="Resgates mensais" tabindex="0"><table><thead><tr><th scope="col">Mês</th><th scope="col">Resgate bruto</th><th scope="col">Desconto</th><th scope="col">Custo</th><th scope="col">Falta</th></tr></thead><tbody>${result.rows.map(row => `<tr><th scope="row">${row.month}</th><td>${money(row.withdrawn)}</td><td>${money(row.taxes)}</td><td>${money(row.fees)}</td><td>${money(row.shortfall)}</td></tr>`).join('')}</tbody></table></div></details></section>`
+  return renderViability({ postRetirementOnly: true })
 }

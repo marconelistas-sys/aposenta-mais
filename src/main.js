@@ -1,4 +1,5 @@
 import { appLayout } from './app/layout.js'
+import { renderViability, saveViability } from './features/plan/viability.js'
 import { renderConsortia, guideConsortiumForm, saveConsortium, consortiumView } from './features/cash-flow/consortia.js'
 import { renderRisk, startRisk, cancelRisk, riskSettingsFromForm } from './features/plan/risk.js'
 import { guideCommitmentForm, guideMovementForm } from './app/planning-forms.js'
@@ -116,6 +117,7 @@ function switchSessionPlan() {
 const routes = {
   '/consorcios': renderConsortia,
   '/riscos': renderRisk,
+  '/viabilidade': renderViability,
   '/apos-aposentadoria': renderPostRetirement,
   '/calendario': renderCalendar,
   '/contas': renderAccounts,
@@ -953,6 +955,12 @@ document.addEventListener('change', async (event) => {
 
 document.addEventListener('submit', async (event) => {
   if (!sessionReady) { event.preventDefault(); return }
+  const viabilityForm = event.target.closest('[data-viability]')
+  if (viabilityForm) {
+    event.preventDefault()
+    try { saveViability(new FormData(viabilityForm)); render(); showToast('Avaliação anual atualizada.') } catch (error) { showFormError(viabilityForm, error.message) }
+    return
+  }
   const horizonForm = event.target.closest('[data-planning-horizon]')
   if (horizonForm) {
     event.preventDefault()

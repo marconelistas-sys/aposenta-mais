@@ -9,7 +9,7 @@ export function validateDecumulation(settings) {
   if (!Number.isInteger(settings.years) || settings.years < 1 || settings.years > 60 || !['target', 'budget'].includes(settings.expenseMode) || !Number.isFinite(settings.annualFee) || settings.annualFee < 0 || settings.annualFee > 0.1 || !Number.isFinite(settings.withdrawalTax) || settings.withdrawalTax < 0 || settings.withdrawalTax > 0.6) throw new RangeError('Revise horizonte, despesas, custo anual (0% a 10%) e desconto efetivo dos resgates (0% a 60%).')
 }
 export function sanitizeDecumulation(value) {
-  const candidate = { ...defaultDecumulation, years: value?.years ?? 30, expenseMode: value?.expenseMode ?? 'target', annualFee: value?.annualFee ?? 0, withdrawalTax: value?.withdrawalTax ?? 0, benefitIncluded: value?.benefitIncluded === true }
+  const candidate = { ...defaultDecumulation, years: value?.years ?? 30, expenseMode: value?.expenseMode ?? 'budget', annualFee: value?.annualFee ?? 0, withdrawalTax: value?.withdrawalTax ?? 0, benefitIncluded: value?.benefitIncluded === true }
   try { validateDecumulation(candidate); return candidate } catch { return { ...defaultDecumulation } }
 }
 
@@ -35,7 +35,8 @@ export function projectPostRetirement(state, settings = defaultDecumulation, asO
   for (let index = 0; index < settings.years * 12; index++) {
     const month = addMonths(start, index)
     const budget = calculateMultiCurrencyCashFlow(cashFlow, state.currency, state.exchangeRates, 0, state.customCategories, new Date(`${month}-15T00:00:00Z`))
-    const expenses = settings.expenseMode === 'budget' ? budget.monthlyExpenses : plan.targetMonthlyIncome
+    // Legacy callers with an imported zero target must not erase real expenses.
+    const expenses = settings.expenseMode === 'budget' || plan.targetMonthlyIncome <= 0 ? budget.monthlyExpenses : plan.targetMonthlyIncome
     const income = budget.monthlyIncome + (settings.benefitIncluded ? 0 : plan.expectedMonthlyBenefit)
     let fees = 0
     for (const bucket of buckets) { bucket.assets *= 1 + bucket.rate; const fee = bucket.assets * feeRate; bucket.assets -= fee; fees += fee }

@@ -1,5 +1,11 @@
 # Backlog inicial
 
+## Cobertura do orçamento, metodologia anual do finapp
+
+Implementados avaliação anual de viabilidade, transferência de saldos restritos para liquidez, previdência externa ou financiada, auditoria por ano e dashboard usando a recorrência anual. O módulo de vida financeira após aposentadoria usa esse mesmo cálculo, corrige despesas zeradas por meta de renda e preserva o patrimônio dos anos anteriores. 336 testes e build aprovados, com quatro cenários diferenciais contra o Python do finapp. [Diagnóstico, fórmulas e limites](avaliacao-metodologia-finapp.md).
+
+Ainda necessário: conferir as premissas da conta ativa, contratos, liberações e liquidez dentro do ano. A equivalência dos testes não certifica a viabilidade financeira do usuário.
+
 ## Gráficos e horizonte de planejamento
 
 Sprint implementada: fluxos anuais no padrão do finapp, patrimônio e Monte Carlo separados, faixas P10/P90 e P25/P75, idade-alvo independente da aposentadoria e atualização de horizonte sem reimportar registros. 317 testes e build aprovados. [Decisões e limites](sprint-graficos-horizonte.md).
