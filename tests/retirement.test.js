@@ -159,3 +159,79 @@ test('contribuições previdenciárias programadas aumentam o patrimônio soment
   assert.equal(series.at(-1).assets, 3000)
   assert.equal(series.at(-1).scheduledContributionTotal, 600)
 })
+
+test('projeta cada investimento com seu próprio retorno real', () => {
+  const result = projectRetirement({
+    ...baseInput,
+    currentAge: 40,
+    retirementAge: 41,
+    currentAssets: 999999,
+    monthlyContribution: 0,
+    investments: [
+      { amount: 1000, monthlyContribution: 0, annualRealReturn: null },
+      { amount: 1000, monthlyContribution: 0, annualRealReturn: 0.21 }
+    ],
+    annualRealReturn: 0
+  })
+
+  assertClose(result.currentAssets, 2000)
+  assertClose(result.futureCurrentAssets, 2210)
+  assertClose(result.projectedAssets, 2210)
+})
+
+test('retorno padrão muda somente investimentos sem taxa específica', () => {
+  const input = {
+    ...baseInput,
+    currentAge: 40,
+    retirementAge: 41,
+    currentAssets: 2000,
+    monthlyContribution: 0,
+    investments: [
+      { amount: 1000, monthlyContribution: 0, annualRealReturn: null },
+      { amount: 1000, monthlyContribution: 0, annualRealReturn: 0.10 }
+    ]
+  }
+  const fivePercent = projectRetirement({ ...input, annualRealReturn: 0.05 })
+  const zeroPercent = projectRetirement({ ...input, annualRealReturn: 0 })
+
+  assertClose(fivePercent.futureCurrentAssets, 2150)
+  assertClose(zeroPercent.futureCurrentAssets, 2100)
+})
+
+test('aportes seguem a distribuição e o retorno de cada investimento', () => {
+  const result = projectRetirement({
+    ...baseInput,
+    currentAge: 40,
+    retirementAge: 41,
+    currentAssets: 0,
+    monthlyContribution: 200,
+    annualRealReturn: 0,
+    investments: [
+      { amount: 0, monthlyContribution: 100, annualRealReturn: 0 },
+      { amount: 0, monthlyContribution: 100, annualRealReturn: 0.12 }
+    ]
+  })
+
+  assert.ok(result.futureContributions > 2400)
+  assertClose(result.projectedAssets, result.futureContributions)
+})
+
+test('inflação altera somente a conversão de retorno nominal da carteira', () => {
+  const input = {
+    ...baseInput,
+    currentAge: 40,
+    retirementAge: 41,
+    currentAssets: 1000,
+    monthlyContribution: 0,
+    annualInflation: 0.05,
+    investments: [
+      { amount: 1000, monthlyContribution: 0, returnType: 'nominal', returnValue: 0.10, indexAnnualRate: null }
+    ]
+  }
+
+  const fivePercentInflation = projectRetirement(input)
+  const tenPercentInflation = projectRetirement({ ...input, annualInflation: 0.10 })
+
+  assertClose(fivePercentInflation.futureCurrentAssets, 1000 * 1.10 / 1.05)
+  assertClose(tenPercentInflation.futureCurrentAssets, 1000)
+})

@@ -33,6 +33,7 @@ test('perfil exige consentimento explícito e informa sincronização manual', (
   assert.match(html, /acceptedSyncConsent/)
   assert.match(html, /A sincronização é manual/)
   assert.match(html, /não envia seus dados automaticamente/)
+  assert.match(html, /inflação esperada, investimentos e suas taxas informadas/)
 })
 
 test('perfil oferece restauração e exclusão quando há cópia remota', () => {

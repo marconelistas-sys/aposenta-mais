@@ -9,6 +9,7 @@ import { createExportableState } from '../../app/state-storage.js'
 import { financialPayload, syncConsentVersion } from '../../shared/sync-contract.js'
 
 const genericAuthMessage = 'Se os dados estiverem corretos, você receberá as próximas instruções.'
+const registrationMessage = 'Confira seu e-mail. Enviamos um link para confirmar sua conta. Seu plano continua salvo somente neste dispositivo.'
 const loginMessage = 'Não foi possível entrar com essas credenciais.'
 const jsonLimit = 16 * 1024
 
@@ -177,11 +178,17 @@ export function createAuthHandler({
             return true
           }
           const safeState = financialPayload(createExportableState(body.state))
+          if (body.expectedUpdatedAt !== null && (typeof body.expectedUpdatedAt !== 'string'
+            || !Number.isFinite(Date.parse(body.expectedUpdatedAt)))) {
+            json(response, 428, { error: 'Consulte a cópia remota antes de enviar.' })
+            return true
+          }
           const remote = await data.upsertPlan(
             session.user.id,
             safeState,
             syncConsentVersion,
-            session.accessToken
+            session.accessToken,
+            body.expectedUpdatedAt
           )
           json(response, 200, {
             exists: true,
@@ -209,7 +216,7 @@ export function createAuthHandler({
           return true
         }
         await auth.signUp(email.trim().toLowerCase(), password, `${config.appOrigin}/api/auth/confirm`)
-        json(response, 202, { message: genericAuthMessage })
+        json(response, 202, { message: registrationMessage })
         return true
       }
 
@@ -283,7 +290,9 @@ export function createAuthHandler({
       json(response, 404, { error: 'Rota de autenticação não encontrada.' })
       return true
     } catch (error) {
-      if (error instanceof SyntaxError || error instanceof RangeError) {
+      if (isSyncPath && error.code === 'sync_conflict') {
+        json(response, 409, { error: 'A cópia remota mudou. Consulte a versão atual e escolha qual manter.' })
+      } else if (error instanceof SyntaxError || error instanceof RangeError) {
         json(response, 400, { error: 'Requisição inválida.' })
       } else if (url.pathname === '/api/auth/login') {
         json(response, 401, { error: loginMessage })

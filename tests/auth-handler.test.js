@@ -109,6 +109,22 @@ test('cadastro exige termos e senha com pelo menos doze caracteres', async () =>
   assert.equal(result.status, 400)
 })
 
+test('cadastro orienta a confirmação sem afirmar que o plano foi enviado', async () => {
+  const handler = createAuthHandler({
+    env,
+    fetchImpl: async () => ({ ok: true, json: async () => ({}) })
+  })
+  const result = await call(handler, '/api/auth/register', {
+    method: 'POST',
+    body: { email: 'pessoa@example.com', password: 'senha-segura-123', acceptedTerms: true },
+    headers: { origin: env.APP_ORIGIN }
+  })
+
+  assert.equal(result.status, 202)
+  assert.match(result.body.message, /Confira seu e-mail/)
+  assert.match(result.body.message, /somente neste dispositivo/)
+})
+
 test('recuperação não revela se o e-mail existe', async () => {
   const successHandler = createAuthHandler({
     env,
@@ -320,6 +336,7 @@ test('grava somente o documento financeiro sanitizado', async () => {
     body: {
       acceptedSyncConsent: true,
       consentVersion: syncConsentVersion,
+      expectedUpdatedAt: null,
       state: { plan: { currentAge: 48, secret: 'remover' }, token: 'remover' }
     },
     headers: { origin: env.APP_ORIGIN, cookie: 'aposenta-access=access-secret' }
@@ -353,4 +370,22 @@ test('exclusão remota usa o usuário da sessão', async () => {
 
   assert.equal(result.status, 200)
   assert.match(deleteUrl, /user_id=eq.user-1/)
+})
+
+test('API impede gravação sem revisão e retorna conflito para revisão antiga', async () => {
+  let writes = 0
+  const handler = createAuthHandler({ env, fetchImpl: async (url, options) => {
+    if (url.endsWith('/auth/v1/user')) return { ok: true, json: async () => ({ id: 'user-1' }) }
+    writes++
+    assert.equal(options.method, 'PATCH')
+    return { ok: true, json: async () => [] }
+  } })
+  const body = { acceptedSyncConsent: true, consentVersion: syncConsentVersion, state: { plan: {} } }
+  const headers = { origin: env.APP_ORIGIN, cookie: 'aposenta-access=access-secret' }
+  const missing = await call(handler, '/api/sync/data', { method: 'POST', body, headers })
+  assert.equal(missing.status, 428)
+  assert.equal(writes, 0)
+  const stale = await call(handler, '/api/sync/data', { method: 'POST', body: { ...body, expectedUpdatedAt: '2026-09-05T00:00:00Z' }, headers })
+  assert.equal(stale.status, 409)
+  assert.match(stale.body.error, /cópia remota mudou/)
 })

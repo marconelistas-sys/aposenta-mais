@@ -58,6 +58,9 @@ test('exclusão remove dados persistidos sem restaurá-los', () => {
   assert.equal(memory.has('aposenta-plus-state-v4'), false)
   assert.equal(memory.has('aposenta-plus-state-v5'), false)
   assert.equal(memory.has('aposenta-plus-state-v6'), false)
+  assert.equal(memory.has('aposenta-plus-state-v7'), false)
+  assert.equal(memory.has('aposenta-plus-state-v8'), false)
+  assert.equal(memory.has('aposenta-plus-state-v9'), false)
   assert.equal(state.scenarios.length, 0)
   assert.equal(state.dataDeleted, true)
 })
@@ -85,11 +88,54 @@ test('fluxo de caixa explica dados locais e oculta valores', () => {
   assert.match(html, /Salvar alterações/)
 })
 
+test('prévia da importação mostra mapeamento, duplicidades e confirmação', () => {
+  resetState()
+  const html = renderCashFlow({
+    fileName: '<extrato>.txt',
+    totalRows: 2,
+    headers: ['data', 'descricao', 'valor'],
+    mapping: { date: 0, description: 1, amount: 2, currency: -1, category: -1, type: -1 },
+    mappingErrors: [],
+    errors: [],
+    selectedCount: 1,
+    duplicateCount: 1,
+    invalidCount: 0,
+    availableSlots: 100,
+    overLimit: false,
+    rows: [
+      {
+        rowNumber: 2,
+        selected: true,
+        duplicate: false,
+        duplicateSource: null,
+        error: null,
+        item: { description: 'Mercado', startDate: '2026-09-04', categoryId: 'groceries', type: 'expense', amount: 40, currency: 'BRL' }
+      },
+      {
+        rowNumber: 3,
+        selected: false,
+        duplicate: true,
+        duplicateSource: 'file',
+        error: null,
+        item: { description: 'Mercado', startDate: '2026-09-04', categoryId: 'groceries', type: 'expense', amount: 40, currency: 'BRL' }
+      }
+    ]
+  })
+
+  assert.match(html, /REVISAR IMPORTAÇÃO/)
+  assert.match(html, /data-statement-mapping="date"/)
+  assert.match(html, /Repetido no arquivo/)
+  assert.match(html, /Importar 1 lançamento/)
+  assert.match(html, /Somente as linhas selecionadas/)
+  assert.doesNotMatch(html, /<extrato>/)
+})
+
 test('aviso explica armazenamento, retenção, controles e limites', () => {
   const html = renderPrivacy()
 
   assert.match(html, /Criar uma conta não envia o plano financeiro/i)
   assert.match(html, /consentimento/i)
+  assert.match(html, /forma do rendimento e taxa informada de cada investimento/i)
   assert.match(html, /neste navegador/i)
   assert.match(html, /até você usar “Apagar dados deste navegador”/i)
   assert.match(html, /não criptografia/i)

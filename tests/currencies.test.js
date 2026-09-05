@@ -11,7 +11,7 @@ globalThis.localStorage = {
 const { currencySymbol, normalizeCurrency } = await import('../src/shared/currencies.js')
 const { formatCurrency, formatCompactCurrency, privateCurrency } = await import('../src/shared/formatters.js')
 const { financialPayload } = await import('../src/shared/sync-contract.js')
-const { resetState, setCurrency, state } = await import('../src/app/state.js')
+const { resetState, setCurrency, state, upsertInvestment } = await import('../src/app/state.js')
 const { renderPlan } = await import('../src/features/plan/plan.js')
 const { renderCashFlow } = await import('../src/features/cash-flow/cash-flow.js')
 
@@ -35,10 +35,13 @@ test('seleção da moeda da visão geral converte o plano e preserva lançamento
   const originalAssets = state.plan.currentAssets
   const originalItemAmount = state.cashFlow.items[0].amount
   const originalItemCurrency = state.cashFlow.items[0].currency
+  upsertInvestment({ id: 'carteira', name: 'Carteira', assetClass: 'fund', amount: originalAssets, monthlyContribution: 1000, annualRealReturn: null })
+  const originalInvestmentAmount = state.plan.investments[0].amount
   setCurrency('CHF')
 
   assert.equal(state.currency, 'CHF')
   assert.notEqual(state.plan.currentAssets, originalAssets)
+  assert.notEqual(state.plan.investments[0].amount, originalInvestmentAmount)
   assert.equal(state.cashFlow.items[0].amount, originalItemAmount)
   assert.equal(state.cashFlow.items[0].currency, originalItemCurrency)
   assert.match(renderPlan(), /CHF/)

@@ -49,11 +49,13 @@ export async function loadSyncState() {
 }
 
 export async function saveRemoteState(state) {
+  if (syncState.available !== true) throw new Error('Consulte a cópia remota antes de enviar.')
   const payload = await request('/api/sync/data', {
     method: 'POST',
     body: {
       acceptedSyncConsent: true,
       consentVersion: syncConsentVersion,
+      expectedUpdatedAt: syncState.exists ? syncState.updatedAt : null,
       state: financialPayload(createExportableState(state))
     }
   })

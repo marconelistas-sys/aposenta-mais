@@ -36,6 +36,25 @@ test('ignora números inválidos e propriedades desconhecidas do plano', () => {
   assert.equal('unknown' in plan, false)
 })
 
+test('sanitiza investimentos e deriva patrimônio e aporte pelos itens', () => {
+  const plan = sanitizePlan({
+    currentAssets: 999999,
+    monthlyContribution: 9999,
+    investments: [
+      { id: 'tesouro', name: 'Tesouro IPCA', assetClass: 'fixed-income', amount: 40000, monthlyContribution: 500, annualRealReturn: null },
+      { id: 'acoes', name: 'Ações', assetClass: 'equity', amount: 10000, monthlyContribution: 200, annualRealReturn: 0.07 },
+      { id: 'invalido', name: '', amount: -1 }
+    ]
+  })
+
+  assert.equal(plan.investments.length, 2)
+  assert.equal(plan.currentAssets, 50000)
+  assert.equal(plan.monthlyContribution, 700)
+  assert.equal(plan.investments[0].returnType, 'default')
+  assert.equal(plan.investments[1].returnType, 'real')
+  assert.equal(plan.investments[1].returnValue, 0.07)
+})
+
 test('sanitiza o fluxo de caixa e mantém apenas campos aprovados', () => {
   const cashFlow = sanitizeCashFlow({ recurringIncome: 15000, essentialExpenses: -1, secret: 123 })
   assert.equal(cashFlow.recurringIncome, 15000)
@@ -116,6 +135,8 @@ test('apaga apenas as chaves do Aposenta+', () => {
     [storageKeys.earlier]: '{}',
     [storageKeys.earliest]: '{}',
     [storageKeys.original]: '{}',
+    [storageKeys.first]: '{}',
+    [storageKeys.initial]: '{}',
     'outro-aplicativo': 'preservar'
   })
 
@@ -139,7 +160,7 @@ test('tenta apagar todas as chaves mesmo quando uma remoção falha', () => {
 
   const result = removeStoredState(storage)
 
-  assert.deepEqual(attempted, [storageKeys.current, storageKeys.legacy, storageKeys.older, storageKeys.oldest, storageKeys.earlier, storageKeys.earliest, storageKeys.original])
+  assert.deepEqual(attempted, ['aposenta-plus-data-history-v1', storageKeys.current, storageKeys.previous, storageKeys.legacy, storageKeys.older, storageKeys.oldest, storageKeys.earlier, storageKeys.earliest, storageKeys.original, storageKeys.first, storageKeys.initial])
   assert.equal(result.success, false)
   assert.deepEqual(result.failedKeys, [storageKeys.current])
 })

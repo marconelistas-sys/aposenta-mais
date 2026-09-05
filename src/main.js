@@ -1,4 +1,12 @@
 import { appLayout } from './app/layout.js'
+import { canRenderFinancialPage, closeLocalPlan, openLocalPlan, localLockKey, isPublicPage } from './app/local-access.js'
+import { renderWelcome } from './features/welcome/welcome.js'
+import { renderGuidedPlan } from './features/welcome/guided-plan.js'
+import { beginGuidedPlan, saveGuidedAssets, saveGuidedGoal } from './app/guided-plan.js'
+import { timelineView } from './features/cash-flow/timeline.js'
+import { submitPortfolioCurrencyScenario } from './features/cash-flow/portfolio-currency.js'
+import { currencyExplorer, loadCurrencyHistory, renderCurrencyExplorer } from './features/cash-flow/currency-explorer.js'
+import { dataHistory, recordDataOperation } from './app/data-history.js'
 import {
   addCashFlowItem,
   addCustomCategory,
@@ -6,6 +14,7 @@ import {
   deleteLocalData,
   importCashFlowItems,
   loadScenario,
+  removeInvestment,
   removeCashFlowItem,
   removeScenario,
   replaceFinancialData,
@@ -13,13 +22,15 @@ import {
   saveState,
   setChartRange,
   setCashFlowReferenceMonth,
+  setBudgetRetirementMonth,
   setCurrency,
   state,
   toggleValues,
   toggleReminder,
   updatePlan,
   updateCashFlow,
-  updateCashFlowItem
+  updateCashFlowItem,
+  upsertInvestment
 } from './app/state.js'
 import {
   deleteRemoteState,
@@ -59,18 +70,22 @@ import {
   renderRegister
 } from './features/auth/auth.js'
 import { renderPremium } from './features/premium/premium.js'
+import { renderInvestments } from './features/investments/investments.js'
 import { trackProductEvent } from './app/product-events.js'
 import { categoryById } from './data/cash-flow-categories.js'
 import { loadExchangeRates } from './app/exchange-rate-state.js'
-import { parseStatementText } from './domain/statement-import.js'
+import { inspectStatementText, reviewStatementImport } from './domain/statement-import.js'
 
 const app = document.querySelector('#app')
 const toastRegion = document.querySelector('#toast-region')
+let statementReviewState = null
 
 const routes = {
+  '/cambio': renderCurrencyExplorer,
   '/': renderDashboard,
   '/plano': renderPlan,
-  '/fluxo-caixa': renderCashFlow,
+  '/carteira': renderInvestments,
+  '/fluxo-caixa': () => renderCashFlow(statementReviewView()),
   '/simulacoes': renderSimulations,
   '/conteudos': renderContent,
   '/perfil': renderProfile,
@@ -106,8 +121,8 @@ function restoreSimulationForm(values) {
 function render({ focusMain = false } = {}) {
   const pathname = currentPath()
   const simulationValues = pathname === '/simulacoes' ? captureSimulationForm() : null
-  const selectedRenderer = routes[pathname] || renderDashboard
-  const pageRenderer = state.dataDeleted && !['/perfil', '/privacidade'].includes(pathname)
+  const selectedRenderer = pathname === '/inicio' || !canRenderFinancialPage(pathname) ? renderWelcome : pathname.startsWith('/construir/') ? () => renderGuidedPlan(pathname.split('/')[2]) : routes[pathname] || renderDashboard
+  const pageRenderer = state.dataDeleted && canRenderFinancialPage(pathname) && !isPublicPage(pathname) && pathname !== '/perfil'
     ? renderDeletedState
     : selectedRenderer
   app.innerHTML = appLayout(pageRenderer(), pathname)
@@ -157,8 +172,89 @@ function simulationInputFromForm(form) {
     targetMonthlyIncome: parseNumber(data.get('targetMonthlyIncome')),
     expectedMonthlyBenefit: parseNumber(data.get('expectedMonthlyBenefit')),
     annualRealReturn: parseNumber(data.get('annualRealReturn')) / 100,
-    annualWithdrawalRate: parseNumber(data.get('annualWithdrawalRate')) / 100
+    annualInflation: parseNumber(data.get('annualInflation')) / 100,
+    annualWithdrawalRate: parseNumber(data.get('annualWithdrawalRate')) / 100,
+    investments: state.plan.investments
   }
+}
+
+function showInvestmentStep(form, step) {
+  form.querySelectorAll('[data-investment-step]').forEach((fieldset) => {
+    fieldset.hidden = fieldset.dataset.investmentStep !== String(step)
+  })
+  const badge = form.querySelector('[data-investment-step-badge]')
+  if (badge) badge.textContent = `${step} de 2`
+}
+
+function setInvestmentReturnFields(form) {
+  const returnType = form.elements.namedItem('returnType').value
+  const returnField = form.querySelector('[data-investment-return-field]')
+  const indexField = form.querySelector('[data-investment-index-field]')
+  const returnInput = form.elements.namedItem('investmentReturn')
+  const indexInput = form.elements.namedItem('investmentIndexRate')
+  const label = form.querySelector('[data-investment-return-label]')
+  const hint = form.querySelector('[data-investment-return-hint]')
+  const usesReturn = returnType !== 'default'
+  const usesIndex = returnType === 'cdi'
+  const settings = {
+    real: ['Retorno real anual esperado', 'Taxa acima da inflação, informada por você.', -99, 100],
+    nominal: ['Retorno nominal anual esperado', 'A inflação do plano será descontada desta taxa.', -99, 100],
+    cdi: ['Percentual do CDI', 'Exemplo: informe 110 para um investimento de 110% do CDI.', 0, 300],
+    ipca: ['Taxa real acima do IPCA', 'Exemplo: em IPCA + 6%, informe 6.', -99, 100]
+  }
+  returnField.hidden = !usesReturn
+  returnInput.required = usesReturn
+  returnInput.disabled = !usesReturn
+  indexField.hidden = !usesIndex
+  indexInput.required = usesIndex
+  indexInput.disabled = !usesIndex
+  if (usesReturn) {
+    const [labelText, hintText, minimum, maximum] = settings[returnType]
+    label.textContent = labelText
+    hint.textContent = hintText
+    returnInput.min = String(minimum)
+    returnInput.max = String(maximum)
+  }
+}
+
+function statementReviewView() {
+  if (!statementReviewState) return null
+  const review = reviewStatementImport(statementReviewState.inspection, {
+    mapping: statementReviewState.mapping,
+    defaultCurrency: state.currency,
+    customCategories: state.customCategories,
+    existingItems: state.cashFlow.items
+  })
+  const rows = review.rows.map((row) => ({
+    ...row,
+    selected: Boolean(row.item) && !row.duplicate && !statementReviewState.excludedRows.has(row.rowNumber)
+  }))
+  const selectedCount = rows.filter((row) => row.selected).length
+  const availableSlots = Math.max(100 - state.cashFlow.items.length, 0)
+  return {
+    ...review,
+    rows,
+    headers: statementReviewState.inspection.headers,
+    fileName: statementReviewState.fileName,
+    totalRows: statementReviewState.inspection.totalRows,
+    selectedCount,
+    duplicateCount: rows.filter((row) => row.duplicate).length,
+    invalidCount: rows.filter((row) => row.error).length,
+    availableSlots,
+    overLimit: selectedCount > availableSlots
+  }
+}
+
+function openStatementReviewDialog() {
+  const dialog = document.querySelector('[data-statement-review-dialog]')
+  if (!dialog) return
+  if (typeof dialog.showModal === 'function') dialog.showModal()
+  else dialog.setAttribute('open', '')
+}
+
+function closeStatementReview() {
+  statementReviewState = null
+  render()
 }
 
 function reserveInputFromForm(form) {
@@ -182,7 +278,8 @@ function cashItemInputFromForm(form) {
     currency: form.elements.namedItem('currency').value,
     frequency: recordKind === 'actual' ? 'occasional' : form.elements.namedItem('frequency').value,
     startDate: form.elements.namedItem('startDate').value,
-    endDate: form.elements.namedItem('endDate').value,
+    endDate: form.elements.namedItem('endMode').value === 'date' ? form.elements.namedItem('endDate').value : null,
+    endMode: form.elements.namedItem('endMode').value,
     recordKind
   }
 }
@@ -202,7 +299,7 @@ function openCashItemDialog(id) {
   const dialog = document.querySelector('[data-cash-item-dialog]')
   const form = dialog?.querySelector('[data-cash-item-edit-form]')
   if (!item || !dialog || !form) throw new TypeError('Lançamento não encontrado.')
-  for (const field of ['itemId', 'categoryId', 'description', 'amount', 'currency', 'frequency', 'startDate', 'endDate', 'recordKind']) {
+  for (const field of ['itemId', 'categoryId', 'description', 'amount', 'currency', 'frequency', 'startDate', 'endDate', 'endMode', 'recordKind']) {
     const input = form.elements.namedItem(field)
     if (input) input.value = item[field] || ''
   }
@@ -243,6 +340,7 @@ function exportData() {
     link.download = 'aposenta-plus-dados.json'
     link.click()
     URL.revokeObjectURL(url)
+    recordDataOperation('export')
     showToast('Arquivo preparado com os dados do plano e do fluxo de caixa.')
   } catch {
     showToast('Não foi possível exportar seus dados. Tente novamente.')
@@ -250,6 +348,56 @@ function exportData() {
 }
 
 document.addEventListener('click', async (event) => {
+  if (event.target.closest('[data-open-local], [data-start-guided]')) {
+    const guided = Boolean(event.target.closest('[data-start-guided]'))
+    if (guided && (state.isDemo || state.dataDeleted) && !window.confirm('Começar sem valores de demonstração? Receitas, despesas, patrimônio e aportes de exemplo serão substituídos por zero. Revise as premissas no primeiro passo.')) return
+    if (guided) beginGuidedPlan()
+    openLocalPlan()
+    navigate(guided ? '/construir/objetivo' : '/')
+    return
+  }
+  if (event.target.closest('[data-close-local]')) {
+    closeLocalPlan()
+    try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
+    navigate('/inicio')
+    return
+  }
+  if (event.target.closest('[data-load-currency-history]')) {
+    const pending = loadCurrencyHistory()
+    render()
+    await pending
+    render()
+    return
+  }
+  if (event.target.closest('[data-export-history]')) {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(dataHistory.read().events, null, 2)], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'aposenta-plus-operacoes.json'
+    link.click()
+    URL.revokeObjectURL(url)
+    showToast('Arquivo de operações preparado.')
+    return
+  }
+  const recovery = event.target.closest('[data-recover-version]')
+  if (recovery) {
+    if (!window.confirm('Recuperar esta versão e substituir os dados atuais?')) return
+    try {
+      const candidate = dataHistory.snapshot(recovery.dataset.recoverVersion)
+      dataHistory.checkpoint(state)
+      replaceFinancialData(candidate)
+      recordDataOperation('recover')
+      render()
+      showToast('Versão recuperada.')
+    } catch (error) { showToast(error.message) }
+    return
+  }
+  if (event.target.closest('[data-clear-history]')) {
+    if (!window.confirm('Apagar o histórico e as versões de recuperação deste navegador?')) return
+    try { dataHistory.clear(); render(); showToast('Histórico apagado.') }
+    catch { showToast('Não foi possível apagar o histórico.') }
+    return
+  }
   const productEventTarget = event.target.closest('[data-product-event]')
   if (productEventTarget) trackProductEvent(productEventTarget.dataset.productEvent)
 
@@ -267,17 +415,14 @@ document.addEventListener('click', async (event) => {
     return
   }
 
-  if (event.target.closest('[data-notifications]')) {
-    showToast('A central de notificações entra em uma próxima etapa.')
-    return
-  }
-
   if (event.target.closest('[data-auth-logout]')) {
     try {
       await logout()
+      closeLocalPlan()
+      try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
       resetSyncState()
-      navigate('/entrar')
-      showToast('Sessão encerrada.')
+      navigate('/inicio')
+      showToast('Sessão encerrada. Plano local fechado, sem apagar os dados.')
     } catch (error) {
       showToast(error.message)
     }
@@ -288,11 +433,14 @@ document.addEventListener('click', async (event) => {
     if (!window.confirm('Substituir o plano, o fluxo de caixa e os cenários locais pela cópia remota?')) return
     try {
       const remote = await loadRemoteState()
+      if (!state.dataDeleted) dataHistory.checkpoint(state)
       replaceFinancialData(remote.state)
+      recordDataOperation('restore')
       await loadSyncState()
       render()
       showToast('Cópia remota aplicada neste dispositivo.')
     } catch (error) {
+      recordDataOperation('restore', 'failure')
       showToast(error.message)
     }
     return
@@ -309,6 +457,7 @@ document.addEventListener('click', async (event) => {
     if (!window.confirm('Excluir de forma irreversível a cópia financeira armazenada no Supabase? Os dados locais serão mantidos.')) return
     try {
       await deleteRemoteState()
+      recordDataOperation('remote_delete')
       render()
       showToast('Cópia remota e consentimento excluídos. Seus dados locais foram mantidos.')
     } catch (error) {
@@ -360,6 +509,61 @@ document.addEventListener('click', async (event) => {
     toggleReminder()
     render()
     showToast(state.reminderEnabled ? 'Lembrete mensal ativado.' : 'Lembrete mensal desativado.')
+    return
+  }
+
+  const nextInvestmentStep = event.target.closest('[data-next-investment-step]')
+  if (nextInvestmentStep) {
+    const form = nextInvestmentStep.closest('[data-investment-form]')
+    const requiredNames = ['investmentName', 'assetClass', 'investmentAmount', 'investmentContribution']
+    const valid = requiredNames.every((name) => form.elements.namedItem(name).reportValidity())
+    if (valid) {
+      showInvestmentStep(form, 2)
+      form.elements.namedItem('returnType')?.focus()
+    }
+    return
+  }
+
+  const previousInvestmentStep = event.target.closest('[data-previous-investment-step]')
+  if (previousInvestmentStep) {
+    const form = previousInvestmentStep.closest('[data-investment-form]')
+    showInvestmentStep(form, 1)
+    form.elements.namedItem('investmentName').focus()
+    return
+  }
+
+  const editInvestmentButton = event.target.closest('[data-edit-investment]')
+  if (editInvestmentButton) {
+    const investment = (state.plan.investments || []).find((item) => item.id === editInvestmentButton.dataset.editInvestment)
+    const form = document.querySelector('[data-investment-form]')
+    if (!investment || !form) return
+    form.elements.namedItem('investmentId').value = investment.id
+    form.elements.namedItem('investmentName').value = investment.name
+    form.elements.namedItem('assetClass').value = investment.assetClass
+    form.elements.namedItem('investmentAmount').value = investment.amount
+    form.elements.namedItem('investmentContribution').value = investment.monthlyContribution
+    form.elements.namedItem('returnType').value = investment.returnType
+    form.elements.namedItem('investmentReturn').value = investment.returnValue === null ? '' : investment.returnValue * 100
+    form.elements.namedItem('investmentIndexRate').value = investment.indexAnnualRate === null ? '' : investment.indexAnnualRate * 100
+    form.querySelector('[data-investment-form-title]').textContent = 'Revise os dados do investimento'
+    form.querySelector('[data-investment-submit]').textContent = 'Salvar investimento'
+    setInvestmentReturnFields(form)
+    showInvestmentStep(form, 1)
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    form.elements.namedItem('investmentName').focus({ preventScroll: true })
+    return
+  }
+
+  const removeInvestmentButton = event.target.closest('[data-remove-investment]')
+  if (removeInvestmentButton) {
+    if (!window.confirm('Excluir este investimento da carteira e recalcular o plano?')) return
+    try {
+      removeInvestment(removeInvestmentButton.dataset.removeInvestment)
+      render()
+      showToast('Investimento excluído e plano recalculado.')
+    } catch (error) {
+      showToast(error.message)
+    }
     return
   }
 
@@ -428,6 +632,12 @@ document.addEventListener('click', async (event) => {
     return
   }
 
+  if (event.target.closest('[data-close-statement-review]')) {
+    closeStatementReview()
+    showToast('Importação cancelada. Nenhum lançamento foi adicionado.')
+    return
+  }
+
   const removeCashItemButton = event.target.closest('[data-remove-cash-item]')
   if (removeCashItemButton) {
     removeCashFlowItem(removeCashItemButton.dataset.removeCashItem)
@@ -443,6 +653,7 @@ document.addEventListener('click', async (event) => {
 
   if (event.target.closest('[data-reset-data]')) {
     if (!window.confirm('Restaurar os dados de demonstração? Seu plano, lançamentos, categorias e cenários salvos serão removidos.')) return
+    try { dataHistory.clear() } catch { showToast('Não foi possível apagar as versões anteriores.'); return }
     const result = resetState()
     if (!result.success) {
       showToast('A demonstração foi aberta, mas dados anteriores podem não ter sido removidos. Tente apagar os dados novamente.')
@@ -478,6 +689,42 @@ document.addEventListener('input', (event) => {
 })
 
 document.addEventListener('change', async (event) => {
+  if (event.target.matches('[data-timeline-period]')) {
+    timelineView.period = ['12', '60', 'retirement'].includes(event.target.value) ? event.target.value : '12'
+    render()
+    return
+  }
+  if (event.target.matches('[data-statement-mapping]')) {
+    if (!statementReviewState) return
+    statementReviewState.mapping[event.target.dataset.statementMapping] = Number(event.target.value)
+    render()
+    openStatementReviewDialog()
+    return
+  }
+
+  if (event.target.matches('[data-statement-row]')) {
+    if (!statementReviewState) return
+    const rowNumber = Number(event.target.dataset.statementRow)
+    if (event.target.checked) statementReviewState.excludedRows.delete(rowNumber)
+    else statementReviewState.excludedRows.add(rowNumber)
+    const review = statementReviewView()
+    const count = document.querySelector('[data-statement-selected-count]')
+    const confirm = document.querySelector('[data-statement-confirm]')
+    const limitError = document.querySelector('[data-statement-limit-error]')
+    if (count) count.textContent = String(review.selectedCount)
+    if (confirm) {
+      confirm.textContent = `Importar ${review.selectedCount} ${review.selectedCount === 1 ? 'lançamento' : 'lançamentos'}`
+      confirm.disabled = review.selectedCount === 0 || review.overLimit
+    }
+    if (limitError) limitError.hidden = !review.overLimit
+    return
+  }
+
+  if (event.target.matches('[data-investment-form] select[name="returnType"]')) {
+    setInvestmentReturnFields(event.target.closest('[data-investment-form]'))
+    return
+  }
+
   if (event.target.matches('select[name="recordKind"]')) {
     syncCashItemRecordFields(event.target.closest('form'))
     return
@@ -503,14 +750,15 @@ document.addEventListener('change', async (event) => {
       return
     }
     try {
-      const parsed = parseStatementText(await file.text(), {
-        defaultCurrency: state.currency,
-        customCategories: state.customCategories,
-        maximumRows: Math.max(100 - state.cashFlow.items.length, 0)
-      })
-      const importedCount = importCashFlowItems(parsed.items)
+      const inspection = inspectStatementText(await file.text(), { maximumRows: 100 })
+      statementReviewState = {
+        fileName: file.name,
+        inspection,
+        mapping: { ...inspection.suggestedMapping },
+        excludedRows: new Set()
+      }
       render()
-      showToast(`${importedCount} lançamentos importados.${parsed.errors.length ? ` ${parsed.errors.length} linhas exigem revisão.` : ''}`)
+      openStatementReviewDialog()
     } catch (error) {
       showToast(error.message)
       event.target.value = ''
@@ -533,6 +781,119 @@ document.addEventListener('change', async (event) => {
 })
 
 document.addEventListener('submit', async (event) => {
+  const guidedForm = event.target.closest('[data-guided-goal], [data-guided-assets], [data-guided-budget]')
+  if (guidedForm) {
+    event.preventDefault()
+    if (!guidedForm.reportValidity()) return
+    const data = new FormData(guidedForm)
+    try {
+      if (guidedForm.matches('[data-guided-goal]')) { saveGuidedGoal(data); navigate('/construir/orcamento') }
+      else if (guidedForm.matches('[data-guided-assets]')) { saveGuidedAssets(data); navigate('/construir/revisao') }
+      else {
+        if (data.get('endMode') === 'date' && !data.get('endDate')) throw new RangeError('Informe a data final ou escolha Sem término.')
+        const category = categoryById(data.get('categoryId'), state.customCategories)
+        if (!category) throw new RangeError('Escolha uma categoria válida.')
+        addCashFlowItem({ type: category.type, categoryId: category.id, description: data.get('description'), amount: Number(data.get('amount')), currency: state.currency, frequency: 'monthly', recordKind: 'planned', startDate: data.get('startDate'), endMode: data.get('endMode'), endDate: data.get('endMode') === 'date' ? data.get('endDate') : null })
+        render()
+        showToast('Lançamento adicionado. Você pode adicionar outro ou continuar.')
+      }
+    } catch (error) { showToast(error.message) }
+    return
+  }
+  const retirementMonthForm = event.target.closest('[data-budget-retirement-form]')
+  if (retirementMonthForm) {
+    event.preventDefault()
+    if (!retirementMonthForm.reportValidity()) return
+    try {
+      setBudgetRetirementMonth(new FormData(retirementMonthForm).get('retirementMonth'))
+      render()
+      showToast('Mês confirmado. Receitas vinculadas foram recalculadas.')
+    } catch (error) { showToast(error.message) }
+    return
+  }
+  const portfolioCurrencyForm = event.target.closest('[data-portfolio-currency-form]')
+  if (portfolioCurrencyForm) {
+    event.preventDefault()
+    if (!portfolioCurrencyForm.reportValidity()) return
+    try {
+      submitPortfolioCurrencyScenario(new FormData(portfolioCurrencyForm))
+      render()
+    } catch (error) { showToast(error.message) }
+    return
+  }
+  const currencyForm = event.target.closest('[data-currency-scenario-form]')
+  if (currencyForm) {
+    event.preventDefault()
+    const data = new FormData(currencyForm)
+    const change = Number(data.get('shockPercent')) / 100
+    if (!currencyForm.reportValidity() || !Number.isFinite(change) || change < -0.5 || change > 0.5) return
+    currencyExplorer.currency = data.get('shockCurrency')
+    currencyExplorer.change = change
+    render()
+    return
+  }
+  const investmentAssumptionsForm = event.target.closest('[data-investment-assumptions-form]')
+  if (investmentAssumptionsForm) {
+    event.preventDefault()
+    const data = new FormData(investmentAssumptionsForm)
+    const patch = {
+      annualRealReturn: parseNumber(data.get('defaultRealReturn')) / 100,
+      annualInflation: parseNumber(data.get('annualInflation')) / 100
+    }
+    try {
+      projectRetirementWithSchedules({ ...state.plan, ...patch }, currentRetirementSchedules())
+      updatePlan(patch)
+      render()
+      showToast('Premissas da carteira atualizadas.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  const statementReviewForm = event.target.closest('[data-statement-review-form]')
+  if (statementReviewForm) {
+    event.preventDefault()
+    const review = statementReviewView()
+    if (!review || review.mappingErrors.length > 0 || review.overLimit) return
+    const items = review.rows.filter((row) => row.selected).map((row) => row.item)
+    try {
+      const importedCount = importCashFlowItems(items)
+      const skippedCount = review.duplicateCount + review.invalidCount
+      statementReviewState = null
+      render()
+      showToast(`${importedCount} lançamentos importados.${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''}`)
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  const investmentForm = event.target.closest('[data-investment-form]')
+  if (investmentForm) {
+    event.preventDefault()
+    const data = new FormData(investmentForm)
+    const returnType = data.get('returnType')
+    try {
+      const saved = upsertInvestment({
+        id: data.get('investmentId') || undefined,
+        name: data.get('investmentName'),
+        assetClass: data.get('assetClass'),
+        amount: parseNumber(data.get('investmentAmount')),
+        monthlyContribution: parseNumber(data.get('investmentContribution')),
+        returnType,
+        returnValue: returnType === 'default' ? null : parseNumber(data.get('investmentReturn')) / 100,
+        indexAnnualRate: returnType === 'cdi' ? parseNumber(data.get('investmentIndexRate')) / 100 : null
+      })
+      render()
+      if (data.get('investmentId')) recordDataOperation('correction')
+      showToast(`${saved.name} foi ${data.get('investmentId') ? 'atualizado' : 'adicionado'} na carteira.`)
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
   const syncForm = event.target.closest('[data-sync-consent-form]')
   if (syncForm) {
     event.preventDefault()
@@ -546,6 +907,7 @@ document.addEventListener('submit', async (event) => {
     submitButton.disabled = true
     try {
       await saveRemoteState(state)
+      recordDataOperation('upload')
       render()
       showToast('Cópia remota atualizada com seu consentimento.')
     } catch (error) {
@@ -561,6 +923,7 @@ document.addEventListener('submit', async (event) => {
     try {
       const id = cashItemEditForm.elements.namedItem('itemId').value
       updateCashFlowItem(id, cashItemInputFromForm(cashItemEditForm))
+      recordDataOperation('correction')
       render()
       showToast('Lançamento atualizado.')
     } catch (error) {
@@ -624,8 +987,9 @@ document.addEventListener('submit', async (event) => {
       let result
       if (action === 'login') {
         await login({ email: data.get('email'), password: data.get('password') })
+        closeLocalPlan()
         await loadSyncState()
-        navigate('/perfil')
+        navigate('/inicio')
         showToast('Login realizado.')
         return
       }
@@ -684,6 +1048,16 @@ document.addEventListener('submit', async (event) => {
 })
 
 window.addEventListener('popstate', () => render({ focusMain: true }))
+window.addEventListener('storage', event => {
+  if (event.key === localLockKey) { closeLocalPlan(); render() }
+})
+
+document.addEventListener('cancel', (event) => {
+  if (!event.target.matches('[data-statement-review-dialog]')) return
+  event.preventDefault()
+  closeStatementReview()
+  showToast('Importação cancelada. Nenhum lançamento foi adicionado.')
+}, true)
 
 saveState()
 render()

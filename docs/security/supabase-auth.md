@@ -38,6 +38,8 @@ Nunca coloque a chave `service_role` neste projeto ou no navegador. A chave publ
 
 Execute `supabase/migrations/202609040001_sprint_6_financial_plans.sql` no SQL Editor do projeto. Como alternativa, vincule o Supabase CLI ao projeto e execute `supabase db push`.
 
+Para validar o ambiente hospedado com duas contas confirmadas, configure `TEST_USER_A_EMAIL`, `TEST_USER_A_PASSWORD`, `TEST_USER_B_EMAIL` e `TEST_USER_B_PASSWORD` somente no ambiente local. Execute `npm run test:rls`. O teste cria duas cópias sintéticas, verifica isolamento, restauração e exclusão e remove as duas linhas ao terminar.
+
 Depois da migração, confira no painel:
 
 - RLS habilitada e forçada em `public.financial_plans`.
@@ -78,6 +80,10 @@ Recuperação de senha:
 | `SUPABASE_ANON_KEY` | chave publicável para Auth | não, mas deve ficar em configuração |
 | `APP_ORIGIN` | origem aceita pelo controle CSRF | não |
 | `COOKIE_SECURE` | exige cookie sobre HTTPS | não |
+| `LEGAL_BETA_APPROVED` | registra a aprovação humana da liberação | não |
+| `LEGAL_CONTROLLER_NAME` | identifica o controlador aprovado | não |
+| `LEGAL_PRIVACY_CONTACT` | define o canal monitorado de privacidade | não |
+| `TEST_USER_A_*` e `TEST_USER_B_*` | credenciais locais do teste hospedado | sim |
 
 ## Limites antes da beta
 
@@ -86,3 +92,4 @@ Recuperação de senha:
 - MFA por aplicativo autenticador permanece para uma Sprint posterior.
 - Exclusão remota de conta exige uma função administrativa isolada e auditável.
 - Controlador, contato, base legal e retenção precisam de aprovação jurídica.
+- Em produção, `LEGAL_BETA_APPROVED=true`, `LEGAL_CONTROLLER_NAME` e `LEGAL_PRIVACY_CONTACT` são obrigatórios para habilitar contas e sincronização.

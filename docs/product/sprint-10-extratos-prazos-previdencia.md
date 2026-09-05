@@ -46,8 +46,8 @@ Tributação, carregamento, taxa de administração, tábua biométrica e regras
 
 ## Próximas etapas
 
-1. Mostrar prévia e permitir correção do mapeamento antes de importar.
-2. Detectar duplicidades por data, valor e descrição.
+1. Mostrar prévia e permitir correção do mapeamento antes de importar. Concluído na Sprint 13.
+2. Detectar duplicidades por data, valor e descrição. Concluído na Sprint 13 com inclusão de tipo e moeda.
 3. Separar orçamento planejado e realizado. Concluído na Sprint 11.
 4. Selecionar parceiro receptor para Open Finance.
 5. Criar jornada de consentimento, revogação e renovação.

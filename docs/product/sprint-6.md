@@ -36,8 +36,10 @@ Excluir a linha remove a cópia e o registro de consentimento. Excluir a conta r
 1. Aplicar `supabase/migrations/202609040001_sprint_6_financial_plans.sql` no projeto Supabase.
 2. Configurar `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `APP_ORIGIN` no servidor.
 3. Executar `npm run validate`.
-4. Entrar na aplicação e abrir Perfil e Dados.
-5. Confirmar o texto de consentimento antes de criar a primeira cópia.
+4. Configurar duas contas confirmadas nas variáveis `TEST_USER_A_*` e `TEST_USER_B_*`.
+5. Executar `npm run test:rls`.
+6. Entrar na aplicação e abrir Perfil e Dados.
+7. Confirmar o texto de consentimento antes de criar a primeira cópia.
 
 ## Segurança
 
@@ -58,4 +60,4 @@ Excluir a linha remove a cópia e o registro de consentimento. Excluir a conta r
 
 ## Estado da entrega
 
-Código, migração, contrato e testes estão concluídos. A aplicação da migração no projeto hospedado depende de uma sessão autenticada do Supabase e não usa credenciais armazenadas no repositório.
+Código, migração, contrato e testes estão concluídos. A migração foi aplicada ao projeto hospedado em 4 de setembro de 2026. Um dry run posterior confirmou que o banco remoto está atualizado. Uma consulta com o papel `anon` recebeu HTTP 401 por falta de permissão. A validação cruzada com duas contas confirmadas continua pendente.

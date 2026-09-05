@@ -3,6 +3,8 @@
  * Todos os valores monetários usam a moeda base do cenário e as taxas usam formato decimal.
  */
 
+import { resolveInvestmentRealReturn } from './investment-returns.js'
+
 const numericFields = [
   'currentAge',
   'retirementAge',
@@ -46,6 +48,11 @@ export function validateProjectionInput(input) {
     throw new RangeError('O retorno real anual deve estar entre -100% e 100%.')
   }
 
+  if (input.annualInflation !== undefined
+    && (!Number.isFinite(input.annualInflation) || input.annualInflation <= -1 || input.annualInflation > 1)) {
+    throw new RangeError('A inflação anual deve estar entre -100% e 100%.')
+  }
+
   if (input.annualWithdrawalRate <= 0 || input.annualWithdrawalRate > 1) {
     throw new RangeError('A taxa de retirada deve estar entre 0% e 100%.')
   }
@@ -79,14 +86,78 @@ function validateSchedules(schedules) {
   }
 }
 
+function monthlyRate(annualRealReturn) {
+  return (1 + annualRealReturn) ** (1 / 12) - 1
+}
+
+function investmentBuckets(input) {
+  if (!Array.isArray(input.investments) || input.investments.length === 0) {
+    return [{ amount: input.currentAssets, annualRealReturn: input.annualRealReturn }]
+  }
+  return input.investments.map((investment) => ({
+    amount: investment.amount,
+    monthlyContribution: investment.monthlyContribution || 0,
+    annualRealReturn: resolveInvestmentRealReturn(investment, input)
+  }))
+}
+
+function currentAssets(input) {
+  return investmentBuckets(input).reduce((total, investment) => total + investment.amount, 0)
+}
+
+function currentAssetsAtMonth(input, months) {
+  return investmentBuckets(input).reduce((total, investment) => {
+    const rate = monthlyRate(investment.annualRealReturn)
+    return total + investment.amount * ((1 + rate) ** months)
+  }, 0)
+}
+
+function contributionMix(input) {
+  const buckets = investmentBuckets(input)
+  const registeredTotal = buckets.reduce((total, investment) => total + (investment.monthlyContribution || 0), 0)
+  if (!Array.isArray(input.investments) || input.investments.length === 0 || registeredTotal === 0) {
+    return [{ share: 1, annualRealReturn: input.annualRealReturn }]
+  }
+  return buckets
+    .filter((investment) => investment.monthlyContribution > 0)
+    .map((investment) => ({
+      share: investment.monthlyContribution / registeredTotal,
+      annualRealReturn: investment.annualRealReturn
+    }))
+}
+
+function blendedContributionFactor(input, months) {
+  return contributionMix(input).reduce((total, investment) => {
+    return total + investment.share * futureValueFactor(monthlyRate(investment.annualRealReturn), months)
+  }, 0)
+}
+
+function validateInvestments(input) {
+  if (input.investments === undefined) return
+  if (!Array.isArray(input.investments)) throw new TypeError('Os investimentos precisam formar uma lista.')
+  for (const investment of input.investments) {
+    if (!Number.isFinite(investment.amount) || investment.amount < 0) {
+      throw new RangeError('Cada investimento precisa ter um saldo válido.')
+    }
+    if (investment.monthlyContribution !== undefined
+      && (!Number.isFinite(investment.monthlyContribution) || investment.monthlyContribution < 0)) {
+      throw new RangeError('Cada investimento precisa ter um aporte mensal válido.')
+    }
+    const realReturn = resolveInvestmentRealReturn(investment, input)
+    if (!Number.isFinite(realReturn) || realReturn <= -1 || realReturn > 1) {
+      throw new RangeError('O rendimento real do investimento deve estar entre -100% e 100%.')
+    }
+  }
+}
+
 export function projectRetirement(input) {
   validateProjectionInput(input)
+  validateInvestments(input)
 
   const months = Math.round((input.retirementAge - input.currentAge) * 12)
-  const monthlyRate = (1 + input.annualRealReturn) ** (1 / 12) - 1
-  const growthFactor = (1 + monthlyRate) ** months
-  const contributionFactor = futureValueFactor(monthlyRate, months)
-  const futureCurrentAssets = input.currentAssets * growthFactor
+  const defaultMonthlyRate = monthlyRate(input.annualRealReturn)
+  const contributionFactor = blendedContributionFactor(input, months)
+  const futureCurrentAssets = currentAssetsAtMonth(input, months)
   const futureContributions = input.monthlyContribution * contributionFactor
   const projectedAssets = futureCurrentAssets + futureContributions
   const incomeNeededFromAssets = Math.max(
@@ -108,7 +179,10 @@ export function projectRetirement(input) {
 
   return {
     months,
-    monthlyRate,
+    monthlyRate: defaultMonthlyRate,
+    currentAssets: currentAssets(input),
+    futureCurrentAssets,
+    futureContributions,
     projectedAssets,
     targetAssets,
     projectedInvestmentIncome,
@@ -134,11 +208,10 @@ export function projectRetirementWithSchedules(input, schedules = [], asOfDate =
     scheduledContributionTotal += scheduled
   }
 
-  const futureCurrentAssets = input.currentAssets * ((1 + base.monthlyRate) ** base.months)
-  const contributionFactor = futureValueFactor(base.monthlyRate, base.months)
+  const contributionFactor = blendedContributionFactor(input, base.months)
   const futureBaseContributions = input.monthlyContribution * contributionFactor
-  const projectedAssets = futureCurrentAssets + futureBaseContributions + scheduledContributionFutureValue
-  const missingAssets = Math.max(base.targetAssets - futureCurrentAssets - scheduledContributionFutureValue, 0)
+  const projectedAssets = base.futureCurrentAssets + futureBaseContributions + scheduledContributionFutureValue
+  const missingAssets = Math.max(base.targetAssets - base.futureCurrentAssets - scheduledContributionFutureValue, 0)
   const requiredMonthlyContribution = contributionFactor === 0 ? 0 : missingAssets / contributionFactor
   const projectedInvestmentIncome = projectedAssets * input.annualWithdrawalRate / 12
   const projectedMonthlyIncome = input.expectedMonthlyBenefit + projectedInvestmentIncome
@@ -160,25 +233,25 @@ export function projectRetirementWithSchedules(input, schedules = [], asOfDate =
 
 export function projectAssetSeries(input, requestedYears) {
   validateProjectionInput(input)
+  validateInvestments(input)
   const totalYears = input.retirementAge - input.currentAge
   const years = Math.max(1, Math.min(Math.floor(requestedYears), totalYears))
-  const monthlyRate = (1 + input.annualRealReturn) ** (1 / 12) - 1
+  const defaultMonthlyRate = monthlyRate(input.annualRealReturn)
 
   return Array.from({ length: years + 1 }, (_, year) => {
     const months = year * 12
-    const growthFactor = (1 + monthlyRate) ** months
-    const contributionFactor = futureValueFactor(monthlyRate, months)
+    const contributionFactor = blendedContributionFactor(input, months)
     return {
       year,
       age: input.currentAge + year,
-      assets: input.currentAssets * growthFactor + input.monthlyContribution * contributionFactor
+      assets: currentAssetsAtMonth(input, months) + input.monthlyContribution * contributionFactor
     }
   })
 }
 
 export function projectAssetSeriesDetailed(input, requestedYears) {
   return projectAssetSeries(input, requestedYears).map((point) => {
-    const contributedCapital = input.currentAssets + input.monthlyContribution * point.year * 12
+    const contributedCapital = currentAssets(input) + input.monthlyContribution * point.year * 12
     return {
       ...point,
       contributedCapital,
@@ -189,13 +262,24 @@ export function projectAssetSeriesDetailed(input, requestedYears) {
 
 export function projectAssetSeriesWithSchedules(input, schedules = [], requestedYears, asOfDate = new Date()) {
   validateProjectionInput(input)
+  validateInvestments(input)
   validateSchedules(schedules)
   const totalYears = input.retirementAge - input.currentAge
   const years = Math.max(1, Math.min(Math.floor(requestedYears), totalYears))
-  const monthlyRate = (1 + input.annualRealReturn) ** (1 / 12) - 1
+  const defaultMonthlyRate = monthlyRate(input.annualRealReturn)
   const startMonth = monthKey(asOfDate)
-  let assets = input.currentAssets
-  let contributedCapital = input.currentAssets
+  const buckets = investmentBuckets(input).map((investment) => ({
+    assets: investment.amount,
+    rate: monthlyRate(investment.annualRealReturn)
+  }))
+  const contributionBuckets = contributionMix(input).map((investment) => ({
+    monthlyContribution: input.monthlyContribution * investment.share,
+    assets: 0,
+    rate: monthlyRate(investment.annualRealReturn)
+  }))
+  let contributionAssets = 0
+  let assets = currentAssets(input)
+  let contributedCapital = assets
   let scheduledContributionTotal = 0
   const series = [{
     year: 0,
@@ -208,7 +292,14 @@ export function projectAssetSeriesWithSchedules(input, schedules = [], requested
 
   for (let month = 0; month < years * 12; month += 1) {
     const scheduled = scheduledAmountForMonth(schedules, startMonth + month)
-    assets = assets * (1 + monthlyRate) + input.monthlyContribution + scheduled
+    for (const bucket of buckets) bucket.assets *= 1 + bucket.rate
+    for (const bucket of contributionBuckets) {
+      bucket.assets = bucket.assets * (1 + bucket.rate) + bucket.monthlyContribution
+    }
+    contributionAssets = contributionAssets * (1 + defaultMonthlyRate) + scheduled
+    assets = buckets.reduce((total, bucket) => total + bucket.assets, 0)
+      + contributionBuckets.reduce((total, bucket) => total + bucket.assets, 0)
+      + contributionAssets
     contributedCapital += input.monthlyContribution + scheduled
     scheduledContributionTotal += scheduled
     if ((month + 1) % 12 === 0) {

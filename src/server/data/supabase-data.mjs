@@ -33,11 +33,18 @@ export function createSupabaseData({ url, anonKey, fetchImpl = fetch }) {
       return Array.isArray(rows) ? rows[0] || null : null
     },
 
-    async upsertPlan(userId, payload, consentVersion, accessToken) {
-      const rows = await request('/financial_plans?on_conflict=user_id', {
-        method: 'POST',
+    async upsertPlan(userId, payload, consentVersion, accessToken, expectedUpdatedAt) {
+      if (expectedUpdatedAt === undefined) throw new SupabaseDataError(428, 'revision_required')
+      const updating = expectedUpdatedAt !== null
+      const path = updating
+        ? `/financial_plans?user_id=eq.${encodeURIComponent(userId)}&updated_at=eq.${encodeURIComponent(expectedUpdatedAt)}`
+        : '/financial_plans'
+      let rows
+      try {
+        rows = await request(path, {
+        method: updating ? 'PATCH' : 'POST',
         accessToken,
-        prefer: 'resolution=merge-duplicates,return=representation',
+        prefer: 'return=representation',
         body: {
           user_id: userId,
           payload,
@@ -45,8 +52,13 @@ export function createSupabaseData({ url, anonKey, fetchImpl = fetch }) {
           consent_version: consentVersion,
           consented_at: new Date().toISOString()
         }
-      })
-      return Array.isArray(rows) ? rows[0] || null : null
+        })
+      } catch (error) {
+        if (error.code === '23505') throw new SupabaseDataError(409, 'sync_conflict')
+        throw error
+      }
+      if (!Array.isArray(rows) || rows.length !== 1) throw new SupabaseDataError(409, 'sync_conflict')
+      return rows[0]
     },
 
     deletePlan(userId, accessToken) {

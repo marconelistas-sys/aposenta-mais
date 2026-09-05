@@ -1,5 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { openLocalPlan } from '../src/app/local-access.js'
+openLocalPlan()
+import { readFile } from 'node:fs/promises'
+
+const appCss = await readFile(new URL('../src/styles/app.css', import.meta.url), 'utf8')
+const responsiveCss = await readFile(new URL('../src/styles/responsive.css', import.meta.url), 'utf8')
 
 const memory = new Map()
 globalThis.localStorage = {
@@ -157,4 +163,11 @@ test('eventos de produto aceitam apenas nomes sem dados pessoais', () => {
   assert.equal(trackProductEvent('premium_view', target), true)
   assert.equal(trackProductEvent('R$ 9.000', target), false)
   assert.deepEqual(received, [{ name: 'premium_view' }])
+})
+
+test('CTAs preservam foco, área mínima e layout de 320 px', () => {
+  assert.match(appCss, /min-width:\s*320px/)
+  assert.match(appCss, /\.button\s*\{[\s\S]*?min-height:\s*44px/)
+  assert.match(appCss, /a:focus-visible[\s\S]*?outline:\s*3px/)
+  assert.match(responsiveCss, /@media \(max-width: 390px\)/)
 })

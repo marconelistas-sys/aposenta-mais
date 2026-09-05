@@ -5,11 +5,13 @@ import { fileURLToPath } from 'node:url'
 import { securityHeaders } from './security-headers.mjs'
 import { createAuthHandler } from '../src/server/auth/auth-handler.mjs'
 import { createExchangeRateHandler } from '../src/server/exchange-rates.mjs'
+import { createExchangeHistoryHandler } from '../src/server/exchange-history.mjs'
 
 const projectRoot = normalize(join(fileURLToPath(new URL('.', import.meta.url)), '..'))
 const requestedPort = Number(process.env.PORT || 4173)
 const handleAuth = createAuthHandler()
 const handleExchangeRates = createExchangeRateHandler()
+const handleExchangeHistory = createExchangeHistoryHandler()
 
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -50,6 +52,7 @@ const server = createServer(async (request, response) => {
     const requestUrl = new URL(request.url || '/', `http://${request.headers.host || '127.0.0.1'}`)
     if (await handleAuth(request, response, requestUrl)) return
     if (await handleExchangeRates(request, response, requestUrl)) return
+    if (await handleExchangeHistory(request, response, requestUrl)) return
 
     const filePath = await resolveFile(request.url || '/')
     const body = await readFile(filePath)

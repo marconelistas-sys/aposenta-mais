@@ -178,6 +178,12 @@ export function renderDashboard() {
       </div>
     </section>
 
+    <section class="panel settings-card" aria-labelledby="start-guide"><h2 id="start-guide">Comece aqui</h2>
+      <a class="button button--primary" href="/construir/objetivo" data-route>Continuar plano passo a passo</a>
+      <p>${state.isDemo ? 'Os valores de demonstração são exemplos. Revise cada etapa com seus dados.' : 'Revise estas três etapas sempre que sua situação mudar.'}</p>
+      <ol><li><a href="/simulacoes" data-route>Defina sua aposentadoria</a>: confira as idades e a renda desejada.</li><li><a href="/fluxo-caixa" data-route>Organize seu orçamento</a>: cadastre receitas, despesas e seus prazos. Veja a evolução mensal.</li><li><a href="/carteira" data-route>Revise seu patrimônio</a>: informe investimentos, aportes e rendimentos.</li></ol>
+      <p>Carteira reúne investimentos. Fluxo de caixa reúne o orçamento. Saldos de contas bancárias ainda não são acompanhados.</p>
+    </section>
     <section class="dashboard-top" aria-label="Resumo do plano">
       <article class="income-card">
         <div class="income-card__topline">
@@ -296,7 +302,7 @@ export function renderDashboard() {
               </li>
               <li>
                 <span class="source-dot source-dot--investments"></span>
-                <div><span>Investimentos</span><strong class="money-value">${money(investmentIncome)}</strong></div>
+                <div><span>Renda mensal retirada do patrimônio</span><strong class="money-value">${money(investmentIncome)}</strong></div>
               </li>
             </ul>
           </div>
@@ -307,7 +313,7 @@ export function renderDashboard() {
           <div class="confidence-card__icon">${icon('shield', 22)}</div>
           <div>
             <h3>Premissas visíveis e ajustáveis</h3>
-            <p>Retorno real de ${formatPercent(state.plan.annualRealReturn)} ao ano e retirada de ${formatPercent(state.plan.annualWithdrawalRate)}.</p>
+            <p>Retorno real de ${formatPercent(state.plan.annualRealReturn)}, inflação de ${formatPercent(state.plan.annualInflation)} e retirada de ${formatPercent(state.plan.annualWithdrawalRate)} ao ano.</p>
           </div>
           <a href="/simulacoes" data-route aria-label="Ver premissas">${icon('chevronRight', 19)}</a>
         </article>
