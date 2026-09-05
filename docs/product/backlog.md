@@ -1,5 +1,37 @@
 # Backlog inicial
 
+## Gráficos e horizonte de planejamento
+
+Sprint implementada: fluxos anuais no padrão do finapp, patrimônio e Monte Carlo separados, faixas P10/P90 e P25/P75, idade-alvo independente da aposentadoria e atualização de horizonte sem reimportar registros. 317 testes e build aprovados. [Decisões e limites](sprint-graficos-horizonte.md).
+
+Próxima validação: aplicar o horizonte nos planos importados com a versão anterior e conferir a apresentação em navegador, celular e teclado. As pendências contratuais e hospedadas anteriores permanecem.
+
+## Migração do finapp, três sprints locais
+
+I1: substituição de registros com recuperação. I2: metas anuais e periódicas no orçamento. I3: bens restritos no gráfico e pendências persistidas. Pacote v2 contém 56 registros utilizáveis e duas pendências. 308 testes e build aprovados. [Escopo, limites e próximos passos](sprints-migracao-finapp.md).
+
+Aplicação à conta ativa ainda pendente de acesso ao navegador. Nenhum registro da conta foi apagado, nenhuma cópia remota foi substituída e nenhum merge remoto foi executado nesta entrega.
+
+## Entrega de dívidas, consórcios e risco
+
+Três blocos implementados localmente: dívidas PRICE/SAC e amortizações extras, consórcios integrados ao caixa e patrimônio, Monte Carlo e matriz de sensibilidade. [Escopo, pesquisa, premissas e próximas prioridades](sprints-dividas-consorcios-risco.md). 292 testes aprovados. Validação visual e hospedada continuam pendentes, sem merge remoto nesta entrega.
+
+Próximos itens deste eixo: testes observados, conciliação de pagamentos, regras específicas por contrato, saída de consórcios e calibração de risco. As prioridades históricas abaixo não substituem esse estado.
+
+## Entrega posterior à Sprint 33
+
+As lacunas funcionais listadas após a Sprint 33 receberam implementação local nesta entrega. [Escopo, testes e limites](roadmap-pos-sprint-33.md).
+
+1. Planos e histórico local separados por identidade autenticada, com espaço de visitante independente, migração por cópia confirmada e proteção contra troca de conta durante sincronização.
+2. Projeção mensal após aposentadoria, com renda, orçamento ou despesa-alvo, resgates, custo anual, desconto efetivo informado pelo usuário e saldos reais/nominais.
+3. Vínculo entre movimentos e realizados do orçamento, com substituição explícita de realizado compatível, edição pela origem e atualização confirmada de saldo de investimento pela conta.
+4. Conciliação por movimento e por lado da transferência, revisão local de TXT, referências persistidas, desfazer e histórico limitado.
+5. Calendário de vencimentos, dívidas de parcelas fixas e metas com prazo. Compromissos entram nas despesas previstas, sem criar movimentos realizados.
+
+Validações ainda pendentes: inspeção visual desktop/celular, teste observado com usuários, homologação RLS com duas contas reais e restauração/exclusão/conflitos no Supabase. Aprovação jurídica continua externa e bloqueia o beta. Não foram usadas credenciais nem alterado o banco hospedado.
+
+Limites a evoluir: cifragem dos arquivos locais, regras tributárias por produto, disponibilidade efetiva de resgates na aposentadoria, conciliação bancária automática e confirmação de pagamentos no calendário. A separação por conta protege o fluxo da aplicação, não os arquivos do navegador contra acesso ao dispositivo. Os itens históricos abaixo não significam validação concluída.
+
 ## Estado consolidado após Sprint 33
 
 Sprints 29 a 33 implementadas sequencialmente: formulários contextuais, prazo mensal comum, retiradas opcionais para déficits, edição de contas/movimentos e conferência manual de saldos. [Entregas e limites](sprints-29-33.md). As listas históricas abaixo registram prioridades anteriores e não substituem esta seção.

@@ -99,8 +99,10 @@ function cashFlowItems(result) {
             ${item.currency === state.currency ? '' : `<span>${converted} na visão geral</span>`}
           </div>
           <div class="cash-item__actions">
+            ${item.annualGoalId ? '<a href="/calendario" data-route>Editar provisão anual</a>' : item.consortiumId ? '<a href="/consorcios" data-route>Editar consórcio</a>' : item.commitmentId ? '<a href="/calendario" data-route>Editar no calendário</a>' : item.id.startsWith('ledger:') ? '<a href="/contas" data-route>Editar em Contas</a>' : `
             <button class="cash-item__edit" type="button" data-edit-cash-item="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.description || item.category.name)}">Editar</button>
             <button class="icon-button" type="button" data-remove-cash-item="${escapeHtml(item.id)}" aria-label="Excluir ${escapeHtml(item.description || item.category.name)}">×</button>
+            `}
           </div>
         </article>
       `
@@ -329,6 +331,7 @@ export function renderCashFlow(statementReview = null) {
         <p class="eyebrow">FLUXO DE CAIXA</p>
         <h1>Organize suas receitas e despesas.</h1>
         <a class="button button--secondary" href="/contas" data-route>Contas e transferências</a>
+        <a class="button button--secondary" href="/calendario" data-route>Vencimentos, dívidas e metas</a>
         <a href="/construir/orcamento" data-route>Voltar ao passo a passo</a>
         <p>O sistema preserva a moeda original e consolida o orçamento em ${state.currency}.</p>
         <a class="button button--secondary" href="/cambio" data-route>Simular variação cambial e consultar histórico</a>

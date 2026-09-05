@@ -2,6 +2,7 @@ import { projectAssetSeriesWithSchedules, projectRetirementWithSchedules, retire
 import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { state } from '../../app/state.js'
 import { renderVariableContributions } from './variable-contributions.js'
+import { renderPlanningOverview } from './planning-overview.js'
 import { renderPlanChecks } from './plan-checks.js'
 import { authState } from '../../app/auth-state.js'
 import { syncState } from '../../app/sync-state.js'
@@ -184,6 +185,8 @@ export function renderDashboard() {
       <p>${state.isDemo ? 'Os valores de demonstração são exemplos. Revise cada etapa com seus dados.' : 'Revise estas três etapas sempre que sua situação mudar.'}</p>
       <ol><li><a href="/simulacoes" data-route>Defina sua aposentadoria</a>: confira as idades e a renda desejada.</li><li><a href="/fluxo-caixa" data-route>Organize seu orçamento</a>: cadastre receitas, despesas e seus prazos. Veja a evolução mensal.</li><li><a href="/carteira" data-route>Revise seu patrimônio</a>: informe investimentos, aportes e rendimentos.</li></ol>
       <p>Carteira reúne investimentos. Fluxo de caixa reúne o orçamento. <a href="/contas" data-route>Contas e movimentos</a> acompanha saldos manuais sem somá-los automaticamente ao patrimônio.</p>
+      <div class="wizard-actions"><a class="button button--secondary" href="/calendario" data-route>Vencimentos, dívidas e metas</a><a class="button button--secondary" href="/apos-aposentadoria" data-route>Projetar vida após aposentadoria</a></div>
+      <div class="wizard-actions"><a class="button button--secondary" href="/consorcios" data-route>Consórcios e posição vinculada</a><a class="button button--secondary" href="/riscos" data-route>Patrimônio líquido, Monte Carlo e matriz de risco</a></div>
     </section>
     <section class="dashboard-top" aria-label="Resumo do plano">
       <article class="income-card">
@@ -230,7 +233,7 @@ export function renderDashboard() {
         <div class="metric-card__icon metric-card__icon--green">${icon('calendar', 21)}</div>
         <div>
           <p>Previsão de aposentadoria</p>
-          <strong>Setembro de ${expectedYear}</strong>
+          <strong>${state.plan.retirementMonth ? new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${state.plan.retirementMonth}-01T00:00:00Z`)) : expectedYear}</strong>
           <span>${state.plan.retirementMonth ? `Em ${state.plan.retirementMonth}` : `Aos ${state.plan.retirementAge} anos`}</span>
         </div>
         <a href="/plano" data-route aria-label="Ver previsão de aposentadoria">${icon('chevronRight', 19)}</a>
@@ -255,12 +258,14 @@ export function renderDashboard() {
       </article>
     </section>
 
+    ${renderPlanningOverview()}
     <section class="dashboard-grid">
       <article class="panel projection-panel">
         <div class="panel__header panel__header--responsive">
           <div>
             <p class="eyebrow">SUA EVOLUÇÃO</p>
             <h2>Patrimônio ao longo do tempo</h2>
+            <p>Acumulação com aportes cadastrados, sem deduzir dívidas. <a href="/riscos" data-route>Ver gráfico líquido baseado no orçamento, com dívidas e consórcios</a>.</p>
           </div>
           <div class="segmented-control" aria-label="Período do gráfico">
             ${Object.entries(chartRanges).map(([key, range]) => `

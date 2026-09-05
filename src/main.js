@@ -1,19 +1,31 @@
 import { appLayout } from './app/layout.js'
+import { renderConsortia, guideConsortiumForm, saveConsortium, consortiumView } from './features/cash-flow/consortia.js'
+import { renderRisk, startRisk, cancelRisk, riskSettingsFromForm } from './features/plan/risk.js'
+import { guideCommitmentForm, guideMovementForm } from './app/planning-forms.js'
+import { ownedStorage } from './app/owned-storage.js'
+import { renderPostRetirement } from './features/plan/post-retirement.js'
+import { validateDecumulation } from './domain/post-retirement.js'
+import { renderCalendar, calendarView, saveCommitment } from './features/cash-flow/calendar.js'
 import { variableView } from './features/dashboard/variable-contributions.js'
 import { guideBudgetForm, showFormError } from './app/form-guidance.js'
-import { changeAccounts } from './app/accounts.js'
+import { changeAccounts, reconcileLedgerMovement, linkMovementBudget } from './app/accounts.js'
+import { updatePortfolioFromAccount } from './app/portfolio-link.js'
+import { recordReconciliation } from './domain/ledger-links.js'
+import { prepareLedgerStatement, ledgerStatementView } from './features/accounts/statement-review.js'
 import { renderAccounts } from './features/accounts/accounts.js'
-import { previewReconciliation } from './features/accounts/reconciliation.js'
+import { previewReconciliation, reconciliationView } from './features/accounts/reconciliation.js'
 import { canRenderFinancialPage, closeLocalPlan, openLocalPlan, localLockKey, isPublicPage } from './app/local-access.js'
 import { renderWelcome } from './features/welcome/welcome.js'
 import { renderGuidedPlan } from './features/welcome/guided-plan.js'
 import { beginGuidedPlan, saveGuidedAssets, saveGuidedGoal, saveGuidedBudget } from './app/guided-plan.js'
 import { timelineView } from './features/cash-flow/timeline.js'
-import { submitPortfolioCurrencyScenario } from './features/cash-flow/portfolio-currency.js'
+import { submitPortfolioCurrencyScenario, clearPortfolioScenarios } from './features/cash-flow/portfolio-currency.js'
 import { currencyExplorer, loadCurrencyHistory, renderCurrencyExplorer } from './features/cash-flow/currency-explorer.js'
 import { dataHistory, recordDataOperation } from './app/data-history.js'
 import {
   addCashFlowItem,
+  selectPlanOwner,
+  copyGuestPlanToAccount,
   addCustomCategory,
   addScenario,
   deleteLocalData,
@@ -58,7 +70,10 @@ import {
   renderSimulations
 } from './features/simulations/simulations.js'
 import { formatCurrency, parseNumber, privateCurrency } from './shared/formatters.js'
-import { serializeExportableState } from './app/state-storage.js'
+import { serializeExportableState, storageKeys } from './app/state-storage.js'
+import { parseFinappImport, mergeFinappImport } from './domain/finapp-import.js'
+import { saveAnnualPlanning } from './features/plan/annual-planning.js'
+import { planningHorizon } from './domain/planning-horizon.js'
 import {
   authState,
   loadAuthState,
@@ -85,7 +100,24 @@ const app = document.querySelector('#app')
 const toastRegion = document.querySelector('#toast-region')
 let statementReviewState = null
 
+function switchSessionPlan() {
+  cancelRisk(true)
+  consortiumView.preview = null
+  closeLocalPlan()
+  statementReviewState = null
+  reconciliationView.input = null
+  ledgerStatementView.preview = null
+  clearPortfolioScenarios()
+  app.replaceChildren()
+  selectPlanOwner(authState.authenticated ? authState.user.id : null)
+  resetSyncState()
+}
+
 const routes = {
+  '/consorcios': renderConsortia,
+  '/riscos': renderRisk,
+  '/apos-aposentadoria': renderPostRetirement,
+  '/calendario': renderCalendar,
   '/contas': renderAccounts,
   '/cambio': renderCurrencyExplorer,
   '/': renderDashboard,
@@ -125,6 +157,7 @@ function restoreSimulationForm(values) {
 }
 
 function render({ focusMain = false } = {}) {
+  if (!sessionReady) { app.innerHTML = '<main class="page-shell"><p role="status">Verificando a sessão antes de abrir seus dados…</p></main>'; return }
   const pathname = currentPath()
   const simulationValues = pathname === '/simulacoes' ? captureSimulationForm() : null
   const selectedRenderer = pathname === '/inicio' || !canRenderFinancialPage(pathname) ? renderWelcome : pathname.startsWith('/construir/') ? () => renderGuidedPlan(pathname.split('/')[2]) : routes[pathname] || renderDashboard
@@ -134,6 +167,9 @@ function render({ focusMain = false } = {}) {
   app.innerHTML = appLayout(pageRenderer(), pathname)
   restoreSimulationForm(simulationValues)
   document.querySelectorAll('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]').forEach(form => guideBudgetForm(form, state.customCategories))
+  guideCommitmentForm(document.querySelector('[data-commitment-form]'))
+  guideConsortiumForm(document.querySelector('[data-consortium-form]'))
+  guideMovementForm(document.querySelector('[data-movement-form]'), state.cashFlow.ledger.accounts)
   document.body.classList.toggle('values-hidden', state.valuesHidden)
 
   document.querySelectorAll('[data-product-impression]').forEach((element) => {
@@ -357,6 +393,91 @@ function exportData() {
 }
 
 document.addEventListener('click', async (event) => {
+  if (!sessionReady) { event.preventDefault(); return }
+  const annualAction = event.target.closest('[data-annual-edit], [data-annual-remove]')
+  if (annualAction) {
+    const kind = annualAction.dataset.annualKind
+    if (!['annualGoals', 'nonFinancialAssets'].includes(kind)) return
+    const id = annualAction.dataset.annualEdit || annualAction.dataset.annualRemove
+    const row = (state.cashFlow[kind] || []).find(item => item.id === id)
+    if (!row) return
+    if (annualAction.dataset.annualRemove) {
+      if (window.confirm(`Excluir ${row.name} do plano?`)) { updateCashFlow({ [kind]: state.cashFlow[kind].filter(item => item.id !== id) }); render() }
+    } else {
+      const form = document.querySelector(`[data-annual-planning="${kind}"]`)
+      if (!form) return
+      for (const [key, value] of Object.entries(row)) if (form.elements.namedItem(key)) form.elements.namedItem(key).value = key === 'realGrowth' ? value * 100 : value
+      form.closest('details').open = true
+      form.scrollIntoView({ block: 'center' })
+    }
+    return
+  }
+  if (event.target.closest('[data-risk-cancel]')) { cancelRisk(); render(); return }
+  const consortiumEdit = event.target.closest('[data-consortium-edit]')
+  if (consortiumEdit) {
+    const item = (state.cashFlow.consortia || []).find(row => row.id === consortiumEdit.dataset.consortiumEdit)
+    const form = document.querySelector('[data-consortium-form]')
+    if (item && form) {
+      for (const [key, value] of Object.entries(item)) {
+        const field = form.elements.namedItem(key)
+        if (field) field.value = ['annualAdjustment', 'creditReturn', 'assetReturn'].includes(key) ? value * 100 : value ?? ''
+      }
+      form.elements.namedItem('confirmed').checked = false
+      guideConsortiumForm(form)
+      form.elements.namedItem('name').focus()
+      form.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    }
+    return
+  }
+  const consortiumRemove = event.target.closest('[data-consortium-remove]')
+  if (consortiumRemove) {
+    if (window.confirm('Excluir o consórcio desta projeção? Parcelas e posição vinculada deixarão de entrar nos cálculos. Contas realizadas não serão alteradas.')) {
+      updateCashFlow({ consortia: state.cashFlow.consortia.filter(row => row.id !== consortiumRemove.dataset.consortiumRemove) }); render()
+    }
+    return
+  }
+  if (event.target.closest('[data-clear-ledger-statement]')) { ledgerStatementView.preview = null; render(); return }
+  const unreconcile = event.target.closest('[data-unreconcile]')
+  if (unreconcile) {
+    if (window.confirm('Desfazer esta conciliação? O movimento será mantido.')) {
+      let ledger = structuredClone(state.cashFlow.ledger)
+      const movement = ledger.movements.find(row => row.id === unreconcile.dataset.unreconcile)
+      if (movement) ledger = recordReconciliation(ledger, movement.id, (movement.reconciliations || []).filter(row => row.accountId === unreconcile.dataset.reconcileAccount), 'revoked')
+      if (movement) movement.reconciliations = (movement.reconciliations || []).filter(row => row.accountId !== unreconcile.dataset.reconcileAccount)
+      updateCashFlow({ ledger }); render()
+    }
+    return
+  }
+  const unlinkInvestment = event.target.closest('[data-unlink-investment]')
+  if (unlinkInvestment) {
+    const ledger = structuredClone(state.cashFlow.ledger)
+    const account = ledger.accounts.find(row => row.id === unlinkInvestment.dataset.unlinkInvestment)
+    if (account) { delete account.investmentId; delete account.investmentSyncDate }
+    updateCashFlow({ ledger }); render()
+    return
+  }
+  const commitmentEdit = event.target.closest('[data-commitment-edit]')
+  if (commitmentEdit) {
+    const item = state.cashFlow.commitments.find(row => row.id === commitmentEdit.dataset.commitmentEdit)
+    const form = document.querySelector('[data-commitment-form]')
+    if (item && form) {
+      for (const [key, value] of Object.entries(item)) { const field = form.elements.namedItem(key); if (field) field.value = key === 'annualRate' ? value * 100 : key === 'extraPayments' ? value.map(row => `${row.month};${row.amount}`).join('\n') : value }
+      form.closest('details').open = true
+      guideCommitmentForm(form)
+      form.elements.namedItem('name').focus()
+    }
+    return
+  }
+  const commitmentRemove = event.target.closest('[data-commitment-remove]')
+  if (commitmentRemove) {
+    if (window.confirm('Excluir este compromisso e suas despesas futuras?')) { updateCashFlow({ commitments: state.cashFlow.commitments.filter(item => item.id !== commitmentRemove.dataset.commitmentRemove) }); render() }
+    return
+  }
+  if (event.target.closest('[data-copy-guest]')) {
+    if (!window.confirm('Copiar o plano de visitante para esta conta? A cópia de visitante será mantida. Copie somente dados que pertencem a você.')) return
+    try { copyGuestPlanToAccount(); render(); showToast('Plano copiado. A cópia de visitante continua separada.') } catch (error) { showToast(error.message) }
+    return
+  }
   const ledgerEdit = event.target.closest('[data-account-edit], [data-movement-edit]')
   if (ledgerEdit) {
     const isAccount = ledgerEdit.hasAttribute('data-account-edit')
@@ -369,6 +490,7 @@ document.addEventListener('click', async (event) => {
       if (field) field.value = value ?? ''
     }
     form.querySelector('[data-ledger-edit-label]').textContent = isAccount ? 'Editando conta' : 'Editando movimento'
+    if (!isAccount) guideMovementForm(form, state.cashFlow.ledger.accounts)
     form.closest('details').open = true
     form.scrollIntoView({ block: 'center', behavior: 'smooth' })
     form.querySelector('input:not([type="hidden"]), select')?.focus({ preventScroll: true })
@@ -377,6 +499,7 @@ document.addEventListener('click', async (event) => {
   if (event.target.closest('[data-ledger-cancel]')) {
     const form = event.target.closest('form')
     form.reset()
+    form.elements.namedItem('id').value = ''
     form.querySelector('[data-ledger-edit-label]').textContent = 'Novo registro'
     form.querySelector('[data-form-error]')?.remove()
     return
@@ -396,6 +519,7 @@ document.addEventListener('click', async (event) => {
     return
   }
   if (event.target.closest('[data-close-local]')) {
+    cancelRisk(true)
     closeLocalPlan()
     try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
     navigate('/inicio')
@@ -457,6 +581,7 @@ document.addEventListener('click', async (event) => {
   if (event.target.closest('[data-auth-logout]')) {
     try {
       await logout()
+      switchSessionPlan()
       closeLocalPlan()
       try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
       resetSyncState()
@@ -680,7 +805,7 @@ document.addEventListener('click', async (event) => {
 
   const removeCashItemButton = event.target.closest('[data-remove-cash-item]')
   if (removeCashItemButton) {
-    removeCashFlowItem(removeCashItemButton.dataset.removeCashItem)
+    try { removeCashFlowItem(removeCashItemButton.dataset.removeCashItem) } catch (error) { showToast(error.message); return }
     render()
     showToast('Lançamento excluído.')
     return
@@ -733,7 +858,7 @@ document.addEventListener('change', async (event) => {
   const budgetForm = event.target.closest('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]')
   if (budgetForm) guideBudgetForm(budgetForm, state.customCategories)
   if (event.target.matches('[data-timeline-period]')) {
-    timelineView.period = ['12', '60', 'retirement'].includes(event.target.value) ? event.target.value : '12'
+    timelineView.period = ['target', '12', '60', 'retirement'].includes(event.target.value) ? event.target.value : 'target'
     render()
     return
   }
@@ -793,7 +918,10 @@ document.addEventListener('change', async (event) => {
       return
     }
     try {
-      const inspection = inspectStatementText(await file.text(), { maximumRows: 100 })
+      const generation = ownedStorage.generation
+      const text = await file.text()
+      if (generation !== ownedStorage.generation) return
+      const inspection = inspectStatementText(text, { maximumRows: 100 })
       statementReviewState = {
         fileName: file.name,
         inspection,
@@ -824,6 +952,123 @@ document.addEventListener('change', async (event) => {
 })
 
 document.addEventListener('submit', async (event) => {
+  if (!sessionReady) { event.preventDefault(); return }
+  const horizonForm = event.target.closest('[data-planning-horizon]')
+  if (horizonForm) {
+    event.preventDefault()
+    try {
+      const data = new FormData(horizonForm)
+      const patch = { targetAge: Number(data.get('targetAge')), horizonReferenceMonth: data.get('reference') }
+      planningHorizon({ ...state.plan, ...patch }, state.cashFlow.referenceMonth)
+      updatePlan(patch); cancelRisk(true); render(); showToast('Horizonte salvo. A idade de aposentadoria não foi alterada.')
+    } catch (error) { showFormError(horizonForm, error.message) }
+    return
+  }
+  const annualForm = event.target.closest('[data-annual-planning]')
+  if (annualForm) {
+    event.preventDefault()
+    try { saveAnnualPlanning(new FormData(annualForm)); render(); showToast('Planejamento anual salvo.') } catch (error) { showFormError(annualForm, error.message) }
+    return
+  }
+  const finappForm = event.target.closest('[data-finapp-import]')
+  if (finappForm) {
+    event.preventDefault()
+    const owner = ownedStorage.owner
+    const generation = ownedStorage.generation
+    const original = serializeExportableState(state)
+    const sameContext = () => sessionReady && owner && ownedStorage.owner === owner && ownedStorage.generation === generation && serializeExportableState(state) === original
+    const button = finappForm.querySelector('button[type="submit"]')
+    button.disabled = true
+    try {
+      if (!authState.authenticated || authState.user?.id !== owner) throw new Error('Entre na conta de destino antes de importar.')
+      const file = finappForm.elements.namedItem('file').files[0]
+      if (!file || file.size > 2000000) throw new Error('Selecione o JSON de importação, até 2 MB.')
+      const parsed = parseFinappImport(await file.text())
+      const response = await fetch('/api/auth/status', { credentials: 'same-origin', cache: 'no-store' })
+      const session = await response.json()
+      if (!response.ok || !session.authenticated || session.user?.id !== owner || !sameContext()) throw new Error('A sessão ou os dados mudaram. Reabra o Perfil e tente novamente.')
+      const mode = finappForm.elements.namedItem('mode').value
+      const result = mergeFinappImport(state, parsed, mode)
+      const preview = mode === 'horizon' ? `Conta: ${session.user.email || owner}. Atualizar somente a idade-alvo para ${result.state.plan.targetAge} anos, referência ${result.state.plan.horizonReferenceMonth}. Preservar investimentos, orçamento, cenários e aposentadoria. Confirmar com versão de recuperação?` : `Conta: ${session.user.email || owner}. ${mode === 'replace' ? `SUBSTITUIR ${result.removed} registros anteriores, incluindo contas, movimentos e cenários. Aplicar idade, inflação e retorno da origem, zerar reservas, benefício e meta de renda anteriores. Revisar idade desejada de aposentadoria.` : 'Preservar registros e premissas existentes.'} Importar ${result.added} registros, ignorar ${result.skipped} repetidos e guardar ${result.pending} pendências para revisão. Investimentos em ${state.currency}. Revise o LEIA-ME. Confirmar importação local com versão de recuperação?`
+      finappForm.querySelector('[data-finapp-status]').textContent = preview
+      if (!window.confirm(preview)) return
+      if (!sameContext()) throw new Error('O contexto mudou. Nenhum dado foi importado.')
+      if (result.added === 0 && mode === 'merge') { showToast('Todos os registros compatíveis já estão importados.'); return }
+      dataHistory.checkpoint(state)
+      const candidate = { ...result.state, isDemo: false, lastUpdatedAt: new Date().toISOString() }
+      // Fail before mutating memory if storage cannot hold the complete import.
+      ownedStorage.setItem(storageKeys.current, JSON.stringify({ ...candidate, valuesHidden: state.valuesHidden }))
+      replaceFinancialData(candidate)
+      cancelRisk(true)
+      recordDataOperation('file_import')
+      render()
+      showToast(mode === 'horizon' ? 'Idade-alvo atualizada sem alterar os registros importados.' : `${result.added} registros importados localmente. ${result.pending} pendências estão no relatório. Nenhum envio remoto.`)
+    } catch (error) { showFormError(finappForm, error.message) }
+    finally { button.disabled = false }
+    return
+  }
+  const consortiumForm = event.target.closest('[data-consortium-form]')
+  if (consortiumForm) {
+    event.preventDefault()
+    if (!consortiumForm.reportValidity()) return
+    try { saveConsortium(new FormData(consortiumForm)); render(); showToast('Consórcio salvo. Parcelas e posição patrimonial atualizadas.') } catch (error) { showFormError(consortiumForm, error.message) }
+    return
+  }
+  const riskForm = event.target.closest('[data-risk-form]')
+  if (riskForm) {
+    event.preventDefault()
+    if (!riskForm.reportValidity()) return
+    try { startRisk(riskSettingsFromForm(new FormData(riskForm)), () => { if (currentPath() === '/riscos') render() }); render() } catch (error) { showFormError(riskForm, error.message) }
+    return
+  }
+  const ledgerStatementForm = event.target.closest('[data-ledger-statement]')
+  if (ledgerStatementForm) {
+    event.preventDefault()
+    if (!ledgerStatementForm.reportValidity()) return
+    const data = new FormData(ledgerStatementForm)
+    const button = ledgerStatementForm.querySelector('[type="submit"], button')
+    button.disabled = true
+    try { await prepareLedgerStatement(data.get('file'), data.get('accountId')); render() }
+    catch (error) { if (ledgerStatementForm.isConnected) showFormError(ledgerStatementForm, error.message) }
+    finally { button.disabled = false }
+    return
+  }
+  const linkForm = event.target.closest('[data-movement-reconciliation], [data-budget-link], [data-portfolio-link]')
+  if (linkForm) {
+    event.preventDefault()
+    if (!linkForm.reportValidity()) return
+    try {
+      const data = new FormData(linkForm)
+      if (linkForm.matches('[data-movement-reconciliation]')) reconcileLedgerMovement(data)
+      else if (linkForm.matches('[data-budget-link]')) {
+        if (!window.confirm('Aplicar o vínculo? Se você selecionou um realizado existente, ele será substituído pelo movimento, sem somar novamente.')) return
+        linkMovementBudget(data)
+      } else {
+        if (data.get('confirm') !== 'on') throw new Error('Confirme a substituição do saldo.')
+        if (!updatePortfolioFromAccount(data)) throw new Error('Atualizado somente nesta sessão. Não foi possível gravar no navegador. Exporte seus dados antes de sair.')
+      }
+      render(); showToast('Atualização concluída.')
+    } catch (error) { showFormError(linkForm, error.message) }
+    return
+  }
+  const planningForm = event.target.closest('[data-decumulation-form], [data-calendar-month], [data-commitment-form]')
+  if (planningForm) {
+    event.preventDefault()
+    if (!planningForm.reportValidity()) return
+    const data = new FormData(planningForm)
+    try {
+      if (planningForm.matches('[data-decumulation-form]')) {
+        const settings = { years: Number(data.get('years')), expenseMode: data.get('expenseMode'), annualFee: Number(data.get('annualFee')) / 100, withdrawalTax: Number(data.get('withdrawalTax')) / 100, benefitIncluded: data.get('benefitIncluded') === 'on' }
+        validateDecumulation(settings)
+        updatePlan({ decumulation: settings })
+      } else if (planningForm.matches('[data-calendar-month]')) {
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(data.get('month'))) throw new Error('Mês inválido.')
+        calendarView.month = data.get('month')
+      } else saveCommitment(data)
+      render()
+    } catch (error) { showFormError(planningForm, error.message) }
+    return
+  }
   const reconciliationForm = event.target.closest('[data-reconciliation-form]')
   if (reconciliationForm) {
     event.preventDefault()
@@ -835,7 +1080,7 @@ document.addEventListener('submit', async (event) => {
   if (accountForm) {
     event.preventDefault()
     if (!accountForm.reportValidity()) return
-    try { changeAccounts(accountForm.matches('[data-account-form]') ? 'account' : 'movement', new FormData(accountForm)); render() } catch (error) { showToast(error.message) }
+    try { changeAccounts(accountForm.matches('[data-account-form]') ? 'account' : 'movement', new FormData(accountForm)); render() } catch (error) { showFormError(accountForm, error.message) }
     return
   }
   const guidedForm = event.target.closest('[data-guided-goal], [data-guided-assets], [data-guided-budget]')
@@ -1042,6 +1287,9 @@ document.addEventListener('submit', async (event) => {
       let result
       if (action === 'login') {
         await login({ email: data.get('email'), password: data.get('password') })
+        switchSessionPlan()
+        statementReviewState = null
+        try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
         closeLocalPlan()
         await loadSyncState()
         navigate('/inicio')
@@ -1063,6 +1311,8 @@ document.addEventListener('submit', async (event) => {
         }
         result = await updatePassword({ password: data.get('password') })
         Object.assign(authState, { authenticated: false, user: null })
+        switchSessionPlan()
+        closeLocalPlan()
         navigate('/entrar')
         showToast(result.message)
         return
@@ -1103,8 +1353,37 @@ document.addEventListener('submit', async (event) => {
 })
 
 window.addEventListener('popstate', () => render({ focusMain: true }))
-window.addEventListener('storage', event => {
-  if (event.key === localLockKey) { closeLocalPlan(); render() }
+document.addEventListener('input', event => {
+  const consortium = event.target.closest('[data-consortium-form]')
+  if (consortium) guideConsortiumForm(consortium)
+  const movement = event.target.closest('[data-movement-form]')
+  if (movement) guideMovementForm(movement, state.cashFlow.ledger.accounts)
+  const commitment = event.target.closest('[data-commitment-form]')
+  if (commitment) guideCommitmentForm(commitment)
+})
+document.addEventListener('reset', event => {
+  queueMicrotask(() => {
+    if (event.target.matches('[data-consortium-form]')) { event.target.elements.namedItem('id').value = ''; guideConsortiumForm(event.target) }
+    if (event.target.matches('[data-commitment-form]')) {
+      event.target.elements.namedItem('id').value = ''
+      event.target.querySelector('[data-form-error]')?.remove()
+      guideCommitmentForm(event.target)
+    }
+    if (event.target.matches('[data-movement-form]')) guideMovementForm(event.target, state.cashFlow.ledger.accounts)
+  })
+})
+window.addEventListener('storage', async event => {
+  if (event.key === localLockKey) {
+    cancelRisk(true)
+    closeLocalPlan()
+    sessionReady = false
+    statementReviewState = null
+    render()
+    await loadAuthState()
+    switchSessionPlan()
+    sessionReady = true
+    render()
+  }
 })
 
 document.addEventListener('cancel', (event) => {
@@ -1114,9 +1393,16 @@ document.addEventListener('cancel', (event) => {
   showToast('Importação cancelada. Nenhum lançamento foi adicionado.')
 }, true)
 
-saveState()
+let sessionReady = false
 render()
-Promise.all([loadAuthState(), loadExchangeRates()]).then(async () => {
-  if (authState.authenticated) await loadSyncState()
+loadAuthState().then(async () => {
+  switchSessionPlan()
+  sessionReady = true
   render()
+  // Public quotes must not block opening the local plan when the network is slow.
+  loadExchangeRates().then(() => { if (['/', '/inicio', '/cambio'].includes(currentPath())) render() })
+  if (authState.authenticated) {
+    await loadSyncState()
+    if (['/', '/inicio', '/perfil'].includes(currentPath())) render()
+  }
 })

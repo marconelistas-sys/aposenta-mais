@@ -1,5 +1,7 @@
 # Análise do finapp e funcionalidades incorporadas
 
+Atualização: consórcios, separação patrimonial, Monte Carlo e matriz de sensibilidade receberam implementação local. [Decisões de adaptação, pesquisa e limites](sprints-dividas-consorcios-risco.md). As classificações P1/P2/P3 e a contagem de testes abaixo registram a análise histórica original.
+
 Análise do código de `../finapp`, sem execução, alteração do projeto de origem ou leitura do banco de dados. Referências examinadas: README, `backend/app/engine.py`, `frontend/src/pages/DashboardPage.tsx` e configuração de navegação.
 
 ## Comparação e decisão

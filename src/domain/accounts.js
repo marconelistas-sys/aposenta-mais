@@ -19,17 +19,32 @@ export function validateMovement(movement, accounts) {
 }
 export function sanitizeLedger(value) {
   const accounts = [], movements = []
+  const usedReferences = new Set()
   for (const raw of Array.isArray(value?.accounts) ? value.accounts.slice(0, 20) : []) {
     if (!raw) continue
     const account = { id: raw.id, name: raw.name, currency: raw.currency, openingBalance: raw.openingBalance, openingDate: raw.openingDate }
+    if (validId(raw.investmentId) && validDate(raw.investmentSyncDate)) { account.investmentId = raw.investmentId; account.investmentSyncDate = raw.investmentSyncDate }
     try { validateAccount(account); if (!accounts.some(item => item.id === account.id)) accounts.push(account) } catch {}
   }
   for (const raw of Array.isArray(value?.movements) ? value.movements.slice(0, 500) : []) {
     if (!raw) continue
     const movement = { id: raw.id, type: raw.type, accountId: raw.accountId, destinationId: raw.type === 'transfer' ? raw.destinationId : null, amount: raw.amount, receivedAmount: raw.type === 'transfer' ? raw.receivedAmount : null, date: raw.date }
+    try { validateMovement(movement, accounts); if (movements.some(item => item.id === movement.id)) continue } catch { continue }
+    if (raw.type !== 'transfer' && validId(raw.budgetCategoryId)) movement.budgetCategoryId = raw.budgetCategoryId
+    const matches = (Array.isArray(raw.reconciliations) ? raw.reconciliations : []).filter(match => match && typeof match.reference === 'string' && match.reference.trim() && match.reference.length <= 100 && Number.isFinite(Date.parse(match.at)) && match.date === raw.date && Number.isFinite(match.amount) && hasCents(match.amount) && ((match.accountId === raw.accountId && match.amount === raw.amount * (raw.type === 'income' ? 1 : -1)) || (raw.type === 'transfer' && match.accountId === raw.destinationId && match.amount === raw.receivedAmount))).slice(0, 2)
+    const seenAccounts = new Set()
+    const uniqueMatches = matches.filter(match => {
+      const key = JSON.stringify([match.accountId, match.reference])
+      if (usedReferences.has(key) || seenAccounts.has(match.accountId)) return false
+      usedReferences.add(key); seenAccounts.add(match.accountId); return true
+    })
+    if (uniqueMatches.length) movement.reconciliations = uniqueMatches.map(({ accountId, reference, date, amount, at }) => ({ accountId, reference, date, amount, at }))
     try { validateMovement(movement, accounts); if (!movements.some(item => item.id === movement.id)) movements.push(movement) } catch {}
   }
-  return { accounts, movements }
+  const result = { accounts, movements }
+  const history = (Array.isArray(value?.reconciliationHistory) ? value.reconciliationHistory : []).filter(item => item && validId(item.movementId) && validId(item.accountId) && ['confirmed', 'revoked', 'edited', 'deleted'].includes(item.operation) && typeof item.reference === 'string' && item.reference.length <= 100 && Number.isFinite(Date.parse(item.at))).slice(-100).map(({ movementId, accountId, reference, operation, at }) => ({ movementId, accountId, reference, operation, at }))
+  if (history.length) result.reconciliationHistory = history
+  return result
 }
 export function accountBalances(ledger, date) {
   if (!validDate(date)) throw new RangeError('Data de consulta inválida.')

@@ -46,6 +46,7 @@ export function renderPrivacy() {
           <li>O servidor consulta somente a cotação pública. Nenhum lançamento é enviado ao BCE.</li>
           <li>Criar uma conta não envia o plano financeiro.</li>
           <li>A sessão usa cookies HttpOnly, sem tokens no localStorage.</li>
+          <li>Planos e versões de recuperação locais ficam separados por conta. O espaço de visitante é independente e sua cópia para uma conta exige confirmação.</li>
           <li>A cópia remota exige login, ação manual e consentimento.</li>
           <li>O banco foi preparado para limitar cada conta à própria linha. A configuração hospedada ainda precisa de validação operacional.</li>
         </ul>

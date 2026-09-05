@@ -1,5 +1,8 @@
 import { categoryById } from '../data/cash-flow-categories.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
+import { commitmentEvents } from './financial-calendar.js'
+import { consortiumEvents } from './consortium.js'
+import { annualGoalEvents } from './annual-planning.js'
 
 const monetaryFields = [
   'recurringIncome',
@@ -113,7 +116,9 @@ export function summarizeCashFlowItems(
   }
   const convertedItems = []
 
-  for (const item of cashFlow.items || []) {
+  // A commitment is a payable in this month, including one-off goals.
+  const commitmentItems = commitmentEvents(cashFlow.commitments, dateKey(asOfDate).slice(0, 7), cashFlow.commitmentSchedules).map(item => ({ ...item, frequency: 'monthly', endDate: item.startDate }))
+  for (const item of [...(cashFlow.items || []), ...annualGoalEvents(cashFlow.annualGoals, dateKey(asOfDate).slice(0, 7)), ...commitmentItems, ...consortiumEvents(cashFlow.consortia, dateKey(asOfDate).slice(0, 7), cashFlow.consortiumEvents)]) {
     const category = categoryById(item.categoryId, customCategories)
     if (!category) continue
     const convertedAmount = convertCurrency(item.amount, item.currency, baseCurrency, exchangeRates)

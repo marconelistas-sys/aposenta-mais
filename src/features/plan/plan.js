@@ -3,6 +3,7 @@ import { projectRetirementWithSchedules } from '../../domain/retirement.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { formatCurrency, formatPercent, privateCurrency } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
+import { renderHorizonForm } from './horizon.js'
 
 export function renderPlan() {
   const schedules = retirementContributionSchedules(
@@ -26,7 +27,8 @@ export function renderPlan() {
       </a>
     </section>
 
-    <section class="plan-overview">
+    <section class="panel settings-card"><h2>Planeje também os anos de aposentadoria</h2><p>A meta de acumulação não mostra sozinha quando o patrimônio pode acabar.</p><a class="button button--secondary" href="/apos-aposentadoria" data-route>Simular despesas e resgates após aposentar</a></section>
+    <section class="panel settings-card">${renderHorizonForm()}</section><section class="plan-overview">
       <article class="panel goal-card">
         <div class="panel__header">
           <div>

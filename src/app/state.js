@@ -13,6 +13,7 @@ import {
 } from './state-storage.js'
 import { convertCurrency, sanitizeExchangeRates } from '../shared/exchange-rates.js'
 import { normalizeCurrency } from '../shared/currencies.js'
+import { ownedStorage } from './owned-storage.js'
 
 const unavailableStorage = {
   getItem: () => null,
@@ -28,12 +29,26 @@ function resolveStorage() {
   }
 }
 
-const appStorage = resolveStorage()
+const appStorage = ownedStorage
 const savedState = loadStoredState(appStorage)
 
 export const state = {
   ...savedState,
   version: stateVersion
+}
+
+export function selectPlanOwner(userId = null) {
+  ownedStorage.select(userId)
+  for (const key of Object.keys(state)) delete state[key]
+  Object.assign(state, loadStoredState(appStorage), { version: stateVersion })
+}
+
+export function copyGuestPlanToAccount() {
+  if (!ownedStorage.owner) throw new Error('Entre em sua conta primeiro.')
+  if (!state.isDemo) throw new Error('Exporte e revise o plano da conta antes de substituir seus dados.')
+  const guest = loadStoredState(resolveStorage())
+  if (guest.isDemo || guest.dataDeleted) throw new Error('Não há plano de visitante para copiar.')
+  replaceFinancialData(guest)
 }
 
 export function saveState() {
@@ -158,6 +173,7 @@ export function importCashFlowItems(items) {
 }
 
 export function removeCashFlowItem(id) {
+  if (id.startsWith('ledger:')) throw new Error('Desvincule o movimento em Contas para remover este realizado.')
   updateCashFlow({
     ...state.cashFlow,
     items: state.cashFlow.items.filter((item) => item.id !== id)
@@ -165,6 +181,7 @@ export function removeCashFlowItem(id) {
 }
 
 export function updateCashFlowItem(id, patch) {
+  if (id.startsWith('ledger:')) throw new Error('Edite o movimento em Contas. Este realizado acompanha a origem.')
   const index = state.cashFlow.items.findIndex((item) => item.id === id)
   if (index < 0) throw new TypeError('Lançamento não encontrado.')
   const current = state.cashFlow.items[index]

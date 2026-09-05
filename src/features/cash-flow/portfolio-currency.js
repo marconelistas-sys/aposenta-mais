@@ -6,6 +6,7 @@ import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
 // Separate from persisted financial data. Each currency pair keeps its own hypothesis.
 const scenarios = new Map()
 let selectedCurrency = 'USD'
+export function clearPortfolioScenarios() { scenarios.clear(); selectedCurrency = 'USD' }
 
 export function submitPortfolioCurrencyScenario(data) {
   const currency = data.get('portfolioCurrency')
