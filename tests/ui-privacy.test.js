@@ -23,7 +23,8 @@ test('oculta valores dos cenários e do texto acessível do gráfico', () => {
   const dashboard = renderDashboard()
 
   assert.match(scenarios, /scenario-card[\s\S]*R\$ •••••/)
-  assert.match(dashboard, /Projeção calculada de patrimônio em \d+ anos\. Valores ocultos\./)
+  assert.match(dashboard, /Valores e gráfico legado ocultos\./)
+  assert.doesNotMatch(dashboard, /<svg class="chart__svg"/)
 })
 
 test('limita a persistência a três cenários', () => {

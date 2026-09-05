@@ -6,7 +6,7 @@ import { sanitizeCashFlowItem, sanitizeInvestment } from '../src/app/state-stora
 import { parseFinappImport } from '../src/domain/finapp-import.js'
 import { sanitizeAnnualRows } from '../src/domain/annual-planning.js'
 
-const [database, output] = process.argv.slice(2)
+const [database, output, familyPerson] = process.argv.slice(2)
 if (!database || !output) throw new Error('Uso: node scripts/prepare-finapp-import.mjs banco.db diretório-privado')
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const destination = resolve(output)
@@ -15,7 +15,7 @@ const columns = {
   parameters: 'current_year,current_age,target_age,end_age,chf_brl_rate,chf_brl_rate_mode,real_return,inflation,retirement_checkpoint_a,retirement_checkpoint_b,opening_year_period,return_volatility,inflation_volatility,n_simulations,random_seed',
   revenues: 'id,include,name,country,monthly_amount,currency,start_year,end_year,real_growth,periodicity',
   budget_items: 'id,include,item,type,country,monthly_amount,currency,start_year,end_year,real_growth',
-  pension_contributions: 'id,include,name,monthly_amount,currency,start_year,end_year,real_growth,opening_restricted_balance_brl,initial_asset_id',
+  pension_contributions: 'id,include,name,account_name,monthly_amount,currency,start_year,end_year,real_growth,opening_restricted_balance_brl,initial_asset_id',
   initial_assets: 'id,include,name,category,amount,currency,liquid_now,availability',
   goals: 'id,include,name,amount,currency,start_year,end_year,real_growth,periodicity',
   assets: 'id,include,name,value,currency,start_year,end_year,real_growth',
@@ -73,4 +73,32 @@ writeFileSync(join(destination, 'horizonte-finapp.json'), JSON.stringify({ ...fi
 writeFileSync(join(destination, 'finapp-revisao-financeira.json'), JSON.stringify(source, null, 2), { flag: 'wx', mode: 0o600 })
 const replacementGuide = `# Migração v2, somente registros do finapp\n\n${items.length} lançamentos, ${investments.length} investimentos, ${annualGoals.length} metas periódicas e ${nonFinancialAssets.length} bens não financeiros prontos. ${pending.length} pendências serão preservadas no Perfil, sem efeito financeiro automático.\n\n## Substituição\n\nAbra Perfil na conta desejada. Selecione o JSON e o modo Substituir registros pelo finapp. Confirme a conta e a remoção dos registros locais na prévia. A aplicação cria uma versão de recuperação antes de substituir. Contas, movimentos, dívidas, consórcios, cenários, categorias e registros anteriores saem do plano ativo. Nenhuma outra conta é alterada. O histórico de recuperação conserva o backup.\n\nA aplicação importa idade, retorno real e inflação da origem. Zera aporte fixo, benefício, meta de renda e reservas anteriores para não manter valores financeiros alheios à origem. A idade desejada de aposentadoria continua uma configuração manual para revisão, sem copiar target_age ou checkpoints como aposentadoria confirmada. Datas de aposentadoria antigas são removidas. Revise a idade desejada antes de usar projeções. A moeda de visualização e a cotação do destino permanecem.\n\nO envio remoto continua manual no Perfil e substitui a cópia remota somente quando solicitado, com controle de revisão. Sem acesso à sessão do navegador não há aplicação automática à conta.\n\n## Novas convenções\n\nMetas entram como provisões mensais, distribuindo o valor de cada ano em 12 meses. Crescimento real usa o ano inicial como base e periodicidade é em anos, conforme o motor de origem. Não são pagamentos bancários nem vencimentos confirmados.\n\nBens não financeiros são posições anuais restritas no gráfico de risco, não investimentos nem caixa. Entrada ou saída do intervalo altera a posição, mas não cria compra, venda ou receita. Valores futuros são hipóteses patrimoniais externas do finapp, não aquisições financiadas pelo orçamento. O gráfico de acumulação de investimentos não inclui esses bens.\n\nConfira as pendências no Perfil e as convenções monetárias abaixo.\n\n`
 writeFileSync(join(destination, 'LEIA-ME.md'), replacementGuide + report.replace('A importação adiciona registros, preserva o plano', 'No modo Adicionar, a importação adiciona registros e preserva o plano'), { flag: 'wx', mode: 0o600 })
+// A complement cannot replace the current plan. Stable source IDs allow the
+// destination to reconcile missing, already present and edited records.
+writeFileSync(join(destination, 'complemento-finapp.json'), JSON.stringify({ ...file, scope: 'complement' }, null, 2), { flag: 'wx', mode: 0o600 })
+const ready = new Map([...items, ...investments, ...annualGoals, ...nonFinancialAssets].map(row => [row.id, row]))
+const normalizeLabel = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const personKey = normalizeLabel(familyPerson).trim()
+const namedPensions = source.pension_contributions.filter(row => personKey && normalizeLabel(row.name).includes(personKey))
+const linkedAssets = new Set(namedPensions.map(row => row.initial_asset_id).filter(id => id !== null))
+const relatedIds = new Set()
+const inventory = Object.entries(source).filter(([table]) => table !== 'parameters').flatMap(([table, rows]) => rows.map(row => {
+  const id = `finapp:${table}:${row.id}`
+  const named = personKey && normalizeLabel(row.name || row.item).includes(personKey)
+  const spouse = table === 'revenues' && /conjuge/.test(normalizeLabel(row.name))
+  const linked = table === 'initial_assets' && linkedAssets.has(row.id)
+  if (named || spouse || linked) relatedIds.add(id)
+  const reason = pending.find(value => value.table === table && value.id === row.id)?.reason
+  return { id, label: row.name || row.item, status: ready.has(id) ? 'pronto' : 'pendente', familyEvidence: named ? 'nome explícito na origem' : linked ? 'saldo vinculado à contribuição identificada' : spouse ? 'cônjuge sem nome, titular a confirmar' : null, linkedInvestmentId: table === 'pension_contributions' && row.initial_asset_id ? `finapp:initial_assets:${row.initial_asset_id}` : null, reason }
+}))
+if (inventory.length !== ready.size + pending.length) throw new Error('Inventário não reconcilia todos os registros da origem.')
+writeFileSync(join(destination, 'conferencia-registros-finapp.json'), JSON.stringify({ createdAt: file.createdAt, ready: ready.size, pending: pending.length, records: inventory }, null, 2), { flag: 'wx', mode: 0o600 })
+if (familyPerson) {
+  if (!namedPensions.length && !inventory.some(row => row.familyEvidence === 'nome explícito na origem')) throw new Error('Pessoa não identificada nas tabelas financeiras.')
+  const complement = { ...file, scope: 'complement', items: items.filter(row => relatedIds.has(row.id)), investments: investments.filter(row => relatedIds.has(row.id)), annualGoals: annualGoals.filter(row => relatedIds.has(row.id)), nonFinancialAssets: nonFinancialAssets.filter(row => relatedIds.has(row.id)), pending: pending.filter(row => relatedIds.has(`finapp:${row.table}:${row.id}`)) }
+  parseFinappImport(JSON.stringify(complement))
+  writeFileSync(join(destination, 'complemento-familiar-finapp.json'), JSON.stringify(complement, null, 2), { flag: 'wx', mode: 0o600 })
+}
+const guide = `# Complementação da conta atual\n\nUse complemento-finapp.json para conferir todos os registros ou complemento-familiar-finapp.json para o recorte familiar, quando gerado. Abra Perfil na conta de destino e selecione Completar faltantes e preservar a conta atual. Confira a tabela antes de confirmar. Registros existentes, edições, premissas e registros pessoais são preservados. Conflitos e possíveis duplicidades não entram automaticamente. O arquivo complementar não permite substituição do plano.\n\nA aplicação cria uma versão de recuperação. Não envia a combinação ao Supabase. Depois de conferir os totais, a cópia remota pode ser enviada pelo controle de sincronização do Perfil.\n\n## Conferência familiar\n\n${inventory.filter(row => row.familyEvidence).map(row => `- ${row.id}: ${row.label}. ${row.familyEvidence}. ${row.status}.`).join('\n')}\n\nNomes genéricos como cônjuge não comprovam titularidade. Benefícios futuros não presentes na origem não são inventados. O saldo previdenciário inicial aparece uma vez, separado das contribuições futuras.\n\n## Inventário completo\n\n${ready.size} registros prontos, ${pending.length} pendências, ${inventory.length} registros lidos. Confira conferencia-registros-finapp.json. O inventário identifica cada registro pelo ID original, sem pressupor que esteja ausente da conta atual.\n`
+writeFileSync(join(destination, 'COMPLEMENTAR.md'), guide, { flag: 'wx', mode: 0o600 })
 console.log(JSON.stringify({ output: destination, items: items.length, investments: investments.length, annualGoals: annualGoals.length, nonFinancialAssets: nonFinancialAssets.length, pending: pending.length }))

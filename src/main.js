@@ -73,6 +73,10 @@ import {
 import { formatCurrency, parseNumber, privateCurrency } from './shared/formatters.js'
 import { serializeExportableState, storageKeys } from './app/state-storage.js'
 import { parseFinappImport, mergeFinappImport } from './domain/finapp-import.js'
+import { renderFinappReconciliation } from './features/profile/finapp-review.js'
+import { bindPlanningChartInteractions } from './shared/planning-chart-interactions.js'
+
+const finappPreviews = new WeakMap()
 import { saveAnnualPlanning } from './features/plan/annual-planning.js'
 import { planningHorizon } from './domain/planning-horizon.js'
 import {
@@ -168,6 +172,7 @@ function render({ focusMain = false } = {}) {
     ? renderDeletedState
     : selectedRenderer
   app.innerHTML = appLayout(pageRenderer(), pathname)
+  bindPlanningChartInteractions(app)
   restoreSimulationForm(simulationValues)
   document.querySelectorAll('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]').forEach(form => guideBudgetForm(form, state.customCategories))
   guideCommitmentForm(document.querySelector('[data-commitment-form]'))
@@ -857,6 +862,14 @@ document.addEventListener('input', (event) => {
 })
 
 document.addEventListener('change', async (event) => {
+  const importForm = event.target.closest('[data-finapp-import]')
+  if (importForm) {
+    finappPreviews.delete(importForm)
+    importForm.querySelector('[data-finapp-review]').replaceChildren()
+    importForm.querySelector('button[type="submit"]').textContent = 'Conferir arquivo e importar'
+    importForm.querySelector('[data-finapp-status]').textContent = 'Arquivo ou modo alterado. Confira a nova prévia antes de aplicar.'
+    return
+  }
   if (event.target.matches('[data-withdraw-deficits]')) { variableView.withdrawDeficits = event.target.checked; render(); return }
   const budgetForm = event.target.closest('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]')
   if (budgetForm) guideBudgetForm(budgetForm, state.customCategories)
@@ -992,17 +1005,25 @@ document.addEventListener('submit', async (event) => {
       if (!authState.authenticated || authState.user?.id !== owner) throw new Error('Entre na conta de destino antes de importar.')
       const file = finappForm.elements.namedItem('file').files[0]
       if (!file || file.size > 2000000) throw new Error('Selecione o JSON de importação, até 2 MB.')
-      const parsed = parseFinappImport(await file.text())
+      const fileText = await file.text()
+      const parsed = parseFinappImport(fileText)
       const response = await fetch('/api/auth/status', { credentials: 'same-origin', cache: 'no-store' })
       const session = await response.json()
       if (!response.ok || !session.authenticated || session.user?.id !== owner || !sameContext()) throw new Error('A sessão ou os dados mudaram. Reabra o Perfil e tente novamente.')
       const mode = finappForm.elements.namedItem('mode').value
       const result = mergeFinappImport(state, parsed, mode)
-      const preview = mode === 'horizon' ? `Conta: ${session.user.email || owner}. Atualizar somente a idade-alvo para ${result.state.plan.targetAge} anos, referência ${result.state.plan.horizonReferenceMonth}. Preservar investimentos, orçamento, cenários e aposentadoria. Confirmar com versão de recuperação?` : `Conta: ${session.user.email || owner}. ${mode === 'replace' ? `SUBSTITUIR ${result.removed} registros anteriores, incluindo contas, movimentos e cenários. Aplicar idade, inflação e retorno da origem, zerar reservas, benefício e meta de renda anteriores. Revisar idade desejada de aposentadoria.` : 'Preservar registros e premissas existentes.'} Importar ${result.added} registros, ignorar ${result.skipped} repetidos e guardar ${result.pending} pendências para revisão. Investimentos em ${state.currency}. Revise o LEIA-ME. Confirmar importação local com versão de recuperação?`
+      const preview = mode === 'horizon' ? `Conta: ${session.user.email || owner}. Atualizar somente a idade-alvo para ${result.state.plan.targetAge} anos, referência ${result.state.plan.horizonReferenceMonth}. Preservar investimentos, orçamento, cenários e aposentadoria. Confirmar com versão de recuperação?` : `Conta: ${session.user.email || owner}. ${mode === 'replace' ? `SUBSTITUIR ${result.removed} registros anteriores, incluindo contas, movimentos e cenários. Aplicar idade, inflação e retorno da origem, zerar reservas, benefício e meta de renda anteriores. Revisar idade desejada de aposentadoria.` : 'Preservar registros e premissas existentes.'} Importar ${result.added} registros, manter ${result.skipped} existentes e sinalizar ${result.unresolved || 0} conflitos ou possíveis duplicidades e guardar ${result.pending} pendências para revisão. Investimentos em ${state.currency}. Revise o LEIA-ME. Confirmar importação local com versão de recuperação?`
       finappForm.querySelector('[data-finapp-status]').textContent = preview
+      const previewKey = JSON.stringify([owner, generation, original, mode, fileText])
+      if (finappPreviews.get(finappForm) !== previewKey) {
+        finappPreviews.set(finappForm, previewKey)
+        finappForm.querySelector('[data-finapp-review]').innerHTML = renderFinappReconciliation(result.reconciliation || [], state.valuesHidden)
+        button.textContent = 'Confirmar aplicação da prévia'
+        return
+      }
       if (!window.confirm(preview)) return
       if (!sameContext()) throw new Error('O contexto mudou. Nenhum dado foi importado.')
-      if (result.added === 0 && mode === 'merge') { showToast('Todos os registros compatíveis já estão importados.'); return }
+      if (result.added === 0 && ['merge', 'complete'].includes(mode)) { showToast(result.unresolved ? 'Nenhum faltante incluído. Revise os conflitos e possíveis duplicidades na prévia.' : 'Todos os registros compatíveis já estão importados.'); return }
       dataHistory.checkpoint(state)
       const candidate = { ...result.state, isDemo: false, lastUpdatedAt: new Date().toISOString() }
       // Fail before mutating memory if storage cannot hold the complete import.

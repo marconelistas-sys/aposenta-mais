@@ -8,7 +8,7 @@ export function parseFinappImport(text) {
   if (typeof text !== 'string' || text.length > 2000000) throw new Error('Arquivo excede 2 MB.')
   const file = JSON.parse(text)
   if (file?.format !== 'aposenta-finapp-import' || ![1, 2].includes(file.version) || !Array.isArray(file.items) || !Array.isArray(file.investments) || !Array.isArray(file.pending)) throw new Error('Formato de importação inválido.')
-  if (file.scope !== undefined && !['full', 'horizon'].includes(file.scope)) throw new Error('Escopo do arquivo inválido.')
+  if (file.scope !== undefined && !['full', 'horizon', 'complement'].includes(file.scope)) throw new Error('Escopo do arquivo inválido.')
   if (file.items.length > 100 || file.investments.length > 30 || file.pending.length > 100) throw new Error('Arquivo excede os limites de importação.')
   const ids = new Set()
   const checkId = item => {
@@ -54,8 +54,26 @@ export function parseFinappImport(text) {
   return { items, investments, annualGoals: annual('annualGoals'), nonFinancialAssets: annual('nonFinancialAssets'), migration, planParameters, scope: file.scope || 'full', pendingCount: file.pending.length }
 }
 
+const normalizedLabel = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ')
+function sameFinancialRecord(left, right, collection) {
+  if (normalizedLabel(left.description || left.name) !== normalizedLabel(right.description || right.name)) return false
+  const keys = collection === 'items' ? ['type', 'amount', 'currency', 'frequency', 'startDate', 'endDate', 'recordKind'] : collection === 'investments' ? ['amount'] : ['amount', 'currency', 'startYear', 'endYear', 'everyYears', 'realGrowth']
+  return keys.every(key => (left[key] ?? null) === (right[key] ?? null))
+}
+
+export function reconcileFinappImport(current, file) {
+  const targets = { items: current.cashFlow.items, investments: current.plan.investments, annualGoals: current.cashFlow.annualGoals || [], nonFinancialAssets: current.cashFlow.nonFinancialAssets || [] }
+  return Object.entries(targets).flatMap(([collection, existing]) => (file[collection] || []).map(raw => {
+    const item = collection === 'investments' ? { ...raw, amount: Math.round(convertCurrency(raw.amount, 'BRL', current.currency, current.exchangeRates) * 100) / 100 } : raw
+    const sameId = existing.find(row => row.id === item.id)
+    const similar = !sameId && existing.find(row => sameFinancialRecord(row, item, collection))
+    return { id: item.id, collection, label: item.description || item.name, status: sameId ? equal(sameId, item) ? 'identical' : 'conflict' : similar ? 'possible-duplicate' : 'missing', existingId: sameId?.id || similar?.id || null }
+  }))
+}
+
 export function mergeFinappImport(current, file, mode = 'merge') {
-  if (!['merge', 'replace', 'horizon'].includes(mode)) throw new Error('Modo de importação inválido.')
+  if (!['merge', 'complete', 'replace', 'horizon'].includes(mode)) throw new Error('Modo de importação inválido.')
+  if (file.scope === 'complement' && !['merge', 'complete'].includes(mode)) throw new Error('Arquivo complementar não pode substituir o plano nem alterar o horizonte. Use Completar registros faltantes.')
   if (file.scope === 'horizon' && mode !== 'horizon') throw new Error('Este arquivo só atualiza a idade-alvo. Selecione Atualizar somente a idade-alvo do horizonte.')
   const replacing = mode === 'replace'
   const next = createExportableState(current)
@@ -76,10 +94,12 @@ export function mergeFinappImport(current, file, mode = 'merge') {
   }
   if (!replacing && current.isDemo) throw new Error('Crie um plano pessoal antes de importar. Dados de demonstração não serão misturados.')
   if (!replacing && !next.plan.investments.length && (next.plan.currentAssets > 0 || next.plan.monthlyContribution > 0) && file.investments.length) throw new Error('Detalhe o patrimônio e o aporte existentes na Carteira antes de importar, para não perder valores agregados.')
+  const reconciliation = reconcileFinappImport(next, file)
   let added = 0, skipped = 0
-  function merge(existing, incoming, limit) {
+  function merge(existing, incoming, limit, collection) {
     const result = [...existing]
     for (const item of incoming) {
+      if (mode === 'complete' && reconciliation.find(row => row.collection === collection && row.id === item.id)?.status !== 'missing') { skipped++; continue }
       const previous = result.find(row => row.id === item.id)
       if (previous) {
         if (!equal(previous, item)) throw new Error(`Conflito no registro ${item.id}. Nenhum dado foi aplicado.`)
@@ -90,15 +110,15 @@ export function mergeFinappImport(current, file, mode = 'merge') {
     return result
   }
   const investments = file.investments.map(item => ({ ...item, amount: Math.round(convertCurrency(item.amount, 'BRL', next.currency, next.exchangeRates) * 100) / 100 }))
-  next.plan.investments = merge(next.plan.investments, investments, 30)
-  next.cashFlow.items = merge(next.cashFlow.items, file.items, 100)
-  next.cashFlow.annualGoals = merge(next.cashFlow.annualGoals, file.annualGoals || [], 50)
-  next.cashFlow.nonFinancialAssets = merge(next.cashFlow.nonFinancialAssets, file.nonFinancialAssets || [], 50)
+  next.plan.investments = merge(next.plan.investments, investments, 30, 'investments')
+  next.cashFlow.items = merge(next.cashFlow.items, file.items, 100, 'items')
+  next.cashFlow.annualGoals = merge(next.cashFlow.annualGoals, file.annualGoals || [], 50, 'annualGoals')
+  next.cashFlow.nonFinancialAssets = merge(next.cashFlow.nonFinancialAssets, file.nonFinancialAssets || [], 50, 'nonFinancialAssets')
   if (file.migration) {
     const previous = replacing ? [] : next.cashFlow.finappMigration?.pending || []
     const pending = [...previous.filter(row => !file.migration.pending.some(other => other.table === row.table && other.id === row.id)), ...file.migration.pending]
     if (pending.length > 100) throw new Error('Limite de pendências excedido.')
     next.cashFlow.finappMigration = { ...file.migration, pending }
   }
-  return { state: createExportableState(next), added, skipped, pending: file.pendingCount, removed: replacing ? removed : 0, mode }
+  return { state: createExportableState(next), added, skipped, pending: Math.max(file.pendingCount || 0, next.cashFlow.finappMigration?.pending.length || 0), removed: replacing ? removed : 0, mode, reconciliation, unresolved: reconciliation.filter(row => ['conflict', 'possible-duplicate'].includes(row.status)).length }
 }
