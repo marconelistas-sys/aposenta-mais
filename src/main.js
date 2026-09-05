@@ -1,4 +1,5 @@
 import { appLayout } from './app/layout.js'
+import { guideBudgetForm, showFormError } from './app/form-guidance.js'
 import { changeAccounts } from './app/accounts.js'
 import { renderAccounts } from './features/accounts/accounts.js'
 import { canRenderFinancialPage, closeLocalPlan, openLocalPlan, localLockKey, isPublicPage } from './app/local-access.js'
@@ -130,6 +131,7 @@ function render({ focusMain = false } = {}) {
     : selectedRenderer
   app.innerHTML = appLayout(pageRenderer(), pathname)
   restoreSimulationForm(simulationValues)
+  document.querySelectorAll('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]').forEach(form => guideBudgetForm(form, state.customCategories))
   document.body.classList.toggle('values-hidden', state.valuesHidden)
 
   document.querySelectorAll('[data-product-impression]').forEach((element) => {
@@ -312,6 +314,7 @@ function openCashItemDialog(id) {
     ? 'Item importado. A origem e a classificação como realizado são preservadas.'
     : 'Item manual. Você pode alterar todos os campos.'
   syncCashItemRecordFields(form)
+  guideBudgetForm(form, state.customCategories)
   if (typeof dialog.showModal === 'function') dialog.showModal()
   else dialog.setAttribute('open', '')
 }
@@ -699,6 +702,8 @@ document.addEventListener('input', (event) => {
 })
 
 document.addEventListener('change', async (event) => {
+  const budgetForm = event.target.closest('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]')
+  if (budgetForm) guideBudgetForm(budgetForm, state.customCategories)
   if (event.target.matches('[data-timeline-period]')) {
     timelineView.period = ['12', '60', 'retirement'].includes(event.target.value) ? event.target.value : '12'
     render()
@@ -811,7 +816,7 @@ document.addEventListener('submit', async (event) => {
         render()
         showToast('Lançamento adicionado. Você pode adicionar outro ou continuar.')
       }
-    } catch (error) { showToast(error.message) }
+    } catch (error) { showFormError(guidedForm, error.message) }
     return
   }
   const retirementMonthForm = event.target.closest('[data-budget-retirement-form]')
