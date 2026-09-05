@@ -1,7 +1,7 @@
 import { state } from '../../app/state.js'
 import { projectRetirementWithSchedules } from '../../domain/retirement.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
-import { formatCompactCurrency, formatCurrency, formatPercent, privateCurrency } from '../../shared/formatters.js'
+import { formatCurrency, formatPercent, privateCurrency } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 
 export function renderPlan() {
@@ -73,7 +73,7 @@ export function renderPlan() {
         />
         <div class="contribution-recommendation">
           ${icon('sparkles', 18)}
-          <p>O aporte adicional estimado é <strong>${formatCurrency(result.requiredMonthlyContribution, false, state.currency)}</strong> por mês. A previdência atual soma <strong>${formatCurrency(result.currentScheduledMonthlyContribution, false, state.currency)}</strong>.</p>
+          <p>Para atingir a meta, o aporte mensal estimado é <strong>${formatCurrency(result.requiredMonthlyContribution, false, state.currency)}</strong>. Hoje, sua carteira usa <strong>${formatCurrency(state.plan.monthlyContribution, false, state.currency)}</strong>, além de <strong>${formatCurrency(result.currentScheduledMonthlyContribution, false, state.currency)}</strong> em previdência programada.</p>
         </div>
       </article>
     </section>
@@ -95,8 +95,8 @@ export function renderPlan() {
           </li>
           <li>
             <span></span>
-            <div><strong>Primeiros ${formatCompactCurrency(500000, state.currency)}</strong><small>Com o aporte e retorno atuais</small></div>
-            <time>2036</time>
+            <div><strong>Revisão anual do plano</strong><small>Confira saldos, aportes e rendimentos cadastrados</small></div>
+            <time>${new Date().getFullYear() + 1}</time>
           </li>
           <li>
             <span></span>
@@ -116,11 +116,13 @@ export function renderPlan() {
         </div>
         <dl class="assumptions-list">
           <div><dt>Retorno real anual</dt><dd>${formatPercent(state.plan.annualRealReturn)}</dd></div>
+          <div><dt>Inflação anual esperada</dt><dd>${formatPercent(state.plan.annualInflation)}</dd></div>
           <div><dt>Taxa de retirada</dt><dd>${formatPercent(state.plan.annualWithdrawalRate)}</dd></div>
           <div><dt>Benefício estimado</dt><dd class="money-value">${money(state.plan.expectedMonthlyBenefit)}</dd></div>
           <div><dt>Horizonte</dt><dd>${result.months / 12} anos</dd></div>
         </dl>
         <a class="button button--secondary button--full" href="/simulacoes" data-route>Testar outras premissas</a>
+        <a class="text-link" href="/carteira" data-route>Revisar investimentos e rendimentos</a>
       </article>
     </section>
   `

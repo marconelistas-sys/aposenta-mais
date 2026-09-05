@@ -6,6 +6,41 @@ info:
 servers:
   - url: /api
 paths:
+  /exchange-history:
+    get:
+      summary: Obtém os dias publicados na série cambial de 90 dias do BCE
+      responses:
+        '200':
+          description: Histórico em ordem crescente, incluindo cache anterior em caso de falha
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [points, stale, sourceUrl]
+                properties:
+                  stale:
+                    type: boolean
+                  sourceUrl:
+                    type: string
+                    format: uri
+                  points:
+                    type: array
+                    minItems: 1
+                    maxItems: 90
+                    items:
+                      type: object
+                      required: [base, date, rates]
+                      properties:
+                        base:
+                          const: EUR
+                        date:
+                          type: string
+                          format: date
+                        rates:
+                          type: object
+                          required: [EUR, BRL, USD, CHF]
+        '503':
+          description: Fonte indisponível e nenhum histórico em cache
   /exchange-rates:
     get:
       summary: Obtém a última cotação pública de referência do BCE
@@ -170,14 +205,18 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [acceptedSyncConsent, consentVersion, state]
+              required: [acceptedSyncConsent, consentVersion, expectedUpdatedAt, state]
               properties:
                 acceptedSyncConsent:
                   type: boolean
                   const: true
                 consentVersion:
                   type: string
-                  const: 2026-09-04-v4
+                  const: 2026-09-04-v6
+                expectedUpdatedAt:
+                  type: [string, 'null']
+                  format: date-time
+                  description: Revisão consultada, null somente para criar uma cópia
                 state:
                   $ref: '#/components/schemas/FinancialState'
       responses:
@@ -199,6 +238,10 @@ paths:
                     type: string
         '400':
           description: Consentimento ausente ou documento inválido
+        '409':
+          description: Cópia remota alterada desde a consulta
+        '428':
+          description: Revisão da cópia remota não informada
         '401':
           description: Sessão ausente ou expirada
         '503':

@@ -7,6 +7,7 @@ import { syncState } from './sync-state.js'
 const navigation = [
   { href: '/', label: 'Visão geral', icon: 'home' },
   { href: '/plano', label: 'Meu plano', icon: 'target' },
+  { href: '/carteira', label: 'Carteira', icon: 'wallet' },
   { href: '/fluxo-caixa', label: 'Fluxo de caixa', icon: 'wallet' },
   { href: '/simulacoes', label: 'Simulações', icon: 'calculator' },
   { href: '/conteudos', label: 'Conteúdos', icon: 'book' }
@@ -75,15 +76,6 @@ export function appLayout(content, pathname) {
           >
             ${icon(visibilityIcon, 20)}
           </button>
-          <button
-            class="icon-button notification-button"
-            type="button"
-            data-notifications
-            aria-label="Ver notificações"
-          >
-            ${icon('bell', 20)}
-            <span class="notification-dot" aria-hidden="true"></span>
-          </button>
           ${authState.authenticated ? `
             <button class="icon-button" type="button" data-auth-logout aria-label="Sair da conta" title="Sair da conta">${icon('logout', 19)}</button>
             <a class="avatar" href="/perfil" data-route aria-label="Abrir perfil de ${accountLabel}">AP</a>
@@ -99,7 +91,7 @@ export function appLayout(content, pathname) {
       <aside class="demo-banner" aria-label="Modo de demonstração">
         ${icon('info', 18)}
         <span>Demonstração ativa. Use sem informar nome, CPF ou e-mail.</span>
-        <a href="/fluxo-caixa" data-route>Calcular com meus dados</a>
+        <a href="/simulacoes" data-route>Montar meu plano</a>
       </aside>
     ` : ''}
 

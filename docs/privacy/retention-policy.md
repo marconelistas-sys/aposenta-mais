@@ -14,10 +14,10 @@ Quando o usuário autoriza a sincronização, uma cópia financeira permanece no
 
 ## Exclusão
 
-A exclusão tenta remover a chave atual e as seis chaves legadas. As tentativas são independentes para reduzir o risco de uma falha impedir a limpeza das outras chaves. Chaves que não pertencem ao Aposenta+ são preservadas.
+A exclusão tenta remover a chave atual e as oito chaves legadas. As tentativas são independentes para reduzir o risco de uma falha impedir a limpeza das outras chaves. Chaves que não pertencem ao Aposenta+ são preservadas.
 
 A exclusão remota remove somente a linha pertencente ao usuário autenticado, conforme RLS. Ela não remove os dados locais. A exclusão local também não remove a cópia remota.
 
 ## Evolução necessária
 
-Uma versão com servidor deve definir prazos por categoria e finalidade, descarte de backups, registros mínimos de auditoria, exceções legais e verificação de conclusão da exclusão.
+A matriz aprovada para a beta deve definir prazos por categoria e finalidade, descarte de backups, registros mínimos de auditoria, exceções legais e verificação de conclusão da exclusão. A proposta operacional e o bloqueio de produção estão em `docs/privacy/beta-readiness.md`.

@@ -1,10 +1,12 @@
 import { state } from '../../app/state.js'
+import { dataHistory, operationLabels } from '../../app/data-history.js'
 import { authState } from '../../app/auth-state.js'
 import { syncState } from '../../app/sync-state.js'
 import { escapeHtml, formatUpdateTime } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 
 export function renderProfile() {
+  const history = dataHistory.read()
   if (state.dataDeleted) {
     return `
       <section class="empty-data panel">
@@ -40,6 +42,18 @@ export function renderProfile() {
       </aside>
 
       <div class="profile-settings">
+        <section class="panel settings-card">
+          <h2>Histórico e recuperação</h2>
+          <p>Até três versões anteriores à restauração e 50 operações ficam neste navegador. A exclusão local também remove esse histórico.</p>
+          <ul>${history.snapshots.map(item => `<li>${escapeHtml(formatUpdateTime(item.at))} <button class="button button--secondary" type="button" data-recover-version="${escapeHtml(item.id)}">Recuperar versão</button></li>`).join('') || '<li>Nenhuma versão para recuperar.</li>'}</ul>
+          <h3>Operações de dados</h3>
+          <p>Registro local de uso. Exportar prepara um arquivo, sem confirmar que ele foi salvo. Solicitações formais ao controlador continuam pendentes de canal definido.</p>
+          <ul>${history.events.slice().reverse().map(event => `<li>${escapeHtml(formatUpdateTime(event.at))}: ${operationLabels[event.operation]} (${event.result === 'success' ? 'concluído' : 'falhou'})</li>`).join('') || '<li>Nenhuma operação registrada.</li>'}</ul>
+          <a class="button button--secondary" href="/carteira" data-route>Corrigir investimentos</a>
+          <a class="button button--secondary" href="/fluxo-caixa" data-route>Corrigir lançamentos</a>
+          <button class="button button--secondary" type="button" data-clear-history>Apagar histórico e versões</button>
+          <button class="button button--secondary" type="button" data-export-history>Exportar registro de operações</button>
+        </section>
         <section class="panel settings-card">
           <div class="panel__header">
             <div><p class="eyebrow">CONTA</p><h2>${authState.authenticated ? 'Sessão ativa' : 'Acesso entre dispositivos'}</h2></div>
@@ -95,9 +109,10 @@ export function renderProfile() {
                 <span class="profile-status"><i></i> ${syncState.exists ? 'Ativa' : 'Local'}</span>
               </div>
               <form class="sync-consent-form" data-sync-consent-form>
+                <button class="button button--secondary" type="button" data-sync-refresh>Consultar versão remota</button>
                 <label class="checkbox-row">
                   <input name="acceptedSyncConsent" type="checkbox" required />
-                  <span>Autorizo enviar e armazenar no Supabase uma cópia do plano, lançamentos manuais ou importados, prazos, categorias, cenários, moedas e cotação usada, vinculada à minha conta. Posso excluir essa cópia aqui. A exclusão remota não apaga os dados deste navegador.</span>
+                  <span>Autorizo enviar e armazenar no Supabase uma cópia do plano, inflação esperada, investimentos e suas taxas informadas, lançamentos manuais ou importados, prazos, categorias, cenários, moedas e cotação usada, vinculada à minha conta. Posso excluir essa cópia aqui. A exclusão remota não apaga os dados deste navegador.</span>
                 </label>
                 <button class="button button--primary" type="submit">${syncState.exists ? 'Atualizar cópia remota' : 'Criar cópia remota'}</button>
               </form>

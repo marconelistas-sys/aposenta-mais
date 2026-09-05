@@ -8,7 +8,10 @@ import { projectRetirementWithSchedules } from '../../domain/retirement.js'
 import { escapeHtml, formatPercent, privateCurrency } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 import { currencies, currencySymbol } from '../../shared/currencies.js'
-import { categoriesForType } from '../../data/cash-flow-categories.js'
+import { categoriesForType, categoryById } from '../../data/cash-flow-categories.js'
+
+import { renderCashFlowTimeline } from './timeline.js'
+import { cashFlowTimeline } from '../../domain/cash-flow-timeline.js'
 
 const frequencyLabels = {
   monthly: 'Mensal',
@@ -27,6 +30,7 @@ function dateLabel(value) {
 }
 
 function periodLabel(item) {
+  if (item.endMode === 'retirement') return state.cashFlow.retirementMonth ? `Até o mês anterior a ${state.cashFlow.retirementMonth} · Vinculado à aposentadoria` : 'Vínculo pendente: confirme o mês de aposentadoria'
   if (item.frequency === 'occasional' && item.startDate) return `Em ${dateLabel(item.startDate)}`
   if (item.startDate && item.endDate) return `${dateLabel(item.startDate)} até ${dateLabel(item.endDate)}`
   if (item.startDate) return `Desde ${dateLabel(item.startDate)}`
@@ -152,12 +156,120 @@ function cashItemEditDialog() {
           <label class="form-field">
             <span class="form-field__label">Fim opcional</span>
             <span class="input-shell"><input type="date" name="endDate" /></span>
+            <select name="endMode" aria-label="Tipo de término"><option value="date">Data manual acima, opcional</option><option value="none">Sem término</option><option value="retirement">Receita até a aposentadoria</option></select>
+            <small>O vínculo acompanha o mês confirmado no orçamento. A data manual só vale quando essa opção está selecionada.</small>
           </label>
         </div>
         <p class="cash-edit-dialog__source" data-cash-edit-source></p>
         <div class="cash-edit-dialog__actions">
           <button class="button button--secondary" type="button" data-close-cash-item-dialog>Cancelar</button>
           <button class="button button--primary" type="submit">Salvar alterações</button>
+        </div>
+      </form>
+    </dialog>
+  `
+}
+
+const statementFieldLabels = {
+  date: 'Data',
+  description: 'Descrição',
+  amount: 'Valor',
+  currency: 'Moeda',
+  category: 'Categoria',
+  type: 'Tipo'
+}
+
+function statementMappingField(review, field) {
+  const required = ['date', 'description', 'amount'].includes(field)
+  return `
+    <label class="form-field">
+      <span class="form-field__label">${statementFieldLabels[field]}${required ? ' · obrigatório' : ''}</span>
+      <span class="input-shell">
+        <select data-statement-mapping="${field}" ${required ? 'required' : ''}>
+          <option value="-1">${required ? 'Selecione uma coluna' : 'Não usar'}</option>
+          ${review.headers.map((header, index) => `
+            <option value="${index}" ${review.mapping[field] === index ? 'selected' : ''}>${escapeHtml(header || `Coluna ${index + 1}`)}</option>
+          `).join('')}
+        </select>
+      </span>
+    </label>
+  `
+}
+
+function statementReviewRow(row) {
+  if (!row.item) {
+    return `
+      <li class="statement-review-row is-invalid">
+        <input type="checkbox" disabled aria-label="Linha ${row.rowNumber} inválida" />
+        <div><strong>Linha ${row.rowNumber}</strong><span>${escapeHtml(row.error)}</span></div>
+        <span class="statement-row-status">Revisar arquivo</span>
+      </li>
+    `
+  }
+  const category = categoryById(row.item.categoryId, state.customCategories)
+  const duplicateLabel = row.duplicateSource === 'existing'
+    ? 'Já está nos lançamentos'
+    : row.duplicateSource === 'file' ? 'Repetido no arquivo' : ''
+  return `
+    <li class="statement-review-row ${row.duplicate ? 'is-duplicate' : ''}">
+      <input type="checkbox" data-statement-row="${row.rowNumber}" ${row.selected ? 'checked' : ''} ${row.duplicate ? 'disabled' : ''} aria-label="Importar linha ${row.rowNumber}" />
+      <div class="statement-review-row__identity">
+        <strong>${escapeHtml(row.item.description)}</strong>
+        <span>${row.item.startDate} · ${escapeHtml(category?.name || 'Outros')} · ${row.item.type === 'income' ? 'Receita' : 'Despesa'}</span>
+      </div>
+      <strong class="money-value">${privateCurrency(row.item.amount, state.valuesHidden, true, row.item.currency)}</strong>
+      <span class="statement-row-status">${duplicateLabel || 'Pronto'}</span>
+    </li>
+  `
+}
+
+function statementReviewDialog(review) {
+  if (!review) return ''
+  const confirmDisabled = review.mappingErrors.length > 0 || review.selectedCount === 0 || review.overLimit
+  const rowLabel = review.totalRows === 1 ? 'linha encontrada' : 'linhas encontradas'
+  const selectedLabel = review.selectedCount === 1 ? 'lançamento' : 'lançamentos'
+  return `
+    <dialog class="statement-review-dialog" data-statement-review-dialog aria-labelledby="statement-review-title">
+      <form data-statement-review-form>
+        <div class="statement-review-dialog__header">
+          <div>
+            <p class="eyebrow">REVISAR IMPORTAÇÃO</p>
+            <h2 id="statement-review-title">Confirme antes de adicionar</h2>
+            <p>${escapeHtml(review.fileName)} · ${review.totalRows} ${rowLabel}</p>
+          </div>
+          <button class="icon-button" type="button" data-close-statement-review aria-label="Cancelar importação">×</button>
+        </div>
+
+        <p class="statement-review-privacy">O arquivo continua neste navegador. Somente as linhas selecionadas serão salvas como lançamentos realizados.</p>
+
+        <section class="statement-mapping" aria-labelledby="statement-mapping-title">
+          <div><p class="eyebrow">COLUNAS</p><h3 id="statement-mapping-title">Confira o mapeamento</h3></div>
+          <div class="statement-mapping__grid">
+            ${Object.keys(statementFieldLabels).map((field) => statementMappingField(review, field)).join('')}
+          </div>
+          ${review.mappingErrors.map((error) => `<p class="form-error" role="alert">${escapeHtml(error)}</p>`).join('')}
+        </section>
+
+        <section class="statement-preview" aria-labelledby="statement-preview-title">
+          <div class="statement-preview__header">
+            <div><p class="eyebrow">PRÉVIA</p><h3 id="statement-preview-title">Escolha o que será importado</h3></div>
+            <div class="statement-review-summary">
+              <span><strong data-statement-selected-count>${review.selectedCount}</strong> selecionados</span>
+              <span><strong>${review.duplicateCount}</strong> duplicados</span>
+              <span><strong>${review.invalidCount}</strong> inválidos</span>
+            </div>
+          </div>
+          ${review.mappingErrors.length > 0
+            ? '<p class="scenario-empty">Mapeie as três colunas obrigatórias para gerar a prévia.</p>'
+            : `<ul class="statement-review-list">${review.rows.map(statementReviewRow).join('')}</ul>`}
+        </section>
+
+        ${review.errors.length > 0 ? `<details class="statement-review-errors"><summary>${review.errors.length} avisos da leitura</summary><ul>${review.errors.map((error) => `<li>${escapeHtml(error)}</li>`).join('')}</ul></details>` : ''}
+        <p class="form-error" role="alert" data-statement-limit-error ${review.overLimit ? '' : 'hidden'}>Selecione no máximo ${review.availableSlots} linhas. Seu orçamento aceita até 100 lançamentos.</p>
+
+        <div class="statement-review-dialog__actions">
+          <button class="button button--secondary" type="button" data-close-statement-review>Cancelar</button>
+          <button class="button button--primary" type="submit" data-statement-confirm ${confirmDisabled ? 'disabled' : ''}>Importar ${review.selectedCount} ${selectedLabel}</button>
         </div>
       </form>
     </dialog>
@@ -179,8 +291,9 @@ function retirementScenario(label, contribution, detail, tone, schedules) {
   `
 }
 
-export function renderCashFlow() {
+export function renderCashFlow(statementReview = null) {
   const selectedDate = referenceDate(state.cashFlow.referenceMonth)
+  const firstMonth = cashFlowTimeline(state, state.cashFlow.referenceMonth, 1)[0]
   const schedules = retirementContributionSchedules(
     state.cashFlow,
     state.currency,
@@ -214,12 +327,15 @@ export function renderCashFlow() {
     <section class="page-heading page-heading--inner">
       <div>
         <p class="eyebrow">FLUXO DE CAIXA</p>
-        <h1>Organize cada valor na moeda em que ele acontece.</h1>
+        <h1>Organize suas receitas e despesas.</h1>
         <p>O sistema preserva a moeda original e consolida o orçamento em ${state.currency}.</p>
+        <a class="button button--secondary" href="/cambio" data-route>Simular variação cambial e consultar histórico</a>
       </div>
       <div class="privacy-chip">${icon('lock', 16)} Cálculo local, sem envio automático</div>
     </section>
 
+    <section class="panel settings-card"><h2>Orçamento previsto de ${state.cashFlow.referenceMonth}</h2><p>Receitas: ${money(firstMonth.income)}. Despesas: ${money(firstMonth.expenses)}. Saldo: ${money(firstMonth.balance)}.</p><label>Mês de início da análise <input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></label><p>Mesma base da evolução abaixo: eventuais sem data não entram. Cadastre receitas e despesas abaixo. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></section>
+    ${renderCashFlowTimeline()}
     <section class="cash-flow-layout">
       <div class="cash-flow-editor">
         <form class="panel cash-entry-form" data-cash-item-form>
@@ -267,6 +383,8 @@ export function renderCashFlow() {
             <label class="form-field">
               <span class="form-field__label">Fim opcional</span>
               <span class="input-shell"><input type="date" name="endDate" /></span>
+              <select name="endMode" aria-label="Tipo de término"><option value="date">Data manual acima, opcional</option><option value="none">Sem término</option><option value="retirement">Receita até a aposentadoria</option></select>
+              <small>O vínculo acompanha o mês confirmado no orçamento. A data manual só vale quando essa opção está selecionada.</small>
             </label>
             <button class="button button--primary" type="submit">Adicionar ${icon('arrowRight', 17)}</button>
           </div>
@@ -277,13 +395,13 @@ export function renderCashFlow() {
             <div><p class="eyebrow">IMPORTAÇÃO LOCAL</p><h2 id="statement-import-title">Importar extrato TXT</h2></div>
             ${icon('download', 21, 'panel__header-icon')}
           </div>
-          <p>O arquivo é processado neste navegador. Cada linha importada entra como valor realizado no mês da transação.</p>
+          <p>O arquivo é processado neste navegador. Você revisa as colunas, os lançamentos e as duplicidades antes de confirmar.</p>
           <code>data;descricao;valor;moeda;categoria;tipo</code>
           <label class="statement-file">
-            <span>Escolher arquivo TXT</span>
+            <span>Selecionar arquivo para revisar</span>
             <input type="file" accept=".txt,text/plain,text/csv" data-statement-file />
           </label>
-          <small>Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Limite de 100 lançamentos.</small>
+          <small>Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Nenhuma linha é adicionada antes da sua confirmação.</small>
           <div class="open-finance-roadmap">
             <strong>Open Finance</strong>
             <span>Conexão direta planejada. Ela exigirá consentimento explícito e uma instituição receptora participante.</span>
@@ -392,5 +510,6 @@ export function renderCashFlow() {
       </div>
     </section>
     ${cashItemEditDialog()}
+    ${statementReviewDialog(statementReview)}
   `
 }

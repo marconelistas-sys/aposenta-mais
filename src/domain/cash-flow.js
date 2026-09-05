@@ -77,12 +77,16 @@ function recordKindFor(item) {
   return item.recordKind === 'actual' || item.source === 'txt' ? 'actual' : 'planned'
 }
 
-export function isCashFlowItemActive(item, asOfDate = new Date()) {
+export function isCashFlowItemActive(item, asOfDate = new Date(), retirementMonth = null) {
   const current = dateKey(asOfDate)
   if (!current) throw new TypeError('A data de referência não é válida.')
+  if (item.endMode === 'retirement' && item.type === 'income' && recordKindFor(item) === 'planned') {
+    if (!retirementMonth || current.slice(0, 7) >= retirementMonth) return false
+    return !item.startDate || current.slice(0, 7) >= item.startDate.slice(0, 7)
+  }
   if (item.frequency === 'occasional' && item.startDate) return sameMonth(item.startDate, current)
-  if (item.startDate && current < item.startDate) return false
-  if (item.endDate && current > item.endDate) return false
+  if (item.startDate && current.slice(0, 7) < item.startDate.slice(0, 7)) return false
+  if (item.endDate && current.slice(0, 7) > item.endDate.slice(0, 7)) return false
   return true
 }
 
@@ -113,7 +117,7 @@ export function summarizeCashFlowItems(
     const category = categoryById(item.categoryId, customCategories)
     if (!category) continue
     const convertedAmount = convertCurrency(item.amount, item.currency, baseCurrency, exchangeRates)
-    const isActive = isCashFlowItemActive(item, asOfDate)
+    const isActive = isCashFlowItemActive(item, asOfDate, cashFlow.retirementMonth)
     const recordKind = recordKindFor(item)
     const isIncluded = isActive && (includedRecordKind === 'all' || recordKind === includedRecordKind)
     convertedItems.push({ ...item, recordKind, convertedAmount, category, isActive, isIncluded })

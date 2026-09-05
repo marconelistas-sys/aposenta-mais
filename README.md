@@ -4,17 +4,33 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 
 ## O que está pronto
 
+- Cobertura da reserva em meses, sensibilidade das despesas e comparação de momentos da aposentadoria, adaptadas da análise do finapp.
+
+- Mês de aposentadoria confirmado no orçamento e término de receitas vinculado a ele, com datas manuais preservadas.
+
+- Guia inicial e evolução mensal de receitas, despesas e saldo previsto, com atalho para término salarial antes da aposentadoria estimada.
+
+- Controle de conflitos por revisão na gravação remota e recuperação de três versões locais.
+- Registro de até 50 operações de dados, consultável e exportável pelo Perfil.
+
 - Painel responsivo com renda estimada, meta, patrimônio e fontes de renda.
 - Plano com ajuste de aporte mensal.
+- Carteira com saldo, aporte e retorno real por investimento.
+- Retorno do plano usado como padrão dinâmico, com taxa específica opcional por investimento.
+- Taxas reais, nominais, percentual do CDI e IPCA mais taxa convertidas para retorno real.
+- Inflação esperada configurável para manter projeções em poder de compra atual.
+- Comparação do impacto dos rendimentos e sensibilidade de menos 1 ponto percentual.
 - Simulador com cálculo instantâneo no navegador.
 - Fluxo de caixa por lançamento, com moeda, categoria, frequência e reserva de emergência.
 - Cálculo de saldo, taxa de poupança, comprometimento e aporte sustentável.
 - Comparação entre aporte atual, sustentável e necessário para a meta.
 - Receitas e despesas em BRL, EUR, USD ou CHF, consolidadas na moeda da visão geral.
 - Cotação pública do Banco Central Europeu com fonte, data e estado de atualização.
+- Histórico cambial de 90 dias e simulação de variação entre -50% e 50% no orçamento, sem alterar o plano.
+- Simulação cambial do patrimônio com parcela exposta informada por investimento e comparação dos saldos.
 - Categorias comuns de internet banking e criação simplificada de novas categorias.
 - Datas de início e fim para receitas, despesas e contribuições recorrentes.
-- Importação local de até 100 lançamentos por arquivo TXT.
+- Importação local de até 100 lançamentos por arquivo TXT, com prévia, mapeamento e controle de duplicidades.
 - Comparação mensal entre orçamento planejado e valores realizados.
 - Edição de lançamentos sem exclusão, com preservação da origem importada.
 - Contribuições de previdência complementar no orçamento e no patrimônio projetado.
@@ -75,6 +91,12 @@ Para validar a URL e a chave publicável sem criar usuários:
 npm run check:auth-config
 ```
 
+Para validar RLS, restauração e exclusão no projeto hospedado, configure duas contas confirmadas nas variáveis `TEST_USER_A_*` e `TEST_USER_B_*` e execute:
+
+```bash
+npm run test:rls
+```
+
 Para validar todo o projeto:
 
 ```bash
@@ -113,6 +135,7 @@ aposenta-plus/
 │   │   ├── content/
 │   │   ├── cash-flow/
 │   │   ├── dashboard/
+│   │   ├── investments/
 │   │   ├── plan/
 │   │   ├── profile/
 │   │   ├── privacy/
@@ -150,20 +173,19 @@ aposenta-plus/
 - Valores futuros usam retorno real. Isso mantém a leitura em poder de compra de hoje.
 - A projeção usa capitalização mensal equivalente à taxa real efetiva anual de cada cenário.
 - Contribuições previdenciárias reduzem o saldo disponível do orçamento e entram como aportes programados no motor patrimonial.
-- O importador TXT processa o arquivo no navegador e não envia o extrato ao servidor.
+- O importador TXT processa o arquivo no navegador, exige confirmação e não envia o extrato ao servidor.
 - As taxas cambiais servem para planejamento. Elas não representam preço de compra ou venda de moeda.
 - O nome técnico do pacote usa `aposenta-plus`, pois o caractere `+` costuma exigir tratamento especial em URLs e ferramentas.
 
 ## Limites do MVP
 
-O cálculo serve para educação e planejamento inicial. Ele não implementa regras oficiais do INSS, tributação, taxas de produtos ou recomendações personalizadas. Uma versão com dados reais deve incluir revisão jurídica, regras previdenciárias versionadas, controlador e contato de privacidade, base legal, consentimento quando aplicável e controles de segurança. O armazenamento local não é criptografado e pode ser acessado por pessoas, extensões ou scripts com acesso ao perfil do navegador.
+O cálculo serve para educação e planejamento inicial. Ele não implementa regras oficiais do INSS, tributação, taxas de produtos ou recomendações personalizadas. O armazenamento local não é criptografado e pode ser acessado por pessoas, extensões ou scripts com acesso ao perfil do navegador. As decisões e o bloqueio de publicação da beta estão em `docs/privacy/beta-readiness.md`.
 
 ## Próximas etapas sugeridas
 
-1. Definir controlador, contato de privacidade, base legal e retenção antes da beta pública com conta.
-2. Aplicar e validar a migração da Sprint 6 no projeto hospedado.
-3. Exibir uma prévia com mapeamento e duplicidades antes de importar.
-4. Contratar ou integrar uma instituição receptora participante antes de conectar o Open Finance.
-5. Definir resolução de conflitos antes de uma sincronização automática.
-6. Importar histórico de contribuições e versionar regras do INSS.
-7. Verificar disponibilidade de marca e domínio para Aposenta+.
+1. Preencher o controlador e o contato reais, obter aprovação jurídica e só então definir `LEGAL_BETA_APPROVED=true`.
+2. Validar a RLS da Sprint 6 com duas contas confirmadas no projeto hospedado.
+3. Contratar ou integrar uma instituição receptora participante antes de conectar o Open Finance.
+4. Definir resolução de conflitos antes de uma sincronização automática.
+5. Importar histórico de contribuições e versionar regras do INSS.
+6. Verificar disponibilidade de marca e domínio para Aposenta+.

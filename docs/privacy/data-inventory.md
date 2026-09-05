@@ -3,9 +3,10 @@
 | Categoria | Classificação | Origem | Exemplos | Finalidade | Retenção e eliminação |
 | --- | --- | --- | --- | --- | --- |
 | Plano financeiro | dado pessoal financeiro | usuário | idade, patrimônio, aporte, renda alvo, benefício esperado | calcular a projeção | local até exclusão pelo usuário ou navegador |
-| Fluxo de caixa | dado pessoal financeiro | usuário | lançamentos planejados ou realizados, descrições, valores, moedas, categorias, frequências, prazos, mês consultado e reserva | calcular saldo, desvios e aporte sustentável | local até exclusão pelo usuário ou navegador |
-| Arquivo de extrato | dado pessoal financeiro | usuário | texto com datas, descrições e valores | criar lançamentos locais | lido na memória do navegador, sem upload ou retenção do arquivo original |
-| Premissas | dado pessoal inferido para o plano | usuário | retorno real, taxa de retirada, idade de aposentadoria | executar cenários | local até exclusão pelo usuário ou navegador |
+| Carteira de investimentos | dado pessoal financeiro | usuário | nome escolhido, classe, saldo, aporte, tipo de taxa, rendimento e referência do CDI por investimento | calcular a projeção de cada saldo e explicar o impacto dos rendimentos | local e na cópia remota até a exclusão correspondente |
+| Fluxo de caixa | dado pessoal financeiro | usuário | lançamentos planejados ou realizados, descrições, valores, moedas, categorias, frequências, prazos, mês consultado, mês de aposentadoria confirmado, vínculos de término de receitas e reserva | calcular saldo, desvios e aporte sustentável | local até exclusão pelo usuário ou navegador |
+| Arquivo de extrato | dado pessoal financeiro | usuário | texto com datas, descrições e valores | revisar e criar lançamentos locais | lido na memória do navegador até confirmar ou cancelar, sem upload ou retenção do arquivo original |
+| Premissas | dado pessoal inferido para o plano | usuário | retorno real, inflação esperada, taxa de retirada e idade de aposentadoria | converter taxas e executar cenários | local até exclusão pelo usuário ou navegador |
 | Cenários | dado pessoal financeiro e metadado | usuário e aplicação | nome, data, plano, orçamento e moeda | comparar e restaurar alternativas | local até exclusão pelo usuário ou navegador |
 | Moedas e categorias | dado financeiro contextual | usuário | BRL, EUR, USD, CHF e categorias personalizadas | classificar e consolidar montantes | local e na cópia remota até a exclusão correspondente |
 | Cotação cambial | dado público | Banco Central Europeu | taxa, data, fonte e horário de consulta | converter totais para a moeda da visão geral | cache no servidor por seis horas e cópia junto ao estado financeiro |
@@ -20,8 +21,10 @@ O Supabase processa identidade, autenticação e a cópia financeira autorizada 
 
 ## Chaves técnicas
 
-- Atual: `aposenta-plus-state-v7`.
-- Legadas durante migração: `aposenta-plus-state-v6`, `aposenta-plus-state-v5`, `aposenta-plus-state-v4`, `aposenta-plus-state-v3`, `aposenta-plus-state-v2` e `aposenta-plus-state-v1`.
+- Histórico local: `aposenta-plus-data-history-v1`, até três documentos financeiros sanitizados e 50 eventos contendo operação, resultado e data. Não enviado na sincronização. Removido na exclusão local ou pelo controle de histórico no Perfil.
+
+- Atual: `aposenta-plus-state-v9`.
+- Legadas durante migração: `aposenta-plus-state-v8`, `aposenta-plus-state-v7`, `aposenta-plus-state-v6`, `aposenta-plus-state-v5`, `aposenta-plus-state-v4`, `aposenta-plus-state-v3`, `aposenta-plus-state-v2` e `aposenta-plus-state-v1`.
 - Marcador técnico sem dados financeiros: `aposenta-plus-deleted-v1`. Mantém a tela vazia após a exclusão até o usuário escolher carregar a demonstração.
 
-O protótipo não coleta nome civil, CPF, dados do Meu INSS ou dados por API do Open Finance. O importador lê o TXT no navegador e persiste apenas os lançamentos reconhecidos. A senha passa pelo backend, que a encaminha ao Supabase Auth sem persistir ou registrar seu conteúdo no código atual.
+O protótipo não coleta nome civil, CPF, dados do Meu INSS ou dados por API do Open Finance. O importador lê o TXT no navegador, mostra a prévia e persiste apenas os lançamentos confirmados. A senha passa pelo backend, que a encaminha ao Supabase Auth sem persistir ou registrar seu conteúdo no código atual.

@@ -14,6 +14,11 @@ function planInDashboardCurrency(plan, sourceCurrency) {
   for (const fieldName of ['currentAssets', 'monthlyContribution', 'targetMonthlyIncome', 'expectedMonthlyBenefit']) {
     converted[fieldName] = convertCurrency(plan[fieldName], sourceCurrency, state.currency, state.exchangeRates)
   }
+  converted.investments = (plan.investments || []).map((investment) => ({
+    ...investment,
+    amount: convertCurrency(investment.amount, sourceCurrency, state.currency, state.exchangeRates),
+    monthlyContribution: convertCurrency(investment.monthlyContribution, sourceCurrency, state.currency, state.exchangeRates)
+  }))
   return converted
 }
 
@@ -63,8 +68,8 @@ export function renderSimulationResult(result, plan = state.plan) {
     <div class="simulation-result__status ${result.goalReached ? 'is-success' : ''}">
       <span>${icon(result.goalReached ? 'check' : 'trendUp', 20)}</span>
       <div>
-        <strong>${result.goalReached ? 'Meta alcançada neste cenário' : 'Este cenário chegou perto da meta'}</strong>
-        <p>${result.goalReached ? 'Você criou uma margem para o plano.' : `Faltam ${money(gap)} por mês para a renda desejada.`}</p>
+        <strong>${result.goalReached ? 'Meta alcançada neste cenário' : `Este cenário cobre ${formatPercent(incomeProgress)} da renda desejada`}</strong>
+        <p>${result.goalReached ? 'Você criou uma margem para o plano.' : `A diferença estimada é ${money(gap)} por mês.`}</p>
       </div>
     </div>
     <div class="simulation-result__hero">
@@ -191,7 +196,7 @@ function scenarioComparisonChart() {
           </div>`
         }).join('')}
       </div>
-      <p class="result-disclaimer">A projeção separa capital aportado e rendimento composto. Impostos, taxas e variação cambial futura não são previstos.</p>
+      <p class="result-disclaimer">As curvas mostram o saldo total projetado. O cálculo considera capital, aportes e rendimento composto. Impostos, taxas e variação cambial futura não são previstos.</p>
     </section>
   `
 }
@@ -250,6 +255,7 @@ export function renderSimulations() {
           <legend>Premissas financeiras</legend>
           <div class="form-grid form-grid--two">
             ${field({ label: 'Retorno real anual', name: 'annualRealReturn', value: state.plan.annualRealReturn * 100, min: -99, max: 100, step: 0.1, suffix: '%' })}
+            ${field({ label: 'Inflação anual esperada', name: 'annualInflation', value: state.plan.annualInflation * 100, min: -99, max: 100, step: 0.1, suffix: '%', hint: 'Usada para converter taxas nominais e CDI.' })}
             ${field({ label: 'Taxa de retirada anual', name: 'annualWithdrawalRate', value: state.plan.annualWithdrawalRate * 100, min: 0.1, max: 100, step: 0.1, suffix: '%' })}
           </div>
         </fieldset>

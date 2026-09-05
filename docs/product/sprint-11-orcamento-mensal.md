@@ -33,7 +33,7 @@ A nova versão coloca eixos, rótulos e curvas no mesmo sistema de coordenadas. 
 ## Roadmap após esta sprint
 
 1. Editar lançamentos existentes. Concluído na Sprint 12.
-2. Revisar mapeamento e duplicidades antes de importar.
+2. Revisar mapeamento e duplicidades antes de importar. Concluído na Sprint 13.
 3. Criar séries históricas e cenários cambiais.
 4. Definir conflitos antes da sincronização automática.
 5. Preparar direitos de acesso, correção, portabilidade e exclusão.

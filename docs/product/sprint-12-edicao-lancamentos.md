@@ -31,6 +31,6 @@ As prioridades P0 de privacidade e Supabase continuam antes da beta pública. El
 5. Cancelar deve fechar a janela sem salvar.
 6. A interface deve funcionar em telas estreitas.
 
-## Próxima sprint funcional
+## Continuidade entregue
 
-A Sprint 13 deve criar uma etapa de revisão antes da importação. O usuário verá as colunas reconhecidas, corrigirá o mapeamento e removerá duplicidades antes de confirmar os lançamentos.
+A Sprint 13 criou a etapa de revisão antes da importação. O usuário vê as colunas reconhecidas, corrige o mapeamento e remove duplicidades antes de confirmar os lançamentos.

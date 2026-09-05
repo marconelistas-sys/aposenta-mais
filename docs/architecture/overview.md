@@ -8,7 +8,7 @@ O MVP usa uma SPA estática, um motor financeiro isolado da interface e um backe
 - A inteligência artificial não produz os valores oficiais das projeções.
 - Cada lançamento preserva BRL, EUR, USD ou CHF como moeda original.
 - O dashboard converte totais para a moeda escolhida com taxa, fonte e data visíveis.
-- O importador interpreta arquivos TXT no navegador e não envia o arquivo original.
+- O importador interpreta arquivos TXT no navegador, mantém a prévia em memória e não envia o arquivo original.
 - O orçamento separa itens planejados e realizados por competência. O aporte sustentável usa apenas o planejado.
 - Cada receita ou despesa pode ter início e fim. O motor considera somente itens ativos no mês calculado.
 - Contribuições previdenciárias entram no orçamento como despesas e no patrimônio como aportes programados.

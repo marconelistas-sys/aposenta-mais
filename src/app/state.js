@@ -6,6 +6,7 @@ import {
   sanitizeCashFlow,
   sanitizeCashFlowItem,
   sanitizeCustomCategories,
+  sanitizeInvestments,
   sanitizeStoredState,
   stateVersion,
   storageKeys
@@ -56,10 +57,57 @@ export function toggleValues() {
 }
 
 export function updatePlan(patch) {
-  state.plan = { ...state.plan, ...patch }
+  const nextPlan = { ...state.plan, ...patch }
+  if (Array.isArray(nextPlan.investments) && nextPlan.investments.length > 0) {
+    const currentContribution = nextPlan.investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
+    const requestedContribution = Number.isFinite(patch.monthlyContribution)
+      ? patch.monthlyContribution
+      : currentContribution
+    if (Math.abs(requestedContribution - currentContribution) > 0.001) {
+      nextPlan.investments = nextPlan.investments.map((investment, index) => ({
+        ...investment,
+        monthlyContribution: currentContribution > 0
+          ? investment.monthlyContribution * requestedContribution / currentContribution
+          : index === 0 ? requestedContribution : 0
+      }))
+    }
+    nextPlan.currentAssets = nextPlan.investments.reduce((total, investment) => total + investment.amount, 0)
+    nextPlan.monthlyContribution = nextPlan.investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
+  }
+  state.plan = nextPlan
   state.isDemo = false
   state.lastUpdatedAt = new Date().toISOString()
   saveState()
+}
+
+export function upsertInvestment(candidate) {
+  const id = candidate.id || globalThis.crypto?.randomUUID?.() || `investment-${Date.now()}`
+  const current = Array.isArray(state.plan.investments) ? state.plan.investments : []
+  const existingIndex = current.findIndex((investment) => investment.id === id)
+  const next = [...current]
+  if (existingIndex >= 0) next[existingIndex] = { ...candidate, id }
+  else next.push({ ...candidate, id })
+  const investments = sanitizeInvestments(next)
+  const saved = investments.find((investment) => investment.id === id)
+  if (!saved) throw new TypeError('Revise os dados do investimento.')
+  updatePlan({
+    investments,
+    currentAssets: investments.reduce((total, investment) => total + investment.amount, 0),
+    monthlyContribution: investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
+  })
+  return saved
+}
+
+export function removeInvestment(id) {
+  const investments = (state.plan.investments || []).filter((investment) => investment.id !== id)
+  if (investments.length === (state.plan.investments || []).length) {
+    throw new TypeError('Investimento não encontrado.')
+  }
+  updatePlan({
+    investments,
+    currentAssets: investments.reduce((total, investment) => total + investment.amount, 0),
+    monthlyContribution: investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
+  })
 }
 
 export function updateCashFlow(patch) {
@@ -70,6 +118,7 @@ export function updateCashFlow(patch) {
 }
 
 export function addCashFlowItem(item) {
+  validateIncomeEnd(item)
   if (item.recordKind === 'actual' && !item.startDate) {
     throw new TypeError('Informe a data do lançamento realizado.')
   }
@@ -120,6 +169,7 @@ export function updateCashFlowItem(id, patch) {
     id: current.id,
     source: current.source
   }
+  validateIncomeEnd(candidate)
   if (candidate.recordKind === 'actual' && !candidate.startDate) {
     throw new TypeError('Informe a data do lançamento realizado.')
   }
@@ -132,6 +182,17 @@ export function updateCashFlowItem(id, patch) {
   items[index] = updated
   updateCashFlow({ ...state.cashFlow, items })
   return updated
+}
+
+function validateIncomeEnd(item) {
+  if (item.endMode !== 'retirement') return
+  if (!state.cashFlow.retirementMonth) throw new RangeError('Confirme primeiro o mês da aposentadoria no orçamento.')
+  if (item.type !== 'income' || item.recordKind === 'actual' || item.source === 'txt' || !['monthly', 'annual'].includes(item.frequency)) throw new RangeError('O vínculo exige uma receita planejada recorrente.')
+}
+
+export function setBudgetRetirementMonth(month) {
+  if (typeof month !== 'string' || !/^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(month)) throw new RangeError('Informe um mês entre 2000 e 2199.')
+  updateCashFlow({ retirementMonth: month })
 }
 
 export function setCashFlowReferenceMonth(referenceMonth) {
@@ -184,6 +245,11 @@ export function setCurrency(currency) {
   for (const field of ['currentAssets', 'monthlyContribution', 'targetMonthlyIncome', 'expectedMonthlyBenefit']) {
     state.plan[field] = convert(state.plan[field])
   }
+  state.plan.investments = (state.plan.investments || []).map((investment) => ({
+    ...investment,
+    amount: convert(investment.amount),
+    monthlyContribution: convert(investment.monthlyContribution)
+  }))
   for (const field of ['currentEmergencyReserve', 'emergencyReserveTarget']) {
     state.cashFlow[field] = convert(state.cashFlow[field])
   }
@@ -239,7 +305,7 @@ export function resetState() {
   const saved = saveState()
   const failedKeys = saved ? [] : [storageKeys.current]
   if (saved) {
-    for (const key of [storageKeys.legacy, storageKeys.older, storageKeys.oldest, storageKeys.earlier, storageKeys.earliest, storageKeys.original]) {
+    for (const key of [storageKeys.previous, storageKeys.legacy, storageKeys.older, storageKeys.oldest, storageKeys.earlier, storageKeys.earliest, storageKeys.original, storageKeys.first, storageKeys.initial]) {
       try {
         appStorage.removeItem(key)
       } catch {

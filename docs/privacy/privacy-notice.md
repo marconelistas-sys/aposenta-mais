@@ -7,6 +7,7 @@ O Aposenta+ mantém o plano financeiro e o fluxo de caixa no armazenamento local
 ## O que é armazenado e por quê
 
 - Idade, patrimônio, aporte, renda desejada e premissas para calcular projeções.
+- Nome escolhido, classe, saldo, aporte, forma do rendimento e taxa informada de cada investimento para calcular a carteira e explicar o impacto dos rendimentos.
 - Lançamentos de receitas e despesas com descrição, valor, moeda, categoria, frequência e prazo para calcular o fluxo de caixa.
 - Dados reconhecidos em extratos TXT escolhidos pelo usuário. O arquivo é lido localmente e não é enviado ao servidor.
 - Cenários com plano, orçamento e moeda para permitir comparação e restauração.
@@ -28,10 +29,12 @@ Não existe conexão direta com Open Finance nesta versão. Uma integração fut
 
 O perfil permite exportar uma cópia JSON, apagar os dados deste navegador, criar ou atualizar uma cópia remota, restaurar essa cópia e excluí-la. Excluir dados locais não exclui a cópia remota. Excluir a cópia remota não altera os dados locais. O logout encerra a sessão, mas não exclui dados.
 
+Pedidos de confirmação, acesso, correção, portabilidade, revogação ou exclusão serão recebidos pelo canal público do controlador. A declaração completa de acesso será fornecida em até 15 dias. O procedimento operacional está em `docs/privacy/beta-readiness.md`.
+
 ## Limites
 
 Ocultar valores é uma escolha visual, não criptografia. Pessoas com acesso ao dispositivo, extensões e scripts executados na mesma origem podem alcançar o armazenamento local. Quando existe cópia remota, ela é vinculada ao identificador da conta e não é anônima. O Supabase processa autenticação e cópia remota como fornecedor técnico. Arquivos exportados ficam sob a guarda do usuário.
 
 ## Pendências antes de usuários reais
 
-O controlador, o contato de privacidade, a validação da base legal, os prazos de retenção e o processo de atendimento aos direitos previstos na LGPD ainda devem ser definidos. A sincronização deve permanecer desativada publicamente até essa definição e a validação da migração hospedada. Esta documentação não declara conformidade integral com a lei.
+As bases legais, a retenção e o processo de direitos foram propostos em `docs/privacy/beta-readiness.md`. O controlador, o canal de privacidade e a aprovação jurídica ainda exigem decisão do responsável. A produção bloqueia contas e sincronização até essa aprovação e a validação da migration hospedada. Esta documentação não declara conformidade integral com a lei.

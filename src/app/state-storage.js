@@ -4,15 +4,18 @@ import { normalizeCurrency } from '../shared/currencies.js'
 import { bundledExchangeRates, sanitizeExchangeRates } from '../shared/exchange-rates.js'
 import { categoryById } from '../data/cash-flow-categories.js'
 
-export const stateVersion = 7
+export const stateVersion = 10
 export const storageKeys = Object.freeze({
-  current: 'aposenta-plus-state-v7',
-  legacy: 'aposenta-plus-state-v6',
-  older: 'aposenta-plus-state-v5',
-  oldest: 'aposenta-plus-state-v4',
-  earlier: 'aposenta-plus-state-v3',
-  earliest: 'aposenta-plus-state-v2',
-  original: 'aposenta-plus-state-v1',
+  current: 'aposenta-plus-state-v10',
+  previous: 'aposenta-plus-state-v9',
+  legacy: 'aposenta-plus-state-v8',
+  older: 'aposenta-plus-state-v7',
+  oldest: 'aposenta-plus-state-v6',
+  earlier: 'aposenta-plus-state-v5',
+  earliest: 'aposenta-plus-state-v4',
+  original: 'aposenta-plus-state-v3',
+  first: 'aposenta-plus-state-v2',
+  initial: 'aposenta-plus-state-v1',
   deletionMarker: 'aposenta-plus-deleted-v1'
 })
 
@@ -34,6 +37,7 @@ const planRules = {
   currentAssets: [0, 1000000000],
   monthlyContribution: [0, 10000000],
   annualRealReturn: [-0.99, 1],
+  annualInflation: [-0.99, 1],
   targetMonthlyIncome: [0, 10000000],
   expectedMonthlyBenefit: [0, 1000000],
   annualWithdrawalRate: [0.001, 1]
@@ -50,7 +54,56 @@ function safeId(value, fallback) {
 
 function safeDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
-  return Number.isNaN(Date.parse(`${value}T00:00:00Z`)) ? null : value
+  const parsed = new Date(`${value}T00:00:00Z`)
+  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value ? null : value
+}
+
+const investmentClasses = new Set([
+  'fixed-income',
+  'equity',
+  'fund',
+  'pension',
+  'cash',
+  'other'
+])
+
+const investmentReturnTypes = new Set(['default', 'real', 'nominal', 'cdi', 'ipca'])
+
+export function sanitizeInvestment(investment, index = 0) {
+  if (!investment || typeof investment !== 'object') return null
+  const name = typeof investment.name === 'string' ? investment.name.trim().slice(0, 60) : ''
+  const amount = Number(investment.amount)
+  const monthlyContribution = Number(investment.monthlyContribution || 0)
+  const assetClass = investmentClasses.has(investment.assetClass) ? investment.assetClass : 'other'
+  const legacyReturn = investment.annualRealReturn
+  const returnType = investmentReturnTypes.has(investment.returnType)
+    ? investment.returnType
+    : legacyReturn === null || legacyReturn === undefined || legacyReturn === '' ? 'default' : 'real'
+  const suppliedReturn = investment.returnValue ?? legacyReturn
+  const returnValue = returnType === 'default' ? null : Number(suppliedReturn)
+  const indexAnnualRate = returnType === 'cdi' ? Number(investment.indexAnnualRate) : null
+  if (!name || !validNumber(amount, [0.01, 1000000000]) || !validNumber(monthlyContribution, [0, 10000000])) return null
+  if (['real', 'nominal', 'ipca'].includes(returnType) && !validNumber(returnValue, [-0.99, 1])) return null
+  if (returnType === 'cdi' && (!validNumber(returnValue, [0, 3]) || !validNumber(indexAnnualRate, [0, 1]))) return null
+  return {
+    id: safeId(investment.id, `investment-${index + 1}`),
+    name,
+    assetClass,
+    amount,
+    monthlyContribution,
+    returnType,
+    returnValue,
+    indexAnnualRate
+  }
+}
+
+export function sanitizeInvestments(candidate) {
+  if (!Array.isArray(candidate)) return []
+  const unique = new Map()
+  for (const investment of candidate.map(sanitizeInvestment).filter(Boolean).slice(0, 30)) {
+    unique.set(investment.id, investment)
+  }
+  return [...unique.values()]
 }
 
 function sanitizeCustomCategory(category) {
@@ -100,6 +153,7 @@ export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fal
       : ['monthly', 'annual', 'occasional'].includes(item.frequency) ? item.frequency : 'monthly',
     startDate,
     endDate,
+    endMode: type === 'income' && recordKind === 'planned' && ['monthly', 'annual'].includes(item.frequency) && item.endMode === 'retirement' ? 'retirement' : endDate ? 'date' : 'none',
     source,
     recordKind
   }
@@ -135,6 +189,12 @@ export function sanitizePlan(candidate = {}) {
     if (validNumber(source[field], rule)) plan[field] = source[field]
   }
 
+  plan.investments = sanitizeInvestments(source.investments)
+  if (plan.investments.length > 0) {
+    plan.currentAssets = plan.investments.reduce((total, investment) => total + investment.amount, 0)
+    plan.monthlyContribution = plan.investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
+  }
+
   if (plan.retirementAge <= plan.currentAge) {
     plan.retirementAge = Math.min(plan.currentAge + 1, 100)
   }
@@ -145,6 +205,7 @@ export function sanitizePlan(candidate = {}) {
 export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategories = []) {
   const source = candidate && typeof candidate === 'object' ? candidate : {}
   const cashFlow = { ...defaultCashFlow }
+  cashFlow.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
 
   for (const [field, rule] of Object.entries(cashFlowRules)) {
     if (validNumber(source[field], rule)) cashFlow[field] = source[field]
@@ -224,7 +285,7 @@ export function loadStoredState(storage) {
     const current = storage.getItem(storageKeys.current)
     if (current) return parseStoredState(current)
 
-    const legacyKey = [storageKeys.legacy, storageKeys.older, storageKeys.oldest, storageKeys.earlier, storageKeys.earliest, storageKeys.original]
+    const legacyKey = [storageKeys.previous, storageKeys.legacy, storageKeys.older, storageKeys.oldest, storageKeys.earlier, storageKeys.earliest, storageKeys.original, storageKeys.first, storageKeys.initial]
       .find((key) => storage.getItem(key))
     const legacy = legacyKey ? storage.getItem(legacyKey) : null
     if (!legacy) {
@@ -249,7 +310,11 @@ export function loadStoredState(storage) {
 export function removeStoredState(storage) {
   const failedKeys = []
 
-  for (const key of [storageKeys.current, storageKeys.legacy, storageKeys.older, storageKeys.oldest, storageKeys.earlier, storageKeys.earliest, storageKeys.original]) {
+  try { storage.removeItem('aposenta-plus-data-history-v1') } catch {
+    failedKeys.push('aposenta-plus-data-history-v1')
+  }
+
+  for (const key of [storageKeys.current, storageKeys.previous, storageKeys.legacy, storageKeys.older, storageKeys.oldest, storageKeys.earlier, storageKeys.earliest, storageKeys.original, storageKeys.first, storageKeys.initial]) {
     try {
       storage.removeItem(key)
     } catch {

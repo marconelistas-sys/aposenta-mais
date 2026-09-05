@@ -10,6 +10,8 @@ export const defaultPlan = {
   currentAssets: 120000,
   monthlyContribution: 1570,
   annualRealReturn: 0.05,
+  annualInflation: 0.045,
+  investments: [],
   targetMonthlyIncome: 9000,
   expectedMonthlyBenefit: 3200,
   annualWithdrawalRate: 0.04

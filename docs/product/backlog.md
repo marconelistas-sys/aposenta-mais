@@ -75,7 +75,7 @@
 - Migração PostgreSQL com RLS forçada e acesso por usuário.
 - Contrato da API e testes de autorização, consentimento e exclusão.
 
-## Sprint 7: aquisição Premium familiar iniciada
+## Sprint 7: aquisição Premium familiar concluída no código
 
 - Cadastro gratuito exposto no header, perfil e dashboard.
 - Proposta contextual de planejamento a dois depois do resumo financeiro.
@@ -139,14 +139,109 @@
 - Datas finais anteriores às iniciais continuam bloqueadas.
 - Orçamento, comparação mensal e projeção previdenciária são recalculados após salvar.
 
+## Sprint 13: revisão segura da importação implementado
+
+- Escolher um extrato abre uma prévia antes de gravar lançamentos.
+- Data, descrição e valor são mapeados automaticamente quando reconhecidos.
+- O usuário pode corrigir o mapeamento de seis campos.
+- Linhas inválidas continuam visíveis para revisão.
+- Duplicidades no arquivo e no fluxo atual ficam identificadas e bloqueadas.
+- O usuário escolhe quais linhas válidas serão importadas.
+- O limite total de 100 lançamentos é verificado antes da confirmação.
+- Campos entre aspas aceitam o delimitador como parte do texto.
+- Cancelar descarta a prévia sem alterar os dados atuais.
+
+## Sprint 14: carteira e impacto dos rendimentos implementado
+
+- Cadastro de investimento em duas etapas.
+- Saldo e aporte mensal por item.
+- Retorno real padrão dinâmico e taxa específica opcional.
+- Projeção separada por investimento e soma no plano.
+- Comparação com retorno real zero e sensibilidade de menos 1 ponto percentual.
+- Totais de patrimônio e aporte derivados da Carteira.
+- Estado local migrado para a versão 8 naquela entrega.
+- Consentimento da cópia remota atualizado para a versão 5.
+- Correções de linguagem financeira priorizadas pela revisão de UX.
+
+## Sprint 15: taxas, inflação e indexadores implementado
+
+- Retorno real do plano continua sendo o padrão dinâmico.
+- Inflação anual esperada entra como premissa editável.
+- Cada investimento aceita taxa real, nominal, percentual do CDI ou IPCA mais taxa.
+- Taxas nominais e CDI são convertidos para retorno real antes da projeção.
+- Cada cartão informa a origem da taxa e o retorno real usado.
+- O CDI usa a taxa de referência informada pelo usuário, sem consulta externa.
+- Estado local migrado para a versão 9.
+- Consentimento da cópia remota atualizado para a versão 6.
+
+## Pendências bloqueadas para implementação posterior
+
+- Atendimento formal a titulares: canal do controlador, verificação de identidade e processo administrativo aguardam definição jurídica. Sprint 17 cobre somente operações locais.
+
+- P0 jurídico: exige identidade do controlador, canal monitorado e aprovação responsável das bases e retenção.
+- P0 RLS hospedada: exige duas contas confirmadas no projeto Supabase.
+- P1 planejamento familiar: convites e permissões dependem da definição de conta, consentimento e operação jurídica.
+- P1 Premium: preço, cobrança e cancelamento dependem de decisões comerciais e provedor.
+
 ## Próximas prioridades
 
-1. P0: definir controlador, contato de privacidade, base legal e prazos antes de uma beta com servidor.
-2. P0: aplicar e validar a migração da Sprint 6 no projeto Supabase hospedado.
-3. P1: definir household, convite, permissões e consentimento para o planejamento familiar.
-4. P1: definir preço, cobrança, cancelamento e provedor de pagamentos para o Premium.
-5. P1: oferecer prévia, mapeamento e detecção de duplicidades antes de confirmar uma importação.
-6. P1: adicionar séries históricas e cenários de variação cambial.
-7. P1: definir resolução de conflitos e histórico antes da sincronização automática.
-8. P1: definir processo auditável para acesso, correção, portabilidade e exclusão.
-9. P2: selecionar parceiro receptor e desenhar consentimento para Open Finance.
+Incorporação do projeto vizinho: [análise do finapp](analise-finapp.md). Cobertura estática da reserva, sensibilidade de despesas e momentos da aposentadoria implementados. Contas e transferências mantêm prioridade. Auditorias de reconciliação e classificação de liquidez entram depois dessa base. Metas e visão nominal ficam em P2, Monte Carlo e consórcios em P3.
+
+Prioridades de produto após avaliação UX e financeira da Sprint 20:
+
+1. Entregue na Sprint 21: mês explícito de aposentadoria no orçamento e vínculo dinâmico do prazo salarial.
+2. P1: contas manuais com saldo inicial e transferências sem dupla contagem.
+3. P1: aportes variáveis no tempo e benefícios sem duplicidade.
+4. P2: calendário de vencimentos, reajustes e dívidas.
+
+Detalhes e viabilidade: [Sprint 20](sprint-20-usabilidade-e-orcamento-temporal.md). As dependências anteriores permanecem abaixo.
+
+1. P1: validar conflitos no ambiente hospedado antes da sincronização automática.
+2. P1: ampliar o registro local de operações para processo administrativo após definição do controlador.
+3. P2: selecionar parceiro receptor e desenhar consentimento para Open Finance.
+4. P2 entregue na Sprint 19: simulação cambial do saldo patrimonial com exposição temporária informada por investimento. Histórico e impacto no orçamento entregues na Sprint 18.
+
+## Sprint 16: conflitos e recuperação implementada
+
+- Escrita remota condicionada à revisão consultada, com conflitos HTTP 409.
+- Recuperação das três últimas versões locais anteriores a restaurações.
+- Testes unitários de concorrência, limites e falhas de armazenamento.
+
+## Sprint 17: operações de dados implementada
+
+- Registro local limitado a 50 operações sem conteúdo financeiro.
+- Consulta e exportação do registro no Perfil e acesso aos formulários de correção.
+- Exclusão do histórico e das versões junto aos dados locais.
+- Atendimento jurídico formal permanece pendente.
+
+## Sprint 18: histórico e cenários cambiais implementada
+
+- Série pública de 90 dias do BCE com conversão entre BRL, EUR, USD e CHF.
+- Comparação de receitas, despesas, saldo recorrente e aporte sustentável por variação cambial.
+- Simulação temporária, sem alterar lançamentos, taxas de rendimento ou projeções do plano.
+- Cache, indicação de falha e preservação da última série disponível.
+- Testes unitários e build local. Nenhuma migration ou credencial adicional.
+
+## Sprint 19: exposição cambial do patrimônio implementada
+
+- Parcela exposta de 0% a 100% informada por investimento, sem exposição presumida.
+- Impacto imediato de variações de -50% a 50% sobre os saldos na moeda do plano.
+- Comparação por investimento e total, com ocultação dos valores financeiros.
+- Hipóteses temporárias por par de moedas, sem modificar taxas, aportes ou projeções.
+- 157 testes passando e build local aprovado. Nenhuma dependência jurídica ou credencial adicional.
+
+## Sprint 20: orientação inicial e orçamento temporal implementada
+
+- Guia de três passos e resumo antes do cadastro.
+- Série mensal com gráfico, tabela e marco estimado da aposentadoria.
+- Atalho confirmado para data fixa de término salarial, com edição manual.
+- Competências inclusivas e alertas de dados sem prazo ou data.
+- 161 testes passando e build aprovado. Vínculo dinâmico com a aposentadoria priorizado para a próxima entrega.
+
+## Sprint 21: prazo salarial vinculado implementada
+
+- Mês de aposentadoria confirmado no orçamento, independente do mês visualizado.
+- Receitas planejadas recorrentes terminam antes do mês confirmado quando vinculadas.
+- Datas manuais e receitas sem término permanecem inalteradas.
+- Estado local versão 10, leitura da versão 9 e consentimento remoto versão 7.
+- 165 testes passando. Próxima entrega: contas manuais e transferências.

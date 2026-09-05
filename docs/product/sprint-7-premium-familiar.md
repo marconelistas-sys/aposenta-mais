@@ -48,7 +48,7 @@ Uma proposta contextual, exibida após o resultado e a projeção financeira, de
 
 Os eventos são emitidos apenas dentro do navegador. Esta sprint não conecta uma plataforma externa de analytics.
 
-## Entrega iniciada
+## Entrega concluída no código
 
 - Componente responsivo de promoção no dashboard.
 - CTA de cadastro no header e no perfil.
@@ -57,6 +57,13 @@ Os eventos são emitidos apenas dentro do navegador. Esta sprint não conecta um
 - Variante para demonstração, dados próprios, conta autenticada e Supabase indisponível.
 - Mensagem dinâmica sobre armazenamento local e cópia remota.
 - Testes de renderização e privacidade dos eventos.
+
+## Evidência de execução
+
+- Os critérios funcionais estão cobertos por `tests/premium-ui.test.js`.
+- A suíte completa passou em 4 de setembro de 2026 com 117 testes.
+- O build de produção foi gerado sem erros.
+- A validação visual em navegador permanece necessária antes da publicação, pois o navegador integrado não estava disponível na execução.
 
 ## Fora do escopo
 
