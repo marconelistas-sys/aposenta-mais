@@ -33,3 +33,11 @@ O modelo não inclui impostos, custos de resgate, prazos operacionais nem a fase
 ## Sprint 32
 
 Editar conta ou movimento preenche o formulário existente. Salvar preserva o identificador e substitui o registro, sem criar duplicidade. Cancelar limpa a edição. Conta com movimentos não pode mudar de moeda, e alterar a data de abertura não pode invalidar datas de movimentos. Validações ocorrem antes de gravar o conjunto. Saldos são recalculados com as correções. Sprint validada com 200 testes.
+
+## Sprint 33
+
+Conferência manual do saldo calculado contra saldo do extrato em uma data entre abertura e hoje, na moeda da conta. Mostra a diferença, inclusive zero, e recalcula após edição dos registros. Não gera movimento de ajuste, não importa extrato e não marca operações como conciliadas. A entrada de conferência é temporária e não segue para o servidor. Edição e exclusão do banco de dados de origem não fazem parte do fluxo.
+
+A revisão final também preserva o mês confirmado ao simular mudanças de valores sem alterar as idades. A simulação com idades diferentes continua sendo uma hipótese de prazo por idade.
+
+Validação final: 204 testes, build, verificação sintática e `git diff --check`. Sem inspeção visual no navegador, teste observado com usuários ou homologação hospedada.
