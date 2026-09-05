@@ -3316,6 +3316,10 @@ body.values-hidden .simulation-form input {
 .budget-step legend { padding-inline: 8px; font-weight: 700; }
 .budget-entry-list { display: grid; gap: 12px; }
 .plan-checks { display: grid; gap: 16px; padding-left: 24px; }
+.form-error { color: #802820; background: #fff0ec; border: 1px solid #b44326; border-radius: 8px; padding: 16px; }
+input:disabled, select:disabled { opacity: .6; cursor: not-allowed; }
+input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #167354; outline-offset: 3px; }
+@media (max-width: 640px) { .wizard-actions > .button { width: 100%; } .wizard-progress { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .budget-entry-list article { display: grid; gap: 6px; border: 1px solid var(--color-border); border-radius: 10px; padding: 16px; overflow-wrap: anywhere; }
 .form-field > input, .form-field > select { min-width: 0; width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--color-border); border-radius: 8px; }
 @media (max-width: 640px) {
