@@ -33,6 +33,7 @@ function response() {
 }
 
 async function call(handler, path, { method = 'GET', body, headers = {}, remoteAddress } = {}) {
+  if (path.startsWith('/api/sync/')) headers = { 'x-plan-owner': 'user-1', ...headers }
   const req = request(method, body, headers, remoteAddress)
   const res = response()
   const handled = await handler(req, res, new URL(path, 'http://127.0.0.1:4173'))
@@ -314,6 +315,20 @@ test('envio remoto exige a versão atual do consentimento', async () => {
 
   assert.equal(result.status, 400)
   assert.match(result.body.error, /consentimento/i)
+})
+
+test('troca de conta em outra aba bloqueia consulta, envio e exclusão do plano antigo', async () => {
+  const handler = createAuthHandler({ env, fetchImpl: async url => {
+    if (url.endsWith('/auth/v1/user')) return { ok: true, json: async () => ({ id: 'user-b' }) }
+    throw new Error('Não deve acessar dados com o proprietário errado.')
+  } })
+  for (const method of ['GET', 'POST', 'DELETE']) {
+    const result = await call(handler, '/api/sync/data', { method, headers: { origin: env.APP_ORIGIN, cookie: 'aposenta-access=mock-session', 'x-plan-owner': 'user-a' } })
+    assert.equal(result.status, 409)
+    assert.match(result.body.error, /conta conectada mudou/)
+  }
+  const missing = await call(handler, '/api/sync/data', { headers: { cookie: 'aposenta-access=mock-session', 'x-plan-owner': '' } })
+  assert.equal(missing.status, 428)
 })
 
 test('grava somente o documento financeiro sanitizado', async () => {

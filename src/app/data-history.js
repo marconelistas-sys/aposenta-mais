@@ -1,8 +1,10 @@
 import { createExportableState } from './state-storage.js'
+import { ownedStorage } from './owned-storage.js'
 
 export const historyKey = 'aposenta-plus-data-history-v1'
 export const operationLabels = Object.freeze({
   export: 'Arquivo de portabilidade preparado',
+  file_import: 'Arquivo do finapp importado localmente',
   restore: 'Cópia remota restaurada',
   recover: 'Versão local recuperada',
   upload: 'Cópia remota enviada',
@@ -57,15 +59,7 @@ export function createDataHistory(storage) {
   }
 }
 
-const browserStorage = {
-  getItem: key => globalThis.localStorage?.getItem(key) ?? null,
-  setItem: (key, value) => {
-    if (!globalThis.localStorage) throw new Error('Armazenamento indisponível.')
-    globalThis.localStorage.setItem(key, value)
-  },
-  removeItem: key => globalThis.localStorage?.removeItem(key)
-}
-export const dataHistory = createDataHistory(browserStorage)
+export const dataHistory = createDataHistory(ownedStorage)
 
 // Falha de auditoria não deve converter uma operação já concluída em falha.
 export function recordDataOperation(operation, result = 'success') {

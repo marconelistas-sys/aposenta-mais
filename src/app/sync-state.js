@@ -1,5 +1,6 @@
 import { createExportableState } from './state-storage.js'
 import { financialPayload, syncConsentVersion } from '../shared/sync-contract.js'
+import { ownedStorage } from './owned-storage.js'
 
 export const syncState = {
   loading: false,
@@ -11,13 +12,16 @@ export const syncState = {
 }
 
 async function request(path, { method = 'GET', body } = {}) {
+  if (!ownedStorage.owner) throw new Error('Entre na conta e reabra seu plano antes de sincronizar.')
+  const generation = ownedStorage.generation
   const response = await fetch(path, {
     method,
     credentials: 'same-origin',
-    headers: body ? { 'Content-Type': 'application/json' } : {},
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(ownedStorage.owner ? { 'X-Plan-Owner': ownedStorage.owner } : {}) },
     body: body ? JSON.stringify(body) : undefined
   })
   const payload = await response.json().catch(() => ({}))
+  if (generation !== ownedStorage.generation) throw new Error('A sessão mudou. Reabra o plano antes de sincronizar.')
   if (!response.ok) throw new Error(payload.error || 'Não foi possível acessar a cópia remota.')
   return payload
 }
@@ -34,16 +38,18 @@ export function resetSyncState() {
 }
 
 export async function loadSyncState() {
+  const generation = ownedStorage.generation
   syncState.loading = true
   syncState.error = ''
   try {
     const payload = await request('/api/sync/status')
     Object.assign(syncState, payload)
   } catch (error) {
+    if (generation !== ownedStorage.generation) return syncState
     syncState.available = false
     syncState.error = error.message
   } finally {
-    syncState.loading = false
+    if (generation === ownedStorage.generation) syncState.loading = false
   }
   return syncState
 }

@@ -15,6 +15,7 @@ test('acesso começa fechado e logout fecha todas as rotas financeiras', () => {
 test('entrada explica sequência e retenção sem interpolar dados financeiros', () => {
   const html = renderWelcome()
   assert.match(html, /Patrimônio inicial/)
-  assert.match(html, /não apaga os dados/)
+  assert.match(html, /arquivos locais não são cifrados/)
+  assert.match(html, /Cada conta possui um espaço local separado/)
   assert.doesNotMatch(html, /R\$|demo-salary/)
 })

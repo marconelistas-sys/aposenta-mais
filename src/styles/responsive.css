@@ -535,3 +535,29 @@
     font-size: 9px;
   }
 }
+/* Planning tables remain keyboard-scrollable without widening the viewport. */
+.table-scroll { overflow-x: auto; max-width: 100%; margin-block: 1rem; }
+.table-scroll table { width: 100%; border-collapse: collapse; }
+.table-scroll th, .table-scroll td { text-align: start; padding: .65rem; border-bottom: 1px solid var(--color-border, #d5ded9); white-space: nowrap; }
+.budget-entry-list article { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.budget-entry-list article > span:first-child { flex: 1 1 16rem; overflow-wrap: anywhere; }
+.settings-card form .wizard-actions { align-items: stretch; }
+@media (max-width: 640px) { .budget-entry-list article > .button { flex: 1 1 100%; } }
+.risk-chart svg { width: 100%; height: auto; display: block; }
+.risk-chart { margin: 1rem 0; }
+.risk-cell-warning { background: #fff1d6; color: #452d05; }
+.consortium-card { padding-block: 1rem; border-bottom: 1px solid #d5ded9; }
+.settings-card fieldset { min-width: 0; margin-block: 1rem; padding: 1rem; border: 1px solid #d5ded9; border-radius: .5rem; }
+.settings-card legend { font-weight: 600; padding-inline: .4rem; }
+[data-risk-form] fieldset > label, [data-consortium-form] > label { display: block; margin-block: .75rem; }
+[data-consortium-form] [hidden], [data-commitment-form] [hidden] { display: none; }
+.planning-chart { margin: 1.5rem 0; min-width: 0; }
+.planning-chart figcaption { font-weight: 600; margin-bottom: .75rem; }
+.planning-chart-scroll { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: .5rem; }
+.planning-chart svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.planning-chart svg text { fill: #475569; font-size: 11px; }
+.planning-chart-legend { display: flex; gap: .5rem 1rem; flex-wrap: wrap; list-style: none; padding: 0; font-size: .85rem; }
+.planning-chart-legend span { display: inline-block; width: 1.5rem; border-top: 3px solid; margin-right: .4rem; vertical-align: middle; }
+.planning-chart-scroll:focus-visible { outline: 2px solid #0369a1; outline-offset: 3px; }
+.planning-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+@media (min-width: 1500px) { .planning-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

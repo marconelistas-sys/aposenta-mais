@@ -146,6 +146,15 @@ export function createAuthHandler({
           return true
         }
 
+        if (!request.headers['x-plan-owner']) {
+          json(response, 428, { error: 'Recarregue a página para confirmar a conta deste plano antes de sincronizar.' })
+          return true
+        }
+        if (request.headers['x-plan-owner'] !== session.user.id) {
+          json(response, 409, { error: 'A conta conectada mudou. Recarregue a página antes de sincronizar.' })
+          return true
+        }
+
         if (request.method === 'GET' && url.pathname === '/api/sync/status') {
           const remote = await data.getPlan(session.user.id, session.accessToken)
           json(response, 200, {

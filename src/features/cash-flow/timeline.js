@@ -2,15 +2,21 @@ import { state } from '../../app/state.js'
 import { cashFlowTimeline, retirementMonth } from '../../domain/cash-flow-timeline.js'
 import { privateCurrency } from '../../shared/formatters.js'
 import { renderBudgetInsights } from './budget-insights.js'
+import { planningHorizon, annualCashFlow } from '../../domain/planning-horizon.js'
+import { planningChart } from '../../shared/planning-chart.js'
+import { renderHorizonForm } from '../plan/horizon.js'
 
-export const timelineView = { period: '12' }
+export const timelineView = { period: 'target' }
 
 export function renderCashFlowTimeline() {
   const retirement = state.cashFlow.retirementMonth || retirementMonth(state.plan)
   const start = state.cashFlow.referenceMonth
   const distance = (Number(retirement.slice(0, 4)) - Number(start.slice(0, 4))) * 12 + Number(retirement.slice(5)) - Number(start.slice(5))
-  const months = timelineView.period === 'retirement' ? Math.min(1200, Math.max(12, distance + 24)) : timelineView.period === '60' ? 60 : 12
+  let horizon = null, horizonError = ''
+  if (timelineView.period === 'target') { try { horizon = planningHorizon(state.plan, start) } catch (error) { horizonError = error.message } }
+  const months = horizon?.months || (timelineView.period === 'retirement' ? Math.min(1200, Math.max(12, distance + 24)) : timelineView.period === '60' ? 60 : 12)
   const points = cashFlowTimeline(state, start, months)
+  const yearly = annualCashFlow(points)
   const money = value => privateCurrency(value, state.valuesHidden, false, state.currency)
   const deficit = points.find(point => point.balance < 0)
   const max = Math.max(1, ...points.flatMap(point => [point.income, point.expenses]))
@@ -21,7 +27,8 @@ export function renderCashFlowTimeline() {
   const openSalaries = state.cashFlow.items.filter(item => item.categoryId === 'salary' && item.recordKind !== 'actual' && item.source !== 'txt' && item.frequency !== 'occasional' && !item.endDate && item.endMode !== 'retirement').length
   return `<section class="panel settings-card" aria-labelledby="timeline-title">
     <h2 id="timeline-title">Receitas e despesas ao longo do tempo</h2>
-    <label>Período <select data-timeline-period><option value="12" ${timelineView.period === '12' ? 'selected' : ''}>12 meses</option><option value="60" ${timelineView.period === '60' ? 'selected' : ''}>5 anos</option><option value="retirement" ${timelineView.period === 'retirement' ? 'selected' : ''}>Até 2 anos após a aposentadoria</option></select></label>
+    ${horizonError ? `<p role="status">${horizonError} Exibindo somente 12 meses até você configurar o horizonte.</p>` : ''}
+    ${renderHorizonForm()}<label>Período <select data-timeline-period><option value="target" ${timelineView.period === 'target' ? 'selected' : ''}>Até a idade-alvo configurada</option><option value="12" ${timelineView.period === '12' ? 'selected' : ''}>12 meses</option><option value="60" ${timelineView.period === '60' ? 'selected' : ''}>5 anos</option><option value="retirement" ${timelineView.period === 'retirement' ? 'selected' : ''}>Até 2 anos após a aposentadoria</option></select></label>
     <form data-budget-retirement-form><label>Mês da aposentadoria no orçamento <input type="month" name="retirementMonth" min="2000-01" max="2199-12" value="${retirement}" required /></label><button type="submit" class="button button--secondary">Confirmar mês e recalcular vínculos</button></form>
     <p>${state.cashFlow.retirementMonth ? 'Mês confirmado' : 'Sugestão pelas idades do plano, ainda não confirmada'}: ${retirement}. Receitas vinculadas terminam no mês anterior. Datas manuais não mudam. Este mês confirmado controla o orçamento e a projeção patrimonial. Alterar as idades gera uma nova estimativa de mês, que você pode revisar.</p>
     ${!state.cashFlow.retirementMonth && state.cashFlow.items.some(item => item.endMode === 'retirement') ? '<p>Há receitas vinculadas sem mês confirmado. Elas ficam fora dos cálculos até você confirmar o mês.</p>' : ''}
@@ -29,8 +36,9 @@ export function renderCashFlowTimeline() {
     ${openSalaries ? `<p>Revise ${openSalaries} receita(s) de salário sem data final. Elas continuam na previsão após o marco da aposentadoria até você definir o término.</p>` : ''}
     ${undated ? `<p>${undated} lançamento(s) eventual(is) sem data foram excluídos desta série. Informe uma data no cadastro para incluí-los.</p>` : ''}
     <p>${deficit ? `Primeiro mês com despesas acima das receitas neste período: ${deficit.month}.` : 'Não há déficit no orçamento previsto deste período.'} Confira os prazos dos lançamentos antes de interpretar o resultado.</p>
-    ${state.valuesHidden ? '<p>Valores ocultos. Gráfico oculto.</p>' : `<svg viewBox="0 0 800 200" role="img" aria-label="Comparação de receitas e despesas previstas. Valores detalhados na tabela abaixo."><line x1="30" y1="170" x2="770" y2="170" stroke="currentColor"/><text x="5" y="175">0</text><path d="${path('income')}" fill="none" stroke="#167354" stroke-width="3"/><path d="${path('expenses')}" fill="none" stroke="#b44326" stroke-width="3" stroke-dasharray="7 4"/>${marker >= 0 ? `<line x1="${x(marker)}" y1="20" x2="${x(marker)}" y2="170" stroke="currentColor" stroke-dasharray="2 4"/><text x="30" y="15">Marco pontilhado: aposentadoria</text>` : ''}<text x="30" y="195">${start}</text><text x="700" y="195">${points.at(-1).month}</text></svg>`}
-    <p>Receitas: linha contínua. Despesas: linha tracejada. Saldo mensal na tabela.</p>
+    ${planningChart({ title: 'Fluxos anuais em valores reais', rows: yearly, currency: state.currency, hidden: state.valuesHidden, markers: [{ year: retirement.slice(0, 4), label: 'Aposentadoria' }], series: [{ key: 'income', label: 'Entradas', type: 'bar', color: '#0ea5e9' }, { key: 'spending', label: 'Saídas sem previdência', type: 'bar', color: '#f59e0b' }, { key: 'pension', label: 'Previdência', type: 'bar', color: '#8b5cf6' }, { key: 'balance', label: 'Saldo após todas as saídas', color: '#047857' }] })}
+    <p>Barras mostram entradas, despesas sem previdência e previdência separada. A linha mostra o saldo após todas as saídas, incluindo previdência. Marco pontilhado: ano da aposentadoria. Anos parciais não são extrapolados para 12 meses.</p>
+    <details><summary>Ver totais anuais</summary><div class="currency-table" tabindex="0" role="region" aria-label="Fluxos anuais"><table><thead><tr><th>Ano</th><th>Meses incluídos</th><th>Entradas</th><th>Saídas totais</th><th>Previdência, já incluída</th><th>Saldo</th></tr></thead><tbody>${yearly.map(row => `<tr><th scope="row">${row.year}</th><td>${row.months}</td><td>${money(row.income)}</td><td>${money(row.expenses)}</td><td>${money(row.pension)}</td><td>${money(row.balance)}</td></tr>`).join('')}</tbody></table></div></details>
     <details><summary>Ver valores por mês</summary><div class="currency-table"><table><caption>Orçamento mensal previsto em ${state.currency}</caption><thead><tr><th scope="col">Mês</th><th scope="col">Receitas</th><th scope="col">Despesas</th><th scope="col">Saldo</th></tr></thead><tbody>${points.map(point => `<tr><th scope="row">${point.month}${point.month === retirement ? ' · Aposentadoria' : ''}</th><td>${money(point.income)}</td><td>${money(point.expenses)}</td><td>${money(point.balance)}</td></tr>`).join('')}</tbody></table></div></details>
     <p>Orçamento mensal equivalente, não saldo bancário: valores anuais divididos por 12, meses de início e fim incluídos integralmente. Câmbio e valores constantes, sem inflação ou rendimentos. Realizados e eventuais sem data não entram. Benefícios de aposentadoria só entram se cadastrados como receita, com início definido. Esta série não ajusta os aportes constantes da projeção patrimonial.</p>
   </section>${renderBudgetInsights(state, points)}`

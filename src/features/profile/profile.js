@@ -5,11 +5,17 @@ import { syncState } from '../../app/sync-state.js'
 import { escapeHtml, formatUpdateTime } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 
+function renderFinappImport() {
+  const migration = state.cashFlow.finappMigration
+  return `<section class="panel settings-card"><h2>Importar arquivo do finapp</h2><p>No modo Adicionar: Não substitui registros existentes nem envia dados ao Supabase. No modo Substituir, remove do plano ativo os registros anteriores, contas, movimentos e cenários, mantendo uma versão de recuperação. Outras contas e a cópia remota não são alteradas.</p><p>Exporte um backup e confira o LEIA-ME. Em Adicionar, registros idênticos são ignorados e conflitos bloqueiam a importação. Em Substituir, prevalece o arquivo, sem misturar os cadastros anteriores.</p>${authState.authenticated ? `<form data-finapp-import><label class="form-field"><span>Arquivo aposenta-finapp-import.json</span><input type="file" name="file" accept=".json,application/json" required /></label><label class="form-field"><span>Como importar</span><select name="mode"><option value="merge">Adicionar e preservar registros existentes</option><option value="replace">Substituir registros pelo finapp</option><option value="horizon">Atualizar somente a idade-alvo do horizonte</option></select></label><p data-finapp-status role="status">A prévia identifica a conta, as remoções e as pendências antes de confirmar.</p><button type="submit" class="button button--secondary">Conferir arquivo e importar</button></form>` : '<p>Entre na conta de destino para importar.</p>'}${migration ? `<h3>Revisão da migração</h3><p>Revise idade desejada e mês de aposentadoria, categorias e rendimentos no Plano. Metas anuais são provisões, não pagamentos confirmados. Bens restritos aparecem no gráfico de risco, sem gerar caixa.</p><a href="/plano" data-route>Revisar plano</a> · <a href="/calendario" data-route>Revisar metas</a> · <a href="/riscos" data-route>Revisar bens e gráfico</a><h3>Pendências sem efeito financeiro automático</h3><ul>${migration.pending.map(row => `<li>${escapeHtml(row.table)} #${row.id}: ${escapeHtml(row.reason)}${state.valuesHidden ? '' : `<details><summary>Dados originais</summary><pre>${escapeHtml(JSON.stringify(row.record, null, 2))}</pre></details>`}</li>`).join('') || '<li>Nenhuma pendência registrada.</li>'}</ul>` : ''}</section>`
+}
+
 export function renderProfile() {
   const history = dataHistory.read()
   if (state.dataDeleted) {
     return `
       <section class="empty-data panel">
+        ${renderFinappImport()}
         ${icon('shield', 28)}
         <p class="eyebrow">DADOS APAGADOS</p>
         <h1>Este navegador não tem um plano salvo.</h1>
@@ -42,6 +48,7 @@ export function renderProfile() {
       </aside>
 
       <div class="profile-settings">
+        ${renderFinappImport()}
         <section class="panel settings-card">
           <h2>Histórico e recuperação</h2>
           <p>Até três versões anteriores à restauração e 50 operações ficam neste navegador. A exclusão local também remove esse histórico.</p>
@@ -112,7 +119,7 @@ export function renderProfile() {
                 <button class="button button--secondary" type="button" data-sync-refresh>Consultar versão remota</button>
                 <label class="checkbox-row">
                   <input name="acceptedSyncConsent" type="checkbox" required />
-                  <span>Autorizo enviar e armazenar no Supabase uma cópia do plano, inflação esperada, investimentos e suas taxas informadas, lançamentos manuais ou importados, prazos, categorias, cenários, moedas e cotação usada, vinculada à minha conta. Posso excluir essa cópia aqui. A exclusão remota não apaga os dados deste navegador.</span>
+                  <span>Autorizo enviar e armazenar no Supabase uma cópia do plano, inflação esperada, investimentos e suas taxas informadas, lançamentos manuais ou importados, contas e conciliações, dívidas, amortizações, consórcios, hipóteses de lances e risco, metas periódicas, bens não financeiros, dados financeiros pendentes de revisão da migração, prazos, categorias, cenários, moedas e cotação usada, vinculada à minha conta. Posso excluir essa cópia aqui. A exclusão remota não apaga os dados deste navegador.</span>
                 </label>
                 <button class="button button--primary" type="submit">${syncState.exists ? 'Atualizar cópia remota' : 'Criar cópia remota'}</button>
               </form>

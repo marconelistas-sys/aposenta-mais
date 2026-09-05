@@ -1,4 +1,4 @@
-export const syncConsentVersion = '2026-09-05-v10'
+export const syncConsentVersion = '2026-09-05-v13'
 
 export function financialPayload(candidate) {
   return {

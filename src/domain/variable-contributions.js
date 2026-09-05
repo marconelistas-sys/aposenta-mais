@@ -1,6 +1,8 @@
 import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from './cash-flow.js'
 import { projectRetirementWithSchedules } from './retirement.js'
 import { resolveInvestmentRealReturn } from './investment-returns.js'
+import { prepareConsortiumEvents } from './consortium.js'
+import { prepareCommitmentSchedules } from './financial-calendar.js'
 
 export function compareVariableContributions(state, asOfDate = new Date(), { withdrawDeficits = false } = {}) {
   const baseline = projectRetirementWithSchedules(state.plan, retirementContributionSchedules(state.cashFlow, state.currency, state.exchangeRates, state.customCategories), asOfDate)
@@ -17,9 +19,10 @@ export function compareVariableContributions(state, asOfDate = new Date(), { wit
   let unfundedTotal = 0
   let firstUnfundedMonth = null
   const rows = []
+  const preparedCashFlow = { ...state.cashFlow, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia) }
   for (let index = 0; index < baseline.months; index++) {
     const date = new Date(Date.UTC(asOfDate.getUTCFullYear(), asOfDate.getUTCMonth() + index, 15))
-    const budget = calculateMultiCurrencyCashFlow({ ...state.cashFlow, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), currentEmergencyReserve: reserve, reserveBuildMonths: Math.max(1, state.cashFlow.reserveBuildMonths - index) }, state.currency, state.exchangeRates, 0, state.customCategories, date)
+    const budget = calculateMultiCurrencyCashFlow({ ...preparedCashFlow, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), currentEmergencyReserve: reserve, reserveBuildMonths: Math.max(1, state.cashFlow.reserveBuildMonths - index) }, state.currency, state.exchangeRates, 0, state.customCategories, date)
     const cashSurplus = budget.monthlyIncome - budget.monthlyExpenses
     const reserveAllocation = withdrawDeficits ? Math.min(budget.reserveMonthlyAllocation, Math.max(0, cashSurplus)) : budget.reserveMonthlyAllocation
     reserve = Math.min(Math.max(reserveTarget, reserve), reserve + reserveAllocation)

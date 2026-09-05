@@ -4,6 +4,12 @@ import { normalizeCurrency } from '../shared/currencies.js'
 import { bundledExchangeRates, sanitizeExchangeRates } from '../shared/exchange-rates.js'
 import { categoryById } from '../data/cash-flow-categories.js'
 import { sanitizeLedger } from '../domain/accounts.js'
+import { sanitizeCommitments } from '../domain/financial-calendar.js'
+import { sanitizeConsortia } from '../domain/consortium.js'
+import { sanitizeRiskSettings } from '../domain/risk-plan.js'
+import { sanitizeDecumulation } from '../domain/post-retirement.js'
+import { linkedBudgetItem } from '../domain/ledger-links.js'
+import { sanitizeAnnualRows, sanitizeMigration } from '../domain/annual-planning.js'
 
 export const stateVersion = 10
 export const storageKeys = Object.freeze({
@@ -186,6 +192,10 @@ function legacyCashFlowItems(source, currency) {
 export function sanitizePlan(candidate = {}) {
   const source = candidate && typeof candidate === 'object' ? candidate : {}
   const plan = { ...defaultPlan }
+  plan.decumulation = sanitizeDecumulation(source.decumulation)
+  plan.targetAge = Number.isInteger(source.targetAge) && source.targetAge >= 17 && source.targetAge <= 110 ? source.targetAge : null
+  plan.horizonReferenceMonth = typeof source.horizonReferenceMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.horizonReferenceMonth) ? source.horizonReferenceMonth : null
+  plan.riskSettings = sanitizeRiskSettings(source.riskSettings)
   plan.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
 
   for (const [field, rule] of Object.entries(planRules)) {
@@ -209,6 +219,11 @@ export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategor
   const source = candidate && typeof candidate === 'object' ? candidate : {}
   const cashFlow = { ...defaultCashFlow }
   cashFlow.ledger = sanitizeLedger(source.ledger)
+  cashFlow.commitments = sanitizeCommitments(source.commitments)
+  cashFlow.consortia = sanitizeConsortia(source.consortia)
+  cashFlow.annualGoals = sanitizeAnnualRows(source.annualGoals)
+  cashFlow.nonFinancialAssets = sanitizeAnnualRows(source.nonFinancialAssets)
+  cashFlow.finappMigration = sanitizeMigration(source.finappMigration)
   cashFlow.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
 
   for (const [field, rule] of Object.entries(cashFlowRules)) {
@@ -229,6 +244,14 @@ export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategor
     .map((item, index) => sanitizeCashFlowItem(item, index, customCategories, currency))
     .filter(Boolean)
     .slice(0, 100)
+  cashFlow.items = cashFlow.items.filter(item => !item.id.startsWith('ledger:'))
+  for (const movement of cashFlow.ledger.movements) {
+    if (!movement.budgetCategoryId) continue
+    try {
+      if (cashFlow.items.length >= 100) throw new Error('Limite de lançamentos.')
+      cashFlow.items.push(linkedBudgetItem(movement, cashFlow.ledger, movement.budgetCategoryId, customCategories))
+    } catch { delete movement.budgetCategoryId }
+  }
   return cashFlow
 }
 
