@@ -328,6 +328,7 @@ export function renderCashFlow(statementReview = null) {
       <div>
         <p class="eyebrow">FLUXO DE CAIXA</p>
         <h1>Organize suas receitas e despesas.</h1>
+        <a class="button button--secondary" href="/contas" data-route>Contas e transferências</a>
         <a href="/construir/orcamento" data-route>Voltar ao passo a passo</a>
         <p>O sistema preserva a moeda original e consolida o orçamento em ${state.currency}.</p>
         <a class="button button--secondary" href="/cambio" data-route>Simular variação cambial e consultar histórico</a>

@@ -1,8 +1,10 @@
 import { appLayout } from './app/layout.js'
+import { changeAccounts } from './app/accounts.js'
+import { renderAccounts } from './features/accounts/accounts.js'
 import { canRenderFinancialPage, closeLocalPlan, openLocalPlan, localLockKey, isPublicPage } from './app/local-access.js'
 import { renderWelcome } from './features/welcome/welcome.js'
 import { renderGuidedPlan } from './features/welcome/guided-plan.js'
-import { beginGuidedPlan, saveGuidedAssets, saveGuidedGoal } from './app/guided-plan.js'
+import { beginGuidedPlan, saveGuidedAssets, saveGuidedGoal, saveGuidedBudget } from './app/guided-plan.js'
 import { timelineView } from './features/cash-flow/timeline.js'
 import { submitPortfolioCurrencyScenario } from './features/cash-flow/portfolio-currency.js'
 import { currencyExplorer, loadCurrencyHistory, renderCurrencyExplorer } from './features/cash-flow/currency-explorer.js'
@@ -81,6 +83,7 @@ const toastRegion = document.querySelector('#toast-region')
 let statementReviewState = null
 
 const routes = {
+  '/contas': renderAccounts,
   '/cambio': renderCurrencyExplorer,
   '/': renderDashboard,
   '/plano': renderPlan,
@@ -348,6 +351,12 @@ function exportData() {
 }
 
 document.addEventListener('click', async (event) => {
+  const accountRemove = event.target.closest('[data-account-remove], [data-movement-remove]')
+  if (accountRemove) {
+    if (!window.confirm('Excluir este registro? O saldo será recalculado.')) return
+    try { changeAccounts(accountRemove.hasAttribute('data-account-remove') ? 'delete-account' : 'delete-movement', accountRemove.dataset.accountRemove || accountRemove.dataset.movementRemove); render() } catch (error) { showToast(error.message) }
+    return
+  }
   if (event.target.closest('[data-open-local], [data-start-guided]')) {
     const guided = Boolean(event.target.closest('[data-start-guided]'))
     if (guided && (state.isDemo || state.dataDeleted) && !window.confirm('Começar sem valores de demonstração? Receitas, despesas, patrimônio e aportes de exemplo serão substituídos por zero. Revise as premissas no primeiro passo.')) return
@@ -781,6 +790,13 @@ document.addEventListener('change', async (event) => {
 })
 
 document.addEventListener('submit', async (event) => {
+  const accountForm = event.target.closest('[data-account-form], [data-movement-form]')
+  if (accountForm) {
+    event.preventDefault()
+    if (!accountForm.reportValidity()) return
+    try { changeAccounts(accountForm.matches('[data-account-form]') ? 'account' : 'movement', new FormData(accountForm)); render() } catch (error) { showToast(error.message) }
+    return
+  }
   const guidedForm = event.target.closest('[data-guided-goal], [data-guided-assets], [data-guided-budget]')
   if (guidedForm) {
     event.preventDefault()
@@ -790,10 +806,7 @@ document.addEventListener('submit', async (event) => {
       if (guidedForm.matches('[data-guided-goal]')) { saveGuidedGoal(data); navigate('/construir/orcamento') }
       else if (guidedForm.matches('[data-guided-assets]')) { saveGuidedAssets(data); navigate('/construir/revisao') }
       else {
-        if (data.get('endMode') === 'date' && !data.get('endDate')) throw new RangeError('Informe a data final ou escolha Sem término.')
-        const category = categoryById(data.get('categoryId'), state.customCategories)
-        if (!category) throw new RangeError('Escolha uma categoria válida.')
-        addCashFlowItem({ type: category.type, categoryId: category.id, description: data.get('description'), amount: Number(data.get('amount')), currency: state.currency, frequency: 'monthly', recordKind: 'planned', startDate: data.get('startDate'), endMode: data.get('endMode'), endDate: data.get('endMode') === 'date' ? data.get('endDate') : null })
+        saveGuidedBudget(data)
         render()
         showToast('Lançamento adicionado. Você pode adicionar outro ou continuar.')
       }

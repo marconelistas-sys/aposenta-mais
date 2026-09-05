@@ -3,6 +3,7 @@ import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import { normalizeCurrency } from '../shared/currencies.js'
 import { bundledExchangeRates, sanitizeExchangeRates } from '../shared/exchange-rates.js'
 import { categoryById } from '../data/cash-flow-categories.js'
+import { sanitizeLedger } from '../domain/accounts.js'
 
 export const stateVersion = 10
 export const storageKeys = Object.freeze({
@@ -205,6 +206,7 @@ export function sanitizePlan(candidate = {}) {
 export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategories = []) {
   const source = candidate && typeof candidate === 'object' ? candidate : {}
   const cashFlow = { ...defaultCashFlow }
+  cashFlow.ledger = sanitizeLedger(source.ledger)
   cashFlow.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
 
   for (const [field, rule] of Object.entries(cashFlowRules)) {

@@ -182,7 +182,7 @@ export function renderDashboard() {
       <a class="button button--primary" href="/construir/objetivo" data-route>Continuar plano passo a passo</a>
       <p>${state.isDemo ? 'Os valores de demonstração são exemplos. Revise cada etapa com seus dados.' : 'Revise estas três etapas sempre que sua situação mudar.'}</p>
       <ol><li><a href="/simulacoes" data-route>Defina sua aposentadoria</a>: confira as idades e a renda desejada.</li><li><a href="/fluxo-caixa" data-route>Organize seu orçamento</a>: cadastre receitas, despesas e seus prazos. Veja a evolução mensal.</li><li><a href="/carteira" data-route>Revise seu patrimônio</a>: informe investimentos, aportes e rendimentos.</li></ol>
-      <p>Carteira reúne investimentos. Fluxo de caixa reúne o orçamento. Saldos de contas bancárias ainda não são acompanhados.</p>
+      <p>Carteira reúne investimentos. Fluxo de caixa reúne o orçamento. <a href="/contas" data-route>Contas e movimentos</a> acompanha saldos manuais sem somá-los automaticamente ao patrimônio.</p>
     </section>
     <section class="dashboard-top" aria-label="Resumo do plano">
       <article class="income-card">

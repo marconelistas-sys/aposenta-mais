@@ -24,7 +24,7 @@ export function renderPrivacy() {
         <ul class="privacy-list">
           <li>Idade, patrimônio, aporte, renda desejada e premissas para calcular projeções.</li>
           <li>Nome escolhido, classe, saldo, aporte, forma do rendimento e taxa informada de cada investimento para projetar a carteira.</li>
-          <li>Lançamentos, descrições, moedas, categorias, frequências, prazos, mês de aposentadoria do orçamento e vínculos de término de receitas para calcular o aporte sustentável.</li>
+          <li>Lançamentos, descrições, moedas, categorias, frequências, prazos, mês de aposentadoria do orçamento e vínculos de término de receitas para calcular o aporte sustentável. Contas manuais incluem nomes, moedas, saldos iniciais, datas e movimentos.</li>
           <li>Cenários salvos para comparar e restaurar plano, orçamento e moeda.</li>
           <li>Preferências visuais e de lembrete para personalizar a experiência.</li>
           <li>Cotação pública do BCE, com fonte e data, para converter totais na moeda da visão geral.</li>
