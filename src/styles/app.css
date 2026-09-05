@@ -3312,6 +3312,10 @@ body.values-hidden .simulation-form input {
 .wizard-progress a { padding: 10px; border: 1px solid var(--color-border); border-radius: 8px; }
 .wizard-progress [aria-current='step'] { font-weight: 700; text-decoration: underline; }
 .wizard-actions { justify-content: space-between; }
+.budget-step fieldset { border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; margin-block: 20px; min-width: 0; }
+.budget-step legend { padding-inline: 8px; font-weight: 700; }
+.budget-entry-list { display: grid; gap: 12px; }
+.budget-entry-list article { display: grid; gap: 6px; border: 1px solid var(--color-border); border-radius: 10px; padding: 16px; overflow-wrap: anywhere; }
 .form-field > input, .form-field > select { min-width: 0; width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--color-border); border-radius: 8px; }
 @media (max-width: 640px) {
   .cash-entry-grid > button[type='submit'], .welcome-actions > .button { width: 100%; }

@@ -1,4 +1,24 @@
-import { state, saveState, updatePlan, setBudgetRetirementMonth } from './state.js'
+import { state, saveState, updatePlan, setBudgetRetirementMonth, addCashFlowItem } from './state.js'
+import { categoryById } from '../data/cash-flow-categories.js'
+import { currencies } from '../shared/currencies.js'
+
+export function saveGuidedBudget(data) {
+  const category = categoryById(data.get('categoryId'), state.customCategories)
+  const currency = data.get('currency')
+  const frequency = data.get('frequency')
+  const endMode = data.get('endMode')
+  if (!category || !Object.hasOwn(currencies, currency) || !['monthly', 'annual', 'occasional'].includes(frequency) || !['none', 'date', 'retirement'].includes(endMode)) throw new RangeError('Revise categoria, moeda, frequência e término.')
+  const startDate = data.get('startDate') || null
+  const endDate = endMode === 'date' ? data.get('endDate') : null
+  for (const date of [startDate, endDate]) {
+    if (!date) continue
+    const parsed = new Date(`${date}T00:00:00Z`)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) throw new RangeError('Informe uma data válida.')
+  }
+  if (endMode === 'date' && !endDate) throw new RangeError('Informe a data final.')
+  if (frequency === 'occasional' && !startDate) throw new RangeError('Informe a data do lançamento único.')
+  addCashFlowItem({ type: category.type, categoryId: category.id, description: data.get('description'), amount: number(data, 'amount', 0.01, 1000000000), currency, frequency, recordKind: 'planned', startDate, endMode, endDate })
+}
 import { sanitizeStoredState } from './state-storage.js'
 import { validateProjectionInput } from '../domain/retirement.js'
 
