@@ -7,8 +7,9 @@ import { convertCurrency } from '../shared/exchange-rates.js'
 import { nonFinancialValue } from './annual-planning.js'
 import { planningHorizon } from './planning-horizon.js'
 
-export const defaultRiskSettings = Object.freeze({ months: 120, horizonMode: 'target', annualVolatility: 0, simulations: 300, seed: 12345, varyContemplation: false, aggregateLiquid: false, benefitIncluded: false, targetAssets: 0 })
+export const defaultRiskSettings = Object.freeze({ method: 'annual', months: 120, horizonMode: 'target', annualVolatility: 0, simulations: 300, seed: 12345, varyContemplation: false, aggregateLiquid: false, benefitIncluded: false, targetAssets: 0 })
 export function validateRiskSettings(value) {
+  if (value.method !== undefined && !['annual', 'monthly'].includes(value.method)) throw new Error('Metodologia de risco inválida.')
   if (value.horizonMode !== undefined && !['target', 'months'].includes(value.horizonMode)) throw new Error('Modo de horizonte inválido.')
   for (const [field, min, max] of [['months', 1, 720], ['simulations', 50, 1000], ['seed', 0, 4294967295]]) if (!Number.isInteger(value[field]) || value[field] < min || value[field] > max) throw new RangeError('Revise horizonte (1 a 720 meses), simulações (50 a 1.000) e semente inteira.')
   if (!Number.isFinite(value.annualVolatility) || value.annualVolatility < 0 || value.annualVolatility > 1 || !Number.isFinite(value.targetAssets) || value.targetAssets < 0 || value.targetAssets > 1e12) throw new RangeError('Revise volatilidade anual (0% a 100%) e meta financeira.')

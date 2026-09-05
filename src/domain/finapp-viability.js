@@ -3,14 +3,20 @@ import { calculateMultiCurrencyCashFlow } from './cash-flow.js'
 import { prepareCommitmentSchedules } from './financial-calendar.js'
 import { consortiumSchedule, sanitizeConsortia, validateConsortiumAsOf } from './consortium.js'
 import { nonFinancialValue } from './annual-planning.js'
-import { convertCurrency } from '../shared/exchange-rates.js'
+import { convertCurrency, sanitizeExchangeRates } from '../shared/exchange-rates.js'
 import { categoryById } from '../data/cash-flow-categories.js'
 
 export function sanitizeFinappMethod(raw) {
-  return { openingYearPeriod: Number.isFinite(raw?.openingYearPeriod) && raw.openingYearPeriod > 0 && raw.openingYearPeriod <= 1 ? raw.openingYearPeriod : 1, pensionMode: raw?.pensionMode === 'cash-funded' ? 'cash-funded' : 'external', openingConfirmed: raw?.openingConfirmed === true, pensionConfirmed: raw?.pensionConfirmed === true, releases: (Array.isArray(raw?.releases) ? raw.releases : []).slice(0, 30).filter(row => row && /^[\w:-]{1,80}$/.test(row.investmentId) && Number.isInteger(row.year) && row.year >= 2000 && row.year <= 2199).map(row => ({ investmentId: row.investmentId, year: row.year })) }
+  return { chfBrlRate: Number.isFinite(raw?.chfBrlRate) && raw.chfBrlRate > 0 && raw.chfBrlRate < 1000000 ? raw.chfBrlRate : null, openingYearPeriod: Number.isFinite(raw?.openingYearPeriod) && raw.openingYearPeriod > 0 && raw.openingYearPeriod <= 1 ? raw.openingYearPeriod : 1, pensionMode: raw?.pensionMode === 'cash-funded' ? 'cash-funded' : 'external', openingConfirmed: raw?.openingConfirmed === true, pensionConfirmed: raw?.pensionConfirmed === true, releases: (Array.isArray(raw?.releases) ? raw.releases : []).slice(0, 30).filter(row => row && /^[\w:-]{1,80}$/.test(row.investmentId) && Number.isInteger(row.year) && row.year >= 2000 && row.year <= 2199).map(row => ({ investmentId: row.investmentId, year: row.year })) }
 }
 // Same annual recurrence as finapp run_projection. Negative financial/liquid
 // balances are diagnostic deficits, not an authorization to borrow.
+export function finappExchangeRates(state, settings = sanitizeFinappMethod(state.plan.finappMethod)) {
+  const snapshot = sanitizeExchangeRates(state.exchangeRates)
+  if (settings.chfBrlRate) snapshot.rates.CHF = snapshot.rates.BRL / settings.chfBrlRate
+  return snapshot
+}
+
 export function annualFinappRecurrence({ openingFinancial, openingLiquid, annualReturn, openingYearPeriod, years }) {
   if (![openingFinancial, openingLiquid, annualReturn, openingYearPeriod].every(Number.isFinite) || openingFinancial < 0 || openingLiquid < 0 || openingLiquid > openingFinancial || annualReturn <= -1 || annualReturn > 1 || openingYearPeriod <= 0 || openingYearPeriod > 1 || !years.length || years.length > 100) throw new Error('Premissas anuais inválidas.')
   let financial = openingFinancial, liquid = openingLiquid
@@ -27,12 +33,14 @@ export function annualFinappRecurrence({ openingFinancial, openingLiquid, annual
   })
 }
 
-export function finappViability(state, rawSettings = state.plan.finappMethod, today = new Date()) {
+export function finappViability(state, rawSettings = state.plan.finappMethod, today = new Date(), { costMultiplier = 1 } = {}) {
+  if (!Number.isFinite(costMultiplier) || costMultiplier < 0 || costMultiplier > 10) throw new Error('Multiplicador de custos inválido.')
   const settings = sanitizeFinappMethod(rawSettings)
+  state = { ...state, exchangeRates: finappExchangeRates(state, settings) }
   const startYear = today.getUTCFullYear()
   const horizon = planningHorizon(state.plan, `${startYear}-01`, today)
   const convert = (amount, currency) => convertCurrency(amount, currency, state.currency, state.exchangeRates)
-  const retirement = state.plan.retirementMonth || state.cashFlow.retirementMonth
+  const retirement = state.cashFlow.retirementMonth || state.plan.retirementMonth
   const issues = []
   if (state.plan.decumulation?.annualFee > 0 || state.plan.decumulation?.withdrawalTax > 0) issues.push('Há custos ou impostos de resgate configurados no simulador legado. A recorrência anual do finapp não os aplica. Incorpore esses desembolsos no orçamento e revise as premissas antes de concluir cobertura.')
   if (!settings.openingConfirmed) issues.push('Confirme que o patrimônio informado corresponde aos saldos de abertura do ano-base.')
@@ -53,7 +61,7 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   const debtSchedules = prepareCommitmentSchedules(state.cashFlow.commitments)
   const consortia = sanitizeConsortia(state.cashFlow.consortia)
   for (const item of consortia) validateConsortiumAsOf(item, today.toISOString().slice(0, 7))
-  const cashFlow = { ...state.cashFlow, retirementMonth: retirement, consortia: [], commitmentSchedules: debtSchedules }
+  const cashFlow = { ...state.cashFlow, retirementMonth: retirement, consortia: [], commitmentSchedules: debtSchedules, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate) }
   // Compute contract trajectories once for both cash costs and net rights.
   const consortiumRows = consortia.map(item => ({ item, rows: consortiumSchedule(item, Math.max(1, (horizon.endYear - Number(item.referenceMonth.slice(0, 4)) + 1) * 12)) }))
   const annualReturn = state.plan.annualRealReturn
@@ -81,6 +89,7 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
     }
     costs = Math.max(0, costs - goals)
     if (settings.pensionMode === 'cash-funded') costs += pensionCredits
+    costs *= costMultiplier
     for (const cohort of [...cohorts, ...pensions]) {
       cohort.balance = cohort.balance * (1 + rate) + (contributions.get(cohort) || 0)
       if (cohort.year === year) { releases += cohort.balance; cohort.balance = 0 }

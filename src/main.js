@@ -1,7 +1,7 @@
 import { appLayout } from './app/layout.js'
 import { renderViability, saveViability } from './features/plan/viability.js'
 import { renderConsortia, guideConsortiumForm, saveConsortium, consortiumView } from './features/cash-flow/consortia.js'
-import { renderRisk, startRisk, cancelRisk, riskSettingsFromForm } from './features/plan/risk.js'
+import { renderRisk, renderMonthlyRisk, startRisk, cancelRisk, riskSettingsFromForm } from './features/plan/risk.js'
 import { guideCommitmentForm, guideMovementForm } from './app/planning-forms.js'
 import { ownedStorage } from './app/owned-storage.js'
 import { renderPostRetirement } from './features/plan/post-retirement.js'
@@ -117,6 +117,7 @@ function switchSessionPlan() {
 const routes = {
   '/consorcios': renderConsortia,
   '/riscos': renderRisk,
+  '/riscos-mensais': renderMonthlyRisk,
   '/viabilidade': renderViability,
   '/apos-aposentadoria': renderPostRetirement,
   '/calendario': renderCalendar,
@@ -1026,7 +1027,7 @@ document.addEventListener('submit', async (event) => {
   if (riskForm) {
     event.preventDefault()
     if (!riskForm.reportValidity()) return
-    try { startRisk(riskSettingsFromForm(new FormData(riskForm)), () => { if (currentPath() === '/riscos') render() }); render() } catch (error) { showFormError(riskForm, error.message) }
+    try { startRisk(riskSettingsFromForm(new FormData(riskForm)), () => { if (['/riscos', '/riscos-mensais'].includes(currentPath())) render() }); render() } catch (error) { showFormError(riskForm, error.message) }
     return
   }
   const ledgerStatementForm = event.target.closest('[data-ledger-statement]')

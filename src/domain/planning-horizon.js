@@ -17,7 +17,7 @@ export function annualCashFlow(points) {
     row.month = point.month; row.months++
     row.income += point.income; row.expenses += point.expenses
     row.pension += point.pension || 0
-    row.spending += point.expenses - (point.pension || 0)
+    row.spending += point.expenses - (point.pensionInExpenses ?? point.pension ?? 0)
     row.balance += point.balance
     years.set(year, row)
   }
