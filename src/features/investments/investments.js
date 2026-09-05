@@ -1,4 +1,5 @@
 import { state } from '../../app/state.js'
+import { renderLiquidity, liquidityLabels } from './liquidity.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { resolveInvestmentRealReturn } from '../../domain/investment-returns.js'
 import { projectRetirementWithSchedules } from '../../domain/retirement.js'
@@ -103,6 +104,7 @@ function investmentList() {
           </div>
           <dl>
             <div><dt>Saldo atual</dt><dd>${privateCurrency(investment.amount, state.valuesHidden, false, state.currency)}</dd></div>
+            <div><dt>Liquidez declarada</dt><dd>${liquidityLabels[investment.liquidity] || liquidityLabels.unknown}</dd></div>
             <div><dt>Aporte mensal</dt><dd>${privateCurrency(investment.monthlyContribution, state.valuesHidden, false, state.currency)}</dd></div>
             <div><dt>Retorno usado</dt><dd>${formatPercent(rate)} real ao ano</dd></div>
             <div><dt>Valor aos ${state.plan.retirementAge}</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}</dd></div>
@@ -163,6 +165,7 @@ export function renderInvestments() {
       <button class="button button--secondary" type="submit">Salvar premissas</button>
     </form>
 
+    ${renderLiquidity()}
     <section class="investment-layout">
       <form class="panel investment-form" data-investment-form>
         <input type="hidden" name="investmentId" value="" />
@@ -173,6 +176,7 @@ export function renderInvestments() {
 
         <fieldset class="investment-step" data-investment-step="1">
           <legend>Identificação e valores</legend>
+          <label class="form-field"><span>Liquidez declarada</span><select name="liquidity"><option value="unknown">Não informada</option><option value="available">Disponível para resgate</option><option value="restricted">Restrita ou com prazo</option></select></label>
           <label class="form-field">
             <span class="form-field__label">Nome para identificar</span>
             <span class="input-shell"><input name="investmentName" maxlength="60" autocomplete="off" required /></span>

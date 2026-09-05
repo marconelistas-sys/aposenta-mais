@@ -1,6 +1,8 @@
 import { projectAssetSeriesWithSchedules, projectRetirementWithSchedules } from '../../domain/retirement.js'
 import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { state } from '../../app/state.js'
+import { renderVariableContributions } from './variable-contributions.js'
+import { renderPlanChecks } from './plan-checks.js'
 import { authState } from '../../app/auth-state.js'
 import { syncState } from '../../app/sync-state.js'
 import {
@@ -321,5 +323,7 @@ export function renderDashboard() {
     </section>
 
     ${renderPremiumPromo({ compact: true })}
+    ${renderPlanChecks()}
+    ${renderVariableContributions()}
   `
 }

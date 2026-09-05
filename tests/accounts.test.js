@@ -24,6 +24,11 @@ test('contas viajam na exportação sem alterar patrimônio ou orçamento', () =
   assert.equal(restored.plan.currentAssets, 123)
   assert.deepEqual(restored.cashFlow.items, [])
 })
+test('saldos usam centavos sem resíduos de ponto flutuante', () => {
+  const ledger = { accounts: [{ ...accounts[0], openingBalance: 0.1 }], movements: [{ ...transfer, type: 'income', amount: 0.2 }] }
+  assert.equal(accountBalances(ledger, '2026-02-01')[0].balance, 0.3)
+  assert.throws(() => validateMovement({ ...transfer, amount: 0.123 }, accounts))
+})
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 const { changeAccounts } = await import('../src/app/accounts.js')
 const { state } = await import('../src/app/state.js')

@@ -549,6 +549,7 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('investmentId').value = investment.id
     form.elements.namedItem('investmentName').value = investment.name
     form.elements.namedItem('assetClass').value = investment.assetClass
+    form.elements.namedItem('liquidity').value = investment.liquidity || 'unknown'
     form.elements.namedItem('investmentAmount').value = investment.amount
     form.elements.namedItem('investmentContribution').value = investment.monthlyContribution
     form.elements.namedItem('returnType').value = investment.returnType
@@ -892,6 +893,7 @@ document.addEventListener('submit', async (event) => {
         id: data.get('investmentId') || undefined,
         name: data.get('investmentName'),
         assetClass: data.get('assetClass'),
+        liquidity: data.get('liquidity'),
         amount: parseNumber(data.get('investmentAmount')),
         monthlyContribution: parseNumber(data.get('investmentContribution')),
         returnType,
