@@ -258,6 +258,7 @@ export function renderDashboard() {
       </article>
     </section>
 
+    <section class="panel settings-card"><h2>O patrimônio cobre a aposentadoria até a idade-alvo?</h2><p>Confira a recorrência anual do finapp, a liberação da previdência e os déficits de liquidez antes de concluir que o orçamento é viável.</p><a class="button button--primary" href="/viabilidade" data-route>Avaliar cobertura do orçamento</a></section>
     ${renderPlanningOverview()}
     <section class="dashboard-grid">
       <article class="panel projection-panel">

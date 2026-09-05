@@ -232,7 +232,7 @@ test('prévia TXT rejeita moeda inválida, data impossível, linhas extras e ext
   await assert.rejects(() => prepareLedgerStatement(new File(['data;descricao;valor\n' + Array.from({ length: 101 }, () => '2026-08-10;a;-1').join('\n')], 'extrato.txt'), 'a'))
 })
 test('telas novas escapam conteúdo e ocultam valores sem perder navegação', () => {
-  Object.assign(state, planState({}, { commitments: [{ ...debt, name: '<script>bad</script>' }], ledger: { accounts, movements: [movement] } }))
+  Object.assign(state, planState({ currentAge: 60, targetAge: 62, horizonReferenceMonth: '2026-01' }, { commitments: [{ ...debt, name: '<script>bad</script>' }], ledger: { accounts, movements: [movement] } }))
   assert.match(renderCalendar(), /&lt;script&gt;/)
   assert.doesNotMatch(renderCalendar(), /<script>bad/)
   assert.match(renderPostRetirement(), /scope="col"/)

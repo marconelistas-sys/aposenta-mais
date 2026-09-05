@@ -68,7 +68,7 @@ export function mergeFinappImport(current, file, mode = 'merge') {
   }
   const removed = next.plan.investments.length + next.cashFlow.items.length + next.cashFlow.commitments.length + next.cashFlow.consortia.length + next.cashFlow.annualGoals.length + next.cashFlow.nonFinancialAssets.length + next.cashFlow.ledger.accounts.length + next.cashFlow.ledger.movements.length + next.scenarios.length + next.customCategories.length
   if (replacing) {
-    next.plan = { ...next.plan, ...file.planParameters, investments: [], currentAssets: 0, monthlyContribution: 0, expectedMonthlyBenefit: 0, targetMonthlyIncome: 0, decumulation: undefined, riskSettings: undefined }
+    next.plan = { ...next.plan, ...file.planParameters, investments: [], currentAssets: 0, monthlyContribution: 0, expectedMonthlyBenefit: 0, targetMonthlyIncome: 0, decumulation: undefined, riskSettings: undefined, finappMethod: undefined }
     // Retirement dates are user choices, not the source's projection/checkpoint horizon.
     next.plan.retirementMonth = null
     next.cashFlow = { items: [], annualGoals: [], nonFinancialAssets: [], recurringIncome: 0, occasionalIncome: 0, essentialExpenses: 0, variableExpenses: 0, debtPayments: 0, annualExpenses: 0, currentEmergencyReserve: 0, emergencyReserveTarget: 0, reserveBuildMonths: 12 }

@@ -10,6 +10,7 @@ import { sanitizeRiskSettings } from '../domain/risk-plan.js'
 import { sanitizeDecumulation } from '../domain/post-retirement.js'
 import { linkedBudgetItem } from '../domain/ledger-links.js'
 import { sanitizeAnnualRows, sanitizeMigration } from '../domain/annual-planning.js'
+import { sanitizeFinappMethod } from '../domain/finapp-viability.js'
 
 export const stateVersion = 10
 export const storageKeys = Object.freeze({
@@ -193,6 +194,7 @@ export function sanitizePlan(candidate = {}) {
   const source = candidate && typeof candidate === 'object' ? candidate : {}
   const plan = { ...defaultPlan }
   plan.decumulation = sanitizeDecumulation(source.decumulation)
+  plan.finappMethod = sanitizeFinappMethod(source.finappMethod)
   plan.targetAge = Number.isInteger(source.targetAge) && source.targetAge >= 17 && source.targetAge <= 110 ? source.targetAge : null
   plan.horizonReferenceMonth = typeof source.horizonReferenceMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.horizonReferenceMonth) ? source.horizonReferenceMonth : null
   plan.riskSettings = sanitizeRiskSettings(source.riskSettings)
