@@ -11,11 +11,10 @@ export function renderPlanningOverview() {
   catch (error) { return '<section class="panel settings-card"><h2>Viabilidade anual até a idade-alvo</h2><p role="status">' + escapeHtml(error.message) + '</p>' + links + '</section>' }
   const last = result.rows.at(-1)
   const status = result.issues.length ? 'Revisão necessária antes de concluir viabilidade' : result.viable ? 'Cobertura anual suficiente nas premissas informadas' : 'Insuficiência nas premissas informadas'
-  const common = { rows: result.rows, currency: state.currency, markers: result.retirement ? [{ year: result.retirement.slice(0, 4), label: 'Aposentadoria' }] : [] }
+  const common = { rows: result.rows.map(row => ({ ...row, outflows: row.costs + row.goals })), currency: state.currency, markers: result.retirement ? [{ year: result.retirement.slice(0, 4), label: 'Aposentadoria' }] : [] }
   const flow = planningChart({ ...common, title: 'Fluxos anuais do orçamento, metodologia finapp', series: [
     { key: 'income', label: 'Entradas', type: 'bar', color: '#0ea5e9' },
-    { key: 'costs', label: 'Custos', type: 'bar', color: '#f59e0b' },
-    { key: 'goals', label: 'Metas', type: 'bar', color: '#e11d48' },
+    { key: 'outflows', label: 'Saídas, custos + metas', type: 'bar', color: '#f59e0b' },
     { key: 'pensionCredits', label: 'Créditos previdenciários', type: 'bar', color: '#8b5cf6' },
     { key: 'releases', label: 'Liberações, não são receita', type: 'bar', color: '#0f766e' },
     { key: 'freeCashFlow', label: 'FCX', color: '#047857' }

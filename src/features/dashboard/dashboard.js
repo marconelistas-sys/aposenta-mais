@@ -90,6 +90,7 @@ function niceMaximum(value) {
 }
 
 function chartMarkup(plan, schedules) {
+  if (state.valuesHidden) return '<p>Valores e gráfico legado ocultos.</p>'
   const selected = chartRanges[state.activeChartRange] || chartRanges.retirement
   const totalYears = retirementMonths(plan) / 12
   const years = selected.years ? Math.min(selected.years, totalYears) : totalYears
@@ -159,10 +160,9 @@ export function renderDashboard() {
   const investmentIncome = result.projectedInvestmentIncome
   const expectedYear = state.plan.retirementMonth ? Number(state.plan.retirementMonth.slice(0, 4)) : new Date().getFullYear() + (state.plan.retirementAge - state.plan.currentAge)
   const money = (value) => privateCurrency(value, state.valuesHidden, false, state.currency)
-  const visibleMoney = (value) => formatCurrency(value, false, state.currency)
   const heading = state.isDemo
     ? 'Veja se seu plano de aposentadoria cabe na sua vida.'
-    : `Seu plano cobre ${formatPercent(incomeProgress)} da renda desejada.`
+    : 'Seu orçamento e patrimônio até a idade-alvo.'
 
   return `
     <section class="page-heading page-heading--dashboard">
@@ -180,7 +180,10 @@ export function renderDashboard() {
       </div>
     </section>
 
-    <section class="panel settings-card" aria-labelledby="start-guide"><h2 id="start-guide">Comece aqui</h2>
+    ${renderPlanningOverview()}
+    ${privacyStatus()}
+    ${exchangeRatePanel()}
+    <details class="panel settings-card"><summary>Revisar passo a passo e cadastros</summary><section aria-labelledby="start-guide"><h2 id="start-guide">Comece aqui</h2>
       <a class="button button--primary" href="/construir/objetivo" data-route>Continuar plano passo a passo</a>
       <p>${state.isDemo ? 'Os valores de demonstração são exemplos. Revise cada etapa com seus dados.' : 'Revise estas três etapas sempre que sua situação mudar.'}</p>
       <ol><li><a href="/simulacoes" data-route>Defina sua aposentadoria</a>: confira as idades e a renda desejada.</li><li><a href="/fluxo-caixa" data-route>Organize seu orçamento</a>: cadastre receitas, despesas e seus prazos. Veja a evolução mensal.</li><li><a href="/carteira" data-route>Revise seu patrimônio</a>: informe investimentos, aportes e rendimentos.</li></ol>
@@ -188,7 +191,8 @@ export function renderDashboard() {
       <div class="wizard-actions"><a class="button button--secondary" href="/calendario" data-route>Vencimentos, dívidas e metas</a><a class="button button--secondary" href="/apos-aposentadoria" data-route>Projetar vida após aposentadoria</a></div>
       <div class="wizard-actions"><a class="button button--secondary" href="/consorcios" data-route>Consórcios e posição vinculada</a><a class="button button--secondary" href="/riscos" data-route>Patrimônio líquido, Monte Carlo e matriz de risco</a></div>
     </section>
-    <section class="dashboard-top" aria-label="Resumo do plano">
+    </details>
+    <details class="panel settings-card"><summary>Simulador legado: renda desejada e aportes fixos</summary><p>Estes indicadores não comprovam a cobertura do orçamento até a idade-alvo. A avaliação anual acima considera receitas e despesas cadastradas.</p><section class="dashboard-top" aria-label="Resumo do plano">
       <article class="income-card">
         <div class="income-card__topline">
           <span>Renda mensal estimada</span>
@@ -213,7 +217,7 @@ export function renderDashboard() {
           <span style="width: ${incomeProgress * 100}%"></span>
         </div>
         <div class="income-card__footer">
-          <span>${icon(result.goalReached ? 'check' : 'trendUp', 18)} ${result.goalReached ? 'Meta coberta pelas premissas atuais' : `Lacuna mensal de ${visibleMoney(Math.max(result.monthlyIncomeGap, 0))}`}</span>
+          <span>${icon(result.goalReached ? 'check' : 'trendUp', 18)} ${result.goalReached ? 'Meta de renda do simulador legado atingida' : `Lacuna mensal de ${money(Math.max(result.monthlyIncomeGap, 0))}`}</span>
           <div class="income-card__actions">
             <a class="button button--light" href="${state.isDemo ? '/fluxo-caixa' : '/plano'}" data-route>
               ${state.isDemo ? 'Calcular com meus dados' : 'Ajustar meu plano'} ${icon('arrowRight', 17)}
@@ -223,10 +227,6 @@ export function renderDashboard() {
         </div>
       </article>
     </section>
-
-    ${privacyStatus()}
-
-    ${exchangeRatePanel()}
 
     <section class="metrics-grid" aria-label="Indicadores do plano">
       <article class="metric-card">
@@ -259,7 +259,6 @@ export function renderDashboard() {
     </section>
 
     <section class="panel settings-card"><h2>O patrimônio cobre a aposentadoria até a idade-alvo?</h2><p>Confira a recorrência anual do finapp, a liberação da previdência e os déficits de liquidez antes de concluir que o orçamento é viável.</p><a class="button button--primary" href="/viabilidade" data-route>Avaliar cobertura do orçamento</a></section>
-    ${renderPlanningOverview()}
     <section class="dashboard-grid">
       <article class="panel projection-panel">
         <div class="panel__header panel__header--responsive">
@@ -327,6 +326,7 @@ export function renderDashboard() {
       </div>
     </section>
 
+    </details>
     ${renderPremiumPromo({ compact: true })}
     ${renderPlanChecks()}
     ${renderVariableContributions()}

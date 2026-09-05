@@ -1,5 +1,9 @@
 # Backlog inicial
 
+## Sprint: dados familiares e gráficos do finapp
+
+Implementados complemento seguro da conta, prévia registro a registro e gráficos anuais interativos revisados com especialista em UX. Inventário de 58 registros da origem, 56 utilizáveis e duas pendências. 362 testes e build aprovados. A conferência da conta ativa e a aplicação do complemento aguardam exportação ou sessão. [Escopo e evidências](sprint-familia-graficos-finapp.md).
+
 ## Fluxo e risco anual, revisão 2
 
 Corrigida a subtração de previdência externa no fluxo principal. Risco anual, matriz e orçamento usam a recorrência do finapp. 346 testes aprovados, comparação de 33 anos da base financeira e verificação HTTP local. [Diagnóstico, evidências e limites](correcao-fluxo-risco-finapp.md). Conferência visual da sessão e implantação externa continuam dependentes da URL em uso.
