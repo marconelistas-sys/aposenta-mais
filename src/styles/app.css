@@ -3296,6 +3296,23 @@ body.values-hidden .simulation-form input {
   min-height: 47px;
 }
 
+.cash-entry-grid > button[type='submit'] {
+  grid-column: 1 / -1;
+  justify-self: end;
+  min-width: 160px;
+  margin-top: 8px;
+}
+.cash-entry-grid > .form-field { min-width: 0; }
+.welcome-card { max-width: 880px; margin: 24px auto; padding: clamp(20px, 4vw, 48px); }
+.planning-steps { display: grid; gap: 20px; padding-left: 24px; margin-block: 28px; }
+.planning-steps p { margin: 6px 0 0; }
+.welcome-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-block: 24px; }
+.welcome-card details { margin-top: 24px; }
+@media (max-width: 640px) {
+  .cash-entry-grid > button[type='submit'], .welcome-actions > .button { width: 100%; }
+  .header-actions { flex-wrap: wrap; }
+}
+
 .cash-item-list {
   display: grid;
   gap: 8px;

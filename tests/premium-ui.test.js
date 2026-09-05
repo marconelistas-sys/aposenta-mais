@@ -1,5 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { openLocalPlan } from '../src/app/local-access.js'
+openLocalPlan()
 import { readFile } from 'node:fs/promises'
 
 const appCss = await readFile(new URL('../src/styles/app.css', import.meta.url), 'utf8')

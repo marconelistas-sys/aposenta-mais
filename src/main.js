@@ -1,4 +1,6 @@
 import { appLayout } from './app/layout.js'
+import { canRenderFinancialPage, closeLocalPlan, openLocalPlan, localLockKey } from './app/local-access.js'
+import { renderWelcome } from './features/welcome/welcome.js'
 import { timelineView } from './features/cash-flow/timeline.js'
 import { submitPortfolioCurrencyScenario } from './features/cash-flow/portfolio-currency.js'
 import { currencyExplorer, loadCurrencyHistory, renderCurrencyExplorer } from './features/cash-flow/currency-explorer.js'
@@ -117,8 +119,8 @@ function restoreSimulationForm(values) {
 function render({ focusMain = false } = {}) {
   const pathname = currentPath()
   const simulationValues = pathname === '/simulacoes' ? captureSimulationForm() : null
-  const selectedRenderer = routes[pathname] || renderDashboard
-  const pageRenderer = state.dataDeleted && !['/perfil', '/privacidade'].includes(pathname)
+  const selectedRenderer = pathname === '/inicio' || !canRenderFinancialPage(pathname) ? renderWelcome : routes[pathname] || renderDashboard
+  const pageRenderer = state.dataDeleted && canRenderFinancialPage(pathname) && !['/inicio', '/perfil', '/privacidade'].includes(pathname)
     ? renderDeletedState
     : selectedRenderer
   app.innerHTML = appLayout(pageRenderer(), pathname)
@@ -344,6 +346,17 @@ function exportData() {
 }
 
 document.addEventListener('click', async (event) => {
+  if (event.target.closest('[data-open-local], [data-start-guided]')) {
+    openLocalPlan()
+    navigate(event.target.closest('[data-start-guided]') ? '/simulacoes' : '/')
+    return
+  }
+  if (event.target.closest('[data-close-local]')) {
+    closeLocalPlan()
+    try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
+    navigate('/inicio')
+    return
+  }
   if (event.target.closest('[data-load-currency-history]')) {
     const pending = loadCurrencyHistory()
     render()
@@ -400,9 +413,11 @@ document.addEventListener('click', async (event) => {
   if (event.target.closest('[data-auth-logout]')) {
     try {
       await logout()
+      closeLocalPlan()
+      try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
       resetSyncState()
-      navigate('/entrar')
-      showToast('Sessão encerrada.')
+      navigate('/inicio')
+      showToast('Sessão encerrada. Plano local fechado, sem apagar os dados.')
     } catch (error) {
       showToast(error.message)
     }
@@ -1008,6 +1023,9 @@ document.addEventListener('submit', async (event) => {
 })
 
 window.addEventListener('popstate', () => render({ focusMain: true }))
+window.addEventListener('storage', event => {
+  if (event.key === localLockKey) { closeLocalPlan(); render() }
+})
 
 document.addEventListener('cancel', (event) => {
   if (!event.target.matches('[data-statement-review-dialog]')) return
