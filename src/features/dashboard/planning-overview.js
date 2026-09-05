@@ -4,7 +4,7 @@ import { planningChart } from '../../shared/planning-chart.js'
 import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
 
 export function renderPlanningOverview() {
-  const links = '<p><a href="/viabilidade" data-route>Premissas, liberações e auditoria anual</a> · <a href="/riscos" data-route>Comparar com simulação mensal</a> · <a href="/plano" data-route>Configurar idade-alvo</a></p>'
+  const links = '<p><a href="/viabilidade" data-route>Premissas, liberações e auditoria anual</a> · <a href="/riscos" data-route>Risco anual e matriz</a> · <a href="/plano" data-route>Configurar idade-alvo</a></p>'
   if (state.valuesHidden) return '<section class="panel settings-card"><h2>Viabilidade anual até a idade-alvo</h2><p>Valores e gráficos ocultos.</p>' + links + '</section>'
   let result
   try { result = finappViability(state) }

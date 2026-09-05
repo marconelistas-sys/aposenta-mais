@@ -339,7 +339,7 @@ export function renderCashFlow(statementReview = null) {
       <div class="privacy-chip">${icon('lock', 16)} Cálculo local, sem envio automático</div>
     </section>
 
-    <section class="panel settings-card"><h2>Orçamento previsto de ${state.cashFlow.referenceMonth}</h2><p>Receitas: ${money(firstMonth.income)}. Despesas: ${money(firstMonth.expenses)}. Saldo: ${money(firstMonth.balance)}.</p><label>Mês de início da análise <input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></label><p>Mesma base da evolução abaixo: eventuais sem data não entram. Cadastre receitas e despesas abaixo. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></section>
+    <section class="panel settings-card"><h2>Orçamento previsto de ${state.cashFlow.referenceMonth}</h2><p>Receitas: ${money(firstMonth.income)}. Despesas: ${money(firstMonth.expenses)}. FCX: ${money(firstMonth.balance)}. Créditos previdenciários: ${money(firstMonth.pension)}, conforme a origem configurada.</p><label>Mês de início da análise <input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></label><p>FCX não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas abaixo. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></section>
     ${renderCashFlowTimeline()}
     <section class="cash-flow-layout">
       <div class="cash-flow-editor">
@@ -479,6 +479,10 @@ export function renderCashFlow(statementReview = null) {
       </div>
 
       <aside class="panel cash-flow-result" aria-live="polite">
+        <h2>Fluxo mensal pela premissa anual</h2>
+        <dl class="cash-flow-metrics"><div><dt>Receitas</dt><dd>${money(firstMonth.income)}</dd></div><div><dt>Custos e metas no FCX</dt><dd>${money(firstMonth.expenses)}</dd></div><div><dt>FCX, antes de rendimentos</dt><dd>${money(firstMonth.balance)}</dd></div></dl>
+        <p>Um FCX negativo exige recursos do patrimônio. Não significa que todo o patrimônio terminou. <a href="/viabilidade" data-route>Conferir cobertura até a idade-alvo</a>.</p>
+        <details><summary>Simulador de aporte legado, com previdência paga pelo caixa</summary>
         <div class="panel__header">
           <div><p class="eyebrow">DIAGNÓSTICO EM ${state.currency}</p><h2>Quanto você pode aportar</h2></div>
           ${icon(result.isDeficit ? 'alertTriangle' : 'trendUp', 21, 'panel__header-icon')}
@@ -499,11 +503,12 @@ export function renderCashFlow(statementReview = null) {
           <div><dt>Diferença para a meta</dt><dd class="money-value">${money(Math.abs(result.contributionGap))} ${result.contributionGap <= 0 ? 'de margem' : ''}</dd></div>
         </dl>
         <button class="button button--dark button--full" type="button" data-apply-sustainable-contribution ${result.isDeficit ? 'disabled' : ''}>Usar ${money(result.sustainableContribution)} como aporte mensal</button>
-        <p class="result-disclaimer">A previdência complementar reduz o saldo do orçamento e aumenta o patrimônio projetado durante o prazo informado. Conversão pela referência do BCE de ${state.exchangeRates.date}.</p>
+        <p class="result-disclaimer">Estes indicadores são do orçamento financiado legado: descontam previdência do caixa. O fluxo principal segue a origem configurada nas premissas anuais. Conversão pela referência do BCE de ${state.exchangeRates.date}.</p>
+        </details>
       </aside>
     </section>
 
-    <section class="cash-scenarios" aria-labelledby="cash-scenarios-title">
+    <details class="panel settings-card"><summary>Cenários de aporte legado, diferentes da avaliação anual</summary><section class="cash-scenarios" aria-labelledby="cash-scenarios-title">
       <div class="section-title-row">
         <div><p class="eyebrow">CENÁRIOS</p><h2 id="cash-scenarios-title">Impacto na aposentadoria</h2></div>
         <span>Valores em poder de compra de hoje</span>
@@ -514,6 +519,7 @@ export function renderCashFlow(statementReview = null) {
         ${retirementScenario('Meta', result.requiredMonthlyContribution, 'Aporte adicional estimado após a previdência.', 'target', schedules)}
       </div>
     </section>
+    </details>
     ${cashItemEditDialog()}
     ${statementReviewDialog(statementReview)}
   `

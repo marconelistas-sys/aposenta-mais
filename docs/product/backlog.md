@@ -1,5 +1,9 @@
 # Backlog inicial
 
+## Fluxo e risco anual, revisão 2
+
+Corrigida a subtração de previdência externa no fluxo principal. Risco anual, matriz e orçamento usam a recorrência do finapp. 346 testes aprovados, comparação de 33 anos da base financeira e verificação HTTP local. [Diagnóstico, evidências e limites](correcao-fluxo-risco-finapp.md). Conferência visual da sessão e implantação externa continuam dependentes da URL em uso.
+
 ## Cobertura do orçamento, metodologia anual do finapp
 
 Implementados avaliação anual de viabilidade, transferência de saldos restritos para liquidez, previdência externa ou financiada, auditoria por ano e dashboard usando a recorrência anual. O módulo de vida financeira após aposentadoria usa esse mesmo cálculo, corrige despesas zeradas por meta de renda e preserva o patrimônio dos anos anteriores. 336 testes e build aprovados, com quatro cenários diferenciais contra o Python do finapp. [Diagnóstico, fórmulas e limites](avaliacao-metodologia-finapp.md).

@@ -169,7 +169,7 @@ test('worker executa pipeline real em segundo plano sem DOM ou credenciais', asy
       const timeout = setTimeout(() => reject(new Error('Worker excedeu tempo')), 10000)
       worker.once('message', data => { clearTimeout(timeout); resolve(data) })
       worker.once('error', error => { clearTimeout(timeout); reject(error) })
-      worker.postMessage({ state: source([consortium]), settings, revision: 'test' })
+      worker.postMessage({ state: source([consortium]), settings: { ...settings, method: 'monthly' }, revision: 'test' })
     })
     assert.equal(message.error, undefined)
     assert.equal(message.result.simulated.simulations, 50)
