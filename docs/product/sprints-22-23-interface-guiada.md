@@ -23,3 +23,7 @@ Fluxo guiado em quatro etapas: objetivo, orçamento, patrimônio inicial e revis
 ## Validação e integração
 
 Testes unitários, verificação sintática, build e revisão de diff antes do merge. Sem validação visual nesta sessão: o mecanismo Node REPL exigido pela skill browser não está disponível. Nenhuma credencial de teste ou aprovação jurídica utilizada. O bloqueio de produção continua ativo.
+
+Sprint 22 validada com 170 testes. Sprint 23 validada com 175 testes, incluindo início sem demonstração, preservação de planos existentes, rejeição de objetivo inválido, patrimônio inicial no motor e na persistência, não duplicação de investimentos e estrutura de alinhamento CSS. O teste CSS verifica regras, não pixels renderizados.
+
+O wizard salva a cada etapa, não mantém um rascunho transacional. O cadastro simplificado adiciona itens mensais. Datas, categorias e vínculo salarial ficam disponíveis nele. Frequências adicionais, exclusão, edição e moedas individuais continuam no cadastro completo, com caminho de retorno ao wizard. O dashboard final inclui evolução mensal e explicita a limitação atual de aportes constantes.

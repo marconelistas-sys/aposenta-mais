@@ -3308,6 +3308,11 @@ body.values-hidden .simulation-form input {
 .planning-steps p { margin: 6px 0 0; }
 .welcome-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-block: 24px; }
 .welcome-card details { margin-top: 24px; }
+.wizard-progress, .wizard-actions { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-block: 24px; }
+.wizard-progress a { padding: 10px; border: 1px solid var(--color-border); border-radius: 8px; }
+.wizard-progress [aria-current='step'] { font-weight: 700; text-decoration: underline; }
+.wizard-actions { justify-content: space-between; }
+.form-field > input, .form-field > select { min-width: 0; width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--color-border); border-radius: 8px; }
 @media (max-width: 640px) {
   .cash-entry-grid > button[type='submit'], .welcome-actions > .button { width: 100%; }
   .header-actions { flex-wrap: wrap; }

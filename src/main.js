@@ -1,6 +1,8 @@
 import { appLayout } from './app/layout.js'
-import { canRenderFinancialPage, closeLocalPlan, openLocalPlan, localLockKey } from './app/local-access.js'
+import { canRenderFinancialPage, closeLocalPlan, openLocalPlan, localLockKey, isPublicPage } from './app/local-access.js'
 import { renderWelcome } from './features/welcome/welcome.js'
+import { renderGuidedPlan } from './features/welcome/guided-plan.js'
+import { beginGuidedPlan, saveGuidedAssets, saveGuidedGoal } from './app/guided-plan.js'
 import { timelineView } from './features/cash-flow/timeline.js'
 import { submitPortfolioCurrencyScenario } from './features/cash-flow/portfolio-currency.js'
 import { currencyExplorer, loadCurrencyHistory, renderCurrencyExplorer } from './features/cash-flow/currency-explorer.js'
@@ -119,8 +121,8 @@ function restoreSimulationForm(values) {
 function render({ focusMain = false } = {}) {
   const pathname = currentPath()
   const simulationValues = pathname === '/simulacoes' ? captureSimulationForm() : null
-  const selectedRenderer = pathname === '/inicio' || !canRenderFinancialPage(pathname) ? renderWelcome : routes[pathname] || renderDashboard
-  const pageRenderer = state.dataDeleted && canRenderFinancialPage(pathname) && !['/inicio', '/perfil', '/privacidade'].includes(pathname)
+  const selectedRenderer = pathname === '/inicio' || !canRenderFinancialPage(pathname) ? renderWelcome : pathname.startsWith('/construir/') ? () => renderGuidedPlan(pathname.split('/')[2]) : routes[pathname] || renderDashboard
+  const pageRenderer = state.dataDeleted && canRenderFinancialPage(pathname) && !isPublicPage(pathname) && pathname !== '/perfil'
     ? renderDeletedState
     : selectedRenderer
   app.innerHTML = appLayout(pageRenderer(), pathname)
@@ -347,8 +349,11 @@ function exportData() {
 
 document.addEventListener('click', async (event) => {
   if (event.target.closest('[data-open-local], [data-start-guided]')) {
+    const guided = Boolean(event.target.closest('[data-start-guided]'))
+    if (guided && (state.isDemo || state.dataDeleted) && !window.confirm('Começar sem valores de demonstração? Receitas, despesas, patrimônio e aportes de exemplo serão substituídos por zero. Revise as premissas no primeiro passo.')) return
+    if (guided) beginGuidedPlan()
     openLocalPlan()
-    navigate(event.target.closest('[data-start-guided]') ? '/simulacoes' : '/')
+    navigate(guided ? '/construir/objetivo' : '/')
     return
   }
   if (event.target.closest('[data-close-local]')) {
@@ -776,6 +781,25 @@ document.addEventListener('change', async (event) => {
 })
 
 document.addEventListener('submit', async (event) => {
+  const guidedForm = event.target.closest('[data-guided-goal], [data-guided-assets], [data-guided-budget]')
+  if (guidedForm) {
+    event.preventDefault()
+    if (!guidedForm.reportValidity()) return
+    const data = new FormData(guidedForm)
+    try {
+      if (guidedForm.matches('[data-guided-goal]')) { saveGuidedGoal(data); navigate('/construir/orcamento') }
+      else if (guidedForm.matches('[data-guided-assets]')) { saveGuidedAssets(data); navigate('/construir/revisao') }
+      else {
+        if (data.get('endMode') === 'date' && !data.get('endDate')) throw new RangeError('Informe a data final ou escolha Sem término.')
+        const category = categoryById(data.get('categoryId'), state.customCategories)
+        if (!category) throw new RangeError('Escolha uma categoria válida.')
+        addCashFlowItem({ type: category.type, categoryId: category.id, description: data.get('description'), amount: Number(data.get('amount')), currency: state.currency, frequency: 'monthly', recordKind: 'planned', startDate: data.get('startDate'), endMode: data.get('endMode'), endDate: data.get('endMode') === 'date' ? data.get('endDate') : null })
+        render()
+        showToast('Lançamento adicionado. Você pode adicionar outro ou continuar.')
+      }
+    } catch (error) { showToast(error.message) }
+    return
+  }
   const retirementMonthForm = event.target.closest('[data-budget-retirement-form]')
   if (retirementMonthForm) {
     event.preventDefault()
@@ -963,8 +987,9 @@ document.addEventListener('submit', async (event) => {
       let result
       if (action === 'login') {
         await login({ email: data.get('email'), password: data.get('password') })
+        closeLocalPlan()
         await loadSyncState()
-        navigate('/perfil')
+        navigate('/inicio')
         showToast('Login realizado.')
         return
       }

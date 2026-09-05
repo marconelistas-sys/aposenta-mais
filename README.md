@@ -4,6 +4,9 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 
 ## O que está pronto
 
+- Entrada sem valores, fechamento do plano local após logout e reabertura explícita, sem apagar o armazenamento automaticamente.
+- Construção guiada em quatro etapas até a visão completa do orçamento e aposentadoria, com patrimônio inicial explícito.
+
 - Cobertura da reserva em meses, sensibilidade das despesas e comparação de momentos da aposentadoria, adaptadas da análise do finapp.
 
 - Mês de aposentadoria confirmado no orçamento e término de receitas vinculado a ele, com datas manuais preservadas.

@@ -48,7 +48,7 @@ export function logo() {
 }
 
 export function appLayout(content, pathname) {
-  if (!isLocalPlanOpen() || pathname === '/inicio') return `<header class="app-header"><div class="app-header__inner">${logo()}<nav aria-label="Acesso"><a href="/inicio" data-route>Início</a> · <a href="/entrar" data-route>Entrar</a> · <a href="/privacidade" data-route>Privacidade</a></nav></div></header><main id="conteudo" class="page-shell" tabindex="-1">${content}</main>`
+  if (!isLocalPlanOpen() || pathname === '/inicio') return `<header class="app-header"><div class="app-header__inner">${logo()}<nav aria-label="Acesso"><a href="/inicio" data-route>Início</a> · ${authState.authenticated ? '<button type="button" class="button button--secondary" data-auth-logout>Sair da conta</button>' : '<a href="/entrar" data-route>Entrar</a>'} · <a href="/privacidade" data-route>Privacidade</a></nav></div></header><main id="conteudo" class="page-shell" tabindex="-1">${content}</main>`
   const visibilityLabel = state.valuesHidden ? 'Mostrar valores' : 'Ocultar valores'
   const visibilityIcon = state.valuesHidden ? 'eyeOff' : 'eye'
   const accountLabel = authState.authenticated
@@ -68,7 +68,7 @@ export function appLayout(content, pathname) {
         </nav>
 
         <div class="header-actions">
-          <button type="button" class="button button--secondary" data-close-local>Fechar plano local</button>
+          <button type="button" class="icon-button" data-close-local aria-label="Fechar plano local" title="Fechar plano local">${icon('lock', 20)}</button>
           <button
             class="icon-button values-toggle"
             type="button"

@@ -134,6 +134,7 @@ export function renderInvestments() {
       <div>
         <p class="eyebrow">CARTEIRA</p>
         <h1>Cadastre o que forma seu patrimônio.</h1>
+        <a href="/construir/patrimonio" data-route>Voltar ao passo a passo</a>
         <p>Compare rendimentos reais, nominais, CDI e IPCA sem misturar poder de compra.</p>
       </div>
       <a class="button button--secondary" href="/simulacoes" data-route>Comparar cenários</a>
