@@ -1,5 +1,13 @@
 # Backlog inicial
 
+## Entrega: imóveis e usabilidade da solvência
+
+Três sprints implementadas: filtro salvo para considerar imóveis na solvência, exclusão individual e classificação de bens, gráficos com seleção anual sincronizada e atalhos, e interpretação consistente no Dashboard. Cadastro acessível pela tela Patrimônio e comparação com e sem imóveis. 507 testes e build aprovados. A inspeção visual permanece pendente. [Planejamento, entregas e limites](sprints-imoveis-solvencia-usabilidade.md).
+
+## Entrega: titularidade, histórico de extratos e recorrências
+
+Três sprints implementadas: identificação e filtro de lançamentos por titular, cônjuge ou compartilhado, histórico de até seis análises de extratos com comparação entre períodos, e inclusão revisada de recorrências no orçamento. 496 testes e build aprovados. O vínculo automático de prazo com a aposentadoria do cônjuge e a inspeção visual permanecem pendentes. [Escopo, evidências e limites](sprints-titularidade-historico-recorrencias.md).
+
 ## Sprint: composição do fluxo e simulação até 100 anos
 
 Implementados com consulta ao analista de UX: seleção de ano por clique/toque/teclado, painel com cada receita e despesa, moedas e origens, conciliação com os totais e cenário até 100 sem alterar o plano salvo. 390 testes e build aprovados. Inspeção visual e publicação externa pendentes. [Planejamento e evidências](sprint-navegacao-fluxo-100-anos.md).

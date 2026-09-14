@@ -7,7 +7,7 @@ export function annualPriceFactor(year, baseYear, annualInflation) {
   return factor
 }
 
-const monetaryKeys = ['income', 'costs', 'goals', 'pensionCredits', 'releases', 'freeCashFlow', 'financialAssets', 'liquidAssets', 'restrictedFinancial', 'netFinancial', 'netWorth', 'assets', 'liabilities']
+const monetaryKeys = ['income', 'costs', 'goals', 'pensionCredits', 'releases', 'freeCashFlow', 'financialAssets', 'liquidAssets', 'restrictedFinancial', 'netFinancial', 'netWorth', 'assets', 'liabilities', 'realEstateAssets', 'excludedRealEstateAssets', 'solvencyNetWorth', 'netWorthWithoutRealEstate']
 
 export function annualRowsInPriceBasis(rows, { basis = 'real', annualInflation, baseYear }) {
   if (!['real', 'nominal'].includes(basis)) throw new Error('Escolha valores reais ou nominais.')

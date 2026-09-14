@@ -60,13 +60,14 @@ function exchangeRatePanel() {
 }
 
 function privacyStatus() {
+  const local = (authState.storageProvider || authState.provider) === 'local'
   const message = authState.authenticated && syncState.exists
-    ? 'Cópia remota ativa, vinculada à sua conta.'
+    ? local ? 'Cópia salva no banco deste computador, vinculada à sua conta.' : 'Cópia remota ativa, vinculada à sua conta.'
     : authState.authenticated
       ? 'Conta conectada. Seu plano continua somente neste dispositivo.'
       : 'Dados financeiros somente neste dispositivo.'
   const detail = authState.authenticated
-    ? 'Criar ou entrar na conta não envia o plano financeiro.'
+    ? local ? 'A cópia é manual. Salve as alterações pelo Perfil e dados.' : 'Criar ou entrar na conta não envia o plano financeiro.'
     : 'Use sem informar nome, CPF ou e-mail.'
 
   return `
@@ -146,21 +147,19 @@ export function renderDashboard() {
       </article>
     </section>
 
-    <section class="dashboard-grid" aria-label="Impacto de longo prazo">
+    <section class="dashboard-grid" data-dashboard-overview aria-label="Impacto de longo prazo">
       ${renderPlanningOverview({ compact: true })}
       <div class="dashboard-side">
-        ${readinessGauge({ progress: result.progress, hidden: state.valuesHidden })}
+        <details class="panel disclosure"><summary>Meta de renda desejada, indicador complementar</summary><p>Compara o patrimônio projetado na aposentadoria à meta de renda desejada. A sustentabilidade familiar acima avalia o orçamento e a liquidez até a idade-alvo.</p>${state.valuesHidden ? '<p>Mostre os valores para consultar o indicador.</p>' : readinessGauge({ progress: result.progress, hidden: false })}</details>
         <article class="panel confidence-card">
           <div class="confidence-card__icon">${icon('shield', 22)}</div>
           <div>
-            <h3>Premissas visíveis e ajustáveis</h3>
-            <p>Retorno real de ${formatPercent(state.plan.annualRealReturn)}, inflação de ${formatPercent(state.plan.annualInflation)} e retirada de ${formatPercent(state.plan.annualWithdrawalRate)} ao ano.</p>
+            <h3>Premissas da projeção</h3>
+            <p>${state.valuesHidden ? 'Mostre os valores para consultar as premissas.' : `Retorno real padrão de ${formatPercent(state.plan.annualRealReturn)} e inflação de ${formatPercent(state.plan.annualInflation)} ao ano. Taxas individuais da carteira prevalecem quando informadas.`}</p>
           </div>
           <a href="/simulacoes" data-route aria-label="Ver premissas">${icon('chevronRight', 19)}</a>
         </article>
-        <a class="button button--primary button--full" href="${state.isDemo ? '/fluxo-caixa' : '/plano'}" data-route>
-          ${state.isDemo ? 'Calcular com meus dados' : 'Ajustar meu plano'} ${icon('arrowRight', 17)}
-        </a>
+        ${state.isDemo ? `<a class="button button--primary button--full" href="/fluxo-caixa" data-route>Calcular com meus dados ${icon('arrowRight', 17)}</a>` : ''}
       </div>
     </section>
 

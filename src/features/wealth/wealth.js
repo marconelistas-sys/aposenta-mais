@@ -5,6 +5,8 @@ import { sanitizeAnnualRows, annualValue } from '../../domain/annual-planning.js
 import { convertCurrency } from '../../shared/exchange-rates.js'
 import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
+import { renderAnnualPlanning } from '../plan/annual-planning.js'
+import { renderPropertyFilter } from '../../shared/property-solvency.js'
 import { classLabels } from '../investments/investments.js'
 
 const assetCategoryLabels = { 'real-estate': 'Imóveis', vehicle: 'Veículos', other: 'Outros bens' }
@@ -100,7 +102,7 @@ export function renderWealth() {
           <strong class="money-value">${privateCurrency(nonFinancial, hidden, false, state.currency)}</strong>
           <span>Imóveis, veículos e outros</span>
         </div>
-        <a href="/riscos" data-route aria-label="Ver bens não financeiros">${icon('chevronRight', 19)}</a>
+        <a href="#cadastro-bens" aria-label="Ver bens não financeiros">${icon('chevronRight', 19)}</a>
       </article>
       <article class="metric-card">
         <div class="metric-card__icon metric-card__icon--sand">${icon('calendar', 21)}</div>
@@ -123,5 +125,6 @@ export function renderWealth() {
       </ul>
       <p class="wealth-total"><span>Patrimônio líquido total</span><strong class="money-value">${privateCurrency(netWorth, hidden, false, state.currency)}</strong></p>
     </section>
+    <div id="cadastro-bens">${renderPropertyFilter(state.cashFlow, hidden)}${renderAnnualPlanning('nonFinancialAssets')}</div>
   `
 }

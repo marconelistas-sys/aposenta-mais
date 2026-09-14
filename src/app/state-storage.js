@@ -1,3 +1,4 @@
+import { sanitizeStatementHistory } from '../domain/statement-history.js'
 import { defaultPlan } from '../data/mock-plan.js'
 import { validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
@@ -173,7 +174,9 @@ export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fal
     endDate,
     endMode: type === 'income' && recordKind === 'planned' && ['monthly', 'annual'].includes(item.frequency) && item.endMode === 'retirement' ? 'retirement' : endDate ? 'date' : 'none',
     source,
-    recordKind
+    recordKind,
+    ...(['primary', 'spouse', 'shared'].includes(item.householdOwner) ? { householdOwner: item.householdOwner } : {}),
+    ...(typeof item.analysisOrigin === 'string' && /^analysis-[a-f0-9]{64}:[0-7]$/.test(item.analysisOrigin) ? { analysisOrigin: item.analysisOrigin } : {})
   }
 }
 
@@ -240,11 +243,14 @@ export function sanitizePlan(candidate = {}) {
 export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategories = []) {
   const source = candidate && typeof candidate === 'object' ? candidate : {}
   const cashFlow = { ...defaultCashFlow }
+  const analyses = sanitizeStatementHistory(source.statementAnalyses)
+  if (analyses.length) cashFlow.statementAnalyses = analyses
   cashFlow.ledger = sanitizeLedger(source.ledger)
   cashFlow.commitments = sanitizeCommitments(source.commitments)
   cashFlow.consortia = sanitizeConsortia(source.consortia)
   cashFlow.annualGoals = sanitizeAnnualRows(source.annualGoals)
   cashFlow.nonFinancialAssets = sanitizeAnnualRows(source.nonFinancialAssets)
+  if (typeof source.includeRealEstateInSolvency === 'boolean') cashFlow.includeRealEstateInSolvency = source.includeRealEstateInSolvency
   cashFlow.finappMigration = sanitizeMigration(source.finappMigration)
   cashFlow.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
 

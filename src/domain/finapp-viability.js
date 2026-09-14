@@ -4,6 +4,7 @@ import { calculateMultiCurrencyCashFlow } from './cash-flow.js'
 import { prepareCommitmentSchedules } from './financial-calendar.js'
 import { consortiumSchedule, sanitizeConsortia, validateConsortiumAsOf } from './consortium.js'
 import { nonFinancialValue } from './annual-planning.js'
+import { propertyValues, assessPropertySolvency } from './property-solvency.js'
 import { convertCurrency, sanitizeExchangeRates } from '../shared/exchange-rates.js'
 import { categoryById } from '../data/cash-flow-categories.js'
 import { openSalaryItems, salaryEndMessage } from './cash-flow-checks.js'
@@ -52,9 +53,11 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   const convert = (amount, currency) => convertCurrency(amount, currency, state.currency, state.exchangeRates)
   const retirement = state.cashFlow.retirementMonth || state.plan.retirementMonth
   const issues = []
+  const confirmations = [], confirmationDetails = [], notices = []
+  const confirm = (field, message) => { confirmations.push(message); confirmationDetails.push({ field, message }); issues.push(message) }
   if (state.plan.decumulation?.annualFee > 0) issues.push('Há custo anual configurado no simulador legado. A avaliação anual não o aplica. Incorpore esse desembolso no orçamento e revise as premissas antes de concluir cobertura.')
   if (settings.taxRegime === 'none' && state.plan.decumulation?.withdrawalTax > 0) issues.push('Há imposto de resgate configurado no simulador legado, mas nenhum regime tributário está ativo na avaliação anual. Configure o regime tributário nas premissas ou incorpore o imposto manualmente no orçamento.')
-  if (!settings.openingConfirmed) issues.push('Confirme que o patrimônio informado corresponde aos saldos de abertura do ano-base.')
+  if (!settings.openingConfirmed) confirm('openingConfirmed', 'Confirme que o patrimônio informado corresponde aos saldos de abertura do ano-base.')
   if (!retirement) issues.push('Confirme o mês da aposentadoria para avaliar especificamente a fase posterior.')
   const openSalaries = openSalaryItems(state.cashFlow, { endMonth: horizon.endMonth })
   if (openSalaries.length) issues.push(salaryEndMessage(openSalaries))
@@ -65,12 +68,12 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   const releaseMap = new Map(settings.releases.map(row => [row.investmentId, row.year]))
   if (releaseMap.size !== settings.releases.length || [...releaseMap.keys()].some(id => !state.plan.investments.some(item => item.id === id && item.liquidity !== 'available'))) throw new Error('Liberação duplicada ou investimento restrito não encontrado.')
   const cohorts = state.plan.investments.filter(item => item.liquidity !== 'available').map(item => ({ balance: item.amount, year: releaseMap.get(item.id), pension: item.assetClass === 'pension', id: `opening:${item.id}`, name: item.name }))
-  if (cohorts.some(row => row.year === undefined)) issues.push('Há saldos restritos sem ano de liberação. Não serão usados para pagar despesas.')
+  if (cohorts.some(row => row.balance > 0 && row.year === undefined)) notices.push('Há saldos restritos sem ano de liberação. Não serão usados para pagar despesas.')
   if (cohorts.some(row => row.year < startYear)) throw new Error('Liberação anterior ao ano-base: atualize a liquidez e o saldo atual na Carteira.')
   const pensionItems = state.cashFlow.items.filter(item => item.type === 'expense' && item.frequency === 'monthly' && categoryById(item.categoryId, state.customCategories)?.budgetGroup === 'pension' && item.recordKind !== 'actual' && item.source !== 'txt')
-  if (pensionItems.length && !settings.pensionConfirmed) issues.push('Confirme a origem das contribuições: crédito externo ao caixa ou transferência financiada pelo orçamento.')
+  if (pensionItems.length && !settings.pensionConfirmed) confirm('pensionConfirmed', 'Confirme a origem das contribuições: crédito externo ao caixa ou transferência financiada pelo orçamento.')
   const pensions = pensionItems.map(item => ({ balance: 0, year: item.endDate ? Number(item.endDate.slice(0, 4)) : null, pension: true, item, id: `pension:${item.id}`, name: item.description || 'Previdência' }))
-  if (pensions.some(row => !row.year)) issues.push('Previdência sem ano final permanece restrita durante todo o horizonte.')
+  if (pensions.some(row => row.item.amount > 0 && !row.year)) notices.push('Previdência sem ano final permanece restrita durante todo o horizonte.')
   const debtSchedules = prepareCommitmentSchedules(state.cashFlow.commitments)
   const consortia = sanitizeConsortia(state.cashFlow.consortia)
   for (const item of consortia) validateConsortiumAsOf(item, today.toISOString().slice(0, 7))
@@ -115,17 +118,17 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
     }, 0)
     const assets = nonFinancialValue(state.cashFlow.nonFinancialAssets, `${year}-12`, state.currency, state.exchangeRates) + consortiumRows.reduce((sum, data) => sum + convert(data.rows.find(row => row.month === `${year}-12`)?.restrictedEquity || 0, data.item.currency), 0)
     const pensionFlows = pensions.map(pension => ({ id: pension.id, name: pension.name, amount: contributions.get(pension) || 0, releaseYear: pension.year }))
-    rows.push({ year: String(year), income, costs, goals, pensionCredits, pensionFlows, assets, liabilities, ...(breakdown ? { breakdown: finishAnnualBreakdown(breakdown) } : {}) })
+    rows.push({ year: String(year), income, costs, goals, pensionCredits, pensionFlows, assets, liabilities, ...propertyValues(state.cashFlow, `${year}-12`, state.currency, state.exchangeRates), ...(breakdown ? { breakdown: finishAnnualBreakdown(breakdown) } : {}) })
   }
   const openingFinancial = state.plan.investments.length ? state.plan.investments.reduce((sum, row) => sum + row.amount, 0) : state.plan.currentAssets
   const openingLiquid = state.plan.investments.filter(row => row.liquidity === 'available').reduce((sum, row) => sum + row.amount, 0)
   const investmentModel = { plan: { investments: state.plan.investments, currentAssets: state.plan.currentAssets, annualRealReturn: state.plan.annualRealReturn, annualInflation: state.plan.annualInflation }, openingYearPeriod: settings.openingYearPeriod, releases: settings.releases, currency: state.currency, taxRegime: settings.taxRegime, manualTaxRate: settings.manualTaxRate }
-  const projected = projectAnnualInvestments(rows, investmentModel, rows.map(() => annualReturn + returnShift))
+  const projected = assessPropertySolvency(projectAnnualInvestments(rows, investmentModel, rows.map(() => annualReturn + returnShift)), state.cashFlow.includeRealEstateInSolvency)
   if (hasInvestmentIncome && openingFinancial > 0) issues.push('Há receitas previstas na categoria Rendimentos. Confira se vêm da carteira já incluída no patrimônio: o retorno global já é capitalizado e somar o mesmo ganho às receitas duplica o rendimento. Os lançamentos foram preservados para revisão.')
   const failed = row => row.netFinancial < -0.005 || row.liquidAssets < -0.005
   const postRetirement = retirement ? projected.filter(row => row.year >= retirement.slice(0, 4)) : []
-  if (!postRetirement.length) issues.push('A aposentadoria não está dentro do horizonte avaliado.')
+  if (retirement && !postRetirement.length) issues.push('A aposentadoria não está dentro do horizonte avaliado.')
   const firstFailure = projected.find(failed)
   const firstRetirementFailure = postRetirement.find(failed)
-  return { rows: projected, investmentModel, settings, horizon, retirement, issues, firstFailure, firstRetirementFailure, viable: !issues.length && !firstFailure && postRetirement.length > 0, openingFinancial, openingLiquid }
+  return { rows: projected, investmentModel, settings, horizon, retirement, issues, confirmations, confirmationDetails, notices, pendingIssues: issues.filter(issue => !confirmations.includes(issue)), firstFailure, firstRetirementFailure, viable: !issues.length && !firstFailure && postRetirement.length > 0, openingFinancial, openingLiquid }
 }

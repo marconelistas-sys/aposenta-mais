@@ -56,7 +56,7 @@ export function appLayout(content, pathname) {
     ? escapeHtml(authState.user?.email || 'Conta conectada')
     : 'Entrar'
   const footerDataMessage = authState.authenticated && syncState.exists
-    ? 'Cópia remota ativa. Gerencie ou exclua em Perfil e dados.'
+    ? (authState.storageProvider || authState.provider) === 'local' ? 'Cópia no banco deste computador. Atualize, restaure ou exclua em Perfil e dados.' : 'Cópia remota ativa. Gerencie ou exclua em Perfil e dados.'
     : 'Plano salvo neste navegador. Sem envio financeiro automático.'
 
   return `

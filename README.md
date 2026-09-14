@@ -2,6 +2,17 @@
 
 MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, prazo e premissas financeiras em uma projeção clara de renda mensal.
 
+## Início local
+
+Use Node.js 24 ou superior e `npm run dev`. Abra http://127.0.0.1:4173. Entre inicialmente pelo Supabase. No Perfil, ative banco e login locais, defina uma senha local e guarde o código de recuperação. Depois escolha Supabase ou SQLite como destino da sincronização manual.
+
+- [Banco local, backup e extratos](docs/product/banco-local-e-extratos.md)
+- [Migrar Supabase para SQLite](docs/product/migracao-supabase-sqlite.md)
+- [Duas sprints de usabilidade](docs/product/sprints-usabilidade-extratos-local.md)
+- [Ciclo de três sprints: revisão, cenários e cópias](docs/product/proximas-tres-sprints.md)
+- [Titularidade, histórico de extratos e recorrências](docs/product/sprints-titularidade-historico-recorrencias.md)
+- [Imóveis, solvência e usabilidade dos gráficos](docs/product/sprints-imoveis-solvencia-usabilidade.md)
+
 ## O que está pronto
 
 - Retorno real por ano em cada investimento, com prioridade sobre a taxa habitual e aplicação na acumulação, projeção anual e risco.
@@ -70,7 +81,7 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 
 ## Como executar
 
-Você precisa do Node.js 20 ou superior.
+Você precisa do Node.js 24 ou superior.
 
 ```bash
 ./run-app.sh
@@ -80,9 +91,9 @@ Abra `http://127.0.0.1:4173`.
 
 Para atualizar retornos, abra Carteira, escolha Editar e avance até Rendimento. Em “Ajustar retorno real por ano”, informe uma linha por ano, por exemplo `2027: 4,5%`. O ajuste vale apenas naquele ano. Anos sem ajuste usam a taxa habitual do investimento. Remover a linha restaura essa regra. Os ajustes não alteram o saldo atual. [Regras de cálculo e validação](docs/product/retornos-anuais-sustentabilidade.md).
 
-O script valida o Node.js, o npm, o arquivo `.env` e as variáveis do Supabase antes de iniciar o servidor. Como alternativa, execute `npm run dev` diretamente.
+O script valida o Node.js e o npm antes de iniciar o servidor. Configure a URL e a chave pública Supabase no `.env` para o primeiro acesso. Como alternativa, execute `npm run dev` diretamente.
 
-Para ativar o Supabase Auth no plano gratuito, copie `.env.example` para `.env` e preencha a URL e a chave publicável do projeto. O comando de desenvolvimento carrega o arquivo automaticamente.
+Para configurar o acesso inicial, copie `.env.example` para `.env` e preencha a URL e a chave publicável do projeto. O comando de desenvolvimento carrega o arquivo automaticamente.
 
 ```bash
 npm run dev

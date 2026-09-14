@@ -50,11 +50,18 @@ export function bindPlanningChartInteractions(root) {
       cursor.setAttribute('x2', x)
     } else cursor.setAttribute('visibility', 'hidden')
   }
-  const select = (chart, index, followKeyboard = false) => {
+  const select = (chart, index, followKeyboard = false, syncPeers = true) => {
     const count = Number(chart.dataset.chartCount)
     if (!Number.isInteger(index) || !Number.isInteger(count) || count <= 0) return
     index = Math.min(count - 1, Math.max(0, index))
     show(chart, index, followKeyboard)
+    const group = chart.closest?.('[data-cash-flow-line-view]')
+    if (group) {
+      chart.dataset.chartSelectedIndex = String(index)
+      if (syncPeers) for (const peer of group.querySelectorAll('[data-planning-chart]')) {
+        if (peer !== chart && Number(peer.dataset.chartCount) === count) select(peer, index, followKeyboard, false)
+      }
+    }
     if (chart.dataset.chartDrilldown === undefined) return
     const panel = chart.querySelector('[data-chart-detail-panel]')
     const content = panel?.querySelector('[data-chart-detail-content]')
@@ -99,7 +106,7 @@ export function bindPlanningChartInteractions(root) {
       return
     }
     const svg = event.target.closest?.('svg'), chart = chartFor(svg)
-    if (chart?.dataset.chartDrilldown !== undefined) select(chart, planningChartIndex(event.clientX, svg.getBoundingClientRect(), Number(chart.dataset.chartCount)))
+    if (chart && (chart.dataset.chartDrilldown !== undefined || chart.closest?.('[data-cash-flow-line-view]'))) select(chart, planningChartIndex(event.clientX, svg.getBoundingClientRect(), Number(chart.dataset.chartCount)))
   }
   const change = event => {
     const year = event.target.closest?.('[data-chart-year]'), chart = chartFor(year)

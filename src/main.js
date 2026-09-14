@@ -78,6 +78,7 @@ import { parseFinappImport, mergeFinappImport } from './domain/finapp-import.js'
 import { renderFinappReconciliation } from './features/profile/finapp-review.js'
 import { bindPlanningChartInteractions } from './shared/planning-chart-interactions.js'
 import { cashFlowChartView } from './shared/cash-flow-line-chart.js'
+import { savePropertySolvencyPreference } from './app/property-solvency.js'
 
 const finappPreviews = new WeakMap()
 import { saveAnnualPlanning } from './features/plan/annual-planning.js'
@@ -104,12 +105,33 @@ import { categoryById } from './data/cash-flow-categories.js'
 import { loadExchangeRates } from './app/exchange-rate-state.js'
 import { inspectStatementText, reviewStatementImport } from './domain/statement-import.js'
 
+import { configureLocalAccess, selectStorageProvider } from './app/auth-state.js'
+import { syncConsentVersion } from './shared/sync-contract.js'
+import { scenarioEditor, simulationContext, simulationCashFlow, simulationInputFromData, clearScenarioEditor, editScenario } from './features/simulations/scenario-editor.js'
+import { simulationSchedules } from './features/simulations/simulations.js'
+import { updateScenario } from './app/state.js'
+import { inspectSavedPlan, clearSyncComparison } from './features/profile/sync-comparison.js'
+import { confirmProjectionAssumption } from './app/projection-confirmations.js'
+import { statementHistoryView, resetStatementHistoryView } from './features/statements/history.js'
+import { saveStatementAnalysis, deleteStatementAnalysis, applyStatementRecurrences } from './app/statement-history.js'
+import { compareStatementPeriods } from './domain/statement-history.js'
+import { budgetOwnerView } from './shared/household-owner.js'
+import { renderStatements, readStatementAnalysis } from './features/statements/statements.js'
+
 const app = document.querySelector('#app')
 const toastRegion = document.querySelector('#toast-region')
 let statementReviewState = null
+const storageCopyLabel = () => (authState.storageProvider || authState.provider) === 'local' ? 'cópia no banco deste computador' : 'cópia remota'
 
 function switchSessionPlan() {
+  cashFlowChartView.selectedYear = null
+  cashFlowChartView.basis = 'real'
+  timelineView.selectedYear = null
   cancelRisk(true)
+  clearScenarioEditor()
+  budgetOwnerView.selected = 'all'
+  resetStatementHistoryView()
+  clearSyncComparison()
   consortiumView.preview = null
   closeLocalPlan()
   statementReviewState = null
@@ -134,6 +156,7 @@ const routes = {
   '/plano': renderPlan,
   '/carteira': renderInvestments,
   '/patrimonio': renderWealth,
+  '/extratos': renderStatements,
   '/fluxo-caixa': () => renderCashFlow(statementReviewView()),
   '/simulacoes': renderSimulations,
   '/conteudos': renderContent,
@@ -167,10 +190,10 @@ function restoreSimulationForm(values) {
   }
 }
 
-function render({ focusMain = false } = {}) {
+function render({ focusMain = false, resetSimulation = false } = {}) {
   if (!sessionReady) { app.innerHTML = '<main class="page-shell"><p role="status">Verificando a sessão antes de abrir seus dados…</p></main>'; return }
   const pathname = currentPath()
-  const simulationValues = pathname === '/simulacoes' ? captureSimulationForm() : null
+  const simulationValues = pathname === '/simulacoes' && !resetSimulation ? captureSimulationForm() : null
   const selectedRenderer = pathname === '/inicio' || !canRenderFinancialPage(pathname) ? renderWelcome : pathname.startsWith('/construir/') ? () => renderGuidedPlan(pathname.split('/')[2]) : routes[pathname] || renderDashboard
   const pageRenderer = state.dataDeleted && canRenderFinancialPage(pathname) && !isPublicPage(pathname) && pathname !== '/perfil'
     ? renderDeletedState
@@ -200,6 +223,7 @@ function render({ focusMain = false } = {}) {
 const trackedProductImpressions = new Set()
 
 function navigate(href) {
+  if (href !== '/simulacoes') clearScenarioEditor()
   if (currentPath() !== href) window.history.pushState({}, '', href)
   render({ focusMain: true })
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -218,20 +242,7 @@ function showToast(message) {
 }
 
 function simulationInputFromForm(form) {
-  const data = new FormData(form)
-  return {
-    currentAge: parseNumber(data.get('currentAge')),
-    retirementAge: parseNumber(data.get('retirementAge')),
-    retirementMonth: parseNumber(data.get('currentAge')) === state.plan.currentAge && parseNumber(data.get('retirementAge')) === state.plan.retirementAge ? state.plan.retirementMonth : null,
-    currentAssets: parseNumber(data.get('currentAssets')),
-    monthlyContribution: parseNumber(data.get('monthlyContribution')),
-    targetMonthlyIncome: parseNumber(data.get('targetMonthlyIncome')),
-    expectedMonthlyBenefit: parseNumber(data.get('expectedMonthlyBenefit')),
-    annualRealReturn: parseNumber(data.get('annualRealReturn')) / 100,
-    annualInflation: parseNumber(data.get('annualInflation')) / 100,
-    annualWithdrawalRate: parseNumber(data.get('annualWithdrawalRate')) / 100,
-    investments: state.plan.investments
-  }
+  return simulationInputFromData(new FormData(form))
 }
 
 function showInvestmentStep(form, step) {
@@ -330,6 +341,7 @@ function cashItemInputFromForm(form) {
     type: category.type,
     categoryId: category.id,
     description: form.elements.namedItem('description').value,
+    householdOwner: form.elements.namedItem('householdOwner')?.value || 'unspecified',
     amount: parseNumber(form.elements.namedItem('amount').value),
     currency: form.elements.namedItem('currency').value,
     frequency: recordKind === 'actual' ? 'occasional' : form.elements.namedItem('frequency').value,
@@ -356,9 +368,9 @@ function openCashItemDialog(id) {
   const form = dialog?.querySelector('[data-cash-item-edit-form]')
   if (!item || !dialog || !form) throw new TypeError('Lançamento não encontrado.')
   form.elements.namedItem('itemId').value = item.id
-  for (const field of ['categoryId', 'description', 'amount', 'currency', 'frequency', 'startDate', 'endDate', 'endMode', 'recordKind']) {
+  for (const field of ['categoryId', 'description', 'amount', 'currency', 'frequency', 'startDate', 'endDate', 'endMode', 'recordKind', 'householdOwner']) {
     const input = form.elements.namedItem(field)
-    if (input) input.value = item[field] || ''
+    if (input) input.value = item[field] || (field === 'householdOwner' ? 'unspecified' : '')
   }
   const imported = item.source === 'txt'
   form.elements.namedItem('recordKind').disabled = imported
@@ -407,6 +419,19 @@ function exportData() {
 
 document.addEventListener('click', async (event) => {
   if (!sessionReady) { event.preventDefault(); return }
+  const solvencyYear = event.target.closest('[data-solvency-year]')
+  if (solvencyYear) {
+    const view = solvencyYear.closest('[data-cash-flow-line-view]')
+    const control = view?.querySelector('[data-chart-year]')
+    const index = Array.from(control?.options || []).findIndex(option => option.textContent.startsWith(solvencyYear.dataset.solvencyYear))
+    if (index >= 0) {
+      control.value = String(index)
+      control.dispatchEvent(new Event('change', { bubbles: true }))
+      control.focus({ preventScroll: true })
+      control.scrollIntoView({ block: 'center' })
+    }
+    return
+  }
   const annualAction = event.target.closest('[data-annual-edit], [data-annual-remove]')
   if (annualAction) {
     const kind = annualAction.dataset.annualKind
@@ -419,7 +444,16 @@ document.addEventListener('click', async (event) => {
     } else {
       const form = document.querySelector(`[data-annual-planning="${kind}"]`)
       if (!form) return
-      for (const [key, value] of Object.entries(row)) if (form.elements.namedItem(key)) form.elements.namedItem(key).value = key === 'realGrowth' ? value * 100 : value
+      form.reset()
+      for (const [key, value] of Object.entries(row)) {
+        const field = form.elements.namedItem(key)
+        if (field && field.type !== 'checkbox') field.value = key === 'realGrowth' ? value * 100 : value
+      }
+      if (kind === 'nonFinancialAssets') {
+        form.elements.namedItem('category').value = row.category || 'unclassified'
+        form.elements.namedItem('includeInSolvency').checked = row.includeInSolvency !== false
+        form.querySelector('[data-property-setting]').hidden = row.category !== 'real-estate'
+      }
       form.closest('details').open = true
       form.scrollIntoView({ block: 'center' })
     }
@@ -607,15 +641,16 @@ document.addEventListener('click', async (event) => {
   }
 
   if (event.target.closest('[data-sync-pull]')) {
-    if (!window.confirm('Substituir o plano, o fluxo de caixa e os cenários locais pela cópia remota?')) return
+    if (!window.confirm(`Substituir o plano, o fluxo de caixa e os cenários do navegador pela ${storageCopyLabel()}?`)) return
     try {
       const remote = await loadRemoteState()
       if (!state.dataDeleted) dataHistory.checkpoint(state)
       replaceFinancialData(remote.state)
+      clearSyncComparison()
       recordDataOperation('restore')
       await loadSyncState()
       render()
-      showToast('Cópia remota aplicada neste dispositivo.')
+      showToast(`${storageCopyLabel()} aplicada neste navegador.`)
     } catch (error) {
       recordDataOperation('restore', 'failure')
       showToast(error.message)
@@ -623,20 +658,30 @@ document.addEventListener('click', async (event) => {
     return
   }
 
+  const compareCopyButton = event.target.closest('[data-compare-saved-plan]')
+  if (compareCopyButton) {
+    compareCopyButton.disabled = true
+    try { await inspectSavedPlan(); render() }
+    catch (error) { showToast(error.message) }
+    finally { compareCopyButton.disabled = false }
+    return
+  }
   if (event.target.closest('[data-sync-refresh]')) {
+    clearSyncComparison()
     await loadSyncState()
     render()
-    showToast(syncState.available ? 'Estado da cópia remota atualizado.' : syncState.error)
+    showToast(syncState.available ? `Estado da ${storageCopyLabel()} atualizado.` : syncState.error)
     return
   }
 
   if (event.target.closest('[data-sync-delete]')) {
-    if (!window.confirm('Excluir de forma irreversível a cópia financeira armazenada no Supabase? Os dados locais serão mantidos.')) return
+    if (!window.confirm(`Excluir a ${storageCopyLabel()}? Os dados do navegador serão mantidos.`)) return
     try {
       await deleteRemoteState()
+      clearSyncComparison()
       recordDataOperation('remote_delete')
       render()
-      showToast('Cópia remota e consentimento excluídos. Seus dados locais foram mantidos.')
+      showToast(`${storageCopyLabel()} e consentimento excluídos. Os dados do navegador foram mantidos.`)
     } catch (error) {
       showToast(error.message)
     }
@@ -747,12 +792,39 @@ document.addEventListener('click', async (event) => {
     return
   }
 
+  const openAnalysis = event.target.closest('[data-open-analysis]')
+  const deleteAnalysis = event.target.closest('[data-delete-analysis]')
+  if (openAnalysis || deleteAnalysis) {
+    try {
+      if (openAnalysis) statementHistoryView.activeId = openAnalysis.dataset.openAnalysis
+      else {
+        if (!window.confirm('Excluir este resumo do histórico? Os lançamentos já aplicados ao orçamento serão mantidos.')) return
+        deleteStatementAnalysis(deleteAnalysis.dataset.deleteAnalysis)
+        if (statementHistoryView.activeId === deleteAnalysis.dataset.deleteAnalysis) statementHistoryView.activeId = null
+        statementHistoryView.comparison = null
+      }
+      render()
+    } catch (error) { showToast(error.message) }
+    return
+  }
+  const editScenarioButton = event.target.closest('[data-edit-scenario]')
+  if (editScenarioButton || event.target.closest('[data-cancel-scenario-edit]')) {
+    try {
+      if (editScenarioButton) editScenario(editScenarioButton.dataset.editScenario)
+      else clearScenarioEditor()
+      render({ resetSimulation: true })
+      document.querySelector('[name="scenarioName"]')?.focus()
+    } catch (error) { showToast(error.message) }
+    return
+  }
   if (event.target.closest('[data-apply-simulation]')) {
     const form = document.querySelector('[data-simulation-form]')
+    if (!form.reportValidity()) return
     try {
       const plan = simulationInputFromForm(form)
-      projectRetirementWithSchedules(plan, currentRetirementSchedules())
-      updatePlan(plan)
+      projectRetirementWithSchedules(plan, simulationSchedules(plan))
+      if (scenarioEditor.scenario) replaceFinancialData({ ...state, currency: simulationContext().currency, cashFlow: simulationCashFlow(plan), plan })
+      else updatePlan(plan)
       navigate('/')
       showToast('Simulação aplicada ao plano principal.')
     } catch (error) {
@@ -764,11 +836,15 @@ document.addEventListener('click', async (event) => {
   if (event.target.closest('[data-save-scenario]')) {
     const form = document.querySelector('[data-simulation-form]')
     const name = new FormData(form).get('scenarioName')?.trim()
+    if (!form.reportValidity()) return
     try {
       const plan = simulationInputFromForm(form)
-      projectRetirementWithSchedules(plan, currentRetirementSchedules())
-      addScenario(name || `Cenário ${state.scenarios.length + 1}`, plan)
-      render()
+      projectRetirementWithSchedules(plan, simulationSchedules(plan))
+      const context = { ...simulationContext(), cashFlow: simulationCashFlow(plan) }
+      if (scenarioEditor.scenario) updateScenario(scenarioEditor.scenario.id, name || scenarioEditor.scenario.name, plan, context)
+      else addScenario(name || `Cenário ${state.scenarios.length + 1}`, plan, context)
+      clearScenarioEditor()
+      render({ resetSimulation: true })
       showToast('Cenário salvo para comparação.')
     } catch (error) {
       showToast(error.message)
@@ -779,7 +855,8 @@ document.addEventListener('click', async (event) => {
   const removeScenarioButton = event.target.closest('[data-remove-scenario]')
   if (removeScenarioButton) {
     removeScenario(removeScenarioButton.dataset.removeScenario)
-    render()
+    if (scenarioEditor.scenario?.id === removeScenarioButton.dataset.removeScenario) clearScenarioEditor()
+    render({ resetSimulation: true })
     showToast('Cenário excluído.')
     return
   }
@@ -859,6 +936,11 @@ document.addEventListener('click', async (event) => {
 
 let contributionImpactTimer = null
 
+document.addEventListener('reset', event => {
+  const form = event.target
+  if (form.matches?.('[data-annual-planning="nonFinancialAssets"]')) form.querySelector('[data-property-setting]').hidden = false
+})
+
 // Reads the pre-drag value from the slider's defaultValue (set by the last
 // full render) rather than state.plan.monthlyContribution, which this same
 // handler already mutates on every tick — so it can't serve as the baseline.
@@ -899,15 +981,32 @@ document.addEventListener('input', (event) => {
 })
 
 document.addEventListener('change', async (event) => {
-  if (event.target.matches('[data-cash-flow-price-basis]')) {
+  if (event.target.matches('[data-recurring-choice]')) { const fields = event.target.closest('section').querySelector('[data-recurring-fields]'); fields.disabled = !event.target.checked; return }
+  if (event.target.matches('[data-budget-owner]')) { budgetOwnerView.selected = event.target.value; render(); return }
+  if (event.target.matches('[name="householdOwner"]')) { guideBudgetForm(event.target.closest('form'), state.customCategories); return }
+  if (event.target.matches('[data-login-provider]')) { authState.loginProvider = event.target.value; return }
+
+  if (event.target.matches('[data-property-solvency], [data-cash-flow-price-basis]')) {
     const yearControl = event.target.closest('[data-cash-flow-line-view]')?.querySelector('[data-chart-year]')
     const selectedYear = yearControl?.selectedOptions[0]?.textContent.match(/^\d{4}/)?.[0]
-    if (selectedYear) timelineView.selectedYear = selectedYear
-    cashFlowChartView.basis = event.target.value === 'nominal' ? 'nominal' : 'real'
+    if (selectedYear) { timelineView.selectedYear = selectedYear; cashFlowChartView.selectedYear = selectedYear }
+    const propertyControl = event.target.matches('[data-property-solvency]')
+    if (propertyControl) {
+      try { savePropertySolvencyPreference(event.target.checked) }
+      catch { event.target.checked = state.cashFlow.includeRealEstateInSolvency !== false; showToast('Não foi possível salvar a opção de imóveis. Tente novamente.'); return }
+    } else cashFlowChartView.basis = event.target.value === 'nominal' ? 'nominal' : 'real'
     render()
-    const control = app.querySelector('[data-cash-flow-price-basis]')
+    const control = app.querySelector(propertyControl ? '[data-property-solvency]' : '[data-cash-flow-price-basis]')
     control?.focus({ preventScroll: true })
+    if (propertyControl) showToast('Opção de imóveis salva. Solvência atualizada, caixa disponível preservado.')
     return
+  }
+  if (event.target.matches('[data-chart-year]')) {
+    const year = event.target.selectedOptions[0]?.textContent.match(/^\d{4}/)?.[0]
+    if (year) { cashFlowChartView.selectedYear = year; timelineView.selectedYear = year }
+  }
+  if (event.target.matches('[data-annual-planning="nonFinancialAssets"] [name="category"]')) {
+    event.target.form.querySelector('[data-property-setting]').hidden = event.target.value !== 'real-estate'
   }
   const importForm = event.target.closest('[data-finapp-import]')
   if (importForm) {
@@ -1017,6 +1116,97 @@ document.addEventListener('change', async (event) => {
 })
 
 document.addEventListener('submit', async (event) => {
+  const recurrenceForm = event.target.closest('[data-apply-recurrences]')
+  if (recurrenceForm) {
+    event.preventDefault()
+    try {
+      if (state.valuesHidden) throw new Error('Mostre os valores antes de aplicar as sugestões.')
+      const data = new FormData(recurrenceForm)
+      if (data.get('confirmed') !== 'on') throw new Error('Confirme a revisão dos itens selecionados.')
+      const candidates = [...recurrenceForm.querySelectorAll('[data-recurring-choice]:checked')].map(input => {
+        const index = Number(input.dataset.recurringChoice)
+        return { index, ...Object.fromEntries(['description', 'categoryId', 'householdOwner', 'startDate', 'endDate'].map(key => [key, data.get(`${index}.${key}`)])), amount: Number(data.get(`${index}.amount`)) }
+      })
+      const count = applyStatementRecurrences(data.get('analysisId'), candidates)
+      render()
+      showToast(`${count} lançamento(s) planejado(s) adicionado(s). Confira o orçamento.`)
+    } catch (error) { showFormError(recurrenceForm, error.message) }
+    return
+  }
+  const comparisonForm = event.target.closest('[data-compare-analyses]')
+  if (comparisonForm) {
+    event.preventDefault()
+    try {
+      const data = new FormData(comparisonForm)
+      const ids = [data.get('first'), data.get('second')]
+      compareStatementPeriods(...ids.map(id => (state.cashFlow.statementAnalyses || []).find(row => row.id === id)))
+      statementHistoryView.comparison = ids
+      render()
+    } catch (error) { showFormError(comparisonForm, error.message) }
+    return
+  }
+
+  const confirmationForm = event.target.closest('[data-confirm-projection]')
+  if (confirmationForm) {
+    event.preventDefault()
+    try {
+      const data = new FormData(confirmationForm)
+      confirmProjectionAssumption(data.get('field'), data.get('confirmed') === 'on')
+      render()
+      showToast('Premissa confirmada. Avaliação recalculada.')
+    } catch (error) { showFormError(confirmationForm, error.message) }
+    return
+  }
+
+  const settingsForm = event.target.closest('[data-enable-local-form], [data-storage-provider-form]')
+  if (settingsForm) {
+    event.preventDefault()
+    const generation = ownedStorage.generation, owner = ownedStorage.owner
+    const values = new FormData(settingsForm)
+    const button = settingsForm.querySelector('button[type="submit"]')
+    const feedback = document.querySelector('[data-local-settings-feedback]')
+    button.disabled = true
+    try {
+      let result
+      if (settingsForm.matches('[data-enable-local-form]')) {
+        if (values.get('password') !== values.get('passwordConfirmation')) throw new Error('As senhas locais não são iguais.')
+        result = await configureLocalAccess({ password: values.get('password'), acceptedSyncConsent: values.get('consent') === 'on', consentVersion: syncConsentVersion, state }, owner)
+      } else result = await selectStorageProvider(values.get('provider'), owner)
+      if (ownedStorage.generation !== generation) return
+      Object.assign(authState, result)
+      clearSyncComparison()
+      resetSyncState()
+      await loadSyncState()
+      if (ownedStorage.generation !== generation) return
+      render()
+      const output = document.querySelector('[data-local-settings-feedback]')
+      if (output) output.textContent = result.message || 'Destino da sincronização atualizado. Nenhuma cópia existente foi substituída.'
+    } catch (error) { if (ownedStorage.generation === generation && feedback?.isConnected) feedback.textContent = error.message }
+    finally { button.disabled = false }
+    return
+  }
+
+  const bankAnalysisForm = event.target.closest('[data-bank-analysis]')
+  if (bankAnalysisForm) {
+    event.preventDefault()
+    const result = document.querySelector('[data-bank-analysis-result]')
+    const generation = ownedStorage.generation
+    const button = bankAnalysisForm.querySelector('button[type="submit"]')
+    button.disabled = true
+    result.textContent = 'Lendo extrato…'
+    try {
+      if (state.valuesHidden) throw new Error('Ative a exibição de valores para analisar o extrato.')
+      const analysis = await readStatementAnalysis(new FormData(bankAnalysisForm))
+      if (generation !== ownedStorage.generation || !result.isConnected || state.valuesHidden) return
+      saveStatementAnalysis(analysis, generation)
+      statementHistoryView.activeId = analysis.id
+      render()
+      showToast('Resumo salvo no histórico. O orçamento não foi alterado.')
+    } catch (error) { if (generation === ownedStorage.generation && result.isConnected) result.textContent = error.message }
+    finally { button.disabled = false }
+    return
+  }
+
   if (!sessionReady) { event.preventDefault(); return }
   const viabilityForm = event.target.closest('[data-viability]')
   if (viabilityForm) {
@@ -1305,17 +1495,18 @@ document.addEventListener('submit', async (event) => {
     event.preventDefault()
     const accepted = new FormData(syncForm).get('acceptedSyncConsent') === 'on'
     if (!accepted) {
-      showToast('Confirme o consentimento antes de criar a cópia remota.')
+      showToast(`Confirme o consentimento antes de criar a ${storageCopyLabel()}.`)
       return
     }
-    if (syncState.exists && !window.confirm('Substituir a cópia remota pelos dados atuais deste dispositivo?')) return
+    if (syncState.exists && !window.confirm(`Substituir a ${storageCopyLabel()} pelos dados atuais deste navegador?`)) return
     const submitButton = syncForm.querySelector('[type="submit"]')
     submitButton.disabled = true
     try {
       await saveRemoteState(state)
+      clearSyncComparison()
       recordDataOperation('upload')
       render()
-      showToast('Cópia remota atualizada com seu consentimento.')
+      showToast(`${storageCopyLabel()} atualizada com seu consentimento.`)
     } catch (error) {
       submitButton.disabled = false
       showToast(error.message)
@@ -1392,7 +1583,7 @@ document.addEventListener('submit', async (event) => {
     try {
       let result
       if (action === 'login') {
-        await login({ email: data.get('email'), password: data.get('password') })
+        await login({ email: data.get('email'), password: data.get('password'), provider: data.get('provider') || 'supabase' })
         switchSessionPlan()
         statementReviewState = null
         try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
@@ -1410,7 +1601,10 @@ document.addEventListener('submit', async (event) => {
         })
         trackProductEvent('register_success')
       }
-      if (action === 'recover') result = await recoverAccount({ email: data.get('email') })
+      if (action === 'recover') {
+        if ((authState.provider === 'local' || authState.loginProvider === 'local') && data.get('password') !== data.get('passwordConfirmation')) throw new Error('As senhas informadas não são iguais.')
+        result = await recoverAccount({ email: data.get('email'), recoveryCode: data.get('recoveryCode'), password: data.get('password'), provider: authState.provider === 'local' || authState.loginProvider === 'local' ? 'local' : 'supabase' })
+      }
       if (action === 'password') {
         if (data.get('password') !== data.get('passwordConfirmation')) {
           throw new Error('As senhas informadas não são iguais.')
@@ -1442,8 +1636,8 @@ document.addEventListener('submit', async (event) => {
 
   try {
     const simulationPlan = simulationInputFromForm(form)
-    const result = projectRetirementWithSchedules(simulationPlan, currentRetirementSchedules())
-    resultContainer.innerHTML = renderSimulationResult(result, simulationPlan)
+    const result = projectRetirementWithSchedules(simulationPlan, simulationSchedules(simulationPlan))
+    resultContainer.innerHTML = renderSimulationResult(result, simulationPlan, simulationContext().currency)
     resultContainer.closest('.simulation-result')?.scrollIntoView({
       behavior: 'smooth',
       block: 'start'

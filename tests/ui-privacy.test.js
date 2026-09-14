@@ -75,7 +75,7 @@ test('fluxo de caixa explica dados locais e oculta valores', () => {
   assert.match(html, /Cálculo local, sem envio automático/)
   assert.match(html, /Receitas eventuais não foram usadas/)
   assert.match(html, /R\$ •••••/)
-  assert.match(html, /Importar extrato TXT/)
+  assert.match(html, /Importar extrato CSV, TXT ou OFX/)
   assert.match(html, /name="startDate"/)
   assert.match(html, /name="endDate"/)
   assert.match(html, /Previdência complementar/)

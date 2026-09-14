@@ -52,7 +52,7 @@ test('déficit permanece no título mesmo com premissas pendentes', () => {
     assert.match(renderViability(), /<h2>Cobertura insuficiente nas premissas informadas<\/h2>/)
     const compact = renderPlanningOverview({ compact: true })
     assert.match(compact, /<h2>Recursos insuficientes para sustentar o plano familiar<\/h2>/)
-    assert.match(compact, /pendência[s]? de revisão/)
+    assert.match(compact, /Premissas a confirmar/)
     assert.doesNotMatch(compact, /Financeiro restrito/)
     assert.match(renderPlanningOverview(), /Patrimônio total líquido de dívidas/)
   } finally { Object.assign(state, before) }
@@ -64,7 +64,7 @@ test('viabilidade oculta detalhes das pendências com a privacidade ligada', () 
     Object.assign(state, fixture())
     Object.assign(state.cashFlow.items[0], { categoryId: 'salary', description: 'Salário <empresa>' })
     const visible = renderViability()
-    assert.match(visible, /<h3>Pontos para revisar/)
+    assert.match(visible, /<h3>Dados a revisar/)
     for (const html of [visible, renderPlanChecks()]) {
       assert.match(html, /Salário &lt;empresa&gt;/)
       assert.doesNotMatch(html, /<empresa>/)
@@ -72,7 +72,7 @@ test('viabilidade oculta detalhes das pendências com a privacidade ligada', () 
     state.valuesHidden = true
     const hidden = renderViability()
     assert.match(hidden, /Mostre os valores para consultar as pendências/)
-    assert.doesNotMatch(hidden, /<h3>Pontos para revisar/)
+    assert.doesNotMatch(hidden, /<h3>Dados a revisar/)
     assert.doesNotMatch(hidden + renderPlanChecks(), /empresa/)
   } finally { Object.assign(state, before) }
 })

@@ -28,7 +28,8 @@ export function planChecks(state, today = new Date()) {
   if (state.plan.retirementMonth && state.plan.retirementMonth <= today.toISOString().slice(0, 7)) add('no-time', 'O mês da aposentadoria já chegou. A projeção não tem período de acumulação nem calcula aporte necessário para recuperar a meta.', '/construir/objetivo')
   if (planned.some(item => item.type === 'income' && item.endMode === 'retirement') && !(state.cashFlow.retirementMonth || state.plan.retirementMonth)) add('unresolved', 'Receita vinculada sem mês confirmado fica fora dos cálculos.', '/fluxo-caixa')
   if (state.plan.expectedMonthlyBenefit > 0 && !planned.some(item => item.categoryId === 'pension')) add('benefit-not-budgeted', 'Há benefício na projeção, mas nenhuma receita de aposentadoria no orçamento. Não adicionamos esse valor automaticamente.', '/construir/orcamento')
-  if (planned.filter(item => item.categoryId === 'pension').length > 1) add('benefit-review', 'Há mais de uma receita de aposentadoria. Confira se representam benefícios diferentes.', '/fluxo-caixa')
+  // Multiple pensions may belong to spouses or represent distinct benefits of one person.
+  // A count alone does not establish duplication.
   if (state.cashFlow.ledger?.accounts.length) add('accounts-separate', 'Contas, reserva e Carteira são registros separados. Confira sobreposição antes de consolidar seu patrimônio.', '/contas')
   if (state.plan.investments.length && Math.abs(state.plan.currentAssets - state.plan.investments.reduce((sum, item) => sum + item.amount, 0)) > 0.01) add('wealth-total', 'O patrimônio agregado difere da soma da Carteira. Revise os saldos.', '/carteira')
   if (state.plan.spouseEnabled && !(state.plan.spouseExpectedMonthlyBenefit > 0)) add('spouse-no-benefit', 'O cônjuge está incluído no plano, mas sem renda de previdência privada informada.', '/plano')

@@ -81,7 +81,7 @@ test('visão geral destaca três estados e não confunde orçamento negativo com
     html = renderPlanningOverview({ compact: true })
     assert.match(html, /data-plan-sustainability="insufficient"/)
     assert.match(html, /Primeiro fechamento com insuficiência/)
-    assert.match(html, /pendência/)
+    assert.match(html, /Premissas a confirmar/)
     state.valuesHidden = true
     html = renderPlanningOverview({ compact: true })
     assert.doesNotMatch(html, /data-plan-sustainability|<svg|Recursos insuficientes/)

@@ -14,6 +14,7 @@ export function sanitizeAnnualRows(raw) {
     // Only stamp a category when the source row already carries one, so rows
     // without the concept (e.g. annualGoals, older finapp imports) round-trip byte-for-byte.
     const category = value?.category !== undefined ? (assetCategories.has(value.category) ? value.category : 'other') : undefined
+    if (category === 'real-estate' && typeof value.includeInSolvency === 'boolean') row.includeInSolvency = value.includeInSolvency
     try { validateAnnualRow(row); if (!result.some(item => item.id === row.id)) result.push(category !== undefined ? { ...row, category } : row) } catch {}
   }
   return result

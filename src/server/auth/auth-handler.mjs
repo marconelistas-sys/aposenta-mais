@@ -18,12 +18,12 @@ function json(response, status, payload, headers = {}) {
   response.end(JSON.stringify(payload))
 }
 
-async function readJson(request) {
+async function readJson(request, limit = jsonLimit) {
   let size = 0
   const chunks = []
   for await (const chunk of request) {
     size += chunk.length
-    if (size > jsonLimit) throw new RangeError('payload_too_large')
+    if (size > limit) throw new RangeError('payload_too_large')
     chunks.push(chunk)
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')
@@ -66,15 +66,17 @@ function sessionPayload(user) {
 }
 
 export function createAuthHandler({
+  services,
+  localStore,
   env = process.env,
   fetchImpl = fetch,
   limiter = createRateLimiter(),
   accountLimiter = createRateLimiter(),
   dataLimiter = createRateLimiter({ limit: 30 })
 } = {}) {
-  const config = readAuthConfig(env)
-  const auth = config.configured ? createSupabaseAuth({ ...config, fetchImpl }) : null
-  const data = config.configured ? createSupabaseData({ ...config, fetchImpl }) : null
+  const config = services?.config || readAuthConfig(env)
+  const auth = services?.auth || (config.configured ? createSupabaseAuth({ ...config, fetchImpl }) : null)
+  const data = services?.data || (config.configured ? createSupabaseData({ ...config, fetchImpl }) : null)
 
   async function requireUser(request, response) {
     const cookies = parseCookies(request.headers.cookie)
@@ -82,10 +84,13 @@ export function createAuthHandler({
     const accessToken = cookies[cookieNames.accessCookie]
     const refreshToken = cookies[cookieNames.refreshCookie]
 
+    const localSession = localStore && (accessToken?.startsWith('local_') || refreshToken?.startsWith('local_'))
+    const sessionAuth = localSession ? localStore.auth : auth
+    const provider = localSession || config.provider === 'local' ? 'local' : 'supabase'
     if (accessToken) {
       try {
-        const user = await auth.getUser(accessToken)
-        return { user, accessToken }
+        const user = await sessionAuth.getUser(accessToken)
+        return { user, accessToken, provider, auth: sessionAuth }
       } catch {
         // Tenta renovar abaixo.
       }
@@ -93,10 +98,10 @@ export function createAuthHandler({
 
     if (refreshToken) {
       try {
-        const session = await auth.refresh(refreshToken)
-        const user = session.user || await auth.getUser(session.access_token)
+        const session = await sessionAuth.refresh(refreshToken)
+        const user = session.user || await sessionAuth.getUser(session.access_token)
         response.setHeader('Set-Cookie', sessionCookies(session, config.secureCookies))
-        return { user, accessToken: session.access_token }
+        return { user, accessToken: session.access_token, provider, auth: sessionAuth }
       } catch {
         response.setHeader('Set-Cookie', clearSessionCookies(config.secureCookies))
       }
@@ -110,16 +115,17 @@ export function createAuthHandler({
     if (!isAuthPath && !isSyncPath) return false
 
     if (request.method === 'GET' && url.pathname === '/api/auth/status') {
-      if (!config.configured) {
+      if (!config.configured && !localStore) {
         json(response, 200, { configured: false, authenticated: false })
         return true
       }
       const session = await requireUser(request, response)
-      json(response, 200, session ? { configured: true, ...sessionPayload(session.user) } : { configured: true, authenticated: false })
+      json(response, 200, { ...(config.provider === 'local' ? { provider: 'local', registrationRequired: auth.needsRegistration() } : {}), ...(localStore ? { provider: session?.provider || 'supabase', supabaseConfigured: config.configured, localAvailable: !localStore.auth.needsRegistration(), localEnabled: session ? localStore.hasAccount(session.user) : false, storageProvider: session?.provider === 'local' ? 'local' : session ? localStore.storageProvider(session.user) : 'supabase' } : {}), ...(session ? { configured: true, ...sessionPayload(session.user) } : { configured: true, authenticated: false }) })
       return true
     }
 
-    if (!config.configured) {
+    const localRequest = localStore && (request.headers['x-auth-provider'] === 'local' || Object.values(parseCookies(request.headers.cookie)).some(value => value.startsWith('local_')))
+    if (!config.configured && !localRequest) {
       json(response, 503, { error: 'A autenticação ainda não foi configurada.' })
       return true
     }
@@ -129,12 +135,31 @@ export function createAuthHandler({
       return true
     }
 
+    const useLocalAuth = localStore && request.headers['x-auth-provider'] === 'local'
+    const requestAuth = useLocalAuth ? localStore.auth : auth
     const sensitiveRoutes = new Set(['/api/auth/register', '/api/auth/login', '/api/auth/recover'])
     if (sensitiveRoutes.has(url.pathname)) {
       if (!consumeLimit(response, limiter, `${clientAddress(request)}:${url.pathname}`)) return true
     }
 
     try {
+      if (localStore && request.method === 'POST' && ['/api/auth/local-enable', '/api/auth/storage'].includes(url.pathname)) {
+        const session = await requireUser(request, response)
+        if (!session) { json(response, 401, { error: 'Entre no Supabase para configurar o acesso local.' }); return true }
+        if (request.headers['x-plan-owner'] !== session.user.id) { json(response, 409, { error: 'A conta mudou. Recarregue o Perfil.' }); return true }
+        if (!consumeLimit(response, dataLimiter, `${session.user.id}:local-settings`)) return true
+        const body = await readJson(request, 2 * 1024 * 1024)
+        if (url.pathname.endsWith('/storage')) {
+          if (body.provider === 'supabase' && session.provider !== 'supabase') { json(response, 403, { error: 'Entre pelo Supabase para sincronizar com a nuvem.' }); return true }
+          localStore.setStorageProvider(session.user, body.provider)
+          json(response, 200, { storageProvider: body.provider }); return true
+        }
+        if (session.provider !== 'supabase' || !validPassword(body.password) || body.acceptedSyncConsent !== true || body.consentVersion !== syncConsentVersion) { json(response, 400, { error: 'Confirme a cópia e uma senha local de 12 a 128 caracteres, usando uma sessão Supabase.' }); return true }
+        const remote = await data.getPlan(session.user.id, session.accessToken)
+        // Cloud failures abort activation. Absence of a cloud copy is distinct from failure.
+        const source = remote || { payload: financialPayload(createExportableState(body.state)), updated_at: new Date().toISOString(), consent_version: syncConsentVersion }
+        json(response, 200, localStore.enableForVerifiedUser(session.user, body.password, source)); return true
+      }
       if (isSyncPath) {
         const session = await requireUser(request, response)
         if (!session) {
@@ -155,10 +180,14 @@ export function createAuthHandler({
           return true
         }
 
+        const selectedProvider = localStore ? (session.provider === 'local' ? 'local' : localStore.storageProvider(session.user)) : config.provider
+        if (localStore && request.headers['x-storage-provider'] && request.headers['x-storage-provider'] !== selectedProvider) { json(response, 409, { error: 'O destino da sincronização mudou. Consulte o Perfil antes de continuar.' }); return true }
+        const selectedData = selectedProvider === 'local' && localStore ? localStore.dataForVerifiedUser(session.user) : data
         if (request.method === 'GET' && url.pathname === '/api/sync/status') {
-          const remote = await data.getPlan(session.user.id, session.accessToken)
+          const remote = await selectedData.getPlan(session.user.id, session.accessToken)
           json(response, 200, {
             available: true,
+            ...(localStore ? { storageProvider: selectedProvider } : {}),
             exists: Boolean(remote),
             updatedAt: remote?.updated_at || null,
             consentVersion: remote?.consent_version || null
@@ -167,7 +196,7 @@ export function createAuthHandler({
         }
 
         if (request.method === 'GET' && url.pathname === '/api/sync/data') {
-          const remote = await data.getPlan(session.user.id, session.accessToken)
+          const remote = await selectedData.getPlan(session.user.id, session.accessToken)
           if (!remote) {
             json(response, 404, { error: 'Nenhuma cópia remota foi encontrada.' })
             return true
@@ -181,7 +210,7 @@ export function createAuthHandler({
         }
 
         if (request.method === 'POST' && url.pathname === '/api/sync/data') {
-          const body = await readJson(request)
+          const body = await readJson(request, 2 * 1024 * 1024)
           if (body.acceptedSyncConsent !== true || body.consentVersion !== syncConsentVersion) {
             json(response, 400, { error: 'Confirme o consentimento para criar a cópia remota.' })
             return true
@@ -192,7 +221,7 @@ export function createAuthHandler({
             json(response, 428, { error: 'Consulte a cópia remota antes de enviar.' })
             return true
           }
-          const remote = await data.upsertPlan(
+          const remote = await selectedData.upsertPlan(
             session.user.id,
             safeState,
             syncConsentVersion,
@@ -208,7 +237,7 @@ export function createAuthHandler({
         }
 
         if (request.method === 'DELETE' && url.pathname === '/api/sync/data') {
-          await data.deletePlan(session.user.id, session.accessToken)
+          await selectedData.deletePlan(session.user.id, session.accessToken)
           json(response, 200, { exists: false, deleted: true })
           return true
         }
@@ -218,14 +247,15 @@ export function createAuthHandler({
       }
 
       if (request.method === 'POST' && url.pathname === '/api/auth/register') {
+        if (useLocalAuth) { json(response, 403, { error: 'O primeiro acesso deve ser pelo Supabase. Ative o login local no Perfil.' }); return true }
         const { email, password, acceptedTerms } = await readJson(request)
         if (!consumeLimit(response, accountLimiter, accountKey(email, url.pathname))) return true
         if (!validEmail(email) || !validPassword(password) || acceptedTerms !== true) {
           json(response, 400, { error: 'Revise o e-mail, a senha e a aceitação dos termos.' })
           return true
         }
-        await auth.signUp(email.trim().toLowerCase(), password, `${config.appOrigin}/api/auth/confirm`)
-        json(response, 202, { message: registrationMessage })
+        const registration = await auth.signUp(email.trim().toLowerCase(), password, `${config.appOrigin}/api/auth/confirm`)
+        json(response, 202, { message: config.provider === 'local' ? registration.message : registrationMessage })
         return true
       }
 
@@ -236,15 +266,25 @@ export function createAuthHandler({
           json(response, 401, { error: loginMessage })
           return true
         }
-        const session = await auth.signIn(email.trim().toLowerCase(), password)
+        const session = await requestAuth.signIn(email.trim().toLowerCase(), password)
         response.setHeader('Set-Cookie', sessionCookies(session, config.secureCookies))
-        json(response, 200, sessionPayload(session.user))
+        json(response, 200, { ...sessionPayload(session.user), ...(localStore ? { provider: useLocalAuth ? 'local' : 'supabase', localEnabled: localStore.hasAccount(session.user), storageProvider: useLocalAuth ? 'local' : localStore.storageProvider(session.user) } : {}) })
         return true
       }
 
       if (request.method === 'POST' && url.pathname === '/api/auth/recover') {
-        const { email } = await readJson(request)
+        const { email, recoveryCode, password } = await readJson(request)
         if (!consumeLimit(response, accountLimiter, accountKey(email, url.pathname))) return true
+        if (config.provider === 'local' || useLocalAuth) {
+          if (!validEmail(email) || !validPassword(password) || typeof recoveryCode !== 'string' || recoveryCode.length > 128) {
+            json(response, 400, { error: 'Revise e-mail, código de recuperação e senha (12 a 128 caracteres).' })
+            return true
+          }
+          const result = await requestAuth.resetPassword(email.trim().toLowerCase(), recoveryCode.trim(), password)
+          response.setHeader('Set-Cookie', clearSessionCookies(config.secureCookies))
+          json(response, 200, result)
+          return true
+        }
         if (validEmail(email)) await auth.recover(email.trim().toLowerCase(), `${config.appOrigin}/api/auth/confirm?next=/nova-senha`)
         json(response, 202, { message: genericAuthMessage })
         return true
@@ -252,7 +292,7 @@ export function createAuthHandler({
 
       if (request.method === 'POST' && url.pathname === '/api/auth/logout') {
         const session = await requireUser(request, response)
-        if (session) await auth.signOut(session.accessToken, 'local').catch(() => {})
+        if (session) await session.auth.signOut(session.accessToken, 'local').catch(() => {})
         response.setHeader('Set-Cookie', clearSessionCookies(config.secureCookies))
         json(response, 200, { authenticated: false })
         return true
@@ -269,10 +309,10 @@ export function createAuthHandler({
           json(response, 400, { error: 'Use uma senha com 12 a 128 caracteres.' })
           return true
         }
-        await auth.updatePassword(session.accessToken, password)
+        await session.auth.updatePassword(session.accessToken, password)
         response.setHeader('Set-Cookie', clearSessionCookies(config.secureCookies))
         try {
-          await auth.signOut(session.accessToken, 'global')
+          await session.auth.signOut(session.accessToken, 'global')
         } catch {
           json(response, 502, { error: 'A senha foi atualizada, mas não foi possível encerrar todas as sessões. Entre novamente e revise a segurança da conta.' })
           return true
@@ -304,9 +344,13 @@ export function createAuthHandler({
       } else if (error instanceof SyntaxError || error instanceof RangeError) {
         json(response, 400, { error: 'Requisição inválida.' })
       } else if (url.pathname === '/api/auth/login') {
-        json(response, 401, { error: loginMessage })
+        json(response, 401, { error: config.provider === 'local' && auth.needsRegistration() ? 'Nenhuma conta foi criada neste computador. Abra Criar conta. Credenciais do Supabase não são transferidas automaticamente.' : loginMessage })
+      } else if ((config.provider === 'local' || useLocalAuth) && sensitiveRoutes.has(url.pathname)) {
+        json(response, 400, { error: 'Não foi possível concluir. Confira os dados da conta e o código de recuperação.' })
       } else if (sensitiveRoutes.has(url.pathname)) {
         json(response, 202, { message: genericAuthMessage })
+      } else if (localStore && ['/api/auth/local-enable', '/api/auth/storage'].includes(url.pathname)) {
+        json(response, 409, { error: 'Não foi possível configurar o banco local. Verifique a conexão com o Supabase e se já existe uma conta local com este e-mail. Nenhum plano existente foi substituído.' })
       } else if (isSyncPath) {
         json(response, 502, { error: 'Não foi possível acessar a cópia remota.' })
       } else {

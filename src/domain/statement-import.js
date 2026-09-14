@@ -1,5 +1,5 @@
 import { standardCashFlowCategories } from '../data/cash-flow-categories.js'
-import { normalizeCurrency } from '../shared/currencies.js'
+import { normalizeCurrency, currencies } from '../shared/currencies.js'
 
 const headerAliases = {
   date: ['data', 'date'],
@@ -36,6 +36,7 @@ function splitDelimitedLine(line, delimiter) {
       cell += character
     }
   }
+  if (quoted) throw new TypeError('Aspas não fechadas no extrato.')
   cells.push(cell.trim())
   return cells
 }
@@ -54,7 +55,8 @@ function parseAmount(value) {
   const numeric = decimalComma
     ? normalized.replaceAll('.', '').replace(',', '.')
     : normalized.replaceAll(',', '')
-  return Number(numeric.replace(/[^0-9.+-]/g, ''))
+  const clean = numeric.replace(/^(R\$|CHF|EUR|USD|€|\$)/i, '')
+  return /^[+-]?\d+(\.\d+)?$/.test(clean) ? Number(clean) : Number.NaN
 }
 
 function normalizeDate(value) {
@@ -62,7 +64,8 @@ function normalizeDate(value) {
   const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   const local = text.match(/^(\d{2})[/.](\d{2})[/.](\d{4})$/)
   const date = iso ? text : local ? `${local[3]}-${local[2]}-${local[1]}` : ''
-  return date && !Number.isNaN(Date.parse(`${date}T00:00:00Z`)) ? date : null
+  const time = Date.parse(`${date}T00:00:00Z`)
+  return date && Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === date ? date : null
 }
 
 function columnMap(headers) {
@@ -135,7 +138,9 @@ function itemFromRow(row, mapping, defaultCurrency, customCategories) {
 
   const category = categoryFor(cells[mapping.category], type, customCategories)
   const description = String(cells[mapping.description] || category.name).trim().slice(0, 60)
-  const currency = normalizeCurrency(cells[mapping.currency] || defaultCurrency)
+  const rawCurrency = String(cells[mapping.currency] || defaultCurrency).trim().toUpperCase()
+  if (!currencies[rawCurrency]) return { error: `Linha ${row.rowNumber}: moeda não suportada.` }
+  const currency = normalizeCurrency(rawCurrency)
   const keySource = `${date}|${type}|${signedAmount}|${currency}|${description}|${row.rowNumber}`
   return {
     item: {
@@ -154,12 +159,15 @@ function itemFromRow(row, mapping, defaultCurrency, customCategories) {
   }
 }
 
-export function inspectStatementText(text, { maximumRows = 100 } = {}) {
+export function inspectStatementText(text, { maximumRows = 100, analysisOnly = false } = {}) {
   if (typeof text !== 'string') throw new TypeError('O conteúdo do extrato precisa ser texto.')
-  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim())
+  if (text.length > 1024 * 1024) throw new TypeError('Use um arquivo de até 1 MB.')
+  if (/<!DOCTYPE|<!ENTITY/i.test(text)) throw new TypeError('Declarações XML externas não são aceitas.')
+  if (/<OFX[>\s]/i.test(text)) text = ofxToDelimited(text)
+  const lines = delimitedRecords(text.replace(/^\uFEFF/, ''))
   if (lines.length < 2) throw new TypeError('O arquivo precisa conter cabeçalho e pelo menos um lançamento.')
   const requestedLimit = Number.isFinite(maximumRows) ? Math.trunc(maximumRows) : 100
-  const limit = Math.max(0, Math.min(requestedLimit, 100))
+  const limit = Math.max(0, Math.min(requestedLimit, analysisOnly ? 2000 : 100))
   const delimiter = detectDelimiter(lines[0])
   const headers = splitDelimitedLine(lines[0], delimiter)
   return {
@@ -168,7 +176,7 @@ export function inspectStatementText(text, { maximumRows = 100 } = {}) {
     suggestedMapping: columnMap(headers),
     rows: lines.slice(1, limit + 1).map((line, offset) => ({
       rowNumber: offset + 2,
-      cells: splitDelimitedLine(line, delimiter)
+      cells: splitDelimitedLine(line.replace(/\n/g, ' '), delimiter)
     })),
     totalRows: lines.length - 1,
     truncatedRows: Math.max(lines.length - 1 - limit, 0)
@@ -233,4 +241,38 @@ export function parseStatementText(text, options = {}) {
     errors: review.errors,
     totalRows: inspection.totalRows
   }
+}
+
+function ofxToDelimited(text) {
+  const field = (source, tag) => source.match(new RegExp(`<${tag}[^>]*>\\s*([^<\\r\\n]*)`, 'i'))?.[1]?.trim() || ''
+  const currency = field(text, 'CURDEF')
+  if (!['BRL', 'CHF', 'EUR', 'USD'].includes(currency)) throw new TypeError('Moeda OFX ausente ou não suportada.')
+  const rows = ['data;descricao;valor;moeda']
+  for (const match of text.matchAll(/<STMTTRN>([\s\S]*?)(?:<\/STMTTRN>|(?=<STMTTRN>|<\/BANKTRANLIST>))/gi)) {
+    const block = match[1]
+    const date = field(block, 'DTPOSTED').slice(0, 8)
+    const description = (field(block, 'MEMO') || field(block, 'NAME') || 'Lançamento OFX').replaceAll('&amp;', '&').replaceAll('"', '""')
+    rows.push(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)};"${description}";${field(block, 'TRNAMT')};${currency}`)
+  }
+  if (rows.length === 1) throw new TypeError('Nenhum lançamento bancário encontrado no OFX.')
+  return rows.join('\n')
+}
+
+function delimitedRecords(text) {
+  const records = []
+  let record = '', quoted = false
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index]
+    if (char === '"') {
+      if (quoted && text[index + 1] === '"') { record += '""'; index++; continue }
+      quoted = !quoted
+    }
+    if (char === '\n' && !quoted) {
+      if (record.trim()) records.push(record.trim())
+      record = ''
+    } else record += char
+  }
+  if (quoted) throw new TypeError('Aspas não fechadas no extrato.')
+  if (record.trim()) records.push(record.trim())
+  return records
 }

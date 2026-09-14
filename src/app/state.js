@@ -218,6 +218,7 @@ export function updateCashFlowItem(id, patch) {
 
 function validateIncomeEnd(item) {
   if (item.endMode !== 'retirement') return
+  if (['spouse', 'shared'].includes(item.householdOwner)) throw new RangeError('Para receita do cônjuge ou compartilhada, informe a data final manual. O vínculo automático usa a aposentadoria do titular.')
   if (!state.cashFlow.retirementMonth) throw new RangeError('Confirme primeiro o mês da aposentadoria no orçamento.')
   if (item.type !== 'income' || item.recordKind === 'actual' || item.source === 'txt' || !['monthly', 'annual'].includes(item.frequency)) throw new RangeError('O vínculo exige uma receita planejada recorrente.')
 }
@@ -296,7 +297,7 @@ export function setExchangeRates(exchangeRates) {
   saveState()
 }
 
-export function addScenario(name, plan) {
+export function addScenario(name, plan, context = {}) {
   if (state.scenarios.length >= 3) {
     throw new RangeError('Você pode salvar até três cenários.')
   }
@@ -304,18 +305,25 @@ export function addScenario(name, plan) {
   state.scenarios.push({
     id,
     name: name.trim().slice(0, 40),
-    currency: state.currency,
-    plan: { ...plan },
-    cashFlow: structuredClone(state.cashFlow),
+    currency: context.currency || state.currency,
+    plan: structuredClone(plan),
+    cashFlow: structuredClone(context.cashFlow || state.cashFlow),
     createdAt: new Date().toISOString()
   })
+  saveState()
+}
+
+export function updateScenario(id, name, plan, context = {}) {
+  const index = state.scenarios.findIndex(item => item.id === id)
+  if (index < 0) throw new Error('Cenário não encontrado.')
+  state.scenarios[index] = { ...state.scenarios[index], name: name.trim().slice(0, 40), plan: structuredClone(plan), currency: context.currency || state.scenarios[index].currency, cashFlow: structuredClone(context.cashFlow || state.scenarios[index].cashFlow) }
   saveState()
 }
 
 export function loadScenario(id) {
   const scenario = state.scenarios.find((item) => item.id === id)
   if (!scenario) throw new TypeError('Cenário não encontrado.')
-  state.plan = { ...scenario.plan }
+  state.plan = structuredClone(scenario.plan)
   if (scenario.cashFlow) state.cashFlow = structuredClone(scenario.cashFlow)
   state.currency = scenario.currency
   state.isDemo = false

@@ -1,3 +1,4 @@
+import { householdOwners, householdOwnerField, budgetOwnerView, filterByHouseholdOwner } from '../../shared/household-owner.js'
 import { state } from '../../app/state.js'
 import {
   calculateMultiCurrencyCashFlow,
@@ -79,8 +80,9 @@ function reserveField({ label, name, value, hint }) {
 }
 
 function cashFlowItems(result) {
+  result = { ...result, convertedItems: filterByHouseholdOwner(result.convertedItems, budgetOwnerView.selected) }
   if (result.convertedItems.length === 0) {
-    return '<p class="scenario-empty">Adicione sua primeira receita ou despesa.</p>'
+    return '<p class="scenario-empty">Nenhum lançamento neste filtro. Adicione uma receita ou despesa ou selecione Todas as titularidades.</p>'
   }
 
   return `<div class="cash-item-list">
@@ -92,7 +94,7 @@ function cashFlowItems(result) {
           <span class="cash-item__type cash-item__type--${item.type}">${item.type === 'income' ? 'Receita' : 'Despesa'}</span>
           <div class="cash-item__identity">
             <strong>${escapeHtml(item.description || item.category.name)}</strong>
-            <span>${recordKindLabels[item.recordKind]} · ${escapeHtml(item.category.name)} · ${frequencyLabels[item.frequency]} · ${periodLabel(item)}${item.source === 'txt' ? ' · Importado' : ''}${item.isActive ? '' : ' · Fora do mês selecionado'}</span>
+            <span>${householdOwners[item.householdOwner || 'unspecified']} · ${recordKindLabels[item.recordKind]} · ${escapeHtml(item.category.name)} · ${frequencyLabels[item.frequency]} · ${periodLabel(item)}${item.source === 'txt' ? ' · Importado' : ''}${item.isActive ? '' : ' · Fora do mês selecionado'}</span>
           </div>
           <div class="cash-item__amount money-value">
             <strong>${original}</strong>
@@ -114,6 +116,7 @@ function cashItemEditDialog() {
   return `
     <dialog class="cash-edit-dialog" data-cash-item-dialog aria-labelledby="cash-edit-title">
       <form data-cash-item-edit-form>
+        ${householdOwnerField()}
         <div class="cash-edit-dialog__header">
           <div><p class="eyebrow">EDITAR LANÇAMENTO</p><h2 id="cash-edit-title">Corrija os dados</h2></div>
           <button class="icon-button" type="button" data-close-cash-item-dialog aria-label="Fechar edição">×</button>
@@ -350,6 +353,7 @@ export function renderCashFlow(statementReview = null) {
             ${icon('wallet', 21, 'panel__header-icon')}
           </div>
           <div class="form-grid cash-entry-grid">
+            ${householdOwnerField()}
             <label class="form-field cash-entry-grid__category">
               <span class="form-field__label">Categoria</span>
               <span class="input-shell"><select name="categoryId" required>${categoryOptions()}</select></span>
@@ -397,12 +401,12 @@ export function renderCashFlow(statementReview = null) {
         </form>
 
         <details class="panel disclosure statement-import">
-          <summary>Importar extrato TXT</summary>
+          <summary>Importar extrato CSV, TXT ou OFX</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
           <p>O arquivo é processado neste navegador. Você revisa as colunas, os lançamentos e as duplicidades antes de confirmar.</p>
           <code>data;descricao;valor;moeda;categoria;tipo</code>
           <label class="statement-file">
             <span>Selecionar arquivo para revisar</span>
-            <input type="file" accept=".txt,text/plain,text/csv" data-statement-file />
+            <input type="file" accept=".txt,.csv,.ofx,text/plain,text/csv,application/x-ofx" data-statement-file />
           </label>
           <small>Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Nenhuma linha é adicionada antes da sua confirmação.</small>
           <div class="open-finance-roadmap">
@@ -441,6 +445,7 @@ export function renderCashFlow(statementReview = null) {
             <div><p class="eyebrow">ORÇAMENTO</p><h2 id="cash-items-title">Lançamentos de ${monthLabel(state.cashFlow.referenceMonth)}</h2></div>
             <span class="step-badge">${result.convertedItems.length}/100</span>
           </div>
+          <label>Filtrar titularidade <select data-budget-owner><option value="all" ${budgetOwnerView.selected === 'all' ? 'selected' : ''}>Todas as titularidades</option>${Object.entries(householdOwners).map(([key, label]) => `<option value="${key}" ${budgetOwnerView.selected === key ? 'selected' : ''}>${label}</option>`).join('')}</select></label><p>O filtro muda apenas a lista. Os totais e gráficos continuam representando a família inteira.</p>
           ${cashFlowItems(result)}
         </section>
 

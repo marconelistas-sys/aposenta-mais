@@ -134,3 +134,24 @@ test('listeners são idempotentes e DOM removido não reaparece após troca de c
   dispose()
   assert.equal(view.listeners.size, 0)
 })
+
+test('selecionar patrimônio ou fluxo mantém os dois gráficos no mesmo ano e abre a composição', () => {
+  const wealth = fixture(), flow = fixture()
+  delete wealth.chart.dataset.chartDrilldown
+  const container = { querySelectorAll: () => [wealth.chart, flow.chart] }
+  for (const view of [wealth, flow]) {
+    const closest = view.chart.closest
+    view.chart.closest = selector => selector === '[data-cash-flow-line-view]' ? container : closest(selector)
+  }
+  wealth.send('click', wealth.svg, { clientX: 582 })
+  assert.equal(wealth.chart.dataset.chartSelectedIndex, '1')
+  assert.equal(flow.chart.dataset.chartSelectedIndex, '1')
+  assert.equal(flow.content.children[0].index, 1)
+  assert.equal(flow.year.value, '1')
+  flow.year.value = '2'
+  flow.send('change', flow.year)
+  assert.equal(wealth.chart.dataset.chartSelectedIndex, '2')
+  assert.equal(flow.content.children[0].index, 2)
+  wealth.send('click', wealth.legend)
+  assert.equal(flow.chart.dataset.chartSelectedIndex, '2')
+})

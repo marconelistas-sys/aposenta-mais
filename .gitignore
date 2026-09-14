@@ -11,3 +11,6 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Banco local e backups privados
+.data/

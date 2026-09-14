@@ -514,6 +514,22 @@
 .cash-flow-price-control { display: grid; gap: .4rem; max-width: 28rem; }
 .cash-flow-price-control select { min-height: 44px; max-width: 100%; }
 .cash-flow-line-view { min-width: 0; }
+.dashboard-grid[data-dashboard-overview] { grid-template-columns: minmax(0, 1fr); }
+.dashboard-grid[data-dashboard-overview] > .dashboard-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; align-items: start; }
+.plan-milestones { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 1rem; padding: 0; margin-block: 1rem 1.5rem; counter-reset: milestone; }
+.plan-milestones > li { padding: 1rem; border: 1px solid var(--color-border-strong); border-block-start: 4px solid #0369a1; border-radius: .5rem; min-width: 0; }
+.plan-milestones h4 { margin: 0; font-size: 1.05rem; }
+.plan-milestones h4::before { counter-increment: milestone; content: counter(milestone) '. '; color: var(--color-ink-muted); }
+.plan-milestones p { font-size: .85rem; }
+.plan-milestones dl { margin: 1rem 0; }
+.plan-milestones dt { font-size: .8rem; color: var(--color-ink-muted); }
+.plan-milestones dd { margin: .15rem 0 .75rem; font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.plan-graph-reading { padding: 1rem; border-inline-start: 4px solid #64748b; background: var(--color-background); border-radius: .5rem; }
+.plan-graph-reading h3 { margin-top: 0; }
+.plan-next-actions ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 1.5rem; padding-left: 1.25rem; }
+.plan-next-actions li { padding-inline-start: .25rem; }
+.plan-next-actions a { font-weight: 600; }
+.plan-next-actions p { font-size: .85rem; margin-bottom: 0; }
 .cash-flow-wealth-chart { margin-block: 1.5rem; padding-block: 1rem; border-block: 1px solid var(--color-border-strong); }
 .cash-flow-wealth-chart > h3 { margin-top: 0; }
 .plan-sustainability { padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #b9d7c8; border-inline-start: 6px solid #047857; border-radius: .5rem; background: #f0fdf4; color: #172b22; }
@@ -533,6 +549,18 @@
 .cash-flow-year-result .cash-flow-year-result-primary dd { font-size: 1.35rem; font-weight: 600; color: var(--color-ink); }
 .cash-flow-year-result p { font-size: .85rem; }
 .cash-flow-year-result--negative .cash-flow-year-result-primary dd { color: var(--color-danger); }
+.property-solvency-control { padding: 1rem; margin-block: 1rem; border: 1px solid var(--color-border-strong); border-radius: .5rem; }
+.property-solvency-control label { display: flex; align-items: center; gap: .65rem; font-weight: 600; min-height: 44px; }
+.property-solvency-control input { flex: 0 0 auto; width: 1.2rem; height: 1.2rem; }
+.property-solvency-control p { margin-block: .5rem; font-size: .9rem; }
+.property-solvency-assessment { padding: 1rem; margin-block: 1rem; border-inline-start: 4px solid #0369a1; background: var(--color-background); }
+.property-solvency-assessment[data-property-assessment="insufficient"] { border-inline-start-color: #b91c1c; }
+.property-solvency-assessment h3 { margin-top: 0; font-size: 1rem; }
+.property-solvency-assessment dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 1rem; }
+.property-solvency-assessment dd { margin: .3rem 0 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.solvency-shortcuts { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: 1rem; }
+.solvency-shortcuts button { min-height: 44px; white-space: normal; text-align: start; }
+[data-property-setting][hidden] { display: none; }
 .planning-chart-legend button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .planning-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
 @media (min-width: 1500px) { .planning-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -541,3 +569,27 @@
   .planning-chart-readout { position: static; max-width: none; margin-block: .5rem; box-shadow: none; }
   .planning-chart-legend button { min-height: 44px; }
 }
+
+.projection-checks form[data-confirm-projection] {
+  display: grid;
+  gap: 0.75rem;
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border, #d8e2dc);
+  border-radius: 0.75rem;
+}
+.projection-checks form[data-confirm-projection] label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.projection-checks form[data-confirm-projection] button { justify-self: start; }
+
+form[data-apply-recurrences] > section {
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border, #d8e2dc);
+  border-radius: 0.75rem;
+}
+form[data-apply-recurrences] fieldset:disabled { display: none; }
+form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; }

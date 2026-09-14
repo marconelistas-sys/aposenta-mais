@@ -1,3 +1,4 @@
+import { scenarioEditor, simulationContext, simulationCashFlow } from './scenario-editor.js'
 import { state } from '../../app/state.js'
 import { projectAssetSeriesWithSchedules, projectRetirementWithSchedules } from '../../domain/retirement.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
@@ -11,7 +12,7 @@ const comparisonColors = ['#2f785e', '#3d6cb4', '#b46b3d', '#7864a6']
 function planInDashboardCurrency(plan, sourceCurrency) {
   if (sourceCurrency === state.currency) return plan
   const converted = { ...plan }
-  for (const fieldName of ['currentAssets', 'monthlyContribution', 'targetMonthlyIncome', 'expectedMonthlyBenefit']) {
+  for (const fieldName of ['currentAssets', 'monthlyContribution', 'targetMonthlyIncome', 'expectedMonthlyBenefit', 'spouseExpectedMonthlyBenefit']) {
     converted[fieldName] = convertCurrency(plan[fieldName], sourceCurrency, state.currency, state.exchangeRates)
   }
   converted.investments = (plan.investments || []).map((investment) => ({
@@ -22,11 +23,11 @@ function planInDashboardCurrency(plan, sourceCurrency) {
   return converted
 }
 
-function schedulesFor(cashFlow) {
+function schedulesFor(cashFlow, currency = state.currency) {
   if (!cashFlow) return []
   return retirementContributionSchedules(
     cashFlow,
-    state.currency,
+    currency,
     state.exchangeRates,
     state.customCategories
   )
@@ -57,12 +58,13 @@ function field({ label, name, value, min, max, step = 1, prefix, suffix, hint, t
   `
 }
 
-export function renderSimulationResult(result, plan = state.plan) {
+export function renderSimulationResult(result, plan = state.plan, currency = state.currency) {
   const incomeProgress = plan.targetMonthlyIncome === 0
     ? 1
     : Math.min(Math.max(result.projectedMonthlyIncome / plan.targetMonthlyIncome, 0), 1)
+  if (state.valuesHidden) return '<p>Valores e gráficos da simulação ocultos. Mostre os valores para comparar o resultado.</p>'
   const gap = Math.abs(result.monthlyIncomeGap)
-  const money = (value) => privateCurrency(value, state.valuesHidden, false, state.currency)
+  const money = (value) => privateCurrency(value, state.valuesHidden, false, currency)
 
   return `
     <div class="simulation-result__status ${result.goalReached ? 'is-success' : ''}">
@@ -91,7 +93,7 @@ export function renderSimulationResult(result, plan = state.plan) {
         Usar como plano principal
       </button>
       <button class="button button--secondary button--full" type="button" data-save-scenario>
-        Salvar para comparar
+        ${scenarioEditor.scenario ? 'Salvar alterações do cenário' : 'Salvar para comparar'}
       </button>
     </div>
     <p class="result-disclaimer">Projeção educacional. Ela não substitui uma análise previdenciária ou financeira individual.</p>
@@ -121,6 +123,7 @@ function renderSavedScenarios() {
             <div><dt>Retorno real</dt><dd>${formatPercent(scenario.plan.annualRealReturn)} ao ano</dd></div>
             <div><dt>Moeda original</dt><dd>${scenario.currency}</dd></div>
           </dl>
+          <button class="button button--secondary button--full" type="button" data-edit-scenario="${escapeHtml(scenario.id)}">Editar cenário</button>
           <button class="button button--secondary button--full" type="button" data-load-scenario="${escapeHtml(scenario.id)}">Carregar cenário completo</button>
         </article>
       `
@@ -128,7 +131,19 @@ function renderSavedScenarios() {
   </div>`
 }
 
+function scenarioAssumptions() {
+  if (!state.scenarios.length) return ''
+  if (state.valuesHidden) return '<p>Premissas dos cenários ocultas.</p>'
+  const rows = [{ name: 'Plano atual', plan: state.plan, currency: state.currency }, ...state.scenarios]
+  return `<section class="panel"><h2>O que muda entre os cenários</h2><div class="table-scroll" tabindex="0"><table><caption>Valores convertidos para ${state.currency}, na cotação do plano atual</caption><thead><tr><th>Cenário</th><th>Patrimônio inicial</th><th>Aporte mensal</th><th>Aposentadoria</th><th>Renda desejada</th></tr></thead><tbody>${rows.map(row => {
+    const plan = planInDashboardCurrency(row.plan, row.currency)
+    const money = value => privateCurrency(value, false, true, state.currency)
+    return `<tr><th scope="row">${escapeHtml(row.name)}</th><td>${money(plan.currentAssets)}</td><td>${money(plan.monthlyContribution)}</td><td>${plan.retirementAge} anos</td><td>${money(plan.targetMonthlyIncome)}</td></tr>`
+  }).join('')}</tbody></table></div></section>`
+}
+
 function scenarioComparisonChart() {
+  if (state.valuesHidden) return '<section class="panel"><h2>Comparação de cenários</h2><p>Valores e gráficos ocultos.</p></section>'
   const scenarios = [
     { name: 'Plano atual', plan: state.plan, currency: state.currency, cashFlow: state.cashFlow },
     ...state.scenarios
@@ -202,8 +217,10 @@ function scenarioComparisonChart() {
 }
 
 export function renderSimulations() {
-  const initialResult = projectRetirementWithSchedules(state.plan, schedulesFor(state.cashFlow))
-  const moneySymbol = currencySymbol(state.currency)
+  const context = simulationContext()
+  const plan = context.plan
+  const initialResult = projectRetirementWithSchedules(plan, schedulesFor(context.cashFlow, context.currency))
+  const moneySymbol = currencySymbol(context.currency)
 
   return `
     <section class="page-heading page-heading--inner">
@@ -219,44 +236,46 @@ export function renderSimulations() {
       <form class="panel simulation-form" data-simulation-form>
         <div class="panel__header">
           <div>
-            <p class="eyebrow">NOVO CENÁRIO</p>
+            <p class="eyebrow">${scenarioEditor.scenario ? 'EDITAR CENÁRIO' : 'NOVO CENÁRIO'}</p>
             <h2>Defina suas premissas</h2>
           </div>
           <span class="step-badge">1 de 1</span>
         </div>
 
-        ${field({ label: 'Nome do cenário', name: 'scenarioName', value: `Cenário ${state.scenarios.length + 1}`, type: 'text', maxLength: 40, hint: 'Exemplo: aposentar aos 60' })}
+        ${field({ label: 'Nome do cenário', name: 'scenarioName', value: escapeHtml(context.name || `Cenário ${state.scenarios.length + 1}`), type: 'text', maxLength: 40, hint: 'Exemplo: aposentar aos 60' })}
 
+        ${scenarioEditor.scenario ? '<button type="button" class="button button--secondary" data-cancel-scenario-edit>Cancelar edição</button>' : ''}
+        <p>Valores em ${context.currency}. Alterações de patrimônio e aporte mantêm a distribuição da carteira. Quando não há aportes distribuídos, o novo aporte usa a taxa padrão do plano.</p>
         <fieldset class="form-section">
           <legend>Prazo</legend>
           <div class="form-grid form-grid--two">
-            ${field({ label: 'Sua idade hoje', name: 'currentAge', value: state.plan.currentAge, min: 16, max: 99, suffix: 'anos' })}
-            ${field({ label: 'Idade para se aposentar', name: 'retirementAge', value: state.plan.retirementAge, min: state.plan.currentAge + 1, max: 100, suffix: 'anos' })}
+            ${field({ label: 'Sua idade hoje', name: 'currentAge', value: plan.currentAge, min: 16, max: 99, suffix: 'anos' })}
+            ${field({ label: 'Idade para se aposentar', name: 'retirementAge', value: plan.retirementAge, min: plan.currentAge + 1, max: 100, suffix: 'anos' })}
           </div>
         </fieldset>
 
         <fieldset class="form-section">
           <legend>Patrimônio e aportes</legend>
           <div class="form-grid form-grid--two">
-            ${field({ label: 'Patrimônio atual', name: 'currentAssets', value: state.plan.currentAssets, min: 0, max: 100000000, step: 1000, prefix: moneySymbol })}
-            ${field({ label: 'Aporte mensal', name: 'monthlyContribution', value: state.plan.monthlyContribution, min: 0, max: 1000000, step: 50, prefix: moneySymbol })}
+            ${field({ label: 'Patrimônio atual', name: 'currentAssets', value: plan.currentAssets, min: 0, max: 1000000000, step: 'any', prefix: moneySymbol })}
+            ${field({ label: 'Aporte mensal', name: 'monthlyContribution', value: plan.monthlyContribution, min: 0, max: 10000000, step: 'any', prefix: moneySymbol })}
           </div>
         </fieldset>
 
         <fieldset class="form-section">
           <legend>Renda desejada</legend>
           <div class="form-grid form-grid--two">
-            ${field({ label: 'Renda mensal desejada', name: 'targetMonthlyIncome', value: state.plan.targetMonthlyIncome, min: 0, max: 1000000, step: 100, prefix: moneySymbol })}
-            ${field({ label: 'Benefício mensal esperado', name: 'expectedMonthlyBenefit', value: state.plan.expectedMonthlyBenefit, min: 0, max: 100000, step: 100, prefix: moneySymbol, hint: 'Use uma estimativa conservadora.' })}
+            ${field({ label: 'Renda mensal desejada', name: 'targetMonthlyIncome', value: plan.targetMonthlyIncome, min: 0, max: 10000000, step: 'any', prefix: moneySymbol })}
+            ${field({ label: 'Benefício mensal esperado', name: 'expectedMonthlyBenefit', value: plan.expectedMonthlyBenefit, min: 0, max: 1000000, step: 'any', prefix: moneySymbol, hint: 'Use uma estimativa conservadora.' })}
           </div>
         </fieldset>
 
         <fieldset class="form-section">
           <legend>Premissas financeiras</legend>
           <div class="form-grid form-grid--two">
-            ${field({ label: 'Retorno real anual', name: 'annualRealReturn', value: state.plan.annualRealReturn * 100, min: -99, max: 100, step: 0.1, suffix: '%' })}
-            ${field({ label: 'Inflação anual esperada', name: 'annualInflation', value: state.plan.annualInflation * 100, min: -99, max: 100, step: 0.1, suffix: '%', hint: 'Usada para converter taxas nominais e CDI.' })}
-            ${field({ label: 'Taxa de retirada anual', name: 'annualWithdrawalRate', value: state.plan.annualWithdrawalRate * 100, min: 0.1, max: 100, step: 0.1, suffix: '%' })}
+            ${field({ label: 'Retorno real anual', name: 'annualRealReturn', value: plan.annualRealReturn * 100, min: -99, max: 100, step: 'any', suffix: '%' })}
+            ${field({ label: 'Inflação anual esperada', name: 'annualInflation', value: plan.annualInflation * 100, min: -99, max: 100, step: 'any', suffix: '%', hint: 'Usada para converter taxas nominais e CDI.' })}
+            ${field({ label: 'Taxa de retirada anual', name: 'annualWithdrawalRate', value: plan.annualWithdrawalRate * 100, min: 0.1, max: 100, step: 'any', suffix: '%' })}
           </div>
         </fieldset>
 
@@ -274,11 +293,12 @@ export function renderSimulations() {
           ${icon('calculator', 21, 'panel__header-icon')}
         </div>
         <div id="simulation-result-content">
-          ${renderSimulationResult(initialResult)}
+          ${renderSimulationResult(initialResult, plan, context.currency)}
         </div>
       </aside>
     </section>
 
+    ${scenarioAssumptions()}
     ${scenarioComparisonChart()}
 
     <section class="panel saved-scenarios" aria-labelledby="saved-scenarios-title">
@@ -292,4 +312,9 @@ export function renderSimulations() {
       ${renderSavedScenarios()}
     </section>
   `
+}
+
+export function simulationSchedules(plan) {
+  const context = simulationContext()
+  return schedulesFor(simulationCashFlow(plan), context.currency)
 }

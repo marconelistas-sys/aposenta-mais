@@ -3,13 +3,16 @@ import { escapeHtml } from './formatters.js'
 import { planningChart } from './planning-chart.js'
 import { cashFlowDetailPanels } from './cash-flow-detail.js'
 import { renderCashFlowResult } from './cash-flow-result.js'
+import { renderPropertyFilter, renderSolvencyAssessment, renderSolvencyShortcuts } from './property-solvency.js'
+import { solvencyWealthLabel } from '../domain/property-solvency.js'
 
 // View preference only. It never changes saved amounts or real risk assumptions.
-export const cashFlowChartView = { basis: 'real' }
+export const cashFlowChartView = { basis: 'real', selectedYear: null }
 
-export function renderCashFlowLineChart({ rows, plan, currency, hidden = false, title, markers = [], selectedYear, baseYear = new Date().getUTCFullYear() }) {
+export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden = false, title, markers = [], selectedYear, baseYear = new Date().getUTCFullYear() }) {
   if (hidden) return '<p>Valores ocultos. Gráfico e composição ocultos.</p>'
   if (!rows.length) return '<p>Nenhum dado neste período.</p>'
+  selectedYear ??= cashFlowChartView.selectedYear
   const basis = cashFlowChartView.basis === 'nominal' ? 'nominal' : 'real'
   let display
   try { display = annualRowsInPriceBasis(rows, { basis, annualInflation: plan.annualInflation, baseYear }) }
@@ -25,15 +28,18 @@ export function renderCashFlowLineChart({ rows, plan, currency, hidden = false, 
     { key: hasReturn ? 'financialChange' : 'freeCashFlow', label: hasReturn ? 'Resultado final do ano' : 'Saldo do orçamento, antes dos rendimentos', color: '#1e293b', width: 3, emphasize: true }
   ]
   const wealthSeries = [
-    { key: 'netWorth', label: 'Patrimônio total líquido de dívidas', color: '#475569', width: 3, emphasize: true },
+    { key: display.every(row => Number.isFinite(row.solvencyNetWorth)) ? 'solvencyNetWorth' : 'netWorth', label: solvencyWealthLabel(display.find(row => row.excludedRealEstateAssets > 0) || display.at(-1)), color: '#475569', width: 3, emphasize: true },
     { key: 'financialAssets', label: 'Patrimônio financeiro', color: '#047857', dash: '6 3' },
     { key: 'liquidAssets', label: 'Liquidez', color: '#0369a1', dash: '2 3' }
   ].filter(series => display.some(row => Number.isFinite(row[series.key])))
-  const wealth = wealthSeries.length ? `<section class="cash-flow-wealth-chart" aria-label="Patrimônio que sustenta o orçamento"><h3>Patrimônio que sustenta o orçamento</h3><p>Saldos ao fim de cada ano, na mesma base de preços do fluxo. Escala própria: patrimônio acumulado e resultado anual têm tamanhos diferentes. Patrimônio positivo pode coexistir com falta de liquidez.</p>${planningChart({ title: `Patrimônio ao fim de cada ano · ${basisLabel}`, rows: display, series: wealthSeries, currency, markers, selectedYear, interpolation: 'linear' })}</section>` : ''
+  const wealth = wealthSeries.length ? `<section class="cash-flow-wealth-chart" aria-label="Patrimônio que sustenta o orçamento"><h3>Patrimônio que sustenta o orçamento</h3><p>Saldos ao fim de cada ano, na mesma base de preços do fluxo. Escala própria: patrimônio acumulado e resultado anual têm tamanhos diferentes. Patrimônio positivo pode coexistir com falta de liquidez.</p>${planningChart({ title: `Patrimônio ao fim de cada ano · ${basisLabel}`, rows: display, series: wealthSeries, currency, markers, selectedYear, linkedSelection: true, interpolation: 'linear' })}</section>` : ''
   return `<section class="cash-flow-line-view" data-cash-flow-line-view>
+    ${hasReturn ? renderPropertyFilter(cashFlow) : ''}
     <label class="cash-flow-price-control">Valores deste gráfico e da composição <select data-cash-flow-price-basis><option value="real" ${nominal ? '' : 'selected'}>Poder de compra atual, reais</option><option value="nominal" ${nominal ? 'selected' : ''}>Dinheiro futuro, nominais</option></select></label>
     <p>Valores ${basisLabel}. Inflação anual do plano: ${rate}%. A linha escura mostra ${hasReturn ? 'o resultado após receitas, despesas, rendimentos e créditos previdenciários' : 'o saldo antes dos rendimentos'}. Valores abaixo de zero indicam ${hasReturn ? 'redução dos ativos financeiros no ano' : 'déficit no orçamento'}.</p>
     ${renderCashFlowResult(display.at(-1), currency, { final: true })}
+    ${renderSolvencyAssessment(display, currency)}
+    ${renderSolvencyShortcuts(display)}
     ${wealth}
     ${planningChart({ title: `${title} · ${basisLabel}`, rows: display, series, currency, markers, selectedYear, interpolation: 'linear', details: cashFlowDetailPanels(display, plan, currency) })}
     <details class="disclosure"><summary>Como a inflação entra nesta projeção</summary><p>Na visão real, os valores já estão em poder de compra de ${baseYear} e o retorno já desconta inflação. Não se deve aumentar apenas as despesas pela inflação e manter receitas e rendimento em valores reais.</p><p>Na visão nominal, o índice acumulado é (1 + inflação anual) elevado ao número de anos desde ${baseYear}. O ano-base tem índice 1. O rendimento nominal implícito também inclui a atualização do saldo inicial, para conciliar aberturas e fechamentos. A hipótese de inflação é constante, não uma previsão.</p><p>Manter um lançamento constante em termos reais pressupõe que ele acompanha a inflação. Salários ou benefícios sem reajuste perdem poder de compra e exigem outra regra. O modelo ainda não separa indexação por contrato ou inflação por categoria. Parcelas, consórcios e metas conservam as regras atualmente cadastradas.</p><p>A conversão usa a inflação da moeda de apresentação após o câmbio fixo. Não projeta inflação ou câmbio de cada país. Dados originais na composição e os demais gráficos, tabelas e riscos continuam em valores reais. Alternar a visão não altera a viabilidade, não acrescenta receita e não duplica inflação.</p><a href="/plano" data-route>Revisar inflação e retorno do plano</a></details>
