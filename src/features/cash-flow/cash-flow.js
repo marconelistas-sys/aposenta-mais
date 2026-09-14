@@ -332,6 +332,7 @@ export function renderCashFlow(statementReview = null) {
         <h1>Organize suas receitas e despesas.</h1>
         <a class="button button--secondary" href="/contas" data-route>Contas e transferências</a>
         <a class="button button--secondary" href="/calendario" data-route>Vencimentos, dívidas e metas</a>
+        <a class="button button--secondary" href="/consorcios" data-route>Consórcios e posição vinculada</a>
         <a href="/construir/orcamento" data-route>Voltar ao passo a passo</a>
         <p>O sistema preserva a moeda original e consolida o orçamento em ${state.currency}.</p>
         <a class="button button--secondary" href="/cambio" data-route>Simular variação cambial e consultar histórico</a>
@@ -339,7 +340,7 @@ export function renderCashFlow(statementReview = null) {
       <div class="privacy-chip">${icon('lock', 16)} Cálculo local, sem envio automático</div>
     </section>
 
-    <section class="panel settings-card"><h2>Orçamento previsto de ${state.cashFlow.referenceMonth}</h2><p>Receitas: ${money(firstMonth.income)}. Despesas: ${money(firstMonth.expenses)}. FCX: ${money(firstMonth.balance)}. Créditos previdenciários: ${money(firstMonth.pension)}, conforme a origem configurada.</p><label>Mês de início da análise <input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></label><p>FCX não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas abaixo. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></section>
+    <section class="panel settings-card"><h2>Orçamento previsto de ${state.cashFlow.referenceMonth}</h2><p>Receitas: ${money(firstMonth.income)}. Despesas: ${money(firstMonth.expenses)}. Saldo do orçamento: ${money(firstMonth.balance)}. Créditos previdenciários: ${money(firstMonth.pension)}, conforme a origem configurada.</p><label>Mês de início da análise <input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></label><p>O saldo do orçamento (o que sobra de receitas menos despesas e metas) não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas abaixo. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></section>
     ${renderCashFlowTimeline()}
     <section class="cash-flow-layout">
       <div class="cash-flow-editor">
@@ -395,11 +396,8 @@ export function renderCashFlow(statementReview = null) {
           </div>
         </form>
 
-        <section class="panel statement-import" aria-labelledby="statement-import-title">
-          <div class="panel__header">
-            <div><p class="eyebrow">IMPORTAÇÃO LOCAL</p><h2 id="statement-import-title">Importar extrato TXT</h2></div>
-            ${icon('download', 21, 'panel__header-icon')}
-          </div>
+        <details class="panel disclosure statement-import">
+          <summary>Importar extrato TXT</summary>
           <p>O arquivo é processado neste navegador. Você revisa as colunas, os lançamentos e as duplicidades antes de confirmar.</p>
           <code>data;descricao;valor;moeda;categoria;tipo</code>
           <label class="statement-file">
@@ -411,7 +409,7 @@ export function renderCashFlow(statementReview = null) {
             <strong>Open Finance</strong>
             <span>Conexão direta planejada. Ela exigirá consentimento explícito e uma instituição receptora participante.</span>
           </div>
-        </section>
+        </details>
 
         <section class="panel budget-comparison" aria-labelledby="budget-comparison-title">
           <div class="panel__header budget-comparison__header">
@@ -446,7 +444,7 @@ export function renderCashFlow(statementReview = null) {
           ${cashFlowItems(result)}
         </section>
 
-        <details class="panel category-manager">
+        <details class="panel disclosure category-manager">
           <summary>Não encontrou uma categoria? Crie uma</summary>
           <form data-category-form>
             <label class="form-field">
@@ -480,9 +478,10 @@ export function renderCashFlow(statementReview = null) {
 
       <aside class="panel cash-flow-result" aria-live="polite">
         <h2>Fluxo mensal pela premissa anual</h2>
-        <dl class="cash-flow-metrics"><div><dt>Receitas</dt><dd>${money(firstMonth.income)}</dd></div><div><dt>Custos e metas no FCX</dt><dd>${money(firstMonth.expenses)}</dd></div><div><dt>FCX, antes de rendimentos</dt><dd>${money(firstMonth.balance)}</dd></div></dl>
-        <p>Um FCX negativo exige recursos do patrimônio. Não significa que todo o patrimônio terminou. <a href="/viabilidade" data-route>Conferir cobertura até a idade-alvo</a>.</p>
-        <details><summary>Simulador de aporte legado, com previdência paga pelo caixa</summary>
+        <dl class="cash-flow-metrics"><div><dt>Receitas</dt><dd>${money(firstMonth.income)}</dd></div><div><dt>Custos e metas</dt><dd>${money(firstMonth.expenses)}</dd></div><div><dt>Saldo do orçamento, antes de rendimentos</dt><dd>${money(firstMonth.balance)}</dd></div></dl>
+        <p>Um saldo negativo exige recursos do patrimônio. Não significa que todo o patrimônio terminou. <a href="/viabilidade" data-route>Conferir cobertura até a idade-alvo</a>.</p>
+        <details class="disclosure"><summary>Cálculo alternativo de aporte, com previdência paga pelo caixa</summary>
+        <p class="term-hint">Este cálculo usa premissas diferentes da avaliação anual (acima): aqui a previdência complementar sai do caixa do mês, e o aporte é constante. Os dois números podem divergir por isso.</p>
         <div class="panel__header">
           <div><p class="eyebrow">DIAGNÓSTICO EM ${state.currency}</p><h2>Quanto você pode aportar</h2></div>
           ${icon(result.isDeficit ? 'alertTriangle' : 'trendUp', 21, 'panel__header-icon')}
@@ -503,16 +502,17 @@ export function renderCashFlow(statementReview = null) {
           <div><dt>Diferença para a meta</dt><dd class="money-value">${money(Math.abs(result.contributionGap))} ${result.contributionGap <= 0 ? 'de margem' : ''}</dd></div>
         </dl>
         <button class="button button--dark button--full" type="button" data-apply-sustainable-contribution ${result.isDeficit ? 'disabled' : ''}>Usar ${money(result.sustainableContribution)} como aporte mensal</button>
-        <p class="result-disclaimer">Estes indicadores são do orçamento financiado legado: descontam previdência do caixa. O fluxo principal segue a origem configurada nas premissas anuais. Conversão pela referência do BCE de ${state.exchangeRates.date}.</p>
+        <p class="result-disclaimer">Estes indicadores são do cálculo alternativo: descontam previdência do caixa. O fluxo principal segue a origem configurada nas premissas anuais. Conversão pela referência do BCE de ${state.exchangeRates.date}.</p>
         </details>
       </aside>
     </section>
 
-    <details class="panel settings-card"><summary>Cenários de aporte legado, diferentes da avaliação anual</summary><section class="cash-scenarios" aria-labelledby="cash-scenarios-title">
+    <details class="panel disclosure"><summary>Comparar cenários de aporte (cálculo alternativo)</summary><section class="cash-scenarios" aria-labelledby="cash-scenarios-title">
       <div class="section-title-row">
         <div><p class="eyebrow">CENÁRIOS</p><h2 id="cash-scenarios-title">Impacto na aposentadoria</h2></div>
         <span>Valores em poder de compra de hoje</span>
       </div>
+      <p class="term-hint">Usa o mesmo cálculo alternativo do simulador acima, não a avaliação anual completa. Os números podem divergir dela.</p>
       <div class="cash-scenarios__grid">
         ${retirementScenario('Atual', state.plan.monthlyContribution, 'Aporte livre mais previdência complementar.', 'current', schedules)}
         ${retirementScenario('Sustentável', result.sustainableContribution, 'Saldo livre mais previdência complementar.', 'sustainable', schedules)}

@@ -1,9 +1,9 @@
 import { state } from '../../app/state.js'
 import { retirementMonth } from '../../domain/cash-flow-timeline.js'
 import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
-import { renderDashboard } from '../dashboard/dashboard.js'
-import { renderCashFlowTimeline } from '../cash-flow/timeline.js'
 import { renderBudgetStep } from './budget-step.js'
+import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from '../../domain/cash-flow.js'
+import { projectRetirementWithSchedules } from '../../domain/retirement.js'
 
 const steps = [['objetivo', 'Objetivo'], ['orcamento', 'Orçamento'], ['patrimonio', 'Patrimônio inicial'], ['revisao', 'Visão completa']]
 const money = value => privateCurrency(value, state.valuesHidden, false, state.currency)
@@ -23,7 +23,18 @@ export function renderGuidedPlan(step = 'objetivo') {
     </div><p>O mês confirmado controla as receitas vinculadas e o prazo patrimonial. Revise o mês antes de salvar. Benefício estimado não entra automaticamente nas receitas do orçamento.</p><div class="wizard-actions"><button class="button button--primary" type="submit">Salvar objetivo e continuar</button></div></form>`
   if (index === 1) content = renderBudgetStep()
   if (index === 2) content = `<form class="panel settings-card" data-guided-assets><h2>Com quanto você começa?</h2><p>O patrimônio inicial entra na projeção desde o primeiro mês, separado dos aportes futuros. Informe somente patrimônio destinado à aposentadoria. A reserva do orçamento não é somada automaticamente.</p>${state.plan.investments.length ? `<p>Patrimônio inicial: ${money(state.plan.currentAssets)}. Aportes: ${money(state.plan.monthlyContribution)} por mês.</p><p>Esses totais vêm dos ${state.plan.investments.length} investimentos cadastrados. <a href="/carteira" data-route>Edite na Carteira</a>. Não somamos outro patrimônio agregado.</p>` : `<div class="form-grid form-grid--two">${input('currentAssets', `Patrimônio inicial em ${state.currency}`, state.plan.currentAssets, 0, 1000000000)}${input('monthlyContribution', `Aporte mensal em ${state.currency}`, state.plan.monthlyContribution, 0, 10000000)}</div>`}<div class="wizard-actions"><a href="/construir/orcamento" data-route>Voltar ao orçamento</a><button class="button button--primary" type="submit">Salvar e ver visão completa</button></div></form>`
-  if (index === 3) content = `<section class="panel settings-card"><h2>Revise antes de decidir</h2><p>Patrimônio inicial considerado: ${money(state.plan.currentAssets)}. Aporte mensal considerado: ${money(state.plan.monthlyContribution)}. O dashboard usa o rendimento cadastrado.</p><p>O orçamento mostra sua capacidade mensal. A projeção patrimonial ainda mantém os aportes informados constantes, mesmo quando a receita termina. Ajuste suas premissas e não interprete o resultado como garantia.</p><div class="wizard-actions"><a href="/construir/patrimonio" data-route>Voltar ao patrimônio</a><a class="button button--primary" href="/" data-route>Abrir dashboard</a></div></section>${renderDashboard()}${renderCashFlowTimeline()}`
+  if (index === 3) {
+    const schedules = retirementContributionSchedules(state.cashFlow, state.currency, state.exchangeRates, state.customCategories)
+    const result = projectRetirementWithSchedules(state.plan, schedules)
+    const cashFlow = calculateMultiCurrencyCashFlow(state.cashFlow, state.currency, state.exchangeRates, result.requiredMonthlyContribution, state.customCategories)
+    content = `<section class="panel settings-card"><h2>Revise antes de decidir</h2><p>Patrimônio inicial considerado: ${money(state.plan.currentAssets)}. Aporte mensal considerado: ${money(state.plan.monthlyContribution)}. O dashboard usa o rendimento cadastrado.</p><p>O orçamento mostra sua capacidade mensal. A projeção patrimonial ainda mantém os aportes informados constantes, mesmo quando a receita termina. Ajuste suas premissas e não interprete o resultado como garantia.</p>
+    <div class="onboarding-summary">
+      <article class="onboarding-summary__item"><span class="eyebrow">RECEITAS E DESPESAS</span><strong class="money-value">${money(cashFlow.monthlyIncome - cashFlow.monthlyExpenses)}</strong><p>Saldo mensal do orçamento hoje</p></article>
+      <article class="onboarding-summary__item"><span class="eyebrow">INVESTIMENTOS</span><strong class="money-value">${money(state.plan.currentAssets)}</strong><p>Patrimônio inicial, mais ${money(state.plan.monthlyContribution)} de aporte mensal</p></article>
+      <article class="onboarding-summary__item"><span class="eyebrow">IMPACTO DE LONGO PRAZO</span><strong class="money-value">${money(result.projectedAssets)}</strong><p>Patrimônio projetado até a idade-alvo, em valores de hoje</p></article>
+    </div>
+    <div class="wizard-actions"><a href="/construir/patrimonio" data-route>Voltar ao patrimônio</a><a class="button button--primary" href="/" data-route>Abrir Início</a></div></section>`
+  }
   if (state.valuesHidden && index < 3) return heading + '<section class="panel settings-card"><p>Os campos financeiros estão ocultos. Mostre os valores para editar esta etapa.</p><button type="button" class="button button--secondary" data-toggle-values>Mostrar valores para editar</button></section>'
   return heading + content
 }

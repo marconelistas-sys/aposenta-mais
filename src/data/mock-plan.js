@@ -7,6 +7,7 @@ export const user = {
 export const defaultPlan = {
   currentAge: 39,
   retirementAge: 65,
+  targetAge: 90,
   currentAssets: 120000,
   monthlyContribution: 1570,
   annualRealReturn: 0.05,
@@ -14,7 +15,12 @@ export const defaultPlan = {
   investments: [],
   targetMonthlyIncome: 9000,
   expectedMonthlyBenefit: 3200,
-  annualWithdrawalRate: 0.04
+  annualWithdrawalRate: 0.04,
+  spouseEnabled: false,
+  spouseCurrentAge: null,
+  spouseRetirementAge: null,
+  spouseRetirementMonth: null,
+  spouseExpectedMonthlyBenefit: 0
 }
 
 export const articles = [

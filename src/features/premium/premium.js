@@ -98,7 +98,7 @@ export function renderPremium() {
             ${primaryAction}
             ${!authState.authenticated && canRegister ? '<a class="button button--secondary button--large" href="/entrar" data-route>Já tenho uma conta</a>' : ''}
           </div>
-          <p class="premium-trust">${icon('shield', 16)} Criar a conta envia dados de acesso ao Supabase, mas não envia seu plano financeiro.</p>
+          <p class="premium-trust">${icon('shield', 16)} Criar a conta envia dados de acesso ao nosso serviço de login, mas não envia seu plano financeiro.</p>
         </div>
         ${householdPreview()}
       </div>

@@ -4,7 +4,7 @@ import { icon } from '../../shared/icons.js'
 
 function unavailableMessage() {
   return authState.configured === false
-    ? '<div class="auth-notice" role="status">O Supabase Free ainda precisa ser conectado pelas variáveis do servidor.</div>'
+    ? '<div class="auth-notice" role="status">O serviço de login ainda precisa ser conectado pelas variáveis do servidor.</div>'
     : ''
 }
 
@@ -48,7 +48,7 @@ export function renderRegister() {
       <label>E-mail<input name="email" type="email" autocomplete="email" maxlength="254" required /></label>
       <label>Senha<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required aria-describedby="password-help" /></label>
       <p id="password-help" class="field-help">Use pelo menos 12 caracteres. Evite senhas reutilizadas.</p>
-      <p class="registration-privacy">Leia o <a href="/privacidade" data-route>aviso de privacidade</a>. O cadastro envia seu e-mail e dados de autenticação ao Supabase, mas não envia seu plano financeiro.</p>
+      <p class="registration-privacy">Leia o <a href="/privacidade" data-route>aviso de privacidade</a>. O cadastro envia seu e-mail e dados de autenticação ao nosso serviço de login, mas não envia seu plano financeiro.</p>
       <label class="checkbox-row"><input name="acceptedTerms" type="checkbox" required /><span>Entendi que esta é uma versão experimental e desejo criar a conta.</span></label>
       <button class="button button--primary button--full" type="submit">Criar conta</button>
     </form>

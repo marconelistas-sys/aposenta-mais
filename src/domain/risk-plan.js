@@ -2,7 +2,7 @@ import { calculateMultiCurrencyCashFlow } from './cash-flow.js'
 import { prepareCommitmentSchedules, commitmentEvents } from './financial-calendar.js'
 import { sanitizeConsortia, consortiumSchedule, monthOffset, shiftMonth, validateConsortiumAsOf } from './consortium.js'
 import { resolveInvestmentRealReturn } from './investment-returns.js'
-import { retirementMonth } from './cash-flow-timeline.js'
+import { retirementMonth, spouseRetirementMonth } from './cash-flow-timeline.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
 import { nonFinancialValue } from './annual-planning.js'
 import { planningHorizon } from './planning-horizon.js'
@@ -29,6 +29,7 @@ export function prepareRiskInput(state, settings, today = new Date()) {
   }
   validateRiskSettings(settings)
   const retirement = retirementMonth(state.plan, today)
+  const spouseRetirement = spouseRetirementMonth(state.plan, today)
   const convert = (amount, currency) => convertCurrency(amount, currency, state.currency, state.exchangeRates)
   const debts = (state.cashFlow.commitments || []).filter(item => item.kind === 'debt')
   const debtSchedules = prepareCommitmentSchedules(state.cashFlow.commitments)
@@ -45,7 +46,9 @@ export function prepareRiskInput(state, settings, today = new Date()) {
     const month = shiftMonth(start, index)
     const budget = calculateMultiCurrencyCashFlow(budgetSource, state.currency, state.exchangeRates, 0, state.customCategories, new Date(`${month}-15T00:00:00Z`))
     const expenses = budget.monthlyExpenses
-    const income = budget.monthlyIncome + (month >= retirement && !settings.benefitIncluded ? state.plan.expectedMonthlyBenefit : 0)
+    const income = budget.monthlyIncome
+      + (month >= retirement && !settings.benefitIncluded ? state.plan.expectedMonthlyBenefit : 0)
+      + (spouseRetirement && month >= spouseRetirement && !settings.benefitIncluded ? (state.plan.spouseExpectedMonthlyBenefit || 0) : 0)
     const commitments = commitmentEvents(state.cashFlow.commitments, month, debtSchedules).reduce((sum, row) => sum + convert(row.amount, row.currency), 0)
     pensionAssets = pensionAssets * (1 + state.plan.annualRealReturn) ** (1 / 12) + budget.pensionContributions
     const nonFinancialAssets = nonFinancialValue(state.cashFlow.nonFinancialAssets, month, state.currency, state.exchangeRates)

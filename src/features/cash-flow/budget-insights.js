@@ -5,7 +5,7 @@ export function renderBudgetInsights(state, points) {
   const insight = analyzeBudget(points, state.cashFlow.currentEmergencyReserve, state.cashFlow.retirementMonth)
   const money = value => privateCurrency(value, state.valuesHidden, false, state.currency)
   const coverage = state.valuesHidden ? 'Valor oculto' : insight.coverageMonths === null ? 'Não calculável: sem despesas previstas no primeiro mês' : `${insight.coverageMonths.toFixed(1)} meses`
-  return `<details class="panel settings-card"><summary>Explorar reserva, despesas e transição para aposentadoria</summary>
+  return `<details class="panel disclosure"><summary>Explorar reserva, despesas e transição para aposentadoria</summary>
     <h3>Quanto a reserva atual cobre?</h3><p>${coverage}</p>
     <p>Reserva cadastrada dividida pelas despesas previstas de ${points[0].month}. Considera todas as despesas do orçamento, incluindo provisões anuais. É uma relação estática, sem entradas de renda, resgates, rendimentos ou evolução futura da reserva. Não soma investimentos à reserva.</p>
     <h3>E se as despesas mudarem?</h3>

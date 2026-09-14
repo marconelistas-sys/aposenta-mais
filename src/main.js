@@ -75,6 +75,7 @@ import { serializeExportableState, storageKeys } from './app/state-storage.js'
 import { parseFinappImport, mergeFinappImport } from './domain/finapp-import.js'
 import { renderFinappReconciliation } from './features/profile/finapp-review.js'
 import { bindPlanningChartInteractions } from './shared/planning-chart-interactions.js'
+import { cashFlowChartView } from './shared/cash-flow-line-chart.js'
 
 const finappPreviews = new WeakMap()
 import { saveAnnualPlanning } from './features/plan/annual-planning.js'
@@ -351,7 +352,8 @@ function openCashItemDialog(id) {
   const dialog = document.querySelector('[data-cash-item-dialog]')
   const form = dialog?.querySelector('[data-cash-item-edit-form]')
   if (!item || !dialog || !form) throw new TypeError('Lançamento não encontrado.')
-  for (const field of ['itemId', 'categoryId', 'description', 'amount', 'currency', 'frequency', 'startDate', 'endDate', 'endMode', 'recordKind']) {
+  form.elements.namedItem('itemId').value = item.id
+  for (const field of ['categoryId', 'description', 'amount', 'currency', 'frequency', 'startDate', 'endDate', 'endMode', 'recordKind']) {
     const input = form.elements.namedItem(field)
     if (input) input.value = item[field] || ''
   }
@@ -862,6 +864,16 @@ document.addEventListener('input', (event) => {
 })
 
 document.addEventListener('change', async (event) => {
+  if (event.target.matches('[data-cash-flow-price-basis]')) {
+    const yearControl = event.target.closest('[data-cash-flow-line-view]')?.querySelector('[data-chart-year]')
+    const selectedYear = yearControl?.selectedOptions[0]?.textContent.match(/^\d{4}/)?.[0]
+    if (selectedYear) timelineView.selectedYear = selectedYear
+    cashFlowChartView.basis = event.target.value === 'nominal' ? 'nominal' : 'real'
+    render()
+    const control = app.querySelector('[data-cash-flow-price-basis]')
+    control?.focus({ preventScroll: true })
+    return
+  }
   const importForm = event.target.closest('[data-finapp-import]')
   if (importForm) {
     finappPreviews.delete(importForm)
@@ -874,7 +886,9 @@ document.addEventListener('change', async (event) => {
   const budgetForm = event.target.closest('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]')
   if (budgetForm) guideBudgetForm(budgetForm, state.customCategories)
   if (event.target.matches('[data-timeline-period]')) {
-    timelineView.period = ['target', '12', '60', 'retirement'].includes(event.target.value) ? event.target.value : 'target'
+    const yearControl = event.target.closest('section')?.querySelector('[data-chart-year]')
+    timelineView.selectedYear = yearControl?.selectedOptions[0]?.textContent.match(/^\d{4}/)?.[0] || null
+    timelineView.period = ['target', '100', '12', '60', 'retirement'].includes(event.target.value) ? event.target.value : 'target'
     render()
     return
   }
@@ -984,6 +998,31 @@ document.addEventListener('submit', async (event) => {
       planningHorizon({ ...state.plan, ...patch }, state.cashFlow.referenceMonth)
       updatePlan(patch); cancelRisk(true); render(); showToast('Horizonte salvo. A idade de aposentadoria não foi alterada.')
     } catch (error) { showFormError(horizonForm, error.message) }
+    return
+  }
+  const spouseForm = event.target.closest('[data-spouse-plan]')
+  if (spouseForm) {
+    event.preventDefault()
+    try {
+      const data = new FormData(spouseForm)
+      const spouseEnabled = data.get('spouseEnabled') === 'on'
+      const spouseCurrentAge = Number(data.get('spouseCurrentAge'))
+      const spouseRetirementAge = Number(data.get('spouseRetirementAge'))
+      const spouseExpectedMonthlyBenefit = Number(data.get('spouseExpectedMonthlyBenefit'))
+      if (spouseEnabled) {
+        if (!Number.isFinite(spouseCurrentAge) || spouseCurrentAge < 16 || spouseCurrentAge > 99) throw new RangeError('Informe a idade atual do cônjuge (16 a 99 anos).')
+        if (!Number.isFinite(spouseRetirementAge) || spouseRetirementAge <= spouseCurrentAge || spouseRetirementAge > 100) throw new RangeError('A idade de aposentadoria do cônjuge deve ser maior que a idade atual dele(a).')
+      }
+      updatePlan({
+        spouseEnabled,
+        spouseCurrentAge: spouseEnabled ? spouseCurrentAge : null,
+        spouseRetirementAge: spouseEnabled ? spouseRetirementAge : null,
+        spouseRetirementMonth: spouseEnabled ? state.plan.spouseRetirementMonth : null,
+        spouseExpectedMonthlyBenefit: Number.isFinite(spouseExpectedMonthlyBenefit) ? spouseExpectedMonthlyBenefit : 0
+      })
+      render()
+      showToast(spouseEnabled ? 'Dados do cônjuge salvos no plano.' : 'Cônjuge removido do plano.')
+    } catch (error) { showFormError(spouseForm, error.message) }
     return
   }
   const annualForm = event.target.closest('[data-annual-planning]')

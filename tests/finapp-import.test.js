@@ -74,6 +74,6 @@ test('perfil exige sessão e oferece prévia local sem envio ao Supabase', () =>
     authState.authenticated = true
     assert.match(renderProfile(), /data-finapp-import/)
     assert.match(renderProfile(), /Conferir arquivo e importar/)
-    assert.match(renderProfile(), /Não substitui registros existentes nem envia dados ao Supabase/)
+    assert.match(renderProfile(), /Não substitui registros existentes nem envia dados para a nuvem/)
   } finally { Object.assign(authState, saved) }
 })

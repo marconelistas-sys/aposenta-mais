@@ -3,6 +3,7 @@ import { retirementContributionSchedules, calculateMultiCurrencyCashFlow } from 
 import { resolveInvestmentRealReturn } from './investment-returns.js'
 import { addMonths, prepareCommitmentSchedules } from './financial-calendar.js'
 import { prepareConsortiumEvents } from './consortium.js'
+import { spouseRetirementMonth } from './cash-flow-timeline.js'
 
 export const defaultDecumulation = Object.freeze({ years: 30, expenseMode: 'target', annualFee: 0, withdrawalTax: 0, benefitIncluded: false })
 export function validateDecumulation(settings) {
@@ -29,6 +30,7 @@ export function projectPostRetirement(state, settings = defaultDecumulation, asO
   const buckets = registered.length ? registered : [{ assets: accumulation.projectedAssets, rate: (1 + plan.annualRealReturn) ** (1 / 12) - 1 }]
   if (registered.length) buckets.push({ assets: Math.max(0, accumulation.projectedAssets - registered.reduce((sum, item) => sum + item.assets, 0)), rate: (1 + plan.annualRealReturn) ** (1 / 12) - 1 })
   const feeRate = 1 - (1 - settings.annualFee) ** (1 / 12)
+  const spouseMonth = spouseRetirementMonth(plan, asOfDate)
   const rows = []
   const cashFlow = { ...state.cashFlow, retirementMonth: start, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia) }
   let firstShortfall = null
@@ -37,7 +39,8 @@ export function projectPostRetirement(state, settings = defaultDecumulation, asO
     const budget = calculateMultiCurrencyCashFlow(cashFlow, state.currency, state.exchangeRates, 0, state.customCategories, new Date(`${month}-15T00:00:00Z`))
     // Legacy callers with an imported zero target must not erase real expenses.
     const expenses = settings.expenseMode === 'budget' || plan.targetMonthlyIncome <= 0 ? budget.monthlyExpenses : plan.targetMonthlyIncome
-    const income = budget.monthlyIncome + (settings.benefitIncluded ? 0 : plan.expectedMonthlyBenefit)
+    const spouseBenefit = spouseMonth && month >= spouseMonth ? (plan.spouseExpectedMonthlyBenefit || 0) : 0
+    const income = budget.monthlyIncome + (settings.benefitIncluded ? 0 : plan.expectedMonthlyBenefit + spouseBenefit)
     let fees = 0
     for (const bucket of buckets) { bucket.assets *= 1 + bucket.rate; const fee = bucket.assets * feeRate; bucket.assets -= fee; fees += fee }
     const available = buckets.reduce((sum, item) => sum + item.assets, 0)

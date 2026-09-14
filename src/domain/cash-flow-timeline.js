@@ -2,11 +2,21 @@ import { calculateMultiCurrencyCashFlow } from './cash-flow.js'
 import { prepareConsortiumEvents } from './consortium.js'
 import { prepareCommitmentSchedules } from './financial-calendar.js'
 import { sanitizeFinappMethod, finappExchangeRates } from './finapp-viability.js'
+import { createAnnualBreakdown, collectAnnualBudget, finishAnnualBreakdown } from './annual-cash-flow-breakdown.js'
 
 export function retirementMonth(plan, today = new Date()) {
   if (plan.retirementMonth) return plan.retirementMonth
   const months = Math.round((plan.retirementAge - plan.currentAge) * 12)
   if (!Number.isFinite(months) || months < 0 || months > 1200) throw new RangeError('Prazo de aposentadoria inválido.')
+  return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + months, 1)).toISOString().slice(0, 7)
+}
+
+export function spouseRetirementMonth(plan, today = new Date()) {
+  if (!plan.spouseEnabled) return null
+  if (plan.spouseRetirementMonth) return plan.spouseRetirementMonth
+  if (!Number.isFinite(plan.spouseRetirementAge) || !Number.isFinite(plan.spouseCurrentAge)) return null
+  const months = Math.round((plan.spouseRetirementAge - plan.spouseCurrentAge) * 12)
+  if (!Number.isFinite(months) || months < 0 || months > 1200) return null
   return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + months, 1)).toISOString().slice(0, 7)
 }
 
@@ -17,7 +27,7 @@ export function lastIncomeDate(plan, today = new Date()) {
   return date.toISOString().slice(0, 10)
 }
 
-export function cashFlowTimeline(state, startMonth, months) {
+export function cashFlowTimeline(state, startMonth, months, { includeBreakdown = false } = {}) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(startMonth) || !Number.isInteger(months) || months < 1 || months > 1200) throw new RangeError('Período inválido.')
   const start = new Date(`${startMonth}-01T00:00:00Z`)
   state = { ...state, exchangeRates: finappExchangeRates(state) }
@@ -27,8 +37,10 @@ export function cashFlowTimeline(state, startMonth, months) {
   return Array.from({ length: months }, (_, index) => {
     const date = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + index, 15))
     const result = calculateMultiCurrencyCashFlow(cashFlow, state.currency, state.exchangeRates, 0, state.customCategories, date)
+    const breakdown = includeBreakdown ? createAnnualBreakdown() : null
+    collectAnnualBudget(breakdown, result, { pensionMode: externalPension ? 'external' : 'cash-funded', costMultiplier: 1, retirement: cashFlow.retirementMonth })
     const pensionInExpenses = externalPension ? 0 : result.pensionContributions
     const expenses = result.monthlyExpenses - result.pensionContributions + pensionInExpenses
-    return { month: date.toISOString().slice(0, 7), income: result.monthlyIncome, expenses, pension: result.pensionContributions, pensionInExpenses, balance: result.monthlyIncome - expenses }
+    return { month: date.toISOString().slice(0, 7), income: result.monthlyIncome, expenses, pension: result.pensionContributions, pensionInExpenses, balance: result.monthlyIncome - expenses, ...(breakdown ? { breakdown: finishAnnualBreakdown(breakdown) } : {}) }
   })
 }

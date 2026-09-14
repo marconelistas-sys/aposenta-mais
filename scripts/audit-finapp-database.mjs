@@ -26,6 +26,11 @@ db=Session(create_engine('sqlite:///'+uri+'&uri=true'))
 inputs=dict(revenues=adapter.load_revenues(db),budget_brazil=adapter.load_budget_items(db,'Brazil'),budget_switzerland=adapter.load_budget_items(db,'Switzerland'),goals=adapter.load_goals(db),assets=adapter.load_assets(db),one_time_flows=adapter.load_one_time_flows(db),initial_assets=adapter.load_initial_assets(db),pension_contributions=adapter.load_pension_contributions(db,params.chf_brl_rate))
 end=params.current_year+params.target_age-params.current_age
 proj=engine.run_projection(params,**inputs,horizon_end_year=end)
+reconciliation=[]
+previous=proj.opening_af
+for y in proj.years:
+ reconciliation.append(dict(year=y,fcx=proj.fcx[y],af=proj.af[y],investment_return=previous*proj.effective_return[y],financial_change=proj.af[y]-previous))
+ previous=proj.af[y]
 matrix=engine.compute_sensitivity(params,**inputs)
 # Capture the actual normal draws from Python, including its inflation draws.
 draws=[]
@@ -36,7 +41,7 @@ engine.random.Random=Capture
 mc=engine.run_monte_carlo(params,**inputs,horizon_end_year=end,n_simulations=50,seed=12345)
 length=len(proj.years);stride=2*length-1
 paths=[[draws[s*stride+(0 if y==0 else 2*y-1)] for y in range(length)] for s in range(50)]
-print(json.dumps(dict(params=p,fx_mode=fx_mode,inputs={k:[dataclasses.asdict(r) for r in v] for k,v in inputs.items()},projection=[dict(year=y,fcx=proj.fcx[y],af=proj.af[y]) for y in proj.years],matrix=[dataclasses.asdict(c) for c in matrix],mc=dict(success=mc.probability_of_success_at_target_age,p10=mc.af_p10,p50=mc.af_p50,p90=mc.af_p90),paths=paths)))
+print(json.dumps(dict(params=p,fx_mode=fx_mode,inputs={k:[dataclasses.asdict(r) for r in v] for k,v in inputs.items()},projection=reconciliation,matrix=[dataclasses.asdict(c) for c in matrix],mc=dict(success=mc.probability_of_success_at_target_age,p10=mc.af_p10,p50=mc.af_p50,p90=mc.af_p90),paths=paths)))
 db.close();con.close()`
 const rateOverride = process.argv[3]
 if (rateOverride !== undefined && (!Number.isFinite(Number(rateOverride)) || Number(rateOverride) <= 0 || Number(rateOverride) >= 1000000)) throw new Error('Cotação de comparação inválida.')
@@ -53,9 +58,14 @@ for (const [index, row] of input.one_time_flows.entries()) if (row.include && ro
 const annual = (list, amount) => list.filter(row => row.include).map((row, index) => ({ id: `${amount}:${index}`, name: amount, amount: row[amount], currency: row.currency, startYear: row.start_year, endYear: row.end_year, everyYears: row.periodicity || 1, realGrowth: row.real_growth }))
 const value = createExportableState({ currency: 'BRL', exchangeRates: { rates: { EUR: 1, CHF: 1, BRL: p.chf_brl_rate, USD: 1 } }, plan: { currentAge: p.current_age, targetAge: p.target_age, horizonReferenceMonth: `${p.current_year}-01`, annualRealReturn: p.real_return, annualInflation: p.inflation, targetMonthlyIncome: 0, investments: input.initial_assets.filter(row => row.include).map((row, index) => ({ id: `initial:${index}`, name: 'Saldo inicial', amount: row.amount * (row.currency === 'CHF' ? p.chf_brl_rate : 1), liquidity: row.liquid_now ? 'available' : 'restricted', returnType: 'real', returnValue: p.real_return })), finappMethod: { openingYearPeriod: p.opening_year_period, pensionMode: 'external' } }, cashFlow: { items, annualGoals: annual(input.goals, 'monthly_amount'), nonFinancialAssets: annual(input.assets, 'value') } })
 const today = new Date(`${p.current_year}-01-01T00:00:00Z`)
-const base = finappViability(value, undefined, today)
+const base = finappViability(value, undefined, today, { includeBreakdown: true })
 const close = (actual, expected, label) => assert.ok(Math.abs(actual - expected) < 0.5, `${label}: diferença acima de 0,50 na moeda-base`)
-base.rows.forEach((row, index) => { close(row.freeCashFlow, source.projection[index].fcx, 'FCX'); close(row.financialAssets, source.projection[index].af, 'AF') })
+for (const row of base.rows) {
+  for (const [group, expected] of [['income', row.income], ['costs', row.costs], ['goals', row.goals], ['pension', row.pensionCredits], ['releases', row.releases]]) {
+    assert.ok(Math.abs(row.breakdown[group].reduce((total, entry) => total + entry.amount, 0) - expected) < 1e-7, `Composição não concilia em ${group}.`)
+  }
+}
+base.rows.forEach((row, index) => { close(row.freeCashFlow, source.projection[index].fcx, 'FCX'); close(row.financialAssets, source.projection[index].af, 'AF'); close(row.financialReturn, source.projection[index].investment_return, 'Retorno real'); close(row.financialChange, source.projection[index].financial_change, 'Variação financeira'); close(row.financialAssets, row.previousFinancial + row.financialReturn + row.freeCashFlow + row.pensionCredits, 'Conciliação') })
 const monthly = cashFlowTimeline(value, `${p.current_year}-01`, 12)
 close(monthly.reduce((sum, row) => sum + row.balance, 0), source.projection[0].fcx, 'FCX mensal somado')
 const risk = calculateFinappRisk(value, { ...defaultRiskSettings, annualVolatility: p.return_volatility, simulations: 50 }, today, source.paths)
@@ -67,4 +77,4 @@ for (const cell of risk.matrix) {
   close(cell.financialAssets, reference.af_at_target_age, 'Matriz AF final')
   close(cell.minFinancial, reference.min_af_through_target_age, 'Matriz AF mínimo')
 }
-console.log(JSON.stringify({ audit: 'passed', sourceConfiguredFxMode: source.fx_mode, comparisonFxBasis: rateOverride ? 'explicit override, same for both engines' : 'stored fixed baseline, same for both engines, not the live quote', years: base.rows.length, source: 'read-only financial tables', fcx: 'all years agree', financialAssets: 'all years agree', risk: '50 identical return paths, P10/P50/P90 and success agree', matrixCells: risk.matrix.length, firstYearFcxSign: Math.sign(base.rows[0].freeCashFlow), firstYearLegacyFundedSign: Math.sign(base.rows[0].freeCashFlow - base.rows[0].pensionCredits), negativeFlowYears: base.rows.filter(row => row.freeCashFlow < 0).length, tolerance: '0.50 BRL for cent rounding', excluded: 'Source consortium not imported. Liquidity release mapping and account browser state not audited.' }, null, 2))
+console.log(JSON.stringify({ audit: 'passed', sourceConfiguredFxMode: source.fx_mode, comparisonFxBasis: rateOverride ? 'explicit override, same for both engines' : 'stored fixed baseline, same for both engines, not the live quote', years: base.rows.length, source: 'read-only financial tables', fcx: 'all years agree', financialAssets: 'all years agree', returnsAndFinancialChange: 'all years agree and reconcile', risk: '50 identical return paths, P10/P50/P90 and success agree', matrixCells: risk.matrix.length, firstYearFcxSign: Math.sign(base.rows[0].freeCashFlow), firstYearLegacyFundedSign: Math.sign(base.rows[0].freeCashFlow - base.rows[0].pensionCredits), negativeFlowYears: base.rows.filter(row => row.freeCashFlow < 0).length, financialDeclineYears: base.rows.filter(row => row.financialChange < -0.005).length, negativeFlowWithFinancialGrowthYears: base.rows.filter(row => row.freeCashFlow < 0 && row.financialChange > 0.005).length, depletionYear: base.rows.find(row => row.financialAssets < -0.005)?.year ?? null, tolerance: '0.50 BRL for cent rounding', excluded: 'Source consortium not imported. Liquidity release mapping and account browser state not audited.' }, null, 2))

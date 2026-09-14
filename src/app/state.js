@@ -78,6 +78,14 @@ export function updatePlan(patch) {
     nextPlan.retirementMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + Math.round((nextPlan.retirementAge - nextPlan.currentAge) * 12), 1)).toISOString().slice(0, 7)
     state.cashFlow.retirementMonth = nextPlan.retirementMonth
   }
+  if (nextPlan.spouseEnabled
+    && Number.isFinite(nextPlan.spouseCurrentAge)
+    && Number.isFinite(nextPlan.spouseRetirementAge)
+    && ((patch.spouseRetirementAge !== undefined && patch.spouseRetirementAge !== state.plan.spouseRetirementAge)
+      || (patch.spouseCurrentAge !== undefined && patch.spouseCurrentAge !== state.plan.spouseCurrentAge))) {
+    const now = new Date()
+    nextPlan.spouseRetirementMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + Math.round((nextPlan.spouseRetirementAge - nextPlan.spouseCurrentAge) * 12), 1)).toISOString().slice(0, 7)
+  }
   if (Array.isArray(nextPlan.investments) && nextPlan.investments.length > 0) {
     const currentContribution = nextPlan.investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
     const requestedContribution = Number.isFinite(patch.monthlyContribution)
@@ -265,7 +273,7 @@ export function setCurrency(currency) {
   const nextCurrency = normalizeCurrency(currency)
   if (nextCurrency === state.currency) return
   const convert = (value) => convertCurrency(value, state.currency, nextCurrency, state.exchangeRates)
-  for (const field of ['currentAssets', 'monthlyContribution', 'targetMonthlyIncome', 'expectedMonthlyBenefit']) {
+  for (const field of ['currentAssets', 'monthlyContribution', 'targetMonthlyIncome', 'expectedMonthlyBenefit', 'spouseExpectedMonthlyBenefit']) {
     state.plan[field] = convert(state.plan[field])
   }
   state.plan.investments = (state.plan.investments || []).map((investment) => ({

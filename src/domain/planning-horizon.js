@@ -1,3 +1,10 @@
+import { createAnnualBreakdown, finishAnnualBreakdown } from './annual-cash-flow-breakdown.js'
+
+// A display scenario, not a saved change to the user's plan or contracts.
+export function cashFlowProjectionState(state, period) {
+  return period === '100' ? { ...state, plan: { ...state.plan, targetAge: 100 } } : state
+}
+
 export function planningHorizon(plan, startMonth, today = new Date()) {
   const reference = plan.horizonReferenceMonth || today.toISOString().slice(0, 7)
   if (!/^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(startMonth) || !/^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(reference)) throw new Error('Mês de referência inválido.')
@@ -19,9 +26,17 @@ export function annualCashFlow(points) {
     row.pension += point.pension || 0
     row.spending += point.expenses - (point.pensionInExpenses ?? point.pension ?? 0)
     row.balance += point.balance
+    if (point.breakdown) {
+      row.breakdown ||= createAnnualBreakdown()
+      for (const [group, entries] of Object.entries(point.breakdown)) for (const entry of entries) {
+        const previous = row.breakdown[group].get(entry.id)
+        if (previous) { previous.amount += entry.amount; previous.originalAmount += entry.originalAmount; previous.months += entry.months }
+        else row.breakdown[group].set(entry.id, { ...entry })
+      }
+    }
     years.set(year, row)
   }
-  return [...years.values()]
+  return [...years.values()].map(row => row.breakdown ? { ...row, breakdown: finishAnnualBreakdown(row.breakdown) } : row)
 }
 
 // Stocks and percentiles use the last available month, never a sum or average of percentiles.

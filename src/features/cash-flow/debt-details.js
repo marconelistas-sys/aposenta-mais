@@ -35,7 +35,7 @@ export function renderDebtDetails(item, { month, valuesHidden = false, currency 
   return `<section class="debt-details" aria-label="Detalhes da dívida ${escapeHtml(item.name ?? '')}">
     <p>Saldo antes de ${escapeHtml(month)}: ${money(result.balanceBefore)}. Saldo após o mês: ${money(result.balanceAfter)}.</p>
     <p>Quitação prevista: ${escapeHtml(result.payoffMonth)} em ${result.schedule.length} parcelas. Juros previstos: ${money(result.totalInterest)}. Tarifas previstas: ${money(result.totalFees)}. Economia de juros com pagamentos extras: ${money(result.interestSavings)}.</p>
-    <details><summary>Ver cronograma da dívida</summary><div class="currency-table"><table>
+    <details class="disclosure"><summary>Ver cronograma da dívida</summary><div class="currency-table"><table>
       <caption>${escapeHtml(item.name ?? 'Dívida')}, cronograma na moeda ${escapeHtml(item.currency || currency || 'BRL')}. Parcela total inclui amortização extra e tarifa.</caption>
       <thead><tr><th scope="col">Mês</th><th scope="col">Parcela total</th><th scope="col">Juros</th><th scope="col">Amortização total</th><th scope="col">Extra incluído</th><th scope="col">Tarifa</th><th scope="col">Saldo</th></tr></thead>
       <tbody>${result.schedule.map(row => `<tr><th scope="row">${escapeHtml(row.month)}</th><td>${money(row.amount)}</td><td>${money(row.interest)}</td><td>${money(row.principal)}</td><td>${money(row.extraPayment)}</td><td>${money(row.fee)}</td><td>${money(row.balance)}</td></tr>`).join('')}</tbody>

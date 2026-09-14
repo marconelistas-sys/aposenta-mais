@@ -56,6 +56,18 @@ export function validateProjectionInput(input) {
   if (input.annualWithdrawalRate <= 0 || input.annualWithdrawalRate > 1) {
     throw new RangeError('A taxa de retirada deve estar entre 0% e 100%.')
   }
+
+  if (input.spouseEnabled) {
+    if (!Number.isFinite(input.spouseExpectedMonthlyBenefit) || input.spouseExpectedMonthlyBenefit < 0) {
+      throw new RangeError('O benefício previdenciário do cônjuge não pode ser negativo.')
+    }
+    if (!input.spouseRetirementMonth && !(Number.isFinite(input.spouseCurrentAge) && Number.isFinite(input.spouseRetirementAge))) {
+      throw new TypeError('Informe a idade atual e de aposentadoria do cônjuge, ou o mês de aposentadoria.')
+    }
+    if (Number.isFinite(input.spouseCurrentAge) && Number.isFinite(input.spouseRetirementAge) && input.spouseRetirementAge <= input.spouseCurrentAge) {
+      throw new RangeError('A idade de aposentadoria do cônjuge deve ser maior que a idade atual dele.')
+    }
+  }
 }
 
 function futureValueFactor(monthlyRate, months) {
@@ -156,6 +168,28 @@ export function retirementMonths(input, asOfDate = new Date()) {
   return Math.max(0, Math.min(1200, monthKey(`${input.retirementMonth}-01T00:00:00Z`) - monthKey(asOfDate)))
 }
 
+export function spouseRetirementMonths(input, asOfDate = new Date()) {
+  if (!input.spouseEnabled) return null
+  if (input.spouseRetirementMonth) {
+    if (!/^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(input.spouseRetirementMonth)) throw new RangeError('Mês de aposentadoria do cônjuge inválido.')
+    return Math.max(0, Math.min(1200, monthKey(`${input.spouseRetirementMonth}-01T00:00:00Z`) - monthKey(asOfDate)))
+  }
+  if (!Number.isFinite(input.spouseCurrentAge) || !Number.isFinite(input.spouseRetirementAge)) return null
+  return Math.round((input.spouseRetirementAge - input.spouseCurrentAge) * 12)
+}
+
+function householdBenefitAtRetirement(input, months, asOfDate) {
+  const spouseMonths = spouseRetirementMonths(input, asOfDate)
+  const spouseMonthlyBenefit = input.spouseEnabled && spouseMonths !== null && spouseMonths <= months
+    ? (input.spouseExpectedMonthlyBenefit || 0)
+    : 0
+  return {
+    spouseMonths,
+    spouseMonthlyBenefit,
+    householdExpectedMonthlyBenefit: input.expectedMonthlyBenefit + spouseMonthlyBenefit
+  }
+}
+
 export function projectRetirement(input, asOfDate = new Date()) {
   validateProjectionInput(input)
   validateInvestments(input)
@@ -166,15 +200,17 @@ export function projectRetirement(input, asOfDate = new Date()) {
   const futureCurrentAssets = currentAssetsAtMonth(input, months)
   const futureContributions = input.monthlyContribution * contributionFactor
   const projectedAssets = futureCurrentAssets + futureContributions
+  const { spouseMonths, spouseMonthlyBenefit, householdExpectedMonthlyBenefit } =
+    householdBenefitAtRetirement(input, months, asOfDate)
   const incomeNeededFromAssets = Math.max(
-    input.targetMonthlyIncome - input.expectedMonthlyBenefit,
+    input.targetMonthlyIncome - householdExpectedMonthlyBenefit,
     0
   )
   const targetAssets = (incomeNeededFromAssets * 12) / input.annualWithdrawalRate
   const projectedInvestmentIncome =
     (projectedAssets * input.annualWithdrawalRate) / 12
   const projectedMonthlyIncome =
-    input.expectedMonthlyBenefit + projectedInvestmentIncome
+    householdExpectedMonthlyBenefit + projectedInvestmentIncome
   const monthlyIncomeGap = input.targetMonthlyIncome - projectedMonthlyIncome
   const missingAssetsAfterCurrentGrowth = Math.max(
     targetAssets - futureCurrentAssets,
@@ -196,6 +232,9 @@ export function projectRetirement(input, asOfDate = new Date()) {
     projectedMonthlyIncome,
     monthlyIncomeGap,
     requiredMonthlyContribution,
+    spouseMonths,
+    spouseMonthlyBenefit,
+    householdExpectedMonthlyBenefit,
     progress: targetAssets === 0 ? 1 : projectedAssets / targetAssets,
     goalReached: projectedAssets >= targetAssets
   }
@@ -221,7 +260,7 @@ export function projectRetirementWithSchedules(input, schedules = [], asOfDate =
   const missingAssets = Math.max(base.targetAssets - base.futureCurrentAssets - scheduledContributionFutureValue, 0)
   const requiredMonthlyContribution = contributionFactor === 0 ? 0 : missingAssets / contributionFactor
   const projectedInvestmentIncome = projectedAssets * input.annualWithdrawalRate / 12
-  const projectedMonthlyIncome = input.expectedMonthlyBenefit + projectedInvestmentIncome
+  const projectedMonthlyIncome = base.householdExpectedMonthlyBenefit + projectedInvestmentIncome
 
   return {
     ...base,

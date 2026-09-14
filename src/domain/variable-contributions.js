@@ -47,5 +47,5 @@ export function compareVariableContributions(state, asOfDate = new Date(), { wit
     rows.push({ month, contribution: amount, withdrawn, unfunded: needed })
   }
   const projectedAssets = buckets.reduce((total, item) => total + item.balance, pension)
-  return { baseline, projectedAssets, projectedMonthlyIncome: state.plan.expectedMonthlyBenefit + projectedAssets * state.plan.annualWithdrawalRate / 12, contributionTotal, reducedMonths, firstReducedMonth, deficitTotal, withdrawnTotal, unfundedTotal, firstUnfundedMonth, rows }
+  return { baseline, projectedAssets, projectedMonthlyIncome: baseline.householdExpectedMonthlyBenefit + projectedAssets * state.plan.annualWithdrawalRate / 12, contributionTotal, reducedMonths, firstReducedMonth, deficitTotal, withdrawnTotal, unfundedTotal, firstUnfundedMonth, rows }
 }

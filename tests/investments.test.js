@@ -63,7 +63,7 @@ test('interface explica o padrão, o retorno específico e os impactos', () => {
   assert.match(html, /IPCA mais taxa real/)
   assert.match(html, /Com os rendimentos cadastrados/)
   assert.match(html, /Sem rendimento real/)
-  assert.match(html, /1 p\.p\. menores/)
+  assert.match(html, /1 ponto percentual menores/)
   assert.match(html, /renda mensal retirada do patrimônio usa outra regra/i)
   assert.match(html, /Padrão/)
   assert.match(html, />Real</)

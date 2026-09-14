@@ -1,5 +1,13 @@
 # Backlog inicial
 
+## Sprint: composição do fluxo e simulação até 100 anos
+
+Implementados com consulta ao analista de UX: seleção de ano por clique/toque/teclado, painel com cada receita e despesa, moedas e origens, conciliação com os totais e cenário até 100 sem alterar o plano salvo. 390 testes e build aprovados. Inspeção visual e publicação externa pendentes. [Planejamento e evidências](sprint-navegacao-fluxo-100-anos.md).
+
+## Revisão de rendimentos, caixa e patrimônio
+
+Rendimento anual já incluído e equivalente ao finapp. Implementadas conciliação anual, linha de variação financeira após retorno e pendência de revisão para possível dupla contagem de receitas de aplicações. 372 testes e build aprovados. Auditoria de 33 anos confirma rendimento, caixa e patrimônio, sem comprovar o estado da conta ativa. [Diagnóstico e limites](revisao-rendimentos-fluxo-patrimonio.md).
+
 ## Sprint: dados familiares e gráficos do finapp
 
 Implementados complemento seguro da conta, prévia registro a registro e gráficos anuais interativos revisados com especialista em UX. Inventário de 58 registros da origem, 56 utilizáveis e duas pendências. 362 testes e build aprovados. A conferência da conta ativa e a aplicação do complemento aguardam exportação ou sessão. [Escopo e evidências](sprint-familia-graficos-finapp.md).

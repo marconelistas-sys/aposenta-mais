@@ -7,7 +7,7 @@ import { icon } from '../../shared/icons.js'
 
 function renderFinappImport() {
   const migration = state.cashFlow.finappMigration
-  return `<section class="panel settings-card"><h2>Importar arquivo do finapp</h2><p>No modo Adicionar: Não substitui registros existentes nem envia dados ao Supabase. No modo Substituir, remove do plano ativo os registros anteriores, contas, movimentos e cenários, mantendo uma versão de recuperação. Outras contas e a cópia remota não são alteradas.</p><p>Use Completar para combinar os dados do casal: inclui faltantes, conserva edições atuais e não duplica automaticamente possíveis correspondências. Primeiro confira a tabela, depois confirme a aplicação. Exporte um backup e confira o LEIA-ME. Em Adicionar, registros idênticos são ignorados e conflitos bloqueiam a importação. Em Substituir, prevalece o arquivo, sem misturar os cadastros anteriores.</p>${authState.authenticated ? `<form data-finapp-import><label class="form-field"><span>Arquivo aposenta-finapp-import.json</span><input type="file" name="file" accept=".json,application/json" required /></label><label class="form-field"><span>Como importar</span><select name="mode"><option value="complete">Completar faltantes e preservar a conta atual</option><option value="merge">Adicionar e preservar registros existentes</option><option value="replace">Substituir registros pelo finapp</option><option value="horizon">Atualizar somente a idade-alvo do horizonte</option></select></label><div data-finapp-review></div><p data-finapp-status role="status">A prévia identifica a conta, as remoções e as pendências antes de confirmar.</p><button type="submit" class="button button--secondary">Conferir arquivo e importar</button></form>` : '<p>Entre na conta de destino para importar.</p>'}${migration ? `<h3>Revisão da migração</h3><p>Revise idade desejada e mês de aposentadoria, categorias e rendimentos no Plano. Metas anuais são provisões, não pagamentos confirmados. Bens restritos aparecem no gráfico de risco, sem gerar caixa.</p><a href="/plano" data-route>Revisar plano</a> · <a href="/calendario" data-route>Revisar metas</a> · <a href="/riscos" data-route>Revisar bens e gráfico</a><h3>Pendências sem efeito financeiro automático</h3><ul>${migration.pending.map(row => `<li>${escapeHtml(row.table)} #${row.id}: ${escapeHtml(row.reason)}${state.valuesHidden ? '' : `<details><summary>Dados originais</summary><pre>${escapeHtml(JSON.stringify(row.record, null, 2))}</pre></details>`}</li>`).join('') || '<li>Nenhuma pendência registrada.</li>'}</ul>` : ''}</section>`
+  return `<section class="panel settings-card"><h2>Importar arquivo de outro sistema</h2><p>No modo Adicionar: Não substitui registros existentes nem envia dados para a nuvem. No modo Substituir, remove do plano ativo os registros anteriores, contas, movimentos e cenários, mantendo uma versão de recuperação. Outras contas e a cópia remota não são alteradas.</p><p>Use Completar para combinar os dados do casal: inclui faltantes, conserva edições atuais e não duplica automaticamente possíveis correspondências. Primeiro confira a tabela, depois confirme a aplicação. Exporte um backup e confira o LEIA-ME. Em Adicionar, registros idênticos são ignorados e conflitos bloqueiam a importação. Em Substituir, prevalece o arquivo, sem misturar os cadastros anteriores.</p>${authState.authenticated ? `<form data-finapp-import><label class="form-field"><span>Arquivo aposenta-finapp-import.json</span><input type="file" name="file" accept=".json,application/json" required /></label><label class="form-field"><span>Como importar</span><select name="mode"><option value="complete">Completar faltantes e preservar a conta atual</option><option value="merge">Adicionar e preservar registros existentes</option><option value="replace">Substituir registros pelo finapp</option><option value="horizon">Atualizar somente a idade-alvo do horizonte</option></select></label><div data-finapp-review></div><p data-finapp-status role="status">A prévia identifica a conta, as remoções e as pendências antes de confirmar.</p><button type="submit" class="button button--secondary">Conferir arquivo e importar</button></form>` : '<p>Entre na conta de destino para importar.</p>'}${migration ? `<h3>Revisão da migração</h3><p>Revise idade desejada e mês de aposentadoria, categorias e rendimentos no Plano. Metas anuais são provisões, não pagamentos confirmados. Bens restritos aparecem no gráfico de risco, sem gerar caixa.</p><a href="/plano" data-route>Revisar plano</a> · <a href="/calendario" data-route>Revisar metas</a> · <a href="/riscos" data-route>Revisar bens e gráfico</a><h3>Pendências sem efeito financeiro automático</h3><ul>${migration.pending.map(row => `<li>${escapeHtml(row.table)} #${row.id}: ${escapeHtml(row.reason)}${state.valuesHidden || !row.record || typeof row.record !== 'object' ? '' : `<details class="disclosure"><summary>Dados originais</summary><dl>${Object.entries(row.record).map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join('')}</dl></details>`}</li>`).join('') || '<li>Nenhuma pendência registrada.</li>'}</ul>` : ''}</section>`
 }
 
 export function renderProfile() {
@@ -48,19 +48,7 @@ export function renderProfile() {
       </aside>
 
       <div class="profile-settings">
-        ${renderFinappImport()}
-        <section class="panel settings-card">
-          <h2>Histórico e recuperação</h2>
-          <p>Até três versões anteriores à restauração e 50 operações ficam neste navegador. A exclusão local também remove esse histórico.</p>
-          <ul>${history.snapshots.map(item => `<li>${escapeHtml(formatUpdateTime(item.at))} <button class="button button--secondary" type="button" data-recover-version="${escapeHtml(item.id)}">Recuperar versão</button></li>`).join('') || '<li>Nenhuma versão para recuperar.</li>'}</ul>
-          <h3>Operações de dados</h3>
-          <p>Registro local de uso. Exportar prepara um arquivo, sem confirmar que ele foi salvo. Solicitações formais ao controlador continuam pendentes de canal definido.</p>
-          <ul>${history.events.slice().reverse().map(event => `<li>${escapeHtml(formatUpdateTime(event.at))}: ${operationLabels[event.operation]} (${event.result === 'success' ? 'concluído' : 'falhou'})</li>`).join('') || '<li>Nenhuma operação registrada.</li>'}</ul>
-          <a class="button button--secondary" href="/carteira" data-route>Corrigir investimentos</a>
-          <a class="button button--secondary" href="/fluxo-caixa" data-route>Corrigir lançamentos</a>
-          <button class="button button--secondary" type="button" data-clear-history>Apagar histórico e versões</button>
-          <button class="button button--secondary" type="button" data-export-history>Exportar registro de operações</button>
-        </section>
+        <details class="disclosure" open><summary>Conta</summary>
         <section class="panel settings-card">
           <div class="panel__header">
             <div><p class="eyebrow">CONTA</p><h2>${authState.authenticated ? 'Sessão ativa' : 'Acesso entre dispositivos'}</h2></div>
@@ -68,7 +56,7 @@ export function renderProfile() {
           </div>
           ${authState.authenticated ? `
             <div class="account-status">
-              <div><strong>${escapeHtml(authState.user?.email || '')}</strong><p>Autenticação gerenciada pelo Supabase. Seus dados financeiros só são enviados quando você autoriza uma cópia remota.</p></div>
+              <div><strong>${escapeHtml(authState.user?.email || '')}</strong><p>Login gerenciado pelo nosso serviço de autenticação. Seus dados financeiros só são enviados quando você autoriza uma cópia remota.</p></div>
               <button class="button button--secondary" type="button" data-auth-logout>${icon('logout', 17)} Sair</button>
             </div>
           ` : `
@@ -119,7 +107,7 @@ export function renderProfile() {
                 <button class="button button--secondary" type="button" data-sync-refresh>Consultar versão remota</button>
                 <label class="checkbox-row">
                   <input name="acceptedSyncConsent" type="checkbox" required />
-                  <span>Autorizo enviar e armazenar no Supabase uma cópia do plano, inflação esperada, investimentos e suas taxas informadas, lançamentos manuais ou importados, contas e conciliações, dívidas, amortizações, consórcios, hipóteses de lances e risco, metas periódicas, bens não financeiros, dados financeiros pendentes de revisão da migração, prazos, categorias, cenários, moedas e cotação usada, vinculada à minha conta. Posso excluir essa cópia aqui. A exclusão remota não apaga os dados deste navegador.</span>
+                  <span>Autorizo enviar e armazenar na nuvem uma cópia do plano, inflação esperada, investimentos e suas taxas informadas, lançamentos manuais ou importados, contas e conciliações, dívidas, amortizações, consórcios, hipóteses de lances e risco, metas periódicas, bens não financeiros, dados financeiros pendentes de revisão da migração, prazos, categorias, cenários, moedas e cotação usada, vinculada à minha conta. Posso excluir essa cópia aqui. A exclusão remota não apaga os dados deste navegador.</span>
                 </label>
                 <button class="button button--primary" type="submit">${syncState.exists ? 'Atualizar cópia remota' : 'Criar cópia remota'}</button>
               </form>
@@ -133,7 +121,47 @@ export function renderProfile() {
             `}
           </section>
         ` : ''}
+        </details>
 
+        <details class="disclosure"><summary>Dados, histórico e importação</summary>
+        ${renderFinappImport()}
+        <section class="panel settings-card">
+          <h2>Histórico e recuperação</h2>
+          <p>Até três versões anteriores à restauração e 50 operações ficam neste navegador. A exclusão local também remove esse histórico.</p>
+          <ul>${history.snapshots.map(item => `<li>${escapeHtml(formatUpdateTime(item.at))} <button class="button button--secondary" type="button" data-recover-version="${escapeHtml(item.id)}">Recuperar versão</button></li>`).join('') || '<li>Nenhuma versão para recuperar.</li>'}</ul>
+          <h3>Operações de dados</h3>
+          <p>Registro local de uso. Exportar prepara um arquivo, sem confirmar que ele foi salvo. Solicitações formais ao controlador continuam pendentes de canal definido.</p>
+          <ul>${history.events.slice().reverse().map(event => `<li>${escapeHtml(formatUpdateTime(event.at))}: ${operationLabels[event.operation]} (${event.result === 'success' ? 'concluído' : 'falhou'})</li>`).join('') || '<li>Nenhuma operação registrada.</li>'}</ul>
+          <a class="button button--secondary" href="/carteira" data-route>Corrigir investimentos</a>
+          <a class="button button--secondary" href="/fluxo-caixa" data-route>Corrigir lançamentos</a>
+          <button class="button button--secondary" type="button" data-clear-history>Apagar histórico e versões</button>
+          <button class="button button--secondary" type="button" data-export-history>Exportar registro de operações</button>
+        </section>
+        <section class="panel settings-card">
+          <div class="panel__header">
+            <div><p class="eyebrow">PRIVACIDADE</p><h2>Seus dados</h2></div>
+            ${icon('shield', 21, 'panel__header-icon')}
+          </div>
+          <div class="data-explanation">
+            ${icon('lock', 21)}
+            <p>Por padrão, este MVP salva plano, lançamentos, categorias, cenários, moedas e preferências neste navegador. Criar uma conta envia dados de acesso ao nosso serviço de login, mas não envia o plano financeiro. A cópia remota depende de ação e consentimento explícitos.</p>
+          </div>
+          <div class="data-actions">
+            <button class="button button--secondary" type="button" data-export-data>${icon('download', 17)} Exportar meus dados</button>
+            <button class="button button--danger-ghost" type="button" data-reset-data>Restaurar dados de exemplo</button>
+          </div>
+          <div class="danger-zone">
+            <div>
+              <strong>Apagar dados deste navegador</strong>
+              <p>Você pode exportar uma cópia antes de remover plano, lançamentos, categorias, cenários, moedas e preferências deste navegador.</p>
+            </div>
+            <button class="button button--danger" type="button" data-delete-data>Apagar dados deste navegador</button>
+          </div>
+          <p class="privacy-shortcut"><a href="/privacidade" data-route>Leia o aviso de privacidade</a> antes de usar dados reais.</p>
+        </section>
+        </details>
+
+        <details class="disclosure"><summary>Preferências e ajuda</summary>
         <section class="panel settings-card">
           <div class="panel__header">
             <div><p class="eyebrow">EXPERIÊNCIA</p><h2>Preferências</h2></div>
@@ -149,30 +177,6 @@ export function renderProfile() {
             <button class="switch ${state.reminderEnabled ? 'is-active' : ''}" type="button" role="switch" aria-checked="${state.reminderEnabled}" data-reminder aria-label="Ativar lembrete mensal"><span></span></button>
           </div>
         </section>
-
-        <section class="panel settings-card">
-          <div class="panel__header">
-            <div><p class="eyebrow">PRIVACIDADE</p><h2>Seus dados</h2></div>
-            ${icon('shield', 21, 'panel__header-icon')}
-          </div>
-          <div class="data-explanation">
-            ${icon('lock', 21)}
-            <p>Por padrão, este MVP salva plano, lançamentos, categorias, cenários, moedas e preferências neste navegador. Criar uma conta envia dados de acesso ao Supabase, mas não envia o plano financeiro. A cópia remota depende de ação e consentimento explícitos.</p>
-          </div>
-          <div class="data-actions">
-            <button class="button button--secondary" type="button" data-export-data>${icon('download', 17)} Exportar meus dados</button>
-            <button class="button button--danger-ghost" type="button" data-reset-data>Restaurar dados de exemplo</button>
-          </div>
-          <div class="danger-zone">
-            <div>
-              <strong>Apagar dados deste navegador</strong>
-              <p>Você pode exportar uma cópia antes de remover plano, lançamentos, categorias, cenários, moedas e preferências deste navegador.</p>
-            </div>
-            <button class="button button--danger" type="button" data-delete-data>Apagar dados deste navegador</button>
-          </div>
-          <p class="privacy-shortcut"><a href="/privacidade" data-route>Leia o aviso de privacidade</a> antes de usar dados reais.</p>
-        </section>
-
         <section class="panel settings-card settings-card--compact">
           <div class="settings-row">
             <div class="settings-row__icon">${icon('help', 20)}</div>
@@ -180,6 +184,7 @@ export function renderProfile() {
             <button class="icon-button" type="button" data-help aria-label="Abrir ajuda">${icon('chevronRight', 19)}</button>
           </div>
         </section>
+        </details>
       </div>
     </section>
   `

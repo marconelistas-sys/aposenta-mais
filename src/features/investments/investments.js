@@ -201,6 +201,7 @@ export function renderInvestments() {
               <option value="cdi">Percentual do CDI</option>
               <option value="ipca">IPCA mais taxa real</option>
             </select></span>
+            <small class="term-hint">CDI é a taxa de referência interbancária brasileira. IPCA é o índice oficial de inflação do Brasil.</small>
           </label>
           <label class="form-field" data-investment-return-field hidden>
             <span class="form-field__label" data-investment-return-label>Retorno anual</span>
@@ -225,7 +226,7 @@ export function renderInvestments() {
         <div class="impact-comparison">
           <div><span>Com os rendimentos cadastrados</span><strong>${privateCurrency(projection.projectedAssets, state.valuesHidden, false, state.currency)}</strong></div>
           <div><span>Sem rendimento real</span><strong>${privateCurrency(withoutReturn.projectedAssets, state.valuesHidden, false, state.currency)}</strong></div>
-          <div><span>Se os rendimentos forem 1 p.p. menores</span><strong>${privateCurrency(lowerReturn.projectedAssets, state.valuesHidden, false, state.currency)}</strong></div>
+          <div><span>Se os rendimentos forem 1 ponto percentual menores</span><strong>${privateCurrency(lowerReturn.projectedAssets, state.valuesHidden, false, state.currency)}</strong></div>
         </div>
         <p class="impact-callout">Efeito estimado dos rendimentos até os ${state.plan.retirementAge} anos: <strong>${signedMoney(returnImpact)}</strong>.</p>
         <p class="impact-sensitivity">Com 1 ponto percentual a menos por ano, a diferença estimada seria ${signedMoney(lowerImpact)}.</p>

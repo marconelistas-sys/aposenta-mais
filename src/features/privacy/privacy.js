@@ -35,7 +35,7 @@ export function renderPrivacy() {
       <article class="panel privacy-card">
         <h2>Armazenamento e retenção</h2>
         <p>O Perfil guarda até três versões anteriores à restauração e 50 registros de operações locais. Você pode exportar os registros ou apagar todo o histórico. Apagar dados deste navegador também elimina as versões e os registros.</p>
-        <p>Os dados locais permanecem até você usar “Apagar dados deste navegador”, limpar o site ou remover o perfil do navegador. Uma cópia autorizada permanece no Supabase até você usar “Excluir cópia remota”. A exclusão da conta ainda depende de um processo administrativo.</p>
+        <p>Os dados locais permanecem até você usar “Apagar dados deste navegador”, limpar o site ou remover o perfil do navegador. Uma cópia autorizada permanece na nuvem até você usar “Excluir cópia remota”. A exclusão da conta ainda depende de um processo administrativo.</p>
       </article>
 
       <article class="panel privacy-card">
@@ -45,7 +45,7 @@ export function renderPrivacy() {
           <li>O arquivo TXT é lido localmente. O arquivo original não é enviado ao servidor.</li>
           <li>O servidor consulta somente a cotação pública. Nenhum lançamento é enviado ao BCE.</li>
           <li>Criar uma conta não envia o plano financeiro.</li>
-          <li>A sessão usa cookies HttpOnly, sem tokens no localStorage.</li>
+          <li>A sessão usa um cookie protegido que scripts do navegador não conseguem ler, sem tokens no localStorage.</li>
           <li>Planos e versões de recuperação locais ficam separados por conta. O espaço de visitante é independente e sua cópia para uma conta exige confirmação.</li>
           <li>A cópia remota exige login, ação manual e consentimento.</li>
           <li>O banco foi preparado para limitar cada conta à própria linha. A configuração hospedada ainda precisa de validação operacional.</li>

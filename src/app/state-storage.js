@@ -48,7 +48,10 @@ const planRules = {
   annualInflation: [-0.99, 1],
   targetMonthlyIncome: [0, 10000000],
   expectedMonthlyBenefit: [0, 1000000],
-  annualWithdrawalRate: [0.001, 1]
+  annualWithdrawalRate: [0.001, 1],
+  spouseCurrentAge: [16, 99],
+  spouseRetirementAge: [17, 100],
+  spouseExpectedMonthlyBenefit: [0, 1000000]
 }
 
 function validNumber(value, [minimum, maximum]) {
@@ -199,6 +202,8 @@ export function sanitizePlan(candidate = {}) {
   plan.horizonReferenceMonth = typeof source.horizonReferenceMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.horizonReferenceMonth) ? source.horizonReferenceMonth : null
   plan.riskSettings = sanitizeRiskSettings(source.riskSettings)
   plan.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
+  plan.spouseEnabled = source.spouseEnabled === true
+  plan.spouseRetirementMonth = typeof source.spouseRetirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.spouseRetirementMonth) ? source.spouseRetirementMonth : null
 
   for (const [field, rule] of Object.entries(planRules)) {
     if (validNumber(source[field], rule)) plan[field] = source[field]
@@ -212,6 +217,15 @@ export function sanitizePlan(candidate = {}) {
 
   if (plan.retirementAge <= plan.currentAge) {
     plan.retirementAge = Math.min(plan.currentAge + 1, 100)
+  }
+
+  if (!plan.spouseEnabled) {
+    plan.spouseCurrentAge = null
+    plan.spouseRetirementAge = null
+    plan.spouseRetirementMonth = null
+    plan.spouseExpectedMonthlyBenefit = 0
+  } else if (Number.isFinite(plan.spouseCurrentAge) && Number.isFinite(plan.spouseRetirementAge) && plan.spouseRetirementAge <= plan.spouseCurrentAge) {
+    plan.spouseRetirementAge = Math.min(plan.spouseCurrentAge + 1, 100)
   }
 
   return plan
@@ -294,7 +308,9 @@ export function sanitizeStoredState(candidate) {
     currency,
     exchangeRates: sanitizeExchangeRates(source.exchangeRates || bundledExchangeRates),
     customCategories,
-    plan: sanitizePlan({ ...source.plan, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }),
+    plan: sanitizePlan(source.plan
+      ? { ...source.plan, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }
+      : { ...defaultPlan, retirementMonth: source.cashFlow?.retirementMonth }),
     cashFlow: sanitizeCashFlow({ ...source.cashFlow, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }, currency, customCategories),
     scenarios
   }

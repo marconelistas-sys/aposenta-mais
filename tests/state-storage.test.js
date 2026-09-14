@@ -55,6 +55,34 @@ test('sanitiza investimentos e deriva patrimônio e aporte pelos itens', () => {
   assert.equal(plan.investments[1].returnValue, 0.07)
 })
 
+test('cônjuge desabilitado zera os campos relacionados mesmo se enviados', () => {
+  const plan = sanitizePlan({
+    spouseEnabled: false,
+    spouseCurrentAge: 40,
+    spouseRetirementAge: 60,
+    spouseRetirementMonth: '2045-01',
+    spouseExpectedMonthlyBenefit: 2000
+  })
+  assert.equal(plan.spouseEnabled, false)
+  assert.equal(plan.spouseCurrentAge, null)
+  assert.equal(plan.spouseRetirementAge, null)
+  assert.equal(plan.spouseRetirementMonth, null)
+  assert.equal(plan.spouseExpectedMonthlyBenefit, 0)
+})
+
+test('cônjuge habilitado mantém idades válidas e corrige aposentadoria anterior à idade atual', () => {
+  const plan = sanitizePlan({
+    spouseEnabled: true,
+    spouseCurrentAge: 45,
+    spouseRetirementAge: 40,
+    spouseExpectedMonthlyBenefit: 1800
+  })
+  assert.equal(plan.spouseEnabled, true)
+  assert.equal(plan.spouseCurrentAge, 45)
+  assert.equal(plan.spouseRetirementAge, 46)
+  assert.equal(plan.spouseExpectedMonthlyBenefit, 1800)
+})
+
 test('sanitiza o fluxo de caixa e mantém apenas campos aprovados', () => {
   const cashFlow = sanitizeCashFlow({ recurringIncome: 15000, essentialExpenses: -1, secret: 123 })
   assert.equal(cashFlow.recurringIncome, 15000)

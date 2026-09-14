@@ -87,7 +87,9 @@ test('dashboard prioriza gráficos anuais e não afirma cobertura por uma meta d
     state.plan.targetMonthlyIncome = 0
     const html = renderDashboard()
     assert.match(html, /Seu orçamento e patrimônio até a idade-alvo/)
-    assert.ok(html.indexOf('Fluxos anuais do orçamento') < html.indexOf('Simulador legado: renda desejada'))
+    assert.match(html, /Patrimônio ao longo do tempo/)
+    assert.doesNotMatch(html, /Simulador legado/)
+    assert.doesNotMatch(html, /class="income-card"/)
     assert.doesNotMatch(html, /<h1>Seu plano cobre/)
     state.valuesHidden = true
     assert.doesNotMatch(renderDashboard(), /<svg class="chart__svg"/)

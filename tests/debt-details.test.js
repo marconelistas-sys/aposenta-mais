@@ -13,7 +13,7 @@ test('debt details show balances, payoff, costs and expandable schedule in debt 
   assert.match(html, /Tarifas previstas:.*10,00/)
   assert.match(html, /€/)
   assert.doesNotMatch(html, /R\$/)
-  assert.match(html, /<details><summary>/)
+  assert.match(html, /<details class="disclosure"><summary>/)
   assert.match(html, /Extra incluído/)
   assert.match(html, /&lt;script&gt;/)
   assert.doesNotMatch(html, /<script>/)

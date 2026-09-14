@@ -190,7 +190,7 @@ test('vida financeira mostra o mesmo orçamento, saldo acumulado e horizonte da 
     assert.doesNotMatch(phase, new RegExp(`scope="row">${year}</th>`))
     assert.match(phase, new RegExp(`scope="row">${year + 2}</th>`))
     assert.ok(phase.includes(privateCurrency(300, false, true, state.currency)))
-    assert.ok(html.includes(`AF na abertura do primeiro ano mostrado: ${privateCurrency(result.rows[1].previousFinancial, false, true, state.currency)}`))
+    assert.ok(html.includes(`Patrimônio financeiro na abertura do primeiro ano mostrado: ${privateCurrency(result.rows[1].previousFinancial, false, true, state.currency)}`))
     assert.doesNotMatch(html, /data-decumulation-form/)
     state.valuesHidden = true
     const hidden = renderPostRetirement()

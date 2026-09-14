@@ -4,6 +4,7 @@ import { retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { formatCurrency, formatPercent, privateCurrency } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 import { renderHorizonForm } from './horizon.js'
+import { renderSpouseForm } from './spouse.js'
 
 export function renderPlan() {
   const schedules = retirementContributionSchedules(
@@ -28,7 +29,9 @@ export function renderPlan() {
     </section>
 
     <section class="panel settings-card"><h2>Planeje também os anos de aposentadoria</h2><p>A meta de acumulação não mostra sozinha quando o patrimônio pode acabar.</p><a class="button button--secondary" href="/apos-aposentadoria" data-route>Simular despesas e resgates após aposentar</a></section>
-    <section class="panel settings-card">${renderHorizonForm()}</section><section class="plan-overview">
+    <section class="panel settings-card">${renderHorizonForm()}</section>
+    <section class="panel settings-card">${renderSpouseForm()}</section>
+    <section class="plan-overview">
       <article class="panel goal-card">
         <div class="panel__header">
           <div>
@@ -121,6 +124,7 @@ export function renderPlan() {
           <div><dt>Inflação anual esperada</dt><dd>${formatPercent(state.plan.annualInflation)}</dd></div>
           <div><dt>Taxa de retirada</dt><dd>${formatPercent(state.plan.annualWithdrawalRate)}</dd></div>
           <div><dt>Benefício estimado</dt><dd class="money-value">${money(state.plan.expectedMonthlyBenefit)}</dd></div>
+          ${state.plan.spouseEnabled ? `<div><dt>Previdência privada do cônjuge</dt><dd class="money-value">${money(state.plan.spouseExpectedMonthlyBenefit)}${result.spouseMonthlyBenefit === 0 ? ' <small>(inicia após a aposentadoria dele(a))</small>' : ''}</dd></div><div><dt>Renda familiar estimada no benefício</dt><dd class="money-value">${money(result.householdExpectedMonthlyBenefit)}</dd></div>` : ''}
           <div><dt>Horizonte</dt><dd>${result.months / 12} anos</dd></div>
         </dl>
         <a class="button button--secondary button--full" href="/simulacoes" data-route>Testar outras premissas</a>

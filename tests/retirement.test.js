@@ -235,3 +235,64 @@ test('inflação altera somente a conversão de retorno nominal da carteira', ()
   assertClose(fivePercentInflation.futureCurrentAssets, 1000 * 1.10 / 1.05)
   assertClose(tenPercentInflation.futureCurrentAssets, 1000)
 })
+
+test('inclui o benefício do cônjuge quando ele já se aposentou antes do titular', () => {
+  const withoutSpouse = projectRetirement(baseInput)
+  const withSpouse = projectRetirement({
+    ...baseInput,
+    spouseEnabled: true,
+    spouseCurrentAge: 40,
+    spouseRetirementAge: 60,
+    spouseExpectedMonthlyBenefit: 2000
+  })
+
+  assert.equal(withSpouse.spouseMonths, 240)
+  assertClose(withSpouse.spouseMonthlyBenefit, 2000)
+  assertClose(withSpouse.householdExpectedMonthlyBenefit, baseInput.expectedMonthlyBenefit + 2000)
+  assert.ok(withSpouse.projectedMonthlyIncome > withoutSpouse.projectedMonthlyIncome)
+  assertClose(withSpouse.projectedAssets, withoutSpouse.projectedAssets)
+})
+
+test('não soma o benefício do cônjuge antes da aposentadoria dele', () => {
+  const result = projectRetirement({
+    ...baseInput,
+    spouseEnabled: true,
+    spouseCurrentAge: 35,
+    spouseRetirementAge: 70,
+    spouseExpectedMonthlyBenefit: 2000
+  })
+
+  assert.equal(result.spouseMonths, 420)
+  assertClose(result.spouseMonthlyBenefit, 0)
+  assertClose(result.householdExpectedMonthlyBenefit, baseInput.expectedMonthlyBenefit)
+})
+
+test('cônjuge habilitado sem idades nem mês de aposentadoria é rejeitado', () => {
+  assert.throws(() => projectRetirement({
+    ...baseInput,
+    spouseEnabled: true,
+    spouseExpectedMonthlyBenefit: 1000
+  }), TypeError)
+})
+
+test('idade de aposentadoria do cônjuge deve ser maior que a idade atual dele', () => {
+  assert.throws(() => projectRetirement({
+    ...baseInput,
+    spouseEnabled: true,
+    spouseCurrentAge: 60,
+    spouseRetirementAge: 55,
+    spouseExpectedMonthlyBenefit: 1000
+  }), RangeError)
+})
+
+test('projectRetirementWithSchedules usa a renda familiar com o benefício do cônjuge', () => {
+  const result = projectRetirementWithSchedules({
+    ...baseInput,
+    spouseEnabled: true,
+    spouseCurrentAge: 40,
+    spouseRetirementAge: 60,
+    spouseExpectedMonthlyBenefit: 1500
+  }, [])
+
+  assertClose(result.projectedMonthlyIncome - result.projectedInvestmentIncome, baseInput.expectedMonthlyBenefit + 1500)
+})

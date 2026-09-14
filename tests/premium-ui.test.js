@@ -52,9 +52,8 @@ test('home prioriza resultado, uma ação principal e três indicadores', () => 
   assert.match(html, /Calcular com meus dados/)
   assert.doesNotMatch(html, /next-action-card/)
   assert.equal(metricCards.length, 3)
-  assert.match(html, /chart chart--patrimony/)
-  assert.match(html, /preserveAspectRatio="xMidYMid meet"/)
-  assert.doesNotMatch(html, /preserveAspectRatio="none"/)
+  assert.match(html, /class="planning-chart"/)
+  assert.match(html, /role="img" aria-label="Patrimônio ao longo do tempo/)
 })
 
 test('home descreve corretamente os três estados de armazenamento', () => {

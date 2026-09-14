@@ -14,5 +14,6 @@ export function planChecks(state, today = new Date()) {
   if (planned.filter(item => item.categoryId === 'pension').length > 1) add('benefit-review', 'Há mais de uma receita de aposentadoria. Confira se representam benefícios diferentes.', '/fluxo-caixa')
   if (state.cashFlow.ledger?.accounts.length) add('accounts-separate', 'Contas, reserva e Carteira são registros separados. Confira sobreposição antes de consolidar seu patrimônio.', '/contas')
   if (state.plan.investments.length && Math.abs(state.plan.currentAssets - state.plan.investments.reduce((sum, item) => sum + item.amount, 0)) > 0.01) add('wealth-total', 'O patrimônio agregado difere da soma da Carteira. Revise os saldos.', '/carteira')
+  if (state.plan.spouseEnabled && !(state.plan.spouseExpectedMonthlyBenefit > 0)) add('spouse-no-benefit', 'O cônjuge está incluído no plano, mas sem renda de previdência privada informada.', '/plano')
   return result
 }
