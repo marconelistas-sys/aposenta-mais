@@ -4,6 +4,10 @@ MVP web para planejamento de aposentadoria. Ele transforma patrimônio, aporte, 
 
 ## O que está pronto
 
+- Retorno real por ano em cada investimento, com prioridade sobre a taxa habitual e aplicação na acumulação, projeção anual e risco.
+- Patrimônio total líquido de dívidas junto ao gráfico de fluxo, com escala própria, para distinguir consumo de patrimônio e falta de liquidez.
+- Destaque da sustentabilidade familiar até a data-alvo, com estados sustentável, insuficiente e avaliação incompleta.
+
 - Prazo mensal confirmado compartilhado por orçamento e projeção, incluindo o período final parcial.
 - Cenário opcional de retiradas de investimentos disponíveis, com déficits não financiados explícitos.
 - Edição de contas e movimentos e conferência manual de saldo contra extrato, sem ajustes automáticos.
@@ -73,6 +77,8 @@ Você precisa do Node.js 20 ou superior.
 ```
 
 Abra `http://127.0.0.1:4173`.
+
+Para atualizar retornos, abra Carteira, escolha Editar e avance até Rendimento. Em “Ajustar retorno real por ano”, informe uma linha por ano, por exemplo `2027: 4,5%`. O ajuste vale apenas naquele ano. Anos sem ajuste usam a taxa habitual do investimento. Remover a linha restaura essa regra. Os ajustes não alteram o saldo atual. [Regras de cálculo e validação](docs/product/retornos-anuais-sustentabilidade.md).
 
 O script valida o Node.js, o npm, o arquivo `.env` e as variáveis do Supabase antes de iniciar o servidor. Como alternativa, execute `npm run dev` diretamente.
 

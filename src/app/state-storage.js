@@ -1,4 +1,5 @@
 import { defaultPlan } from '../data/mock-plan.js'
+import { validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import { normalizeCurrency } from '../shared/currencies.js'
 import { bundledExchangeRates, sanitizeExchangeRates } from '../shared/exchange-rates.js'
@@ -96,6 +97,8 @@ export function sanitizeInvestment(investment, index = 0) {
   if (!name || !validNumber(amount, [0.01, 1000000000]) || !validNumber(monthlyContribution, [0, 10000000])) return null
   if (['real', 'nominal', 'ipca'].includes(returnType) && !validNumber(returnValue, [-0.99, 1])) return null
   if (returnType === 'cdi' && (!validNumber(returnValue, [0, 3]) || !validNumber(indexAnnualRate, [0, 1]))) return null
+  let annualRealReturns = []
+  try { annualRealReturns = validateAnnualRealReturns(investment.annualRealReturns) } catch {}
   return {
     id: safeId(investment.id, `investment-${index + 1}`),
     name,
@@ -105,7 +108,10 @@ export function sanitizeInvestment(investment, index = 0) {
     monthlyContribution,
     returnType,
     returnValue,
-    indexAnnualRate
+    indexAnnualRate,
+    ...(annualRealReturns.length ? { annualRealReturns } : {}),
+    // Only meaningful for assetClass 'pension': holding period for the regressive tax table.
+    ...(assetClass === 'pension' && safeDate(investment.acquiredAt) ? { acquiredAt: safeDate(investment.acquiredAt) } : {})
   }
 }
 

@@ -1,6 +1,7 @@
 import { state } from '../../app/state.js'
 import { cashFlowTimeline, retirementMonth } from '../../domain/cash-flow-timeline.js'
-import { privateCurrency } from '../../shared/formatters.js'
+import { privateCurrency, escapeHtml } from '../../shared/formatters.js'
+import { openSalaryItems, salaryEndMessage } from '../../domain/cash-flow-checks.js'
 import { renderBudgetInsights } from './budget-insights.js'
 import { planningHorizon, annualCashFlow, cashFlowProjectionState } from '../../domain/planning-horizon.js'
 import { renderCashFlowLineChart } from '../../shared/cash-flow-line-chart.js'
@@ -38,7 +39,7 @@ export function renderCashFlowTimeline() {
   const path = key => points.map((point, index) => `${index ? 'L' : 'M'}${x(index).toFixed(1)},${(170 - point[key] / max * 140).toFixed(1)}`).join(' ')
   const marker = points.findIndex(point => point.month === retirement)
   const undated = state.cashFlow.items.filter(item => item.recordKind !== 'actual' && item.source !== 'txt' && item.frequency === 'occasional' && !item.startDate).length
-  const openSalaries = state.cashFlow.items.filter(item => item.categoryId === 'salary' && item.recordKind !== 'actual' && item.source !== 'txt' && item.frequency !== 'occasional' && !item.endDate && item.endMode !== 'retirement').length
+  const openSalaries = openSalaryItems(state.cashFlow, { endMonth: points.at(-1).month })
   return `<section class="panel settings-card" aria-labelledby="timeline-title">
     <p class="eyebrow">AVALIAÇÃO ANUAL</p><h2 id="timeline-title">Receitas e despesas ao longo do tempo</h2>
     ${horizonError ? `<p role="status">${horizonError} Não foi possível concluir a avaliação anual. O recorte mensal abaixo não comprova cobertura até a idade selecionada.</p>` : ''}
@@ -48,7 +49,7 @@ export function renderCashFlowTimeline() {
     <p>${state.cashFlow.retirementMonth ? 'Mês confirmado' : 'Sugestão pelas idades do plano, ainda não confirmada'}: ${retirement}. Receitas vinculadas terminam no mês anterior. Datas manuais não mudam. Este mês confirmado controla o orçamento e a projeção patrimonial. Alterar as idades gera uma nova estimativa de mês, que você pode revisar.</p>
     ${!state.cashFlow.retirementMonth && state.cashFlow.items.some(item => item.endMode === 'retirement') ? '<p>Há receitas vinculadas sem mês confirmado. Elas ficam fora dos cálculos até você confirmar o mês.</p>' : ''}
     <p>Série mensal de ${start} a ${points.at(-1).month}. ${annual ? `Gráfico anual de ${annual.rows[0].year} a ${annual.rows.at(-1).year}, anos completos, ${timelineView.period === '100' ? 'cenário até 100 anos, sem alterar o horizonte salvo da viabilidade e do risco' : 'mesma base da viabilidade e do risco anual'}.` : 'Gráfico somado pelos meses incluídos, sem extrapolar anos parciais.'}</p>
-    ${openSalaries ? `<p>Revise ${openSalaries} receita(s) de salário sem data final. Elas continuam na previsão após o marco da aposentadoria até você definir o término.</p>` : ''}
+    ${openSalaries.length ? `<p>${state.valuesHidden ? 'Há salário recorrente sem término definido. Exiba os dados para revisar os lançamentos.' : escapeHtml(salaryEndMessage(openSalaries))}</p>` : ''}
     ${undated ? `<p>${undated} lançamento(s) eventual(is) sem data foram excluídos desta série. Informe uma data no cadastro para incluí-los.</p>` : ''}
     <p>${deficit ? `Primeiro mês com despesas acima das receitas neste período: ${deficit.month}.` : 'Não há déficit no orçamento previsto deste período.'} Confira os prazos dos lançamentos antes de interpretar o resultado.</p>
     ${renderCashFlowLineChart({ title: 'Fluxos anuais', rows: yearly, plan: projectionState.plan, currency: state.currency, hidden: state.valuesHidden, markers, selectedYear: timelineView.selectedYear })}

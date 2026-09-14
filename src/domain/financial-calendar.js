@@ -58,6 +58,7 @@ export function financialCalendar(cashFlow, month) {
   const undated = []
   for (const item of cashFlow.items || []) {
     if (item.recordKind === 'actual' || item.source === 'txt') continue
+    if (item.type === 'income' && item.endMode === 'retirement' && !cashFlow.retirementMonth) continue
     if (!item.startDate) { undated.push(item); continue }
     if (month < item.startDate.slice(0, 7) || (item.endMode === 'retirement' ? cashFlow.retirementMonth && month >= cashFlow.retirementMonth : item.endDate && month > item.endDate.slice(0, 7))) continue
     if (item.frequency === 'occasional' && month !== item.startDate.slice(0, 7)) continue

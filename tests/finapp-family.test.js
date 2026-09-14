@@ -86,8 +86,8 @@ test('dashboard prioriza gráficos anuais e não afirma cobertura por uma meta d
     Object.assign(state, account())
     state.plan.targetMonthlyIncome = 0
     const html = renderDashboard()
-    assert.match(html, /Seu orçamento e patrimônio até a idade-alvo/)
-    assert.match(html, /Patrimônio ao longo do tempo/)
+    assert.match(html, /data-plan-sustainability=/)
+    assert.match(html, /Patrimônio/)
     assert.doesNotMatch(html, /Simulador legado/)
     assert.doesNotMatch(html, /class="income-card"/)
     assert.doesNotMatch(html, /<h1>Seu plano cobre/)

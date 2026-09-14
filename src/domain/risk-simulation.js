@@ -1,4 +1,5 @@
 // Scenario assumptions, not calibrated probabilities or investment guarantees.
+import { validateAnnualRealReturns } from './investment-returns.js'
 const MAX_VALUE = 1e15
 function number(value, name, min = -MAX_VALUE, max = MAX_VALUE) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new Error(`${name}: valor inválido.`)
@@ -13,7 +14,7 @@ function validate(input) {
   if (!input || !Array.isArray(input.buckets) || input.buckets.length > 100) throw new Error('Carteira inválida ou acima de 100 aplicações.')
   const buckets = input.buckets.map(bucket => {
     if (bucket.liquid !== undefined && typeof bucket.liquid !== 'boolean') throw new Error('Liquidez inválida.')
-    return { amount: number(bucket.amount, 'Saldo', 0), annualRealReturn: number(bucket.annualRealReturn, 'Retorno', -0.999999999999, 1), liquid: bucket.liquid ?? true }
+    return { amount: number(bucket.amount, 'Saldo', 0), annualRealReturn: number(bucket.annualRealReturn, 'Retorno', -0.999999999999, 1), annualRealReturns: validateAnnualRealReturns(bucket.annualRealReturns), liquid: bucket.liquid ?? true }
   })
   if (!Array.isArray(input.timelines) || !input.timelines.length || input.timelines.length > 100) throw new Error('Informe entre 1 e 100 cenários.')
   const length = input.timelines[0]?.length
@@ -50,14 +51,17 @@ function finite(value) {
 }
 function path(input, timeline, shift, expenseMultiplier, volatility = 0, random) {
   const buckets = [...input.buckets.map(bucket => ({ ...bucket })), { amount: 0, annualRealReturn: input.defaultAnnualReturn, liquid: true }]
-  const means = buckets.map(bucket => {
-    const rate = number(bucket.annualRealReturn + shift, 'Retorno ajustado', -0.999999999999, 2)
-    return Math.log1p(rate) / 12 - volatility ** 2 / 24
-  })
+  const meansByYear = new Map()
   const deviation = volatility / Math.sqrt(12)
   let unfunded = 0
   let firstShortfall = null
   const rows = timeline.map(row => {
+    const year = Number(row.month.slice(0, 4))
+    if (!meansByYear.has(year)) meansByYear.set(year, buckets.map(bucket => {
+      const rate = number((bucket.annualRealReturns?.find(value => value.year === year)?.rate ?? bucket.annualRealReturn) + shift, 'Retorno ajustado', -0.999999999999, 2)
+      return Math.log1p(rate) / 12 - volatility ** 2 / 24
+    }))
+    const means = meansByYear.get(year)
     // One common monthly shock preserves individual expected returns. This is
     // a perfect-correlation assumption, not a calibrated covariance model.
     const shock = volatility ? gaussian(random) * deviation : 0

@@ -1,13 +1,13 @@
 import { state } from '../../app/state.js'
 import { renderLiquidity, liquidityLabels } from './liquidity.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
-import { resolveInvestmentRealReturn } from '../../domain/investment-returns.js'
+import { resolveInvestmentRealReturn, investmentAccumulationFactors } from '../../domain/investment-returns.js'
 import { projectRetirementWithSchedules, retirementMonths } from '../../domain/retirement.js'
 import { escapeHtml, formatPercent, privateCurrency } from '../../shared/formatters.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { icon } from '../../shared/icons.js'
 
-const classLabels = {
+export const classLabels = {
   'fixed-income': 'Renda fixa',
   equity: 'Ações e renda variável',
   fund: 'Fundos',
@@ -41,6 +41,7 @@ function planWithReturns(transform) {
       ...investment,
       returnType: 'real',
       returnValue: transform(resolveInvestmentRealReturn(investment, state.plan)),
+      annualRealReturns: (investment.annualRealReturns || []).map(row => ({ ...row, rate: transform(row.rate) })),
       indexAnnualRate: null
     }))
   }
@@ -50,7 +51,7 @@ function portfolioReturn() {
   const investments = state.plan.investments || []
   if (investments.length === 0 || state.plan.currentAssets === 0) return state.plan.annualRealReturn
   return investments.reduce((total, investment) => (
-    total + investment.amount * resolveInvestmentRealReturn(investment, state.plan)
+    total + investment.amount * resolveInvestmentRealReturn(investment, state.plan, new Date().getUTCFullYear())
   ), 0) / state.plan.currentAssets
 }
 
@@ -86,12 +87,10 @@ function investmentList() {
 
   return `<div class="investment-list">
     ${investments.map((investment) => {
-      const rate = resolveInvestmentRealReturn(investment, state.plan)
-      const monthlyRate = (1 + rate) ** (1 / 12) - 1
+      const rate = resolveInvestmentRealReturn(investment, state.plan, new Date().getUTCFullYear())
       const months = years * 12
-      const contributionFactor = monthlyRate === 0 ? months : ((1 + monthlyRate) ** months - 1) / monthlyRate
-      const futureValue = investment.amount * ((1 + monthlyRate) ** months)
-        + investment.monthlyContribution * contributionFactor
+      const factors = investmentAccumulationFactors(investment, state.plan, months)
+      const futureValue = investment.amount * factors.growth + investment.monthlyContribution * factors.contribution
       const usesDefault = investment.returnType === 'default'
       return `
         <article class="investment-card">
@@ -106,10 +105,11 @@ function investmentList() {
             <div><dt>Saldo atual</dt><dd>${privateCurrency(investment.amount, state.valuesHidden, false, state.currency)}</dd></div>
             <div><dt>Liquidez declarada</dt><dd>${liquidityLabels[investment.liquidity] || liquidityLabels.unknown}</dd></div>
             <div><dt>Aporte mensal</dt><dd>${privateCurrency(investment.monthlyContribution, state.valuesHidden, false, state.currency)}</dd></div>
-            <div><dt>Retorno usado</dt><dd>${formatPercent(rate)} real ao ano</dd></div>
+            <div><dt>Retorno usado em ${new Date().getUTCFullYear()}</dt><dd>${state.valuesHidden ? 'Oculto' : `${formatPercent(rate)} real ao ano`}</dd></div>
             <div><dt>Valor no prazo confirmado do plano</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}</dd></div>
           </dl>
-          <p class="investment-return-source">${sourceDetail(investment, rate)}</p>
+          <p class="investment-return-source">${sourceDetail(investment, resolveInvestmentRealReturn(investment, state.plan))}</p>
+          ${investment.annualRealReturns?.length ? `<details class="disclosure"><summary>Retornos reais por ano (${investment.annualRealReturns.length})</summary>${state.valuesHidden ? '<p>Retornos ocultos.</p>' : `<dl>${investment.annualRealReturns.map(row => `<div><dt>${row.year}</dt><dd>${formatPercent(row.rate)}</dd></div>`).join('')}</dl>`}<p>Anos sem ajuste usam a taxa habitual deste investimento.</p></details>` : ''}
           <div class="investment-card__actions">
             <button class="button button--secondary" type="button" data-edit-investment="${escapeHtml(investment.id)}">Editar</button>
             <button class="text-button text-button--danger" type="button" data-remove-investment="${escapeHtml(investment.id)}">Excluir</button>
@@ -145,7 +145,7 @@ export function renderInvestments() {
     <section class="investment-summary" aria-label="Resumo da carteira">
       <article class="panel"><span>Patrimônio cadastrado</span><strong>${privateCurrency(state.plan.currentAssets, state.valuesHidden, false, state.currency)}</strong><small>${investments.length} ${investments.length === 1 ? 'investimento' : 'investimentos'}</small></article>
       <article class="panel"><span>Aportes mensais</span><strong>${privateCurrency(state.plan.monthlyContribution, state.valuesHidden, false, state.currency)}</strong><small>Somados pela carteira</small></article>
-      <article class="panel"><span>Retorno médio estimado</span><strong>${formatPercent(portfolioReturn())}</strong><small>Real ao ano, ponderado pelo saldo atual</small></article>
+      <article class="panel"><span>Retorno médio em ${new Date().getUTCFullYear()}</span><strong>${state.valuesHidden ? 'Oculto' : formatPercent(portfolioReturn())}</strong><small>Real ao ano, ponderado pelo saldo atual</small></article>
     </section>
 
     <form class="panel investment-assumptions" data-investment-assumptions-form>
@@ -187,6 +187,7 @@ export function renderInvestments() {
             <label class="form-field"><span class="form-field__label">Saldo atual</span><span class="input-shell"><span class="input-prefix">${moneySymbol}</span><input type="number" name="investmentAmount" min="0.01" max="1000000000" step="0.01" value="${firstInvestment ? state.plan.currentAssets : ''}" required /></span></label>
           </div>
           <label class="form-field"><span class="form-field__label">Quanto você aporta por mês</span><span class="input-shell"><span class="input-prefix">${moneySymbol}</span><input type="number" name="investmentContribution" min="0" max="10000000" step="0.01" value="${firstInvestment ? state.plan.monthlyContribution : 0}" required /></span><small>Informe zero se você não faz novos aportes neste investimento.</small></label>
+          <label class="form-field"><span class="form-field__label">Data de aporte (só para previdência privada)</span><span class="input-shell"><input type="date" name="investmentAcquiredAt" /></span><small>Usada para calcular a tabela regressiva de imposto sobre resgates nas premissas de <a href="/viabilidade" data-route>avaliação anual</a>. Sem data, o cálculo assume o pior caso (35%).</small></label>
           <button class="button button--primary button--full" type="button" data-next-investment-step>Continuar para rendimento</button>
         </fieldset>
 
@@ -214,6 +215,10 @@ export function renderInvestments() {
             <small>Informe a referência que você escolheu. O sistema não busca a taxa automaticamente.</small>
           </label>
           <p class="form-context">Toda projeção usa retorno real. Taxas nominais e CDI são descontados pela inflação informada. Em IPCA + taxa, a parcela adicional já representa o retorno real.</p>
+          <details class="disclosure"><summary>Ajustar retorno real por ano</summary>
+            <label class="form-field"><span>Ano e retorno real (%)</span><textarea name="investmentAnnualReturns" rows="5" maxlength="6000" placeholder="2027: 4,5%&#10;2028: 3%" aria-describedby="annual-returns-help"></textarea></label>
+            <p id="annual-returns-help">Uma linha por ano. O ajuste vale apenas no ano informado. Nos demais anos, usamos a taxa habitual acima. Remova a linha para voltar à taxa habitual. Atualizar retornos muda as projeções, sem alterar o saldo atual cadastrado.</p>
+          </details>
           <div class="investment-form__actions">
             <button class="button button--secondary" type="button" data-previous-investment-step>Voltar</button>
             <button class="button button--primary" type="submit" data-investment-submit>Adicionar à carteira</button>

@@ -89,7 +89,7 @@ test('fluxo até idade-alvo mostra dezembro final e tabela anual, ocultação co
     Object.assign(state, empty()); state.cashFlow.referenceMonth = '2026-09'; timelineView.period = 'target'
     assert.match(renderCashFlowTimeline(), /2058-12/)
     assert.match(renderCashFlowTimeline(), /Ver totais anuais/)
-    assert.match(renderPlanningOverview(), /Evolução patrimonial base/)
+    assert.match(renderPlanningOverview(), /Patrimônio ao fim de cada ano/)
     assert.match(renderPlanningOverview(), /Fluxos anuais do orçamento/)
     state.valuesHidden = true
     assert.ok(!renderCashFlowTimeline().includes('<svg'))

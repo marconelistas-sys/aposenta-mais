@@ -1,4 +1,5 @@
 import { appLayout } from './app/layout.js'
+import { parseAnnualRealReturns, formatAnnualRealReturns } from './domain/investment-returns.js'
 import { renderViability, saveViability } from './features/plan/viability.js'
 import { renderConsortia, guideConsortiumForm, saveConsortium, consortiumView } from './features/cash-flow/consortia.js'
 import { renderRisk, renderMonthlyRisk, startRisk, cancelRisk, riskSettingsFromForm } from './features/plan/risk.js'
@@ -62,6 +63,7 @@ import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from 
 import { projectRetirementWithSchedules } from './domain/retirement.js'
 import { renderContent } from './features/content/content.js'
 import { renderDashboard } from './features/dashboard/dashboard.js'
+import { renderWealth } from './features/wealth/wealth.js'
 import { renderCashFlow } from './features/cash-flow/cash-flow.js'
 import { renderPlan } from './features/plan/plan.js'
 import { renderProfile } from './features/profile/profile.js'
@@ -131,6 +133,7 @@ const routes = {
   '/': renderDashboard,
   '/plano': renderPlan,
   '/carteira': renderInvestments,
+  '/patrimonio': renderWealth,
   '/fluxo-caixa': () => renderCashFlow(statementReviewView()),
   '/simulacoes': renderSimulations,
   '/conteudos': renderContent,
@@ -717,9 +720,11 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('liquidity').value = investment.liquidity || 'unknown'
     form.elements.namedItem('investmentAmount').value = investment.amount
     form.elements.namedItem('investmentContribution').value = investment.monthlyContribution
+    form.elements.namedItem('investmentAcquiredAt').value = investment.acquiredAt || ''
     form.elements.namedItem('returnType').value = investment.returnType
     form.elements.namedItem('investmentReturn').value = investment.returnValue === null ? '' : investment.returnValue * 100
     form.elements.namedItem('investmentIndexRate').value = investment.indexAnnualRate === null ? '' : investment.indexAnnualRate * 100
+    form.elements.namedItem('investmentAnnualReturns').value = formatAnnualRealReturns(investment.annualRealReturns)
     form.querySelector('[data-investment-form-title]').textContent = 'Revise os dados do investimento'
     form.querySelector('[data-investment-submit]').textContent = 'Salvar investimento'
     setInvestmentReturnFields(form)
@@ -852,6 +857,34 @@ document.addEventListener('click', async (event) => {
   }
 })
 
+let contributionImpactTimer = null
+
+// Reads the pre-drag value from the slider's defaultValue (set by the last
+// full render) rather than state.plan.monthlyContribution, which this same
+// handler already mutates on every tick — so it can't serve as the baseline.
+function scheduleContributionImpact(input) {
+  clearTimeout(contributionImpactTimer)
+  contributionImpactTimer = setTimeout(() => {
+    const impact = document.querySelector('[data-contribution-impact]')
+    if (!impact) return
+    const baseline = parseNumber(input.defaultValue)
+    const value = parseNumber(input.value)
+    if (baseline === value) { impact.textContent = 'Arraste o controle para ver o efeito na sua renda projetada.'; return }
+    try {
+      const schedules = currentRetirementSchedules()
+      const before = projectRetirementWithSchedules({ ...state.plan, monthlyContribution: baseline }, schedules)
+      const after = projectRetirementWithSchedules({ ...state.plan, monthlyContribution: value }, schedules)
+      const delta = after.projectedMonthlyIncome - before.projectedMonthlyIncome
+      const formatted = privateCurrency(Math.abs(delta), state.valuesHidden, false, state.currency)
+      impact.textContent = Math.abs(delta) < 0.5
+        ? 'Sem mudança relevante na renda projetada.'
+        : `Isso ${delta > 0 ? 'aumenta' : 'reduz'} sua renda projetada em ${formatted}/mês aos ${state.plan.retirementAge} anos.`
+    } catch {
+      impact.textContent = 'Arraste o controle para ver o efeito na sua renda projetada.'
+    }
+  }, 150)
+}
+
 document.addEventListener('input', (event) => {
   if (!event.target.matches('[data-plan-contribution]')) return
 
@@ -861,6 +894,8 @@ document.addEventListener('input', (event) => {
 
   const output = document.querySelector('.contribution-output')
   if (output) output.textContent = privateCurrency(value, state.valuesHidden, false, state.currency)
+
+  scheduleContributionImpact(event.target)
 })
 
 document.addEventListener('change', async (event) => {
@@ -1252,7 +1287,9 @@ document.addEventListener('submit', async (event) => {
         monthlyContribution: parseNumber(data.get('investmentContribution')),
         returnType,
         returnValue: returnType === 'default' ? null : parseNumber(data.get('investmentReturn')) / 100,
-        indexAnnualRate: returnType === 'cdi' ? parseNumber(data.get('investmentIndexRate')) / 100 : null
+        indexAnnualRate: returnType === 'cdi' ? parseNumber(data.get('investmentIndexRate')) / 100 : null,
+        annualRealReturns: parseAnnualRealReturns(data.get('investmentAnnualReturns') || ''),
+        acquiredAt: data.get('investmentAcquiredAt') || null
       })
       render()
       if (data.get('investmentId')) recordDataOperation('correction')

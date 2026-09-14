@@ -163,13 +163,39 @@ test('previdência de categoria personalizada recebe a mesma liberação da cate
   assert.equal(rows[2].liquidAssets, rows[2].financialAssets)
 })
 
-test('taxas legadas não aplicadas impedem conclusão silenciosa de cobertura', () => {
+test('custo anual legado não aplicado impede conclusão silenciosa de cobertura', () => {
   const value = fixture()
   value.plan.investments[0].amount = 10000
   value.plan.decumulation.annualFee = 0.01
   const result = finappViability(value, undefined, new Date('2026-01-01'))
   assert.equal(result.viable, false)
-  assert.ok(result.issues.some(issue => issue.includes('custos ou impostos')))
+  assert.ok(result.issues.some(issue => issue.includes('custo anual')))
+})
+
+test('imposto de resgate legado sem regime tributário ativo gera pendência, mas some ao ativar um regime', () => {
+  const value = fixture()
+  value.plan.investments[0].amount = 10000
+  value.plan.decumulation.withdrawalTax = 0.1
+  const withoutRegime = finappViability(value, undefined, new Date('2026-01-01'))
+  assert.ok(withoutRegime.issues.some(issue => issue.includes('imposto de resgate')))
+  const withRegime = finappViability(value, { ...value.plan.finappMethod, taxRegime: 'manual', manualTaxRate: 0.1 }, new Date('2026-01-01'))
+  assert.ok(!withRegime.issues.some(issue => issue.includes('imposto de resgate')))
+})
+
+test('regime tributário ativo tributa resgates de previdência e reduz o patrimônio final', () => {
+  const value = fixture()
+  value.plan.investments[0].amount = 10000
+  value.plan.investments[0].assetClass = 'pension'
+  const none = finappViability(value, undefined, new Date('2026-01-01'))
+  assert.equal(none.rows[0].withdrawalTax, 0)
+  const manual = finappViability(value, { ...value.plan.finappMethod, taxRegime: 'manual', manualTaxRate: 0.5 }, new Date('2026-01-01'))
+  assert.ok(manual.rows[0].withdrawalTax > 0)
+  assert.ok(manual.rows[0].financialAssets < none.rows[0].financialAssets)
+  const regressive = finappViability(value, { ...value.plan.finappMethod, taxRegime: 'regressive' }, new Date('2026-01-01'))
+  // No acquisition date informed: the regressive table conservatively assumes the shortest bracket (35%).
+  // The single investment is 100% pension-classified and covers the whole deficit, so the taxed
+  // amount equals the full withdrawal (-freeCashFlow), which is unaffected by the tax regime itself.
+  assert.ok(Math.abs(regressive.rows[0].withdrawalTax - 0.35 * -regressive.rows[0].freeCashFlow) < 0.01)
 })
 
 test('vida financeira mostra o mesmo orçamento, saldo acumulado e horizonte da viabilidade', () => {

@@ -154,13 +154,29 @@ export function summarizeCashFlowItems(
 export function retirementContributionSchedules(cashFlow, baseCurrency, exchangeRates, customCategories = []) {
   return (cashFlow.items || []).flatMap((item) => {
     const category = categoryById(item.categoryId, customCategories)
-    if (recordKindFor(item) !== 'planned' || item.type !== 'expense' || item.frequency !== 'monthly' || category?.budgetGroup !== 'pension') return []
-    return [{
-      amount: convertCurrency(item.amount, item.currency, baseCurrency, exchangeRates),
-      startDate: item.startDate,
-      endDate: item.endDate,
-      label: item.description || category.name
-    }]
+    if (recordKindFor(item) !== 'planned') return []
+    if (item.frequency === 'monthly' && item.type === 'expense' && category?.budgetGroup === 'pension') {
+      return [{
+        amount: convertCurrency(item.amount, item.currency, baseCurrency, exchangeRates),
+        startDate: item.startDate,
+        endDate: item.endDate,
+        label: item.description || category.name
+      }]
+    }
+    // One-off liquidity shocks (buying a house, tuition, a sabbatical) shift the
+    // main plan chart and the scenario simulator at their exact month: positive
+    // for an inflow, negative for an outflow. Any category qualifies here, unlike
+    // the recurring pension contribution above.
+    if (item.frequency === 'occasional' && item.startDate) {
+      const amount = convertCurrency(item.amount, item.currency, baseCurrency, exchangeRates) * (item.type === 'income' ? 1 : -1)
+      return [{
+        amount,
+        startDate: item.startDate,
+        endDate: item.startDate,
+        label: item.description || category?.name || 'Evento único'
+      }]
+    }
+    return []
   })
 }
 

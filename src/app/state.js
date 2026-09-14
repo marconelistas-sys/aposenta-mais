@@ -1,4 +1,5 @@
 import { defaultPlan } from '../data/mock-plan.js'
+import { validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import {
   loadStoredState,
@@ -109,6 +110,7 @@ export function updatePlan(patch) {
 }
 
 export function upsertInvestment(candidate) {
+  validateAnnualRealReturns(candidate.annualRealReturns)
   const id = candidate.id || globalThis.crypto?.randomUUID?.() || `investment-${Date.now()}`
   const current = Array.isArray(state.plan.investments) ? state.plan.investments : []
   const existingIndex = current.findIndex((investment) => investment.id === id)

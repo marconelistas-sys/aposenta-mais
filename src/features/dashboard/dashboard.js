@@ -16,6 +16,7 @@ import { icon } from '../../shared/icons.js'
 import { currencies } from '../../shared/currencies.js'
 import { renderPremiumPromo } from '../premium/premium.js'
 import { exchangeRate } from '../../shared/exchange-rates.js'
+import { readinessGauge } from '../../shared/readiness-gauge.js'
 
 function privacyLabel(value) {
   return state.valuesHidden ? 'Valor oculto' : formatCurrency(value, false, state.currency)
@@ -95,7 +96,7 @@ export function renderDashboard() {
   const money = (value) => privateCurrency(value, state.valuesHidden, false, state.currency)
   const heading = state.isDemo
     ? 'Veja se seu plano de aposentadoria cabe na sua vida.'
-    : 'Seu orçamento e patrimônio até a idade-alvo.'
+    : 'Seu plano familiar até a idade-alvo.'
   const budgetBalance = cashFlow.monthlyIncome - cashFlow.monthlyExpenses
   const investmentCount = state.plan.investments.length
 
@@ -104,7 +105,7 @@ export function renderDashboard() {
       <div>
         <p class="eyebrow">VISÃO GERAL</p>
         <h1>${heading}</h1>
-        <p>${state.isDemo ? 'Faça uma simulação gratuita e ajuste o orçamento sem criar conta.' : 'Veja o ajuste com maior impacto no seu objetivo.'}</p>
+        <p>${state.isDemo ? 'Faça uma simulação gratuita e ajuste o orçamento sem criar conta.' : 'Confira se os recursos sustentam sua família até a data-alvo.'}</p>
       </div>
       <div class="dashboard-tools">
         ${currencySelector()}
@@ -148,6 +149,7 @@ export function renderDashboard() {
     <section class="dashboard-grid" aria-label="Impacto de longo prazo">
       ${renderPlanningOverview({ compact: true })}
       <div class="dashboard-side">
+        ${readinessGauge({ progress: result.progress, hidden: state.valuesHidden })}
         <article class="panel confidence-card">
           <div class="confidence-card__icon">${icon('shield', 22)}</div>
           <div>
@@ -162,6 +164,7 @@ export function renderDashboard() {
       </div>
     </section>
 
+    ${renderPlanChecks()}
     ${privacyStatus()}
     ${exchangeRatePanel()}
     <details class="panel settings-card"><summary>Revisar passo a passo e cadastros</summary><section aria-labelledby="start-guide"><h2 id="start-guide">Comece aqui</h2>
@@ -171,11 +174,11 @@ export function renderDashboard() {
       <p>Carteira reúne investimentos. Fluxo de caixa reúne o orçamento. <a href="/contas" data-route>Contas e movimentos</a> acompanha saldos manuais sem somá-los automaticamente ao patrimônio.</p>
       <div class="wizard-actions"><a class="button button--secondary" href="/calendario" data-route>Vencimentos, dívidas e metas</a><a class="button button--secondary" href="/apos-aposentadoria" data-route>Projetar vida após aposentadoria</a></div>
       <div class="wizard-actions"><a class="button button--secondary" href="/consorcios" data-route>Consórcios e posição vinculada</a><a class="button button--secondary" href="/riscos" data-route>Patrimônio líquido, Monte Carlo e matriz de risco</a></div>
+      <div class="wizard-actions"><a class="button button--secondary" href="/patrimonio" data-route>Ver patrimônio consolidado (contas, imóveis e dívidas)</a></div>
     </section>
     </details>
 
     ${renderPremiumPromo({ compact: true })}
-    ${renderPlanChecks()}
     ${renderVariableContributions()}
   `
 }

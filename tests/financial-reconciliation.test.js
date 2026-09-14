@@ -97,7 +97,7 @@ test('conciliação mostra retorno, variação e identidade sem vazar valores oc
   assert.match(html, /5\.000,00/)
   assert.match(html, /97\.000,00/)
   assert.match(html, /Valorização não realizada/)
-  assert.match(html, /não as taxas individuais/)
+  assert.match(html, /taxas individuais da Carteira e os ajustes por ano/)
   assert.match(html, /capitaliza o déficit/)
   assert.doesNotMatch(renderFinancialReconciliation({ rows, currency: 'BRL', hidden: true }), /2026|5\.000|97\.000|<table/)
   assert.deepEqual(rows, before)
@@ -116,7 +116,7 @@ test('dashboard, viabilidade, pós-aposentadoria e fluxo usam a mesma conciliaç
     for (const render of [renderPlanningOverview, renderViability, () => renderViability({ postRetirementOnly: true }), renderCashFlowTimeline]) {
       const html = render()
       assert.match(html, /Do caixa ao patrimônio financeiro/)
-      assert.match(html, /Variação dos ativos financeiros, após rendimento/)
+      assert.match(html, /Resultado final do ano/)
       assert.match(html, /Resultado do retorno real/)
       state.valuesHidden = true
       const hidden = render()

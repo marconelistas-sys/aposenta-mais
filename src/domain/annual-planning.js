@@ -1,5 +1,8 @@
 import { convertCurrency } from '../shared/exchange-rates.js'
 
+// Only meaningful for nonFinancialAssets rows; annualGoals rows keep the default.
+export const assetCategories = new Set(['real-estate', 'vehicle', 'other'])
+
 export function validateAnnualRow(row) {
   if (!row || !/^[\w:-]{1,80}$/.test(row.id) || typeof row.name !== 'string' || !row.name.trim() || row.name.length > 60 || !['BRL', 'CHF', 'EUR', 'USD'].includes(row.currency) || !Number.isFinite(row.amount) || row.amount <= 0 || row.amount > 1e9 || !Number.isInteger(row.startYear) || !Number.isInteger(row.endYear) || row.startYear < 2000 || row.endYear > 2199 || row.startYear > row.endYear || !Number.isInteger(row.everyYears) || row.everyYears < 1 || row.everyYears > 100 || !Number.isFinite(row.realGrowth) || row.realGrowth <= -1 || row.realGrowth > 1) throw new Error('Revise o valor, a moeda, os anos e a periodicidade.')
   for (let year = row.startYear; year <= row.endYear; year += row.everyYears) if (row.amount * (1 + row.realGrowth) ** (year - row.startYear) > 1e9) throw new Error('Projeção anual excede o limite de valor.')
@@ -8,7 +11,10 @@ export function sanitizeAnnualRows(raw) {
   const result = []
   for (const value of Array.isArray(raw) ? raw.slice(0, 50) : []) {
     const row = Object.fromEntries(['id', 'name', 'currency', 'amount', 'startYear', 'endYear', 'everyYears', 'realGrowth'].map(key => [key, value?.[key]]))
-    try { validateAnnualRow(row); if (!result.some(item => item.id === row.id)) result.push(row) } catch {}
+    // Only stamp a category when the source row already carries one, so rows
+    // without the concept (e.g. annualGoals, older finapp imports) round-trip byte-for-byte.
+    const category = value?.category !== undefined ? (assetCategories.has(value.category) ? value.category : 'other') : undefined
+    try { validateAnnualRow(row); if (!result.some(item => item.id === row.id)) result.push(category !== undefined ? { ...row, category } : row) } catch {}
   }
   return result
 }

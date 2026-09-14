@@ -22,7 +22,7 @@ Na projeção consolidada, um rendimento distribuído que já integra a taxa tot
 2. Dashboard, fluxo até a idade-alvo, viabilidade e pós-aposentadoria mostram uma linha separada de variação dos ativos financeiros após rendimento.
 3. Conciliação anual apresenta abertura, FCX, retorno, previdência, variação e fechamento. Valores ocultos não aparecem na tabela ou nos gráficos.
 4. Receitas previstas da categoria Rendimentos, efetivamente incluídas no horizonte e com patrimônio inicial, exigem revisão de possível duplicação antes de concluir viabilidade. Os registros permanecem intactos. Realizados, TXT e lançamentos fora do período não geram essa pendência.
-5. A interface explicita que a metodologia anual usa a taxa global real do plano, e não as taxas individuais da Carteira. Déficits após esgotamento continuam capitalizados por compatibilidade com o Finapp, mas não são apresentados como crédito disponível.
+5. A revisão posterior de [retornos anuais](retornos-anuais-sustentabilidade.md) passou a aplicar taxas individuais da Carteira e ajustes por ano também na metodologia anual. Déficits após esgotamento continuam capitalizados para diagnóstico, sem representação de crédito disponível.
 
 ## Verificações
 

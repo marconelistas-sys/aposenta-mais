@@ -11,7 +11,8 @@ const navigation = [
   { href: '/carteira', label: 'Carteira', icon: 'wallet' },
   { href: '/fluxo-caixa', label: 'Fluxo de caixa', icon: 'wallet' },
   { href: '/simulacoes', label: 'Simulações', icon: 'calculator' },
-  { href: '/conteudos', label: 'Conteúdos', icon: 'book' }
+  { href: '/conteudos', label: 'Conteúdos', icon: 'book' },
+  { href: '/patrimonio', label: 'Patrimônio', icon: 'trendUp' }
 ]
 
 const mobileNavigation = [

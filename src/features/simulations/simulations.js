@@ -196,7 +196,7 @@ function scenarioComparisonChart() {
           </div>`
         }).join('')}
       </div>
-      <p class="result-disclaimer">As curvas mostram o saldo total projetado. O cálculo considera capital, aportes e rendimento composto. Impostos, taxas e variação cambial futura não são previstos.</p>
+      <p class="result-disclaimer">As curvas mostram o saldo total projetado. O cálculo considera capital, aportes e rendimento composto, incluindo eventos únicos do fluxo de caixa (compra de casa, faculdade, ano sabático) no mês em que ocorrem. Impostos, taxas e variação cambial futura não são previstos.</p>
     </section>
   `
 }

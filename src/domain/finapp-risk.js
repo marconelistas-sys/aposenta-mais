@@ -1,4 +1,5 @@
 import { finappViability } from './finapp-viability.js'
+import { projectAnnualInvestments } from './annual-investment-projection.js'
 import { validateRiskSettings } from './risk-plan.js'
 
 export const finappCostLevels = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5]
@@ -26,6 +27,7 @@ export function percentile(sorted, probability) {
 
 export function annualRiskPath(base, annualReturns) {
   if (annualReturns.length !== base.rows.length || annualReturns.some(value => !Number.isFinite(value))) throw new Error('Percurso de retornos inválido.')
+  if (base.investmentModel) return projectAnnualInvestments(base.rows, base.investmentModel, annualReturns).map(row => ({ year: row.year, month: row.month, financialAssets: row.financialAssets, wealth: row.financialAssets + row.assets, netWorth: row.netWorth }))
   let financialAssets = base.openingFinancial
   return base.rows.map((row, index) => {
     const rate = Math.max(-0.999999, annualReturns[index])
@@ -63,7 +65,7 @@ export function calculateFinappRisk(state, settings, today = new Date(), returnP
   const matrix = []
   const returnRates = [...new Set([...finappReturnRates, state.plan.annualRealReturn])].sort((a, b) => a - b)
   for (const costMultiplier of finappCostLevels) for (const annualRealReturn of returnRates) {
-    const scenario = finappViability({ ...state, plan: { ...state.plan, annualRealReturn } }, state.plan.finappMethod, today, { costMultiplier })
+    const scenario = finappViability(state, state.plan.finappMethod, today, { costMultiplier, returnShift: annualRealReturn - state.plan.annualRealReturn })
     matrix.push({ costMultiplier, annualRealReturn, financialAssets: scenario.rows.at(-1).financialAssets, liquidAssets: scenario.rows.at(-1).liquidAssets, minFinancial: Math.min(...scenario.rows.map(row => row.financialAssets)), minLiquid: Math.min(...scenario.rows.map(row => row.liquidAssets)) })
   }
   return { method: 'finapp-annual', base, simulated: { series, simulations: settings.simulations, seed: settings.seed, probabilitySuccess: successes / settings.simulations, probabilityTarget: targetSuccesses / settings.simulations, cvar10: tail.reduce((sum, value) => sum + value, 0) / tail.length }, matrix, returnRates, costLevels: finappCostLevels, settings }

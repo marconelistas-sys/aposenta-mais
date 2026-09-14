@@ -860,6 +860,59 @@ summary:focus-visible,
   color: var(--color-ink-muted);
 }
 
+.readiness-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.readiness-card__gauge {
+  position: relative;
+  width: 120px;
+}
+
+.readiness-card__gauge svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.readiness-card__value {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.readiness-card__value--good {
+  color: var(--color-green);
+}
+
+.readiness-card__value--ok {
+  color: #8a5a1f;
+}
+
+.readiness-card__value--behind {
+  color: var(--color-danger);
+}
+
+.readiness-card__body h3 {
+  margin-bottom: 2px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.readiness-card__body p {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 10px;
+}
+
 .app-footer {
   border-top: 1px solid var(--color-border);
   background: #eef1ed;
@@ -1017,6 +1070,13 @@ summary:focus-visible,
 
 .contribution-recommendation p {
   margin: 0;
+}
+
+.contribution-impact {
+  margin: 10px 0 0;
+  color: var(--color-ink-muted);
+  font-size: 11px;
+  font-weight: 650;
 }
 
 .timeline {
@@ -1671,6 +1731,38 @@ body.values-hidden .simulation-form input {
 
 .settings-row:last-child {
   border-bottom: 0;
+}
+
+.wealth-breakdown {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wealth-breakdown li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf0ed;
+  font-size: 12px;
+}
+
+.wealth-breakdown li:last-child {
+  border-bottom: 0;
+}
+
+.wealth-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 0;
+  padding-top: 14px;
+  border-top: 2px solid var(--color-border-strong);
+  font-size: 15px;
+  font-weight: 750;
 }
 
 .settings-row__icon {

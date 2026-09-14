@@ -1,9 +1,9 @@
-import { projectRetirementWithSchedules, retirementMonths } from './retirement.js'
+import { projectRetirementWithSchedules, retirementMonths, retirementInvestmentBalances } from './retirement.js'
 import { retirementContributionSchedules, calculateMultiCurrencyCashFlow } from './cash-flow.js'
-import { resolveInvestmentRealReturn } from './investment-returns.js'
 import { addMonths, prepareCommitmentSchedules } from './financial-calendar.js'
 import { prepareConsortiumEvents } from './consortium.js'
 import { spouseRetirementMonth } from './cash-flow-timeline.js'
+import { resolveInvestmentRealReturn } from './investment-returns.js'
 
 export const defaultDecumulation = Object.freeze({ years: 30, expenseMode: 'target', annualFee: 0, withdrawalTax: 0, benefitIncluded: false })
 export function validateDecumulation(settings) {
@@ -22,17 +22,12 @@ export function projectPostRetirement(state, settings = defaultDecumulation, asO
   const schedules = retirementContributionSchedules(state.cashFlow, state.currency, state.exchangeRates, state.customCategories)
   const accumulation = projectRetirementWithSchedules(plan, schedules, asOfDate)
   // Preserve each registered return in the retirement phase as well as accumulation.
-  const registered = (plan.investments || []).map(item => {
-    const rate = (1 + resolveInvestmentRealReturn(item, plan)) ** (1 / 12) - 1
-    const factor = rate === 0 ? before : ((1 + rate) ** before - 1) / rate
-    return { assets: item.amount * (1 + rate) ** before + item.monthlyContribution * factor, rate }
-  })
-  const buckets = registered.length ? registered : [{ assets: accumulation.projectedAssets, rate: (1 + plan.annualRealReturn) ** (1 / 12) - 1 }]
-  if (registered.length) buckets.push({ assets: Math.max(0, accumulation.projectedAssets - registered.reduce((sum, item) => sum + item.assets, 0)), rate: (1 + plan.annualRealReturn) ** (1 / 12) - 1 })
+  const buckets = retirementInvestmentBalances(plan, before, asOfDate)
+  buckets.push({ assets: accumulation.scheduledContributionFutureValue, rate: accumulation.monthlyRate })
   const feeRate = 1 - (1 - settings.annualFee) ** (1 / 12)
   const spouseMonth = spouseRetirementMonth(plan, asOfDate)
   const rows = []
-  const cashFlow = { ...state.cashFlow, retirementMonth: start, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia) }
+  const cashFlow = { ...state.cashFlow, retirementMonth: start, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia) }
   let firstShortfall = null
   for (let index = 0; index < settings.years * 12; index++) {
     const month = addMonths(start, index)
@@ -42,7 +37,7 @@ export function projectPostRetirement(state, settings = defaultDecumulation, asO
     const spouseBenefit = spouseMonth && month >= spouseMonth ? (plan.spouseExpectedMonthlyBenefit || 0) : 0
     const income = budget.monthlyIncome + (settings.benefitIncluded ? 0 : plan.expectedMonthlyBenefit + spouseBenefit)
     let fees = 0
-    for (const bucket of buckets) { bucket.assets *= 1 + bucket.rate; const fee = bucket.assets * feeRate; bucket.assets -= fee; fees += fee }
+    for (const bucket of buckets) { bucket.assets *= Math.exp(Math.log1p(resolveInvestmentRealReturn(bucket.investment, plan, Number(month.slice(0, 4)))) / 12); const fee = bucket.assets * feeRate; bucket.assets -= fee; fees += fee }
     const available = buckets.reduce((sum, item) => sum + item.assets, 0)
     const need = Math.max(0, expenses - income)
     const withdrawn = Math.min(available, need / (1 - settings.withdrawalTax))

@@ -47,7 +47,7 @@ export function renderPlan() {
         <div class="progress-track" role="progressbar" aria-label="Progresso da meta" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(Math.max(Math.round(result.progress * 100), 0), 100)}">
           <span style="width: ${Math.min(result.progress * 100, 100)}%"></span>
         </div>
-        <p class="goal-card__caption">Você construiu ${formatPercent(result.progress)} do patrimônio necessário para essa renda.</p>
+        <p class="goal-card__caption">Você construiu ${formatPercent(result.progress)} do patrimônio necessário para essa renda. Eventos únicos do fluxo de caixa (compra de casa, faculdade etc.) já entram nesta projeção, no mês em que ocorrem.</p>
       </article>
 
       <article class="panel contribution-card">
@@ -80,6 +80,7 @@ export function renderPlan() {
           ${icon('sparkles', 18)}
           <p>Para atingir a meta, o aporte mensal estimado é <strong>${formatCurrency(result.requiredMonthlyContribution, false, state.currency)}</strong>. Hoje, sua carteira usa <strong>${formatCurrency(state.plan.monthlyContribution, false, state.currency)}</strong>, além de <strong>${formatCurrency(result.currentScheduledMonthlyContribution, false, state.currency)}</strong> em previdência programada.</p>
         </div>
+        <p class="contribution-impact" data-contribution-impact aria-live="polite">Arraste o controle para ver o efeito na sua renda projetada.</p>
       </article>
     </section>
 

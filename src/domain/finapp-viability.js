@@ -1,14 +1,18 @@
 import { planningHorizon } from './planning-horizon.js'
+import { projectAnnualInvestments } from './annual-investment-projection.js'
 import { calculateMultiCurrencyCashFlow } from './cash-flow.js'
 import { prepareCommitmentSchedules } from './financial-calendar.js'
 import { consortiumSchedule, sanitizeConsortia, validateConsortiumAsOf } from './consortium.js'
 import { nonFinancialValue } from './annual-planning.js'
 import { convertCurrency, sanitizeExchangeRates } from '../shared/exchange-rates.js'
 import { categoryById } from '../data/cash-flow-categories.js'
+import { openSalaryItems, salaryEndMessage } from './cash-flow-checks.js'
 import { createAnnualBreakdown, collectAnnualBudget, addAnnualBreakdown, finishAnnualBreakdown } from './annual-cash-flow-breakdown.js'
 
+const taxRegimes = new Set(['none', 'regressive', 'progressive', 'manual'])
+
 export function sanitizeFinappMethod(raw) {
-  return { chfBrlRate: Number.isFinite(raw?.chfBrlRate) && raw.chfBrlRate > 0 && raw.chfBrlRate < 1000000 ? raw.chfBrlRate : null, openingYearPeriod: Number.isFinite(raw?.openingYearPeriod) && raw.openingYearPeriod > 0 && raw.openingYearPeriod <= 1 ? raw.openingYearPeriod : 1, pensionMode: raw?.pensionMode === 'cash-funded' ? 'cash-funded' : 'external', openingConfirmed: raw?.openingConfirmed === true, pensionConfirmed: raw?.pensionConfirmed === true, releases: (Array.isArray(raw?.releases) ? raw.releases : []).slice(0, 30).filter(row => row && /^[\w:-]{1,80}$/.test(row.investmentId) && Number.isInteger(row.year) && row.year >= 2000 && row.year <= 2199).map(row => ({ investmentId: row.investmentId, year: row.year })) }
+  return { chfBrlRate: Number.isFinite(raw?.chfBrlRate) && raw.chfBrlRate > 0 && raw.chfBrlRate < 1000000 ? raw.chfBrlRate : null, openingYearPeriod: Number.isFinite(raw?.openingYearPeriod) && raw.openingYearPeriod > 0 && raw.openingYearPeriod <= 1 ? raw.openingYearPeriod : 1, pensionMode: raw?.pensionMode === 'cash-funded' ? 'cash-funded' : 'external', openingConfirmed: raw?.openingConfirmed === true, pensionConfirmed: raw?.pensionConfirmed === true, releases: (Array.isArray(raw?.releases) ? raw.releases : []).slice(0, 30).filter(row => row && /^[\w:-]{1,80}$/.test(row.investmentId) && Number.isInteger(row.year) && row.year >= 2000 && row.year <= 2199).map(row => ({ investmentId: row.investmentId, year: row.year })), taxRegime: taxRegimes.has(raw?.taxRegime) ? raw.taxRegime : 'none', manualTaxRate: Number.isFinite(raw?.manualTaxRate) && raw.manualTaxRate >= 0 && raw.manualTaxRate <= 1 ? raw.manualTaxRate : 0 }
 }
 // Same annual recurrence as finapp run_projection. Negative financial/liquid
 // balances are diagnostic deficits, not an authorization to borrow.
@@ -38,8 +42,9 @@ export function annualFinappRecurrence({ openingFinancial, openingLiquid, annual
   })
 }
 
-export function finappViability(state, rawSettings = state.plan.finappMethod, today = new Date(), { costMultiplier = 1, includeBreakdown = false } = {}) {
+export function finappViability(state, rawSettings = state.plan.finappMethod, today = new Date(), { costMultiplier = 1, includeBreakdown = false, returnShift = 0 } = {}) {
   if (!Number.isFinite(costMultiplier) || costMultiplier < 0 || costMultiplier > 10) throw new Error('Multiplicador de custos inválido.')
+  if (!Number.isFinite(returnShift) || Math.abs(returnShift) > 2) throw new Error('Ajuste de retorno inválido.')
   const settings = sanitizeFinappMethod(rawSettings)
   state = { ...state, exchangeRates: finappExchangeRates(state, settings) }
   const startYear = today.getUTCFullYear()
@@ -47,10 +52,13 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   const convert = (amount, currency) => convertCurrency(amount, currency, state.currency, state.exchangeRates)
   const retirement = state.cashFlow.retirementMonth || state.plan.retirementMonth
   const issues = []
-  if (state.plan.decumulation?.annualFee > 0 || state.plan.decumulation?.withdrawalTax > 0) issues.push('Há custos ou impostos de resgate configurados no simulador legado. A recorrência anual do finapp não os aplica. Incorpore esses desembolsos no orçamento e revise as premissas antes de concluir cobertura.')
+  if (state.plan.decumulation?.annualFee > 0) issues.push('Há custo anual configurado no simulador legado. A avaliação anual não o aplica. Incorpore esse desembolso no orçamento e revise as premissas antes de concluir cobertura.')
+  if (settings.taxRegime === 'none' && state.plan.decumulation?.withdrawalTax > 0) issues.push('Há imposto de resgate configurado no simulador legado, mas nenhum regime tributário está ativo na avaliação anual. Configure o regime tributário nas premissas ou incorpore o imposto manualmente no orçamento.')
   if (!settings.openingConfirmed) issues.push('Confirme que o patrimônio informado corresponde aos saldos de abertura do ano-base.')
   if (!retirement) issues.push('Confirme o mês da aposentadoria para avaliar especificamente a fase posterior.')
-  if (state.cashFlow.items.some(item => item.categoryId === 'salary' && item.recordKind !== 'actual' && !item.endDate && item.endMode !== 'retirement')) issues.push('Há salário sem término definido. Confira se ele realmente continua após a aposentadoria.')
+  const openSalaries = openSalaryItems(state.cashFlow, { endMonth: horizon.endMonth })
+  if (openSalaries.length) issues.push(salaryEndMessage(openSalaries))
+  if (state.cashFlow.items.some(item => item.recordKind !== 'actual' && item.source !== 'txt' && item.frequency === 'occasional' && !item.startDate)) issues.push('Há lançamento único sem data, excluído da projeção. Informe o mês para incluí-lo.')
   if (!state.plan.investments.length && state.plan.currentAssets > 0) issues.push('Patrimônio agregado sem disponibilidade comprovada. Detalhe a Carteira.')
   if ((state.cashFlow.finappMigration?.pending || []).length) issues.push('Existem pendências da migração que podem alterar patrimônio ou liquidez.')
   if (state.plan.investments.some(item => item.liquidity === 'unknown')) issues.push('Há investimentos sem liquidez classificada.')
@@ -74,14 +82,14 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   const rows = []
   for (let year = startYear; year <= horizon.endYear; year++) {
     const breakdown = includeBreakdown ? createAnnualBreakdown() : null
-    const rate = year === startYear ? (1 + annualReturn) ** settings.openingYearPeriod - 1 : annualReturn
-    let income = 0, costs = 0, goals = 0, pensionCredits = 0, releases = 0
+    let income = 0, costs = 0, goals = 0, pensionCredits = 0
     const contributions = new Map()
     for (let month = 1; month <= 12; month++) {
       const key = `${year}-${String(month).padStart(2, '0')}`
       const budget = calculateMultiCurrencyCashFlow(cashFlow, state.currency, state.exchangeRates, 0, state.customCategories, new Date(`${key}-15T00:00:00Z`))
       collectAnnualBudget(breakdown, budget, { pensionMode: settings.pensionMode, costMultiplier, retirement })
       income += budget.monthlyIncome
+      goals += budget.convertedItems.filter(item => item.isIncluded && item.annualGoalId).reduce((sum, item) => sum + item.convertedAmount, 0)
       if (budget.convertedItems.some(item => item.isIncluded && item.type === 'income' && item.categoryId === 'investment-income' && item.convertedAmount > 0)) hasInvestmentIncome = true
       costs += budget.monthlyExpenses - budget.pensionContributions
       pensionCredits += budget.pensionContributions
@@ -98,36 +106,26 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
     }
     // Goals are already in costs from the monthly budget. Separate their annual
     // provision in the presentation, without subtracting it twice.
-    for (const item of state.cashFlow.annualGoals || []) {
-      if (year >= item.startYear && year <= item.endYear && (year - item.startYear) % item.everyYears === 0) goals += convert(Math.round(item.amount * (1 + item.realGrowth) ** (year - item.startYear) * 100) / 100, item.currency)
-    }
     costs = Math.max(0, costs - goals)
     if (settings.pensionMode === 'cash-funded') costs += pensionCredits
     costs *= costMultiplier
-    for (const cohort of [...cohorts, ...pensions]) {
-      cohort.balance = cohort.balance * (1 + rate) + (contributions.get(cohort) || 0)
-      if (cohort.year === year) {
-        releases += cohort.balance
-        addAnnualBreakdown(breakdown, 'releases', { id: cohort.id, name: cohort.name, category: 'Liberação de saldo restrito', source: 'Patrimônio', currency: state.currency, frequency: 'Liberação anual' }, cohort.balance)
-        cohort.balance = 0
-      }
-    }
-    const pensionRestricted = [...cohorts, ...pensions].filter(row => row.pension).reduce((sum, row) => sum + row.balance, 0)
     const liabilities = [...debtSchedules.values()].reduce((sum, schedule) => {
       const debt = state.cashFlow.commitments.find(item => debtSchedules.get(item.id) === schedule)
       return sum + convert(schedule.findLast(row => row.month <= `${year}-12`)?.balance ?? debt.amount, debt.currency)
     }, 0)
     const assets = nonFinancialValue(state.cashFlow.nonFinancialAssets, `${year}-12`, state.currency, state.exchangeRates) + consortiumRows.reduce((sum, data) => sum + convert(data.rows.find(row => row.month === `${year}-12`)?.restrictedEquity || 0, data.item.currency), 0)
-    rows.push({ year: String(year), income, costs, goals, pensionCredits, releases, pensionRestricted, assets, liabilities, ...(breakdown ? { breakdown: finishAnnualBreakdown(breakdown) } : {}) })
+    const pensionFlows = pensions.map(pension => ({ id: pension.id, name: pension.name, amount: contributions.get(pension) || 0, releaseYear: pension.year }))
+    rows.push({ year: String(year), income, costs, goals, pensionCredits, pensionFlows, assets, liabilities, ...(breakdown ? { breakdown: finishAnnualBreakdown(breakdown) } : {}) })
   }
   const openingFinancial = state.plan.investments.length ? state.plan.investments.reduce((sum, row) => sum + row.amount, 0) : state.plan.currentAssets
   const openingLiquid = state.plan.investments.filter(row => row.liquidity === 'available').reduce((sum, row) => sum + row.amount, 0)
-  const projected = annualFinappRecurrence({ openingFinancial, openingLiquid, annualReturn, openingYearPeriod: settings.openingYearPeriod, years: rows })
+  const investmentModel = { plan: { investments: state.plan.investments, currentAssets: state.plan.currentAssets, annualRealReturn: state.plan.annualRealReturn, annualInflation: state.plan.annualInflation }, openingYearPeriod: settings.openingYearPeriod, releases: settings.releases, currency: state.currency, taxRegime: settings.taxRegime, manualTaxRate: settings.manualTaxRate }
+  const projected = projectAnnualInvestments(rows, investmentModel, rows.map(() => annualReturn + returnShift))
   if (hasInvestmentIncome && openingFinancial > 0) issues.push('Há receitas previstas na categoria Rendimentos. Confira se vêm da carteira já incluída no patrimônio: o retorno global já é capitalizado e somar o mesmo ganho às receitas duplica o rendimento. Os lançamentos foram preservados para revisão.')
   const failed = row => row.netFinancial < -0.005 || row.liquidAssets < -0.005
   const postRetirement = retirement ? projected.filter(row => row.year >= retirement.slice(0, 4)) : []
   if (!postRetirement.length) issues.push('A aposentadoria não está dentro do horizonte avaliado.')
   const firstFailure = projected.find(failed)
   const firstRetirementFailure = postRetirement.find(failed)
-  return { rows: projected, settings, horizon, retirement, issues, firstFailure, firstRetirementFailure, viable: !issues.length && !firstFailure && postRetirement.length > 0, openingFinancial, openingLiquid }
+  return { rows: projected, investmentModel, settings, horizon, retirement, issues, firstFailure, firstRetirementFailure, viable: !issues.length && !firstFailure && postRetirement.length > 0, openingFinancial, openingLiquid }
 }

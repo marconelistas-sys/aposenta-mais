@@ -1,13 +1,13 @@
 import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from './cash-flow.js'
-import { projectRetirementWithSchedules } from './retirement.js'
+import { projectRetirementWithSchedules, retirementInvestmentAllocations } from './retirement.js'
 import { resolveInvestmentRealReturn } from './investment-returns.js'
 import { prepareConsortiumEvents } from './consortium.js'
 import { prepareCommitmentSchedules } from './financial-calendar.js'
 
 export function compareVariableContributions(state, asOfDate = new Date(), { withdrawDeficits = false } = {}) {
   const baseline = projectRetirementWithSchedules(state.plan, retirementContributionSchedules(state.cashFlow, state.currency, state.exchangeRates, state.customCategories), asOfDate)
-  const source = state.plan.investments.length ? state.plan.investments : [{ amount: state.plan.currentAssets, monthlyContribution: state.plan.monthlyContribution, returnType: 'default' }]
-  const buckets = source.map(item => ({ balance: item.amount, available: item.liquidity === 'available', weight: state.plan.monthlyContribution > 0 ? item.monthlyContribution / state.plan.monthlyContribution : 0, rate: (1 + resolveInvestmentRealReturn(item, state.plan)) ** (1 / 12) - 1 }))
+  const source = retirementInvestmentAllocations(state.plan)
+  const buckets = source.map(item => ({ investment: item, balance: item.amount, available: item.liquidity === 'available', weight: state.plan.monthlyContribution > 0 ? item.monthlyContribution / state.plan.monthlyContribution : 0 }))
   const reserveTarget = state.cashFlow.emergencyReserveTarget
   let reserve = state.cashFlow.currentEmergencyReserve
   let pension = 0
@@ -19,19 +19,19 @@ export function compareVariableContributions(state, asOfDate = new Date(), { wit
   let unfundedTotal = 0
   let firstUnfundedMonth = null
   const rows = []
-  const preparedCashFlow = { ...state.cashFlow, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia) }
+  const preparedCashFlow = { ...state.cashFlow, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia) }
   for (let index = 0; index < baseline.months; index++) {
     const date = new Date(Date.UTC(asOfDate.getUTCFullYear(), asOfDate.getUTCMonth() + index, 15))
     const budget = calculateMultiCurrencyCashFlow({ ...preparedCashFlow, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), currentEmergencyReserve: reserve, reserveBuildMonths: Math.max(1, state.cashFlow.reserveBuildMonths - index) }, state.currency, state.exchangeRates, 0, state.customCategories, date)
     const cashSurplus = budget.monthlyIncome - budget.monthlyExpenses
-    const reserveAllocation = withdrawDeficits ? Math.min(budget.reserveMonthlyAllocation, Math.max(0, cashSurplus)) : budget.reserveMonthlyAllocation
+    const reserveAllocation = Math.min(budget.reserveMonthlyAllocation, Math.max(0, cashSurplus))
     reserve = Math.min(Math.max(reserveTarget, reserve), reserve + reserveAllocation)
-    const amount = Math.min(state.plan.monthlyContribution, budget.sustainableContribution, withdrawDeficits ? Math.max(0, cashSurplus - reserveAllocation) : Infinity)
+    const amount = Math.min(state.plan.monthlyContribution, budget.sustainableContribution, Math.max(0, cashSurplus - reserveAllocation))
     contributionTotal += amount
     deficitTotal += Math.max(0, budget.monthlyExpenses - budget.monthlyIncome)
     const month = date.toISOString().slice(0, 7)
     if (amount + 1e-8 < state.plan.monthlyContribution) { reducedMonths++; firstReducedMonth ||= month }
-    for (const bucket of buckets) bucket.balance = bucket.balance * (1 + bucket.rate) + amount * bucket.weight
+    for (const bucket of buckets) bucket.balance = bucket.balance * Math.exp(Math.log1p(resolveInvestmentRealReturn(bucket.investment, state.plan, date.getUTCFullYear())) / 12) + amount * bucket.weight
     let needed = Math.max(0, -cashSurplus)
     let withdrawn = 0
     if (withdrawDeficits) for (const bucket of buckets) {
