@@ -116,7 +116,7 @@ test('dashboard, viabilidade, pós-aposentadoria e fluxo usam a mesma conciliaç
     for (const render of [renderPlanningOverview, renderViability, () => renderViability({ postRetirementOnly: true }), renderCashFlowTimeline]) {
       const html = render()
       assert.match(html, /Do caixa ao patrimônio financeiro/)
-      assert.match(html, /Resultado final do ano/)
+      assert.match(html, /Variação do patrimônio financeiro no ano/)
       assert.match(html, /Resultado do retorno real/)
       state.valuesHidden = true
       const hidden = render()

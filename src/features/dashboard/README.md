@@ -1,5 +1,11 @@
 # Dashboard: interpretação do plano
 
+## Instrumentos visuais
+
+O Dashboard apresenta quatro instrumentos antes da trajetória principal: cobertura anual, orçamento vigente, menor liquidez projetada e patrimônio considerado na data-alvo. O especialista em UX revisou a proposta e a implementação. [Decisões, fórmulas e limites](../../../docs/product/dashboard-instrumentos-visuais.md).
+
+Os instrumentos futuros reutilizam o resultado da avaliação anual. O orçamento usa a data atual e explicita o rateio dos valores anuais. Não há score agregado nem probabilidade derivada da contagem de anos. Marcos e textos detalhados ficam recolhidos. O filtro de imóveis permanece visível e afeta somente a avaliação patrimonial.
+
 O resumo de sustentabilidade usa o resultado de `finappViability`. Não calcula uma segunda projeção e não altera dados financeiros.
 
 ## Leitura visual

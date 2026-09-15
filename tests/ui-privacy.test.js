@@ -12,7 +12,7 @@ const { addScenario, deleteLocalData, replaceFinancialData, resetState, state } 
 const { renderDashboard } = await import('../src/features/dashboard/dashboard.js')
 const { renderPrivacy } = await import('../src/features/privacy/privacy.js')
 const { renderSimulations } = await import('../src/features/simulations/simulations.js')
-const { renderCashFlow } = await import('../src/features/cash-flow/cash-flow.js')
+const { renderCashFlow, renderBudgetEntries } = await import('../src/features/cash-flow/cash-flow.js')
 
 test('oculta valores dos cenários e do texto acessível do gráfico', () => {
   resetState()
@@ -75,23 +75,27 @@ test('fluxo de caixa explica dados locais e oculta valores', () => {
   assert.match(html, /Cálculo local, sem envio automático/)
   assert.match(html, /Receitas eventuais não foram usadas/)
   assert.match(html, /R\$ •••••/)
-  assert.match(html, /Importar extrato CSV, TXT ou OFX/)
-  assert.match(html, /name="startDate"/)
-  assert.match(html, /name="endDate"/)
-  assert.match(html, /Previdência complementar/)
-  assert.match(html, /processado neste navegador/)
-  assert.match(html, /name="recordKind"/)
+  assert.match(html, /href="\/orcamento"/ )
+  assert.doesNotMatch(html, /data-cash-item-form/)
+  const budget = renderBudgetEntries()
+  assert.match(budget, /R\$ •••••/)
+  assert.match(budget, /Importar extrato CSV, TXT ou OFX/)
+  assert.match(budget, /name="startDate"/)
+  assert.match(budget, /name="endDate"/)
+  assert.match(budget, /Previdência complementar/)
+  assert.match(budget, /processado neste navegador/)
+  assert.match(budget, /name="recordKind"/)
   assert.match(html, /data-cash-flow-month/)
-  assert.match(html, /PLANEJADO E REALIZADO/)
-  assert.match(html, /data-edit-cash-item=/)
-  assert.match(html, /data-cash-item-dialog/)
-  assert.match(html, /data-cash-item-edit-form/)
-  assert.match(html, /Salvar alterações/)
+  assert.match(html, /Acompanhamento de/)
+  assert.match(budget, /data-edit-cash-item=/)
+  assert.match(budget, /data-cash-item-dialog/)
+  assert.match(budget, /data-cash-item-edit-form/)
+  assert.match(budget, /Salvar alterações/)
 })
 
 test('prévia da importação mostra mapeamento, duplicidades e confirmação', () => {
   resetState()
-  const html = renderCashFlow({
+  const html = renderBudgetEntries({
     fileName: '<extrato>.txt',
     totalRows: 2,
     headers: ['data', 'descricao', 'valor'],

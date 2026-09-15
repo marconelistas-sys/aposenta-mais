@@ -4,6 +4,8 @@ import { Readable } from 'node:stream'
 import { createAuthHandler } from '../src/server/auth/auth-handler.mjs'
 import { createLocalStore } from '../src/server/data/local-store.mjs'
 import { syncConsentVersion } from '../src/shared/sync-contract.js'
+import { sanitizeStoredState } from '../src/app/state-storage.js'
+import { paymentCalendarEvents, paymentEventKey, linkCalendarPayment, paymentMatchStatus } from '../src/domain/calendar-payments.js'
 
 function fixture() {
   const localStore = createLocalStore({ path: ':memory:' })
@@ -31,6 +33,33 @@ function fixture() {
 }
 const credentials = { email: 'person@example.com', password: 'local-password-123' }
 const activation = { password: credentials.password, acceptedSyncConsent: true, consentVersion: syncConsentVersion, state: { plan: { currentAssets: 1 } } }
+
+test('SQLite API preserves split payment portions and rejects obsolete writers without changing the stored copy', async () => {
+  const f = fixture()
+  try {
+    await f.call('/api/auth/login', credentials)
+    assert.equal((await f.call('/api/auth/local-enable', activation)).status, 200)
+    const current = await f.call('/api/sync/data')
+    const value = sanitizeStoredState({ currency: 'BRL', cashFlow: {
+      items: [600, 400].map((amount, index) => ({ id: `bill${index}`, description: `Conta ${index}`, categoryId: 'housing', type: 'expense', recordKind: 'planned', frequency: 'occasional', amount, currency: 'BRL', startDate: index ? '2026-10-05' : '2026-09-05' })),
+      ledger: { accounts: [{ id: 'bank', name: 'Conta', currency: 'BRL', openingDate: '2026-01-01', openingBalance: 2000 }], movements: [{ id: 'payment', accountId: 'bank', type: 'expense', date: '2026-09-10', amount: 1000 }] }
+    } })
+    for (const [month, amount] of [['2026-09', 600], ['2026-10', 400]]) {
+      const event = paymentCalendarEvents(value.cashFlow, month).events[0]
+      value.cashFlow.paymentMatches = linkCalendarPayment(value.cashFlow, { month, eventKey: paymentEventKey(event), movementId: 'payment', amount }, new Date('2026-09-14T12:00:00Z'))
+    }
+    const body = { state: value, acceptedSyncConsent: true, consentVersion: syncConsentVersion, expectedUpdatedAt: current.body.updatedAt }
+    assert.equal((await f.call('/api/sync/data', body)).status, 200)
+    const stored = await f.call('/api/sync/data')
+    assert.deepEqual(stored.body.state.cashFlow.paymentMatches, value.cashFlow.paymentMatches)
+    for (const month of ['2026-09', '2026-10']) {
+      const flow = stored.body.state.cashFlow
+      assert.equal(paymentMatchStatus(paymentCalendarEvents(flow, month).events[0], flow).status, 'linked')
+    }
+    assert.equal((await f.call('/api/sync/data', { ...body, consentVersion: '2026-09-14-v15', expectedUpdatedAt: stored.body.updatedAt })).status, 400)
+    assert.deepEqual((await f.call('/api/sync/data')).body, stored.body)
+  } finally { f.localStore.close() }
+})
 
 test('Supabase first, explicit profile activation copies cloud plan and offline local login works with same owner', async () => {
   const f = fixture()

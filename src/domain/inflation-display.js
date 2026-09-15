@@ -35,6 +35,7 @@ export function annualRowsInPriceBasis(rows, { basis = 'real', annualInflation, 
       }
     }
     if (row.breakdown) next.breakdown = Object.fromEntries(Object.entries(row.breakdown).map(([key, entries]) => [key, entries.map(entry => ({ ...entry, amount: entry.amount * (basis === 'nominal' ? factor : 1) }))]))
+    if (row.wealthBreakdown) next.wealthBreakdown = Object.fromEntries(Object.entries(row.wealthBreakdown).map(([key, entries]) => [key, entries.map(entry => ({ ...entry, amount: entry.amount * (basis === 'nominal' ? factor : 1) }))]))
     next.outflows = next.costs + next.goals
     next.resultAfterReturns = Number.isFinite(next.financialReturn) ? next.freeCashFlow + next.financialReturn : null
     for (const key of [...monetaryKeys, 'previousFinancial', 'financialReturn', 'financialChange', 'outflows']) if (key in next && (!Number.isFinite(next[key]) || Math.abs(next[key]) >= 1e100)) throw new Error('Valores projetados excedem o limite numérico.')

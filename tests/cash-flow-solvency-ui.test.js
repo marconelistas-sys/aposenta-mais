@@ -23,7 +23,7 @@ test('fluxo e patrimônio usam gráficos próprios com os mesmos anos e estoques
   assert.match(html, /Patrimônio financeiro/)
   assert.match(html, /Liquidez/)
   assert.match(html, /2027 · Patrimônio total líquido de dívidas: R\$\s*10\.900,00/)
-  assert.match(html, /2027 · Resultado final do ano: -R\$\s*100,00/)
+  assert.match(html, /2027 · Saldo do orçamento, antes dos rendimentos: -R\$\s*200,00/)
   assert.doesNotMatch(html, /NaN|undefined/)
 })
 
@@ -34,7 +34,7 @@ test('inflação converte também o patrimônio sem alterar os dados financeiros
     cashFlowChartView.basis = 'nominal'
     const html = renderCashFlowLineChart(chart)
     assert.match(html, /2027 · Patrimônio total líquido de dívidas: R\$\s*11\.990,00/)
-    assert.match(html, /2027 · Liquidez: R\$\s*110,00/)
+    assert.match(html, /2027 · Liquidez disponível: R\$\s*110,00/)
     assert.deepEqual(chart, before)
   } finally { cashFlowChartView.basis = basis }
 })

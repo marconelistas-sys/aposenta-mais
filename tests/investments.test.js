@@ -95,3 +95,32 @@ test('exclusão recalcula patrimônio e aportes', () => {
   assert.equal(state.plan.currentAssets, 20000)
   assert.equal(state.plan.monthlyContribution, 200)
 })
+
+test('a carteira exibe o mostrador de liquidez com a distribuição declarada e o oculta na privacidade', () => {
+  resetState()
+  upsertInvestment({ id: 'liquido', name: 'Conta líquida', assetClass: 'cash', amount: 6000, monthlyContribution: 0, liquidity: 'available', annualRealReturn: null })
+  upsertInvestment({ id: 'preso', name: 'Precatório', assetClass: 'other', amount: 3000, monthlyContribution: 0, liquidity: 'restricted', annualRealReturn: null })
+  upsertInvestment({ id: 'sem-info', name: 'Fundo legado', assetClass: 'fund', amount: 1000, monthlyContribution: 0, liquidity: 'unknown', annualRealReturn: null })
+
+  const html = renderInvestments()
+  assert.match(html, /liquidity-gauge-face/)
+  assert.match(html, /Disponível para resgate — 60%/)
+  assert.match(html, /Restrita ou com prazo — 30%/)
+  assert.match(html, /Não informada — 10%/)
+
+  state.valuesHidden = true
+  const hiddenHtml = renderInvestments()
+  assert.doesNotMatch(hiddenHtml, /liquidity-gauge-face|60%|30%|10%/)
+  state.valuesHidden = false
+})
+
+test('carteira recém-criada, sem investimentos declarados, mostra 100% de liquidez não informada', () => {
+  resetState()
+  assert.equal(state.plan.investments.length, 0)
+  assert.ok(state.plan.currentAssets > 0)
+
+  const html = renderInvestments()
+  assert.match(html, /Não informada — 100%/)
+  assert.match(html, /Disponível para resgate — 0%/)
+  assert.match(html, /Restrita ou com prazo — 0%/)
+})

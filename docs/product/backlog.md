@@ -1,5 +1,49 @@
 # Backlog inicial
 
+## Entrega: mostrador de liquidez da carteira
+
+Implementado o mostrador radial de liquidez apontado como oportunidade posterior na avaliação anterior de instrumentos visuais: proporção disponível para resgate, restrita ou com prazo e não informada, com leitura digital central e legenda textual sempre visível. Revisão do agente de UX corrigiu a cor de "não informada", que reaproveitava indevidamente a semântica de alerta do mostrador de orçamento. 656 testes e build aprovados. Inspeção visual em navegador pendente. [Escopo e validação](sprint-mostrador-liquidez-carteira.md).
+
+## Entrega: divisão de pagamentos entre vencimentos
+
+Implementada a divisão de um movimento entre vencimentos ou parcelas, inclusive de meses diferentes. Campo de valor com máscara, sugestão e prévia dos saldos, controle em centavos e remoção individual. Cópias preservam as partes e vínculos integrais antigos. 611 testes e build aprovados, incluindo API do SQLite. Inspeção visual em navegador pendente. [Escopo e validação](sprint-rateio-pagamentos.md).
+
+## Entrega: pagamentos parciais no Calendário
+
+Implementada a próxima lacuna do eixo de conferência: vários movimentos por vencimento, progresso do valor associado, prévia do restante e remoção individual. Persistência compatível com vínculos integrais existentes. 601 testes e build aprovados nessa etapa. A divisão de um movimento entre vários vencimentos foi entregue na sprint seguinte, acima. [Escopo e validação](sprint-pagamentos-parciais.md).
+
+## Entrega: acompanhamento do mês
+
+Substituído o bloco “Planejado e realizado” por comparação visual do previsto com os registros, estados sem dados e atalhos para conferir lançamentos. Sem realizados, a apresentação fica compacta e não interpreta ausência de registros como economia. 591 testes e build aprovados. Inspeção visual em navegador pendente. [Escopo e validação](sprint-acompanhamento-mensal.md).
+
+## Entrega: comparação visual de receitas e despesas
+
+Composição anual com duas barras na mesma escala, despesas e metas separadas, conclusão explícita e valor da sobra ou falta. Revisão pelo agente de usabilidade concluída. 576 testes e build aprovados. Inspeção visual em navegador pendente. [Escopo e validação](sprint-comparacao-receitas-despesas.md).
+
+## Entrega: legibilidade e pressão dos gastos
+
+Três sprints implementadas com revisão do agente de UX: ranking dos maiores gastos na composição anual, leitura mensal da pressão no Orçamento e simulação temporária de redução por despesa. O comparativo recalcula patrimônio e liquidez pelo motor existente, sem alterar o plano salvo. 569 testes e build aprovados. Inspeção visual em navegador pendente. [Escopo e validação](sprints-pressao-orcamento.md).
+
+## Entrega: cônjuge e conferência de pagamentos
+
+Três sprints implementadas: vínculo explícito de receitas à aposentadoria do cônjuge, confirmação de vencimentos usando movimentos existentes e conferência separada de parcelas, lances próprios e complementos de consórcios. Os vínculos não geram novos movimentos nem alteram projeções. 556 testes e build aprovados. Inspeção visual, conciliação parcial, agrupamento de pagamentos e automação bancária continuam pendentes. [Escopo, validação e limites](sprints-conjuge-pagamentos.md).
+
+## Entrega: Orçamento em tela dedicada
+
+Revisão com agente de UX e implementação de `/orcamento`: lista em largura total, busca e filtros, cadastro sob demanda, detalhes por lançamento, contadores separados e atalhos atualizados. Resumo familiar independente dos filtros e edição na origem preservados. 543 testes e build aprovados. Inspeção visual em navegador pendente. [Decisões e limites](orcamento-tela-dedicada.md).
+
+## Entrega: leitura de valores e navegação com ícones
+
+Três sprints implementadas: valores monetários em uma linha com ajuste de fonte e rolagem local, ícones acompanhados dos nomes no menu principal, e menu completo para celular e desktop com indicação da tela atual e navegação por teclado. 533 testes e build aprovados. Inspeção visual em navegador permanece pendente. [Escopo, entregas e validação](sprints-leitura-navegacao.md).
+
+## Entrega: valores claros e transferências guiadas
+
+Sprint implementada com revisão do especialista de UX: máscara monetária brasileira com duas casas, colagem e validação de valores, carregamento de edição sem excesso de casas, e transferências com campos e moedas contextuais. Taxas e câmbio preservam precisão. 525 testes e build aprovados. [Planejamento, entregas e limites](sprint-valores-transferencias.md).
+
+## Entrega: instrumentos visuais no Dashboard
+
+Implementados quatro instrumentos com revisão do especialista em UX: cobertura anual, orçamento vigente, menor liquidez projetada e patrimônio considerado. Veredito e filtro de imóveis permanecem visíveis, com marcos e explicações recolhidos. 516 testes e build aprovados. Inspeção visual em navegador pendente. [Decisões e validação](dashboard-instrumentos-visuais.md).
+
 ## Entrega: imóveis e usabilidade da solvência
 
 Três sprints implementadas: filtro salvo para considerar imóveis na solvência, exclusão individual e classificação de bens, gráficos com seleção anual sincronizada e atalhos, e interpretação consistente no Dashboard. Cadastro acessível pela tela Patrimônio e comparação com e sem imóveis. 507 testes e build aprovados. A inspeção visual permanece pendente. [Planejamento, entregas e limites](sprints-imoveis-solvencia-usabilidade.md).

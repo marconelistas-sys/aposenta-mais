@@ -5,7 +5,7 @@ export function openSalaryItems(cashFlow, { endMonth = '2199-12' } = {}) {
     && item.recordKind !== 'actual' && item.source !== 'txt' && item.imported !== true
     && ['monthly', 'annual'].includes(item.frequency)
     && Number.isFinite(item.amount) && item.amount > 0
-    && !item.endDate && item.endMode !== 'retirement'
+    && !item.endDate && !['retirement', 'spouse-retirement'].includes(item.endMode)
     && (!item.startDate || item.startDate.slice(0, 7) <= endMonth))
 }
 

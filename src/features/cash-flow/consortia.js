@@ -1,3 +1,4 @@
+import { readMoneyFormData } from '../../shared/money-input.js'
 import { state, updateCashFlow } from '../../app/state.js'
 import { consortiumFromForm, consortiumSchedule } from '../../domain/consortium.js'
 import { currencies } from '../../shared/currencies.js'
@@ -23,7 +24,7 @@ export function guideConsortiumForm(form) {
   const preview = form.querySelector('[data-consortium-preview]')
   if (!preview) return
   try {
-    const item = consortiumFromForm(new FormData(form))
+    const item = consortiumFromForm(readMoneyFormData(form))
     const row = consortiumSchedule(item, 1)[0]
     preview.textContent = `Primeiro mês: saída ${privateCurrency(row.cashExpense, false, true, item.currency)}. Posição líquida vinculada ${privateCurrency(row.restrictedEquity, false, true, item.currency)}. Principal futuro ${privateCurrency(row.principal, false, true, item.currency)}. Crédito não é saldo livre.`
   } catch { preview.textContent = 'Preencha os campos para conferir a parcela e o patrimônio antes de salvar.' }
@@ -33,7 +34,7 @@ export function renderConsortia() {
   const rate = (name, label) => `<label class="form-field"><span>${label}</span><input name="${name}" type="number" min="-99" max="100" step="0.01" value="0" required /></label>`
   const month = (name, label, value = '', required = false) => `<label class="form-field"><span>${label}</span><input name="${name}" type="month" value="${value}" ${required ? 'required' : ''} /></label>`
   const money = (value, currency) => privateCurrency(value, state.valuesHidden, true, currency)
-  return `<section class="page-heading"><div><p class="eyebrow">CAIXA E PATRIMÔNIO</p><h1>Consórcios</h1><p>Separe parcelas, crédito vinculado e bem adquirido. Contemplação não é receita nem rendimento garantido.</p></div><a href="/calendario" data-route>Dívidas e calendário</a></section>
+  return `<section class="page-heading"><div><p class="eyebrow">CAIXA E PATRIMÔNIO</p><h1>Consórcios</h1><a href="/calendario" data-route>Conferir pagamentos de parcelas e lances</a><p>Separe parcelas, crédito vinculado e bem adquirido. Contemplação não é receita nem rendimento garantido.</p></div><a href="/calendario" data-route>Dívidas e calendário</a></section>
     <section class="panel settings-card"><h2>Como cadastrar sem duplicar</h2><ol><li>Use o demonstrativo atual da administradora. Informe o primeiro mês das parcelas restantes.</li><li>Separe principal de administração, reserva e seguro. Não use juros de financiamento para representar taxa de administração.</li><li>Se ainda não foi contemplado, a data futura será somente uma hipótese. Deixe em branco para não assumir contemplação.</li><li>Não inclua carta ou bem novamente na Carteira e não repita parcelas no orçamento.</li></ol><a class="button button--secondary" href="/riscos" data-route>Ver gráfico patrimonial e Monte Carlo</a></section>
     <section class="panel settings-card"><h2>Contrato e hipóteses</h2>${state.valuesHidden ? '<p>Mostre os valores para cadastrar ou editar.</p>' : `<form data-consortium-form><input type="hidden" name="id" value="" />
       <fieldset><legend>1. Situação e saldos atuais</legend><div class="form-grid form-grid--two"><label class="form-field"><span>Nome do consórcio</span><input name="name" maxlength="60" required /></label><label class="form-field"><span>Moeda</span><select name="currency">${Object.keys(currencies).map(code => `<option ${code === state.currency ? 'selected' : ''}>${code}</option>`).join('')}</select></label><label class="form-field"><span>Situação no mês de referência</span><select name="stage"><option value="pending">Ainda não contemplado</option><option value="credit">Contemplado, crédito não utilizado</option><option value="asset">Bem já adquirido</option></select></label>${month('referenceMonth', 'Primeiro mês das parcelas restantes', new Date().toISOString().slice(0, 7), true)}${field('credit', 'Crédito atualizado, líquido de lance anterior se já contemplado')}${field('principal', 'Principal restante do fundo comum')}${field('months', 'Quantidade de parcelas restantes', 120, 'inputmode="numeric"')}</div></fieldset>

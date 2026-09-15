@@ -1,8 +1,9 @@
-import { householdOwners, householdOwnerField, budgetOwnerView, filterByHouseholdOwner } from '../../shared/household-owner.js'
+import { renderMonthTracking } from './month-tracking.js'
+import { renderBudgetPressure } from '../../shared/budget-pressure.js'
+import { householdOwners, householdOwnerField, budgetOwnerView } from '../../shared/household-owner.js'
 import { state } from '../../app/state.js'
 import {
   calculateMultiCurrencyCashFlow,
-  comparePlannedAndActualCashFlow,
   retirementContributionSchedules
 } from '../../domain/cash-flow.js'
 import { projectRetirementWithSchedules } from '../../domain/retirement.js'
@@ -13,6 +14,7 @@ import { categoriesForType, categoryById } from '../../data/cash-flow-categories
 
 import { renderCashFlowTimeline } from './timeline.js'
 import { cashFlowTimeline } from '../../domain/cash-flow-timeline.js'
+import { budgetEntriesView, filterBudgetEntries } from './budget-entries-view.js'
 
 const frequencyLabels = {
   monthly: 'Mensal',
@@ -31,6 +33,7 @@ function dateLabel(value) {
 }
 
 function periodLabel(item) {
+  if (item.endMode === 'spouse-retirement') return state.cashFlow.spouseRetirementMonth ? `Até o mês anterior a ${state.cashFlow.spouseRetirementMonth} · Aposentadoria do cônjuge` : 'Vínculo pendente: confirme a aposentadoria do cônjuge em Meu plano'
   if (item.endMode === 'retirement') return state.cashFlow.retirementMonth ? `Até o mês anterior a ${state.cashFlow.retirementMonth} · Vinculado à aposentadoria` : 'Vínculo pendente: confirme o mês de aposentadoria'
   if (item.frequency === 'occasional' && item.startDate) return `Em ${dateLabel(item.startDate)}`
   if (item.startDate && item.endDate) return `${dateLabel(item.startDate)} até ${dateLabel(item.endDate)}`
@@ -72,7 +75,7 @@ function reserveField({ label, name, value, hint }) {
       <span class="form-field__label">${label}</span>
       <span class="input-shell">
         <span class="input-prefix">${currencySymbol(state.currency)}</span>
-        <input type="number" name="${name}" value="${value}" min="0" max="1000000000" step="50" ${hintId ? `aria-describedby="${hintId}"` : ''} required />
+        <input type="number" name="${name}" value="${value}" min="0" max="1000000000" step="0.01" ${hintId ? `aria-describedby="${hintId}"` : ''} required />
       </span>
       ${hint ? `<small id="${hintId}">${hint}</small>` : ''}
     </label>
@@ -80,7 +83,6 @@ function reserveField({ label, name, value, hint }) {
 }
 
 function cashFlowItems(result) {
-  result = { ...result, convertedItems: filterByHouseholdOwner(result.convertedItems, budgetOwnerView.selected) }
   if (result.convertedItems.length === 0) {
     return '<p class="scenario-empty">Nenhum lançamento neste filtro. Adicione uma receita ou despesa ou selecione Todas as titularidades.</p>'
   }
@@ -94,16 +96,17 @@ function cashFlowItems(result) {
           <span class="cash-item__type cash-item__type--${item.type}">${item.type === 'income' ? 'Receita' : 'Despesa'}</span>
           <div class="cash-item__identity">
             <strong>${escapeHtml(item.description || item.category.name)}</strong>
-            <span>${householdOwners[item.householdOwner || 'unspecified']} · ${recordKindLabels[item.recordKind]} · ${escapeHtml(item.category.name)} · ${frequencyLabels[item.frequency]} · ${periodLabel(item)}${item.source === 'txt' ? ' · Importado' : ''}${item.isActive ? '' : ' · Fora do mês selecionado'}</span>
+            <span>${recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']} · ${escapeHtml(item.category.name)}</span>
+            <details class="budget-item-details"><summary>${frequencyLabels[item.frequency]}${item.isActive ? '' : ' · Fora do mês'}${item.frequency === 'occasional' && !item.startDate ? ' · Data pendente' : ''} · Detalhes</summary><p>${periodLabel(item)}${item.source === 'txt' ? ' · Importado de extrato' : ''}</p></details>
           </div>
-          <div class="cash-item__amount money-value">
-            <strong>${original}</strong>
-            ${item.currency === state.currency ? '' : `<span>${converted} na visão geral</span>`}
+          <div class="cash-item__amount">
+            <strong class="money-value">${original}</strong>
+            ${item.currency === state.currency ? '' : `<span class="money-value">${converted}</span><span>na moeda da visão geral</span>`}
           </div>
           <div class="cash-item__actions">
             ${item.annualGoalId ? '<a href="/calendario" data-route>Editar provisão anual</a>' : item.consortiumId ? '<a href="/consorcios" data-route>Editar consórcio</a>' : item.commitmentId ? '<a href="/calendario" data-route>Editar no calendário</a>' : item.id.startsWith('ledger:') ? '<a href="/contas" data-route>Editar em Contas</a>' : `
             <button class="cash-item__edit" type="button" data-edit-cash-item="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.description || item.category.name)}">Editar</button>
-            <button class="icon-button" type="button" data-remove-cash-item="${escapeHtml(item.id)}" aria-label="Excluir ${escapeHtml(item.description || item.category.name)}">×</button>
+            <button class="cash-item__edit" type="button" data-remove-cash-item="${escapeHtml(item.id)}" aria-label="Excluir ${escapeHtml(item.description || item.category.name)}">Excluir</button>
             `}
           </div>
         </article>
@@ -116,13 +119,13 @@ function cashItemEditDialog() {
   return `
     <dialog class="cash-edit-dialog" data-cash-item-dialog aria-labelledby="cash-edit-title">
       <form data-cash-item-edit-form>
-        ${householdOwnerField()}
         <div class="cash-edit-dialog__header">
           <div><p class="eyebrow">EDITAR LANÇAMENTO</p><h2 id="cash-edit-title">Corrija os dados</h2></div>
           <button class="icon-button" type="button" data-close-cash-item-dialog aria-label="Fechar edição">×</button>
         </div>
         <input type="hidden" name="itemId" />
         <div class="form-grid form-grid--two cash-edit-dialog__grid">
+          ${householdOwnerField()}
           <label class="form-field">
             <span class="form-field__label">Categoria</span>
             <span class="input-shell"><select name="categoryId" required>${categoryOptions()}</select></span>
@@ -161,7 +164,7 @@ function cashItemEditDialog() {
           <label class="form-field">
             <span class="form-field__label">Fim opcional</span>
             <span class="input-shell"><input type="date" name="endDate" /></span>
-            <select name="endMode" aria-label="Tipo de término"><option value="date">Data manual acima, opcional</option><option value="none">Sem término</option><option value="retirement">Receita até a aposentadoria</option></select>
+            <select name="endMode" aria-label="Tipo de término"><option value="date">Data manual acima, opcional</option><option value="none">Sem término</option><option value="retirement">Até a aposentadoria do titular</option><option value="spouse-retirement">Até a aposentadoria do cônjuge</option></select>
             <small>O vínculo acompanha o mês confirmado no orçamento. A data manual só vale quando essa opção está selecionada.</small>
           </label>
         </div>
@@ -296,7 +299,7 @@ function retirementScenario(label, contribution, detail, tone, schedules) {
   `
 }
 
-export function renderCashFlow(statementReview = null) {
+export function renderCashFlow() {
   const selectedDate = referenceDate(state.cashFlow.referenceMonth)
   const firstMonth = cashFlowTimeline(state, state.cashFlow.referenceMonth, 1)[0]
   const schedules = retirementContributionSchedules(
@@ -314,13 +317,6 @@ export function renderCashFlow(statementReview = null) {
     state.customCategories,
     selectedDate
   )
-  const comparison = comparePlannedAndActualCashFlow(
-    state.cashFlow,
-    state.currency,
-    state.exchangeRates,
-    state.customCategories,
-    selectedDate
-  )
   const money = (value) => privateCurrency(value, state.valuesHidden, false, state.currency)
   const statusTitle = result.isDeficit
     ? 'As despesas recorrentes superam sua renda.'
@@ -332,7 +328,8 @@ export function renderCashFlow(statementReview = null) {
     <section class="page-heading page-heading--inner">
       <div>
         <p class="eyebrow">FLUXO DE CAIXA</p>
-        <h1>Organize suas receitas e despesas.</h1>
+        <h1>Acompanhe seu fluxo de caixa.</h1>
+        <a class="button button--primary" href="/orcamento" data-route>${icon('wallet', 18)} Gerenciar orçamento</a>
         <a class="button button--secondary" href="/contas" data-route>Contas e transferências</a>
         <a class="button button--secondary" href="/calendario" data-route>Vencimentos, dívidas e metas</a>
         <a class="button button--secondary" href="/consorcios" data-route>Consórcios e posição vinculada</a>
@@ -343,130 +340,11 @@ export function renderCashFlow(statementReview = null) {
       <div class="privacy-chip">${icon('lock', 16)} Cálculo local, sem envio automático</div>
     </section>
 
-    <section class="panel settings-card"><h2>Orçamento previsto de ${state.cashFlow.referenceMonth}</h2><p>Receitas: ${money(firstMonth.income)}. Despesas: ${money(firstMonth.expenses)}. Saldo do orçamento: ${money(firstMonth.balance)}. Créditos previdenciários: ${money(firstMonth.pension)}, conforme a origem configurada.</p><label>Mês de início da análise <input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></label><p>O saldo do orçamento (o que sobra de receitas menos despesas e metas) não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas abaixo. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></section>
+    <section class="panel settings-card"><h2>Orçamento previsto de ${state.cashFlow.referenceMonth}</h2><p>Receitas: ${money(firstMonth.income)}. Despesas: ${money(firstMonth.expenses)}. Saldo do orçamento: ${money(firstMonth.balance)}. Créditos previdenciários: ${money(firstMonth.pension)}, conforme a origem configurada.</p><label>Mês de início da análise <input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></label><p>O saldo do orçamento (o que sobra de receitas menos despesas e metas) não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas na tela Orçamento. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></section>
     ${renderCashFlowTimeline()}
+    ${renderMonthTracking(state)}
     <section class="cash-flow-layout">
       <div class="cash-flow-editor">
-        <form class="panel cash-entry-form" data-cash-item-form>
-          <div class="panel__header">
-            <div><p class="eyebrow">NOVO LANÇAMENTO</p><h2>Adicionar receita ou despesa</h2></div>
-            ${icon('wallet', 21, 'panel__header-icon')}
-          </div>
-          <div class="form-grid cash-entry-grid">
-            ${householdOwnerField()}
-            <label class="form-field cash-entry-grid__category">
-              <span class="form-field__label">Categoria</span>
-              <span class="input-shell"><select name="categoryId" required>${categoryOptions()}</select></span>
-            </label>
-            <label class="form-field cash-entry-grid__description">
-              <span class="form-field__label">Descrição</span>
-              <span class="input-shell"><input name="description" maxlength="60" placeholder="Exemplo: salário principal" /></span>
-            </label>
-            <label class="form-field">
-              <span class="form-field__label">Valor</span>
-              <span class="input-shell"><input type="number" name="amount" min="0.01" max="1000000000" step="0.01" required /></span>
-            </label>
-            <label class="form-field">
-              <span class="form-field__label">Moeda</span>
-              <span class="input-shell"><select name="currency" required>${currencyOptions()}</select></span>
-            </label>
-            <label class="form-field">
-              <span class="form-field__label">Registro</span>
-              <span class="input-shell"><select name="recordKind" required>
-                <option value="planned">Planejado</option>
-                <option value="actual">Realizado</option>
-              </select></span>
-              <small>Um realizado representa uma ocorrência e exige data.</small>
-            </label>
-            <label class="form-field">
-              <span class="form-field__label">Frequência</span>
-              <span class="input-shell"><select name="frequency" required>
-                <option value="monthly">Mensal</option>
-                <option value="annual">Anual</option>
-                <option value="occasional">Eventual</option>
-              </select></span>
-            </label>
-            <label class="form-field">
-              <span class="form-field__label">Início ou data</span>
-              <span class="input-shell"><input type="date" name="startDate" /></span>
-            </label>
-            <label class="form-field">
-              <span class="form-field__label">Fim opcional</span>
-              <span class="input-shell"><input type="date" name="endDate" /></span>
-              <select name="endMode" aria-label="Tipo de término"><option value="date">Data manual acima, opcional</option><option value="none">Sem término</option><option value="retirement">Receita até a aposentadoria</option></select>
-              <small>O vínculo acompanha o mês confirmado no orçamento. A data manual só vale quando essa opção está selecionada.</small>
-            </label>
-            <button class="button button--primary" type="submit">Adicionar ${icon('arrowRight', 17)}</button>
-          </div>
-        </form>
-
-        <details class="panel disclosure statement-import">
-          <summary>Importar extrato CSV, TXT ou OFX</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
-          <p>O arquivo é processado neste navegador. Você revisa as colunas, os lançamentos e as duplicidades antes de confirmar.</p>
-          <code>data;descricao;valor;moeda;categoria;tipo</code>
-          <label class="statement-file">
-            <span>Selecionar arquivo para revisar</span>
-            <input type="file" accept=".txt,.csv,.ofx,text/plain,text/csv,application/x-ofx" data-statement-file />
-          </label>
-          <small>Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Nenhuma linha é adicionada antes da sua confirmação.</small>
-          <div class="open-finance-roadmap">
-            <strong>Open Finance</strong>
-            <span>Conexão direta planejada. Ela exigirá consentimento explícito e uma instituição receptora participante.</span>
-          </div>
-        </details>
-
-        <section class="panel budget-comparison" aria-labelledby="budget-comparison-title">
-          <div class="panel__header budget-comparison__header">
-            <div><p class="eyebrow">PLANEJADO E REALIZADO</p><h2 id="budget-comparison-title">Resultado de ${monthLabel(state.cashFlow.referenceMonth)}</h2></div>
-            <label class="month-selector">
-              <span>Mês</span>
-              <input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month />
-            </label>
-          </div>
-          <div class="budget-comparison__grid">
-            <article>
-              <span>Receitas</span>
-              <dl><div><dt>Planejado</dt><dd class="money-value">${money(comparison.planned.income)}</dd></div><div><dt>Realizado</dt><dd class="money-value">${money(comparison.actual.income)}</dd></div></dl>
-            </article>
-            <article>
-              <span>Despesas</span>
-              <dl><div><dt>Planejado</dt><dd class="money-value">${money(comparison.planned.expenses)}</dd></div><div><dt>Realizado</dt><dd class="money-value">${money(comparison.actual.expenses)}</dd></div></dl>
-            </article>
-            <article class="budget-comparison__balance">
-              <span>Saldo do mês</span>
-              <dl><div><dt>Planejado</dt><dd class="money-value">${money(comparison.planned.balance)}</dd></div><div><dt>Realizado</dt><dd class="money-value">${money(comparison.actual.balance)}</dd></div></dl>
-            </article>
-          </div>
-          <p class="budget-variance ${comparison.variance.balance < 0 ? 'is-negative' : ''}">Diferença do saldo: <strong class="money-value">${money(Math.abs(comparison.variance.balance))}</strong> ${comparison.variance.balance < 0 ? 'abaixo' : 'acima'} do planejado.</p>
-        </section>
-
-        <section class="panel cash-items-panel" aria-labelledby="cash-items-title">
-          <div class="panel__header">
-            <div><p class="eyebrow">ORÇAMENTO</p><h2 id="cash-items-title">Lançamentos de ${monthLabel(state.cashFlow.referenceMonth)}</h2></div>
-            <span class="step-badge">${result.convertedItems.length}/100</span>
-          </div>
-          <label>Filtrar titularidade <select data-budget-owner><option value="all" ${budgetOwnerView.selected === 'all' ? 'selected' : ''}>Todas as titularidades</option>${Object.entries(householdOwners).map(([key, label]) => `<option value="${key}" ${budgetOwnerView.selected === key ? 'selected' : ''}>${label}</option>`).join('')}</select></label><p>O filtro muda apenas a lista. Os totais e gráficos continuam representando a família inteira.</p>
-          ${cashFlowItems(result)}
-        </section>
-
-        <details class="panel disclosure category-manager">
-          <summary>Não encontrou uma categoria? Crie uma</summary>
-          <form data-category-form>
-            <label class="form-field">
-              <span class="form-field__label">Nome da categoria</span>
-              <span class="input-shell"><input name="categoryName" maxlength="40" required /></span>
-            </label>
-            <label class="form-field">
-              <span class="form-field__label">Tipo</span>
-              <span class="input-shell"><select name="categoryType" required>
-                <option value="expense">Despesa</option>
-                <option value="income">Receita</option>
-              </select></span>
-            </label>
-            <button class="button button--secondary" type="submit">Criar categoria</button>
-          </form>
-        </details>
-
         <form class="panel reserve-form" data-reserve-form>
           <div class="panel__header"><div><p class="eyebrow">RESERVA</p><h2>Reserva de emergência</h2></div></div>
           <div class="form-grid form-grid--two">
@@ -525,7 +403,146 @@ export function renderCashFlow(statementReview = null) {
       </div>
     </section>
     </details>
-    ${cashItemEditDialog()}
-    ${statementReviewDialog(statementReview)}
+
   `
+}
+
+function newCashItemDialog() {
+  return `<dialog class="cash-edit-dialog budget-new-dialog" data-new-cash-item-dialog aria-labelledby="cash-new-title">
+        <form class="cash-entry-form" data-cash-item-form>
+          <div class="panel__header">
+            <div><p class="eyebrow">NOVO LANÇAMENTO</p><h2 id="cash-new-title">Novo lançamento</h2></div>
+            <button class="icon-button" type="button" data-close-new-cash-item aria-label="Fechar cadastro">×</button>
+          </div>
+          <div class="form-grid cash-entry-grid">
+            ${householdOwnerField()}
+            <label class="form-field cash-entry-grid__category">
+              <span class="form-field__label">Categoria</span>
+              <span class="input-shell"><select name="categoryId" required>${categoryOptions()}</select></span>
+            </label>
+            <label class="form-field cash-entry-grid__description">
+              <span class="form-field__label">Descrição</span>
+              <span class="input-shell"><input name="description" maxlength="60" placeholder="Exemplo: salário principal" /></span>
+            </label>
+            <label class="form-field">
+              <span class="form-field__label">Valor</span>
+              <span class="input-shell"><input type="number" name="amount" min="0.01" max="1000000000" step="0.01" required /></span>
+            </label>
+            <label class="form-field">
+              <span class="form-field__label">Moeda</span>
+              <span class="input-shell"><select name="currency" required>${currencyOptions()}</select></span>
+            </label>
+            <label class="form-field">
+              <span class="form-field__label">Registro</span>
+              <span class="input-shell"><select name="recordKind" required>
+                <option value="planned">Planejado</option>
+                <option value="actual">Realizado</option>
+              </select></span>
+              <small>Um realizado representa uma ocorrência e exige data.</small>
+            </label>
+            <label class="form-field">
+              <span class="form-field__label">Frequência</span>
+              <span class="input-shell"><select name="frequency" required>
+                <option value="monthly">Mensal</option>
+                <option value="annual">Anual</option>
+                <option value="occasional">Eventual</option>
+              </select></span>
+            </label>
+            <label class="form-field">
+              <span class="form-field__label">Início ou data</span>
+              <span class="input-shell"><input type="date" name="startDate" /></span>
+            </label>
+            <label class="form-field">
+              <span class="form-field__label">Fim opcional</span>
+              <span class="input-shell"><input type="date" name="endDate" /></span>
+              <select name="endMode" aria-label="Tipo de término"><option value="date">Data manual acima, opcional</option><option value="none">Sem término</option><option value="retirement">Até a aposentadoria do titular</option><option value="spouse-retirement">Até a aposentadoria do cônjuge</option></select>
+              <small>O vínculo acompanha o mês confirmado no orçamento. A data manual só vale quando essa opção está selecionada.</small>
+            </label>
+            <div class="budget-form-actions"><button class="button button--secondary" type="button" data-close-new-cash-item>Cancelar</button><button class="button button--primary" type="submit">Salvar lançamento</button></div>
+          </div>
+        </form>
+</dialog>`
+}
+
+function budgetImportTools() {
+  return `
+
+        <details class="panel disclosure statement-import">
+          <summary>Importar extrato CSV, TXT ou OFX</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
+          <p>O arquivo é processado neste navegador. Você revisa as colunas, os lançamentos e as duplicidades antes de confirmar.</p>
+          <code>data;descricao;valor;moeda;categoria;tipo</code>
+          <label class="statement-file">
+            <span>Selecionar arquivo para revisar</span>
+            <input type="file" accept=".txt,.csv,.ofx,text/plain,text/csv,application/x-ofx" data-statement-file />
+          </label>
+          <small>Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Nenhuma linha é adicionada antes da sua confirmação.</small>
+          <div class="open-finance-roadmap">
+            <strong>Open Finance</strong>
+            <span>Conexão direta planejada. Ela exigirá consentimento explícito e uma instituição receptora participante.</span>
+          </div>
+        </details>
+
+        <details class="panel disclosure category-manager">
+          <summary>Não encontrou uma categoria? Crie uma</summary>
+          <form data-category-form>
+            <label class="form-field">
+              <span class="form-field__label">Nome da categoria</span>
+              <span class="input-shell"><input name="categoryName" maxlength="40" required /></span>
+            </label>
+            <label class="form-field">
+              <span class="form-field__label">Tipo</span>
+              <span class="input-shell"><select name="categoryType" required>
+                <option value="expense">Despesa</option>
+                <option value="income">Receita</option>
+              </select></span>
+            </label>
+            <button class="button button--secondary" type="submit">Criar categoria</button>
+          </form>
+        </details>
+
+`
+}
+
+function budgetEntriesResult() {
+  return calculateMultiCurrencyCashFlow(state.cashFlow, state.currency, state.exchangeRates, 0, state.customCategories, referenceDate(state.cashFlow.referenceMonth))
+}
+
+export function renderBudgetEntryResults(result = budgetEntriesResult()) {
+  const items = filterBudgetEntries(result.convertedItems)
+  const period = budgetEntriesView.period === 'all' ? 'Todos os períodos' : `Vigentes em ${monthLabel(state.cashFlow.referenceMonth)}`
+  return `<div class="budget-list-context"><h2 id="cash-items-title">${period}</h2><p role="status">${items.length} de ${result.convertedItems.length} lançamentos exibidos</p></div>
+    ${items.length ? cashFlowItems({ convertedItems: items }) : `<div class="budget-empty"><h3>${result.convertedItems.length ? 'Nenhum lançamento encontrado' : 'Seu orçamento ainda não tem lançamentos'}</h3><p>${result.convertedItems.length ? 'Tente outra busca ou use Todos os períodos para consultar registros encerrados, futuros ou sem data.' : 'Adicione sua primeira receita ou despesa para organizar o orçamento.'}</p>${result.convertedItems.length ? '<button type="button" class="button button--secondary" data-reset-budget-filters>Limpar e ver todos</button>' : '<button type="button" class="button button--primary" data-new-cash-item>Adicionar lançamento</button>'}</div>`}`
+}
+
+export function updateBudgetEntryResults(root) {
+  const results = root.querySelector('[data-budget-results]')
+  if (results) results.innerHTML = renderBudgetEntryResults()
+}
+
+export function renderBudgetEntries(statementReview = null) {
+  const result = budgetEntriesResult()
+  const point = cashFlowTimeline(state, state.cashFlow.referenceMonth, 1, { includeBreakdown: !state.valuesHidden })[0]
+  const goals = point.breakdown?.goals.reduce((sum, item) => sum + item.amount, 0) || 0
+  const pressure = state.valuesHidden ? '' : `<section class="panel budget-month-pressure"><h2>Pressão no orçamento de ${monthLabel(state.cashFlow.referenceMonth)}</h2>${renderBudgetPressure({ ...point, costs: point.expenses - goals, goals, months: 1 }, state.currency, { monthly: true, limit: 3 })}<a href="/fluxo-caixa" data-route>Ver composição anual e simular efeito futuro</a></section>`
+  const options = (values, selected) => Object.entries(values).map(([value, label]) => `<option value="${value}" ${selected === value ? 'selected' : ''}>${label}</option>`).join('')
+  return `<section class="page-heading page-heading--inner budget-heading"><div><p class="eyebrow">ORÇAMENTO</p><h1>Receitas e despesas</h1><p>Consulte seus lançamentos e ajuste o que entra e sai do orçamento familiar.</p><a href="/fluxo-caixa" data-route>Ver fluxo de caixa e projeções ${icon('arrowRight', 16)}</a></div><div class="budget-page-actions"><button class="button button--primary" type="button" data-new-cash-item ${state.cashFlow.items.length >= 100 ? 'disabled' : ''}>${icon('plus', 18)} Adicionar lançamento</button><button class="button button--secondary" type="button" data-open-budget-import>${icon('document', 18)} Importar extrato</button>${state.cashFlow.items.length >= 100 ? '<p class="budget-capacity">Limite de 100 registros atingido. Edite os registros existentes ou exclua os desnecessários.</p>' : ''}</div></section>
+    ${pressure}<section class="panel budget-workspace" aria-labelledby="cash-items-title">
+      <form class="budget-filters" data-budget-filters role="search" aria-label="Filtrar lançamentos">
+        <label class="form-field"><span>Mês de referência</span><input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month required /></label>
+        <label class="form-field"><span>Período</span><select name="period">${options({ active: 'Vigentes no mês', all: 'Todos os períodos' }, budgetEntriesView.period)}</select></label>
+        <label class="form-field budget-filter-search"><span>Buscar descrição ou categoria</span><input type="search" name="search" maxlength="100" placeholder="Ex.: mercado ou salário" value="${escapeHtml(budgetEntriesView.search)}" /></label>
+        <label class="form-field"><span>Tipo</span><select name="type">${options({ all: 'Receitas e despesas', income: 'Receitas', expense: 'Despesas' }, budgetEntriesView.type)}</select></label>
+        <label class="form-field"><span>Registro</span><select name="recordKind">${options({ all: 'Planejados e realizados', planned: 'Planejados', actual: 'Realizados' }, budgetEntriesView.recordKind)}</select></label>
+        <label class="form-field"><span>Titularidade</span><select name="owner">${options({ all: 'Todas as titularidades', ...householdOwners }, budgetOwnerView.selected)}</select></label>
+        <div class="budget-filter-actions"><button class="button button--secondary" type="submit">Buscar</button><button type="button" class="button button--secondary" data-reset-budget-filters>Limpar e ver todos</button></div>
+      </form>
+      <p class="budget-list-hint">Os filtros mudam apenas a lista. Valores por ocorrência, na moeda original. Registros anuais mostram o valor anual. Metas, calendário e consórcios mostram os lançamentos gerados para o mês de referência.</p>
+      <div data-budget-results>${renderBudgetEntryResults(result)}</div>
+      <p class="budget-capacity">${state.cashFlow.items.length} de 100 registros no cadastro manual e importado.${state.cashFlow.items.length >= 100 ? ' Limite atingido. Edite um registro existente ou exclua um que não seja mais necessário.' : ''}</p>
+    </section>
+    ${renderMonthTracking(state, { compact: true })}
+    ${budgetImportTools()}
+    ${newCashItemDialog()}
+    ${cashItemEditDialog()}
+    ${statementReviewDialog(statementReview)}`
 }

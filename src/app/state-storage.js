@@ -1,3 +1,4 @@
+import { sanitizePaymentMatches } from '../domain/calendar-payments.js'
 import { sanitizeStatementHistory } from '../domain/statement-history.js'
 import { defaultPlan } from '../data/mock-plan.js'
 import { validateAnnualRealReturns } from '../domain/investment-returns.js'
@@ -172,7 +173,7 @@ export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fal
       : ['monthly', 'annual', 'occasional'].includes(item.frequency) ? item.frequency : 'monthly',
     startDate,
     endDate,
-    endMode: type === 'income' && recordKind === 'planned' && ['monthly', 'annual'].includes(item.frequency) && item.endMode === 'retirement' ? 'retirement' : endDate ? 'date' : 'none',
+    endMode: type === 'income' && recordKind === 'planned' && ['monthly', 'annual'].includes(item.frequency) && ['retirement', 'spouse-retirement'].includes(item.endMode) ? item.endMode : endDate ? 'date' : 'none',
     source,
     recordKind,
     ...(['primary', 'spouse', 'shared'].includes(item.householdOwner) ? { householdOwner: item.householdOwner } : {}),
@@ -246,6 +247,8 @@ export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategor
   const analyses = sanitizeStatementHistory(source.statementAnalyses)
   if (analyses.length) cashFlow.statementAnalyses = analyses
   cashFlow.ledger = sanitizeLedger(source.ledger)
+  const paymentMatches = sanitizePaymentMatches(source.paymentMatches)
+  if (paymentMatches.length) cashFlow.paymentMatches = paymentMatches
   cashFlow.commitments = sanitizeCommitments(source.commitments)
   cashFlow.consortia = sanitizeConsortia(source.consortia)
   cashFlow.annualGoals = sanitizeAnnualRows(source.annualGoals)
@@ -253,6 +256,7 @@ export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategor
   if (typeof source.includeRealEstateInSolvency === 'boolean') cashFlow.includeRealEstateInSolvency = source.includeRealEstateInSolvency
   cashFlow.finappMigration = sanitizeMigration(source.finappMigration)
   cashFlow.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
+  cashFlow.spouseRetirementMonth = typeof source.spouseRetirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.spouseRetirementMonth) ? source.spouseRetirementMonth : null
 
   for (const [field, rule] of Object.entries(cashFlowRules)) {
     if (validNumber(source[field], rule)) cashFlow[field] = source[field]
@@ -295,7 +299,7 @@ function sanitizeScenario(scenario, customCategories) {
     currency: normalizeCurrency(scenario.currency),
     plan: sanitizePlan({ ...scenario.plan, retirementMonth: scenario.cashFlow?.retirementMonth || scenario.plan?.retirementMonth }),
     cashFlow: scenario.cashFlow
-      ? sanitizeCashFlow({ ...scenario.cashFlow, retirementMonth: scenario.cashFlow.retirementMonth || scenario.plan?.retirementMonth }, scenario.currency, customCategories)
+      ? sanitizeCashFlow({ ...scenario.cashFlow, spouseRetirementMonth: scenario.plan?.spouseEnabled ? scenario.plan.spouseRetirementMonth : null, retirementMonth: scenario.cashFlow.retirementMonth || scenario.plan?.retirementMonth }, scenario.currency, customCategories)
       : null
   }
 }
@@ -323,7 +327,7 @@ export function sanitizeStoredState(candidate) {
     plan: sanitizePlan(source.plan
       ? { ...source.plan, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }
       : { ...defaultPlan, retirementMonth: source.cashFlow?.retirementMonth }),
-    cashFlow: sanitizeCashFlow({ ...source.cashFlow, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }, currency, customCategories),
+    cashFlow: sanitizeCashFlow({ ...source.cashFlow, spouseRetirementMonth: source.plan?.spouseEnabled ? source.plan.spouseRetirementMonth : null, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }, currency, customCategories),
     scenarios
   }
 }

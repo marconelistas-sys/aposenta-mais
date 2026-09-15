@@ -1,4 +1,5 @@
-import { renderSyncComparison } from './sync-comparison.js'
+import { migrationReview } from '../../domain/review-targets.js'
+import { renderDataOverview } from './data-overview.js'
 import { state } from '../../app/state.js'
 import { dataHistory, operationLabels } from '../../app/data-history.js'
 import { authState } from '../../app/auth-state.js'
@@ -8,7 +9,7 @@ import { icon } from '../../shared/icons.js'
 
 function renderFinappImport() {
   const migration = state.cashFlow.finappMigration
-  return `<section class="panel settings-card"><h2>Importar arquivo de outro sistema</h2><p>No modo Adicionar: Não substitui registros existentes nem envia dados para a nuvem. No modo Substituir, remove do plano ativo os registros anteriores, contas, movimentos e cenários, mantendo uma versão de recuperação. Outras contas e a cópia salva da conta não são alteradas.</p><p>Use Completar para combinar os dados do casal: inclui faltantes, conserva edições atuais e não duplica automaticamente possíveis correspondências. Primeiro confira a tabela, depois confirme a aplicação. Exporte um backup e confira o LEIA-ME. Em Adicionar, registros idênticos são ignorados e conflitos bloqueiam a importação. Em Substituir, prevalece o arquivo, sem misturar os cadastros anteriores.</p>${authState.authenticated ? `<form data-finapp-import><label class="form-field"><span>Arquivo aposenta-finapp-import.json</span><input type="file" name="file" accept=".json,application/json" required /></label><label class="form-field"><span>Como importar</span><select name="mode"><option value="complete">Completar faltantes e preservar a conta atual</option><option value="merge">Adicionar e preservar registros existentes</option><option value="replace">Substituir registros pelo finapp</option><option value="horizon">Atualizar somente a idade-alvo do horizonte</option></select></label><div data-finapp-review></div><p data-finapp-status role="status">A prévia identifica a conta, as remoções e as pendências antes de confirmar.</p><button type="submit" class="button button--secondary">Conferir arquivo e importar</button></form>` : '<p>Entre na conta de destino para importar.</p>'}${migration ? `<h3>Revisão da migração</h3><p>Revise idade desejada e mês de aposentadoria, categorias e rendimentos no Plano. Metas anuais são provisões, não pagamentos confirmados. Bens restritos aparecem no gráfico de risco, sem gerar caixa.</p><a href="/plano" data-route>Revisar plano</a> · <a href="/calendario" data-route>Revisar metas</a> · <a href="/riscos" data-route>Revisar bens e gráfico</a><h3>Pendências sem efeito financeiro automático</h3><ul>${migration.pending.map(row => `<li>${escapeHtml(row.table)} #${row.id}: ${escapeHtml(row.reason)}${state.valuesHidden || !row.record || typeof row.record !== 'object' ? '' : `<details class="disclosure"><summary>Dados originais</summary><dl>${Object.entries(row.record).map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join('')}</dl></details>`}</li>`).join('') || '<li>Nenhuma pendência registrada.</li>'}</ul>` : ''}</section>`
+  return `<section class="panel settings-card"><h2>Importar arquivo de outro sistema</h2><p>No modo Adicionar: Não substitui registros existentes nem envia dados para a nuvem. No modo Substituir, remove do plano ativo os registros anteriores, contas, movimentos e cenários, mantendo uma versão de recuperação. Outras contas e a cópia salva da conta não são alteradas.</p><p>Use Completar para combinar os dados do casal: inclui faltantes, conserva edições atuais e não duplica automaticamente possíveis correspondências. Primeiro confira a tabela, depois confirme a aplicação. Exporte um backup e confira o LEIA-ME. Em Adicionar, registros idênticos são ignorados e conflitos bloqueiam a importação. Em Substituir, prevalece o arquivo, sem misturar os cadastros anteriores.</p>${authState.authenticated ? `<form data-finapp-import><label class="form-field"><span>Arquivo aposenta-finapp-import.json</span><input type="file" name="file" accept=".json,application/json" required /></label><label class="form-field"><span>Como importar</span><select name="mode"><option value="complete">Completar faltantes e preservar a conta atual</option><option value="merge">Adicionar e preservar registros existentes</option><option value="replace">Substituir registros pelo finapp</option><option value="horizon">Atualizar somente a idade-alvo do horizonte</option></select></label><div data-finapp-review></div><p data-finapp-status role="status">A prévia identifica a conta, as remoções e as pendências antes de confirmar.</p><button type="submit" class="button button--secondary">Conferir arquivo e importar</button></form>` : '<p>Entre na conta de destino para importar.</p>'}${migration ? `<h3>Revisão da migração</h3><p>Revise idade desejada e mês de aposentadoria, categorias e rendimentos no Plano. Metas anuais são provisões, não pagamentos confirmados. Bens restritos aparecem no gráfico de risco, sem gerar caixa.</p><a href="/plano" data-route>Revisar plano</a> · <a href="/calendario" data-route>Revisar metas</a> · <a href="/riscos" data-route>Revisar bens e gráfico</a><h3>Pendências sem efeito financeiro automático</h3><ul>${state.valuesHidden ? '<li>Mostre os valores para consultar os registros e os motivos da importação.</li>' : migration.pending.map((row, index) => { const detail = migrationReview(row, index); return `<li id="${detail.anchor}" tabindex="-1"><strong>${escapeHtml(detail.label)}</strong><p>${escapeHtml(row.reason)}</p><p>Este registro ficou para revisão naquela importação. Compare com os cadastros atuais antes de incluir valores, para evitar duplicidade.</p><a href="${detail.destination}" data-route>Revisar cadastro de ${escapeHtml(detail.label)}</a>${!row.record || typeof row.record !== 'object' ? '' : `<details class="disclosure" data-migration-original><summary>Dados originais de ${escapeHtml(detail.label)}</summary><dl>${Object.entries(row.record).map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join('')}</dl></details>`}</li>` }).join('') || '<li>Nenhuma pendência registrada.</li>'}</ul>` : ''}</section>`
 }
 
 export function renderProfile() {
@@ -43,12 +44,13 @@ export function renderProfile() {
       </div>
     </section>
 
+    ${renderDataOverview()}
     <section class="profile-layout">
       <aside class="panel profile-summary">
         <div class="profile-avatar">AP</div>
         <h2>${state.isDemo ? 'Plano de demonstração' : 'Meu plano'}</h2>
         <p>Plano pessoal</p>
-        <span class="profile-status"><i></i> Plano ativo</span>
+        <span class="profile-status">Em uso neste navegador</span>
       </aside>
 
       <div class="profile-settings">
@@ -109,19 +111,17 @@ export function renderProfile() {
                   <strong>${syncState.exists ? (local ? 'Cópia disponível no banco deste computador' : 'Cópia remota disponível') : (local ? 'Nenhuma cópia no banco deste computador' : 'Nenhuma cópia remota')}</strong>
                   <p>${syncState.exists ? `Atualizada em ${formatUpdateTime(syncState.updatedAt)}.` : 'Seus dados continuam apenas neste navegador.'}</p>
                 </div>
-                <span class="profile-status"><i></i> ${syncState.exists ? 'Ativa' : 'Local'}</span>
+                <span class="profile-status">${syncState.exists ? 'Cópia disponível' : 'Sem cópia neste destino'}</span>
               </div>
-              <form class="sync-consent-form" data-sync-consent-form>
+              <form class="sync-consent-form" id="profile-save-copy" tabindex="-1" data-sync-consent-form>
                 <button class="button button--secondary" type="button" data-sync-refresh>${local ? 'Consultar cópia no banco' : 'Consultar versão remota'}</button>
                 <label class="checkbox-row">
                   <input name="acceptedSyncConsent" type="checkbox" required />
-                  <span>${local ? 'Autorizo salvar uma cópia completa do plano financeiro, titularidade dos lançamentos, resumos de extratos e dados importados no banco deste computador, vinculada à minha conta. Posso restaurar ou excluir essa cópia aqui. A cópia do banco e os dados deste navegador são separados.' : 'Autorizo enviar e armazenar na nuvem uma cópia do plano, inflação esperada, investimentos e suas taxas informadas, lançamentos manuais ou importados, sua titularidade, resumos de análises de extratos e recorrências, contas e conciliações, dívidas, amortizações, consórcios, hipóteses de lances e risco, metas periódicas, bens não financeiros, dados financeiros pendentes de revisão da migração, prazos, categorias, cenários, moedas e cotação usada, vinculada à minha conta. Posso excluir essa cópia aqui. A exclusão remota não apaga os dados deste navegador.'}</span>
+                  <span>${local ? 'Autorizo salvar uma cópia completa do plano financeiro, titularidade dos lançamentos, resumos de extratos, vínculos de pagamentos do calendário e dados importados no banco deste computador, vinculada à minha conta. Posso restaurar ou excluir essa cópia aqui. A cópia do banco e os dados deste navegador são separados.' : 'Autorizo enviar e armazenar na nuvem uma cópia do plano, inflação esperada, investimentos e suas taxas informadas, lançamentos manuais ou importados, sua titularidade, resumos de análises de extratos e recorrências, contas, conciliações e vínculos de pagamentos do calendário, dívidas, amortizações, consórcios, hipóteses de lances e risco, metas periódicas, bens não financeiros, dados financeiros pendentes de revisão da migração, prazos, categorias, cenários, moedas e cotação usada, vinculada à minha conta. Posso excluir essa cópia aqui. A exclusão remota não apaga os dados deste navegador.'}</span>
                 </label>
                 <button class="button button--primary" type="submit">${syncState.exists ? (local ? 'Atualizar cópia no banco' : 'Atualizar cópia remota') : (local ? 'Salvar cópia no banco' : 'Criar cópia remota')}</button>
               </form>
               ${syncState.exists ? `
-                <button class="button button--secondary" type="button" data-compare-saved-plan>Comparar com o plano deste navegador</button>
-                ${renderSyncComparison()}
                 <div class="data-actions sync-actions">
                   <button class="button button--secondary" type="button" data-sync-pull>${local ? 'Restaurar do banco neste navegador' : 'Usar cópia remota neste dispositivo'}</button>
                   <button class="button button--danger-ghost" type="button" data-sync-delete>Excluir ${copy}</button>
@@ -143,7 +143,7 @@ export function renderProfile() {
           <p>Registro local de uso. Exportar prepara um arquivo, sem confirmar que ele foi salvo. Solicitações formais ao controlador continuam pendentes de canal definido.</p>
           <ul>${history.events.slice().reverse().map(event => `<li>${escapeHtml(formatUpdateTime(event.at))}: ${historyLabel(event.operation)} (${event.result === 'success' ? 'concluído' : 'falhou'})</li>`).join('') || '<li>Nenhuma operação registrada.</li>'}</ul>
           <a class="button button--secondary" href="/carteira" data-route>Corrigir investimentos</a>
-          <a class="button button--secondary" href="/fluxo-caixa" data-route>Corrigir lançamentos</a>
+          <a class="button button--secondary" href="/orcamento" data-route>Corrigir lançamentos</a>
           <button class="button button--secondary" type="button" data-clear-history>Apagar histórico e versões</button>
           <button class="button button--secondary" type="button" data-export-history>Exportar registro de operações</button>
         </section>

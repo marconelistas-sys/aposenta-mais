@@ -1,3 +1,4 @@
+import { isRetirementEnd, incomeEndMonth } from './income-end.js'
 import { categoryById } from '../data/cash-flow-categories.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
 import { commitmentEvents } from './financial-calendar.js'
@@ -80,10 +81,11 @@ function recordKindFor(item) {
   return item.recordKind === 'actual' || item.source === 'txt' ? 'actual' : 'planned'
 }
 
-export function isCashFlowItemActive(item, asOfDate = new Date(), retirementMonth = null) {
+export function isCashFlowItemActive(item, asOfDate = new Date(), retirementMonth = null, spouseRetirementMonth = null) {
   const current = dateKey(asOfDate)
   if (!current) throw new TypeError('A data de referência não é válida.')
-  if (item.endMode === 'retirement' && item.type === 'income' && recordKindFor(item) === 'planned') {
+  if (isRetirementEnd(item.endMode) && item.type === 'income' && recordKindFor(item) === 'planned') {
+    retirementMonth = incomeEndMonth(item, { retirementMonth, spouseRetirementMonth })
     if (!retirementMonth || current.slice(0, 7) >= retirementMonth) return false
     return !item.startDate || current.slice(0, 7) >= item.startDate.slice(0, 7)
   }
@@ -122,10 +124,10 @@ export function summarizeCashFlowItems(
     const category = categoryById(item.categoryId, customCategories)
     if (!category) continue
     const convertedAmount = convertCurrency(item.amount, item.currency, baseCurrency, exchangeRates)
-    const isActive = isCashFlowItemActive(item, asOfDate, cashFlow.retirementMonth)
+    const isActive = isCashFlowItemActive(item, asOfDate, cashFlow.retirementMonth, cashFlow.spouseRetirementMonth)
     const recordKind = recordKindFor(item)
     const isIncluded = isActive && (includedRecordKind === 'all' || recordKind === includedRecordKind)
-    convertedItems.push({ ...item, recordKind, convertedAmount, category, isActive, isIncluded })
+    convertedItems.push({ ...item, recordKind, convertedAmount, category, isActive, isIncluded, linkedRetirementMonth: isRetirementEnd(item.endMode) ? incomeEndMonth(item, cashFlow) : null })
     if (!isIncluded) continue
 
     if (item.type === 'income') {
@@ -194,26 +196,40 @@ export function comparePlannedAndActualCashFlow(
   customCategories = [],
   asOfDate = new Date()
 ) {
-  const planned = monthlyTotals(summarizeCashFlowItems(
+  const plannedRecords = summarizeCashFlowItems(
     cashFlow,
     baseCurrency,
     exchangeRates,
     customCategories,
     asOfDate,
     'planned'
-  ).summary)
-  const actual = monthlyTotals(summarizeCashFlowItems(
+  )
+  const actualRecords = summarizeCashFlowItems(
     cashFlow,
     baseCurrency,
     exchangeRates,
     customCategories,
     asOfDate,
     'actual'
-  ).summary)
+  )
+  const planned = monthlyTotals(plannedRecords.summary)
+  const actual = monthlyTotals(actualRecords.summary)
+  const coverage = result => {
+    const items = result.convertedItems.filter(item => item.isIncluded)
+    return {
+      count: items.length,
+      income: items.filter(item => item.type === 'income').length,
+      expenses: items.filter(item => item.type === 'expense').length,
+      annual: items.filter(item => item.frequency === 'annual').length,
+      recurring: items.filter(item => item.frequency !== 'occasional').length,
+      undated: items.filter(item => !item.startDate).length
+    }
+  }
 
   return {
     planned,
     actual,
+    records: { planned: coverage(plannedRecords), actual: coverage(actualRecords) },
     variance: {
       income: actual.income - planned.income,
       expenses: planned.expenses - actual.expenses,

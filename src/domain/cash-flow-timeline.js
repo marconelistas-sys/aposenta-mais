@@ -32,7 +32,7 @@ export function cashFlowTimeline(state, startMonth, months, { includeBreakdown =
   const start = new Date(`${startMonth}-01T00:00:00Z`)
   state = { ...state, exchangeRates: finappExchangeRates(state) }
   // Monthly budget, not daily cash settlement. Include both boundary months.
-  const cashFlow = { ...state.cashFlow, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia), items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate) }
+  const cashFlow = { ...state.cashFlow, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia), items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate) }
   const externalPension = sanitizeFinappMethod(state.plan.finappMethod).pensionMode === 'external'
   return Array.from({ length: months }, (_, index) => {
     const date = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + index, 15))

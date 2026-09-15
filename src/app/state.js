@@ -82,7 +82,8 @@ export function updatePlan(patch) {
   if (nextPlan.spouseEnabled
     && Number.isFinite(nextPlan.spouseCurrentAge)
     && Number.isFinite(nextPlan.spouseRetirementAge)
-    && ((patch.spouseRetirementAge !== undefined && patch.spouseRetirementAge !== state.plan.spouseRetirementAge)
+    && !(patch.spouseRetirementMonth && patch.spouseRetirementMonth !== state.plan.spouseRetirementMonth)
+    && (!nextPlan.spouseRetirementMonth || (patch.spouseRetirementAge !== undefined && patch.spouseRetirementAge !== state.plan.spouseRetirementAge)
       || (patch.spouseCurrentAge !== undefined && patch.spouseCurrentAge !== state.plan.spouseCurrentAge))) {
     const now = new Date()
     nextPlan.spouseRetirementMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + Math.round((nextPlan.spouseRetirementAge - nextPlan.spouseCurrentAge) * 12), 1)).toISOString().slice(0, 7)
@@ -103,6 +104,7 @@ export function updatePlan(patch) {
     nextPlan.currentAssets = nextPlan.investments.reduce((total, investment) => total + investment.amount, 0)
     nextPlan.monthlyContribution = nextPlan.investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
   }
+  state.cashFlow.spouseRetirementMonth = nextPlan.spouseEnabled ? nextPlan.spouseRetirementMonth || null : null
   state.plan = nextPlan
   state.isDemo = false
   state.lastUpdatedAt = new Date().toISOString()
@@ -111,6 +113,11 @@ export function updatePlan(patch) {
 
 export function upsertInvestment(candidate) {
   validateAnnualRealReturns(candidate.annualRealReturns)
+  const releaseYear = candidate.releaseYear === '' || candidate.releaseYear == null ? null : Number(candidate.releaseYear)
+  if (Object.hasOwn(candidate, 'releaseYear') && releaseYear !== null) {
+    if (!Number.isInteger(releaseYear) || releaseYear < new Date().getUTCFullYear() || releaseYear > 2199) throw new TypeError('Informe um ano de liberação entre o ano atual e 2199.')
+    if (candidate.liquidity === 'available') throw new TypeError('Para prever uma liberação futura, escolha liquidez restrita ou com prazo.')
+  }
   const id = candidate.id || globalThis.crypto?.randomUUID?.() || `investment-${Date.now()}`
   const current = Array.isArray(state.plan.investments) ? state.plan.investments : []
   const existingIndex = current.findIndex((investment) => investment.id === id)
@@ -120,8 +127,12 @@ export function upsertInvestment(candidate) {
   const investments = sanitizeInvestments(next)
   const saved = investments.find((investment) => investment.id === id)
   if (!saved) throw new TypeError('Revise os dados do investimento.')
+  const method = state.plan.finappMethod || {}
+  const releases = (method.releases || []).filter(row => row.investmentId !== id || !Object.hasOwn(candidate, 'releaseYear') && saved.liquidity !== 'available')
+  if (Object.hasOwn(candidate, 'releaseYear') && releaseYear !== null) releases.push({ investmentId: id, year: releaseYear })
   updatePlan({
     investments,
+    finappMethod: { ...method, releases },
     currentAssets: investments.reduce((total, investment) => total + investment.amount, 0),
     monthlyContribution: investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
   })
@@ -135,6 +146,7 @@ export function removeInvestment(id) {
   }
   updatePlan({
     investments,
+    finappMethod: { ...state.plan.finappMethod, releases: (state.plan.finappMethod?.releases || []).filter(row => row.investmentId !== id) },
     currentAssets: investments.reduce((total, investment) => total + investment.amount, 0),
     monthlyContribution: investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
   })
@@ -217,6 +229,11 @@ export function updateCashFlowItem(id, patch) {
 }
 
 function validateIncomeEnd(item) {
+  if (item.endMode === 'spouse-retirement') {
+    if (item.householdOwner !== 'spouse' || !state.plan.spouseEnabled || !state.cashFlow.spouseRetirementMonth) throw new RangeError('Inclua o cônjuge e confirme o mês de aposentadoria em Meu plano. Selecione titularidade Cônjuge.')
+    if (item.type !== 'income' || item.recordKind === 'actual' || item.source === 'txt' || !['monthly', 'annual'].includes(item.frequency)) throw new RangeError('O vínculo exige uma receita planejada recorrente.')
+    return
+  }
   if (item.endMode !== 'retirement') return
   if (['spouse', 'shared'].includes(item.householdOwner)) throw new RangeError('Para receita do cônjuge ou compartilhada, informe a data final manual. O vínculo automático usa a aposentadoria do titular.')
   if (!state.cashFlow.retirementMonth) throw new RangeError('Confirme primeiro o mês da aposentadoria no orçamento.')

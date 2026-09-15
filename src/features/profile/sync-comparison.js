@@ -15,9 +15,14 @@ export async function inspectSavedPlan() {
   if (generation !== ownedStorage.generation || provider !== authState.storageProvider || signature !== financialSignature(state)) throw new Error('O plano, a conta ou o destino mudou. Faça a comparação novamente.')
   syncComparisonView.result = { ...compareSavedPlan(state, saved.state), signature, provider, generation, updatedAt: saved.updatedAt }
 }
-export function renderSyncComparison() {
+export function currentSyncComparison() {
   const result = syncComparisonView.result
-  if (!result || result.generation !== ownedStorage.generation || result.provider !== authState.storageProvider || result.signature !== financialSignature(state)) return ''
+  if (!result || result.generation !== ownedStorage.generation || result.provider !== authState.storageProvider || result.signature !== financialSignature(state)) return null
+  return result
+}
+export function renderSyncComparison() {
+  const result = currentSyncComparison()
+  if (!result) return ''
   if (state.valuesHidden) return '<p>Comparação da cópia oculta. Mostre os valores para consultar.</p>'
   return `<div role="status"><h3>${result.identical ? 'O conteúdo financeiro é igual' : 'As versões têm diferenças'}</h3><p>Cópia consultada: ${escapeHtml(formatUpdateTime(result.updatedAt))}. Esta leitura não salvou nem restaurou dados.</p>${result.differences.length ? `<ul>${result.differences.map(label => `<li>${escapeHtml(label)}</li>`).join('')}</ul><p>Restaurar traz a cópia para o navegador. Salvar envia o plano deste navegador ao destino selecionado. Confira qual versão quer manter.</p>` : '<p>Não é necessário substituir a cópia para atualizar apenas preferências visuais.</p>'}</div>`
 }

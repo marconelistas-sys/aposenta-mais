@@ -18,7 +18,7 @@ export function projectAnnualInvestments(rows, model, annualReturns = null) {
     validateAnnualRealReturns(item.annualRealReturns)
     return { investment: item, balance: item.amount, liquid: item.liquidity === 'available', releaseYear: releaseYears.get(item.id), id: `opening:${item.id}`, name: item.name || 'Patrimônio', pension: item.assetClass === 'pension' }
   })
-  const cash = { balance: 0, liquid: true }
+  const cash = { id: 'projected-cash', name: 'Caixa acumulado do planejamento', balance: 0, liquid: true }
   buckets.push(cash)
   const total = liquidOnly => buckets.reduce((sum, bucket) => sum + (!liquidOnly || bucket.liquid ? bucket.balance : 0), 0)
   return rows.map((row, index) => {
@@ -84,6 +84,16 @@ export function projectAnnualInvestments(rows, model, annualReturns = null) {
       financialChange: financialAssets - previousFinancial, liquidChange: liquidAssets - previousLiquid,
       restrictedFinancial: financialAssets - liquidAssets, netFinancial: financialAssets - row.liabilities,
       netWorth: financialAssets + row.assets - row.liabilities,
-      ...(row.breakdown ? { breakdown: { ...row.breakdown, releases: releasedItems } } : {}) }
+      ...(row.breakdown ? {
+        breakdown: { ...row.breakdown, releases: releasedItems },
+        // Copy year-end balances. Never expose the mutable buckets to later years.
+        wealthBreakdown: { ...row.wealthBreakdown, financial: buckets.map(bucket => ({
+          id: bucket.id, name: bucket.name,
+          amount: bucket.balance,
+          kind: bucket === cash ? 'cash' : bucket.pension ? 'pension' : bucket.investment?.assetClass || 'other-investment',
+          liquidity: bucket.liquid ? 'available' : bucket.investment && bucket.investment.liquidity !== 'restricted' ? 'unknown' : 'restricted',
+          releaseYear: bucket.releaseYear ?? null
+        })) }
+      } : {}) }
   })
 }

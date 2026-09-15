@@ -20,11 +20,11 @@ export function collectAnnualBudget(breakdown, budget, { pensionMode, costMultip
     if (!item.isIncluded) continue
     const source = item.annualGoalId ? 'Meta anual' : item.commitmentId ? 'Compromisso' : item.consortiumId ? 'Consórcio' : 'Orçamento'
     const id = `${source}:${item.annualGoalId || item.commitmentId || item.consortiumId || item.id}`
-    const entry = { id, name: item.description || item.category.name, category: item.category.name, source,
+    const entry = { id, budgetItemId: source === 'Orçamento' ? item.id : null, budgetGroup: item.category.budgetGroup, name: item.description || item.category.name, category: item.category.name, source,
       currency: item.currency, frequency: item.annualGoalId ? 'Provisão anual' : item.commitmentId || item.consortiumId ? 'Parcela / evento' : item.frequency,
       startDate: item.annualGoalId || item.commitmentId || item.consortiumId ? null : item.startDate,
       endDate: item.annualGoalId || item.commitmentId || item.consortiumId ? null : item.endDate,
-      retirement: item.endMode === 'retirement' ? retirement : null }
+      retirement: item.linkedRetirementMonth || (item.endMode === 'retirement' ? retirement : null) }
     const amount = item.convertedAmount / (item.frequency === 'annual' ? 12 : 1)
     const originalAmount = item.amount / (item.frequency === 'annual' ? 12 : 1)
     const pension = item.type === 'expense' && item.frequency === 'monthly' && item.category.budgetGroup === 'pension'

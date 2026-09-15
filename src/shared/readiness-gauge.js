@@ -7,15 +7,15 @@ const track = 'M 12 108 A 88 88 0 0 1 188 108'
 const arcLength = Math.PI * 88
 
 function band(fraction) {
-  if (fraction >= 0.95) return { arc: '#2f785e', chip: 'readiness-card__value--good', status: 'No caminho certo para a meta.' }
-  if (fraction >= 0.6) return { arc: '#8a5a1f', chip: 'readiness-card__value--ok', status: 'Perto da meta, mas ainda exige ajustes.' }
-  return { arc: '#a33d36', chip: 'readiness-card__value--behind', status: 'Abaixo da meta: revise aportes ou prazos.' }
+  if (fraction >= 1) return { arc: '#2f785e', chip: 'readiness-card__value--good', status: 'Meta de patrimônio atingida na projeção.' }
+  return { arc: '#17658a', chip: 'readiness-card__value--neutral', status: 'Patrimônio projetado abaixo da meta de renda desejada.' }
 }
 
 // Progress can exceed 1 (goal already reached with margin) — the arc caps
 // visually at 100% but the percentage text keeps showing the real value.
 export function readinessGauge({ progress, hidden }) {
-  const fraction = finite(progress) ? Math.max(0, progress) : 0
+  if (hidden || !finite(progress) || progress < 0 || !finite(progress * 100)) return `<article class="panel readiness-card" aria-label="Prontidão para a meta de aposentadoria"><div class="readiness-card__body"><h3>Prontidão para a aposentadoria</h3><p>${hidden ? 'Valores e indicador ocultos.' : 'Dados insuficientes para calcular a meta.'}</p></div></article>`
+  const fraction = progress
   const { arc, chip, status } = band(fraction)
   const dash = clamp(fraction, 0, 1) * arcLength
   const percentLabel = hidden ? '•••%' : `${Math.round(fraction * 100)}%`
@@ -31,7 +31,7 @@ export function readinessGauge({ progress, hidden }) {
       </div>
       <div class="readiness-card__body">
         <h3>Prontidão para a aposentadoria</h3>
-        <p>${hidden ? 'Valores ocultos.' : escapeHtml(status)}</p>
+        <p>${escapeHtml(status)}</p><p>Escala de 0 a 100% da meta de patrimônio.${fraction > 1 ? ' Arco completo. O percentual mostra o excedente.' : ''}</p>
       </div>
     </article>
   `

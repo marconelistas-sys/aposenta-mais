@@ -5,15 +5,7 @@ import { escapeHtml } from '../shared/formatters.js'
 import { syncState } from './sync-state.js'
 import { isLocalPlanOpen } from './local-access.js'
 
-const navigation = [
-  { href: '/', label: 'Visão geral', icon: 'home' },
-  { href: '/plano', label: 'Meu plano', icon: 'target' },
-  { href: '/carteira', label: 'Carteira', icon: 'wallet' },
-  { href: '/fluxo-caixa', label: 'Fluxo de caixa', icon: 'wallet' },
-  { href: '/simulacoes', label: 'Simulações', icon: 'calculator' },
-  { href: '/conteudos', label: 'Conteúdos', icon: 'book' },
-  { href: '/patrimonio', label: 'Patrimônio', icon: 'trendUp' }
-]
+import { primaryNavigation as navigation, additionalNavigation } from './navigation.js'
 
 const mobileNavigation = [
   navigation[0],
@@ -31,10 +23,16 @@ function navigationLink(item, pathname, mobile = false) {
       data-route
       ${active ? 'aria-current="page"' : ''}
     >
-      ${mobile ? icon(item.icon, 21) : ''}
+      ${icon(item.icon, mobile ? 21 : 18)}
       <span>${item.label}</span>
     </a>
   `
+}
+
+function fullNavigation(pathname) {
+  const current = [...navigation, ...additionalNavigation].find(item => item.href === pathname)
+  const group = (title, items) => `<section><h2>${title}</h2>${items.map(item => `<a href="${item.href}" data-route ${item.href === pathname ? 'aria-current="page"' : ''}>${icon(item.icon, 20)}<span>${item.label}</span>${item.href === pathname ? '<small>Atual</small>' : ''}</a>`).join('')}</section>`
+  return `<details class="navigation-menu" data-navigation-menu><summary aria-label="Menu de navegação">${icon('menu', 22)}<span>Menu</span></summary><nav class="navigation-menu-panel" aria-label="Todas as telas"><p>Você está em: <strong>${current?.label || 'Planejamento'}</strong></p><div class="navigation-menu-groups">${group('Planejamento', navigation)}${group('Contas e ferramentas', additionalNavigation)}</div></nav></details>`
 }
 
 export function logo() {
@@ -69,6 +67,7 @@ export function appLayout(content, pathname) {
         </nav>
 
         <div class="header-actions">
+          ${fullNavigation(pathname)}
           <button type="button" class="icon-button" data-close-local aria-label="Fechar plano local" title="Fechar plano local">${icon('lock', 20)}</button>
           <button
             class="icon-button values-toggle"

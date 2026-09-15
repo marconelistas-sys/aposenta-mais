@@ -1,3 +1,4 @@
+import { isRetirementEnd, incomeEndMonth } from './income-end.js'
 import { validDate } from './accounts.js'
 import { currencies } from '../shared/currencies.js'
 import { advancedDebtSchedule, validateDebtTerms } from './debt-analysis.js'
@@ -58,13 +59,14 @@ export function financialCalendar(cashFlow, month) {
   const undated = []
   for (const item of cashFlow.items || []) {
     if (item.recordKind === 'actual' || item.source === 'txt') continue
-    if (item.type === 'income' && item.endMode === 'retirement' && !cashFlow.retirementMonth) continue
+    const endMonth = incomeEndMonth(item, cashFlow)
+    if (item.type === 'income' && isRetirementEnd(item.endMode) && !endMonth) continue
     if (!item.startDate) { undated.push(item); continue }
-    if (month < item.startDate.slice(0, 7) || (item.endMode === 'retirement' ? cashFlow.retirementMonth && month >= cashFlow.retirementMonth : item.endDate && month > item.endDate.slice(0, 7))) continue
+    if (month < item.startDate.slice(0, 7) || (isRetirementEnd(item.endMode) ? endMonth && month >= endMonth : item.endDate && month > item.endDate.slice(0, 7))) continue
     if (item.frequency === 'occasional' && month !== item.startDate.slice(0, 7)) continue
     if (item.frequency === 'annual' && month.slice(5) !== item.startDate.slice(5, 7)) continue
     const date = dueDate(month, Number(item.startDate.slice(8)))
-    if (item.endDate && item.endMode !== 'retirement' && date > item.endDate) continue
+    if (item.endDate && !isRetirementEnd(item.endMode) && date > item.endDate) continue
     events.push({ ...item, date })
   }
   events.push(...commitmentEvents(cashFlow.commitments, month))

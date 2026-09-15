@@ -7,7 +7,7 @@ export function saveGuidedBudget(data) {
   const currency = data.get('currency')
   const frequency = data.get('frequency')
   const endMode = data.get('endMode')
-  if (!category || !Object.hasOwn(currencies, currency) || !['monthly', 'annual', 'occasional'].includes(frequency) || !['none', 'date', 'retirement'].includes(endMode)) throw new RangeError('Revise categoria, moeda, frequência e término.')
+  if (!category || !Object.hasOwn(currencies, currency) || !['monthly', 'annual', 'occasional'].includes(frequency) || !['none', 'date', 'retirement', 'spouse-retirement'].includes(endMode)) throw new RangeError('Revise categoria, moeda, frequência e término.')
   const startDate = data.get('startDate') || null
   const endDate = endMode === 'date' ? data.get('endDate') : null
   for (const date of [startDate, endDate]) {
@@ -17,7 +17,7 @@ export function saveGuidedBudget(data) {
   }
   if (endMode === 'date' && !endDate) throw new RangeError('Informe a data final.')
   if (frequency === 'occasional' && !startDate) throw new RangeError('Informe a data do lançamento único.')
-  addCashFlowItem({ type: category.type, categoryId: category.id, description: data.get('description'), amount: number(data, 'amount', 0.01, 1000000000), currency, frequency, recordKind: 'planned', startDate, endMode, endDate })
+  addCashFlowItem({ householdOwner: data.get('householdOwner') || 'unspecified', type: category.type, categoryId: category.id, description: data.get('description'), amount: number(data, 'amount', 0.01, 1000000000), currency, frequency, recordKind: 'planned', startDate, endMode, endDate })
 }
 import { sanitizeStoredState } from './state-storage.js'
 import { validateProjectionInput } from '../domain/retirement.js'

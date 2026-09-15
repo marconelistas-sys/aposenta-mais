@@ -27,7 +27,7 @@ export function projectPostRetirement(state, settings = defaultDecumulation, asO
   const feeRate = 1 - (1 - settings.annualFee) ** (1 / 12)
   const spouseMonth = spouseRetirementMonth(plan, asOfDate)
   const rows = []
-  const cashFlow = { ...state.cashFlow, retirementMonth: start, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia) }
+  const cashFlow = { ...state.cashFlow, spouseRetirementMonth: plan.spouseEnabled ? plan.spouseRetirementMonth : null, retirementMonth: start, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia) }
   let firstShortfall = null
   for (let index = 0; index < settings.years * 12; index++) {
     const month = addMonths(start, index)

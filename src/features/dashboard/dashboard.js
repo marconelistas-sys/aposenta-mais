@@ -80,6 +80,7 @@ function privacyStatus() {
 }
 
 export function renderDashboard() {
+  const today = new Date()
   const schedules = retirementContributionSchedules(
     state.cashFlow,
     state.currency,
@@ -92,7 +93,8 @@ export function renderDashboard() {
     state.currency,
     state.exchangeRates,
     result.requiredMonthlyContribution,
-    state.customCategories
+    state.customCategories,
+    today
   )
   const money = (value) => privateCurrency(value, state.valuesHidden, false, state.currency)
   const heading = state.isDemo
@@ -117,6 +119,23 @@ export function renderDashboard() {
       </div>
     </section>
 
+    <section class="dashboard-grid" data-dashboard-overview aria-label="Impacto de longo prazo">
+      ${renderPlanningOverview({ compact: true, cockpit: true, budget: cashFlow, today })}
+      <details class="panel disclosure cockpit-secondary"><summary>Meta de renda e premissas complementares</summary><div class="dashboard-side">
+        <section class="cockpit-income-goal"><h3>Meta de renda desejada, indicador complementar</h3><p>Compara o patrimônio projetado na aposentadoria à meta de renda desejada. A sustentabilidade familiar acima avalia o orçamento e a liquidez até a idade-alvo.</p>${state.valuesHidden ? '<p>Mostre os valores para consultar o indicador.</p>' : readinessGauge({ progress: result.progress, hidden: false })}</section>
+        <article class="panel confidence-card">
+          <div class="confidence-card__icon">${icon('shield', 22)}</div>
+          <div>
+            <h3>Premissas da projeção</h3>
+            <p>${state.valuesHidden ? 'Mostre os valores para consultar as premissas.' : `Retorno real padrão de ${formatPercent(state.plan.annualRealReturn)} e inflação de ${formatPercent(state.plan.annualInflation)} ao ano. Taxas individuais da carteira prevalecem quando informadas.`}</p>
+          </div>
+          <a href="/simulacoes" data-route aria-label="Ver premissas">${icon('chevronRight', 19)}</a>
+        </article>
+        ${state.isDemo ? `<a class="button button--primary button--full" href="/fluxo-caixa" data-route>Calcular com meus dados ${icon('arrowRight', 17)}</a>` : ''}
+      </div></details>
+    </section>
+
+    <details class="panel disclosure"><summary>Ver valores cadastrados e meta de aposentadoria</summary>
     <section class="metrics-grid" aria-label="Como você chegou aqui">
       <article class="metric-card">
         <div class="metric-card__icon metric-card__icon--green">${icon('wallet', 21)}</div>
@@ -125,7 +144,7 @@ export function renderDashboard() {
           <strong class="money-value" aria-label="${privacyLabel(budgetBalance)}">${money(budgetBalance)}</strong>
           <span>Saldo mensal do orçamento</span>
         </div>
-        <a href="/fluxo-caixa" data-route aria-label="Ver receitas e despesas">${icon('chevronRight', 19)}</a>
+        <a href="/orcamento" data-route aria-label="Ver receitas e despesas">${icon('chevronRight', 19)}</a>
       </article>
       <article class="metric-card">
         <div class="metric-card__icon metric-card__icon--blue">${icon('trendUp', 21)}</div>
@@ -147,29 +166,14 @@ export function renderDashboard() {
       </article>
     </section>
 
-    <section class="dashboard-grid" data-dashboard-overview aria-label="Impacto de longo prazo">
-      ${renderPlanningOverview({ compact: true })}
-      <div class="dashboard-side">
-        <details class="panel disclosure"><summary>Meta de renda desejada, indicador complementar</summary><p>Compara o patrimônio projetado na aposentadoria à meta de renda desejada. A sustentabilidade familiar acima avalia o orçamento e a liquidez até a idade-alvo.</p>${state.valuesHidden ? '<p>Mostre os valores para consultar o indicador.</p>' : readinessGauge({ progress: result.progress, hidden: false })}</details>
-        <article class="panel confidence-card">
-          <div class="confidence-card__icon">${icon('shield', 22)}</div>
-          <div>
-            <h3>Premissas da projeção</h3>
-            <p>${state.valuesHidden ? 'Mostre os valores para consultar as premissas.' : `Retorno real padrão de ${formatPercent(state.plan.annualRealReturn)} e inflação de ${formatPercent(state.plan.annualInflation)} ao ano. Taxas individuais da carteira prevalecem quando informadas.`}</p>
-          </div>
-          <a href="/simulacoes" data-route aria-label="Ver premissas">${icon('chevronRight', 19)}</a>
-        </article>
-        ${state.isDemo ? `<a class="button button--primary button--full" href="/fluxo-caixa" data-route>Calcular com meus dados ${icon('arrowRight', 17)}</a>` : ''}
-      </div>
-    </section>
-
+    </details>
     ${renderPlanChecks()}
     ${privacyStatus()}
     ${exchangeRatePanel()}
     <details class="panel settings-card"><summary>Revisar passo a passo e cadastros</summary><section aria-labelledby="start-guide"><h2 id="start-guide">Comece aqui</h2>
       <a class="button button--primary" href="/construir/objetivo" data-route>Continuar plano passo a passo</a>
       <p>${state.isDemo ? 'Os valores de demonstração são exemplos. Revise cada etapa com seus dados.' : 'Revise estas três etapas sempre que sua situação mudar.'}</p>
-      <ol><li><a href="/simulacoes" data-route>Defina sua aposentadoria</a>: confira as idades e a renda desejada.</li><li><a href="/fluxo-caixa" data-route>Organize seu orçamento</a>: cadastre receitas, despesas e seus prazos. Veja a evolução mensal.</li><li><a href="/carteira" data-route>Revise seu patrimônio</a>: informe investimentos, aportes e rendimentos.</li></ol>
+      <ol><li><a href="/simulacoes" data-route>Defina sua aposentadoria</a>: confira as idades e a renda desejada.</li><li><a href="/orcamento" data-route>Organize seu orçamento</a>: cadastre receitas, despesas e seus prazos.</li><li><a href="/carteira" data-route>Revise seu patrimônio</a>: informe investimentos, aportes e rendimentos.</li></ol>
       <p>Carteira reúne investimentos. Fluxo de caixa reúne o orçamento. <a href="/contas" data-route>Contas e movimentos</a> acompanha saldos manuais sem somá-los automaticamente ao patrimônio.</p>
       <div class="wizard-actions"><a class="button button--secondary" href="/calendario" data-route>Vencimentos, dívidas e metas</a><a class="button button--secondary" href="/apos-aposentadoria" data-route>Projetar vida após aposentadoria</a></div>
       <div class="wizard-actions"><a class="button button--secondary" href="/consorcios" data-route>Consórcios e posição vinculada</a><a class="button button--secondary" href="/riscos" data-route>Patrimônio líquido, Monte Carlo e matriz de risco</a></div>

@@ -16,7 +16,7 @@ export function renderStatements() {
       <p>Para salvar no histórico, use de 2 a 24 meses completos. Transações ausentes também afetam a estimativa. A análise inclui meses completos sem movimentos como zero.</p>
       <button class="button button--primary" type="submit">Analisar e salvar resumo</button>
     </form><div data-bank-analysis-result aria-live="polite"></div>
-    <p><a href="/fluxo-caixa" data-route>Revisar orçamento e importar movimentos selecionados</a></p></section>${renderStatementHistory()}`
+    <p><a href="/orcamento" data-route>Revisar orçamento e importar movimentos selecionados</a></p></section>${renderStatementHistory()}`
 }
 
 export async function readStatementAnalysis(formData, { currency = state.currency } = {}) {

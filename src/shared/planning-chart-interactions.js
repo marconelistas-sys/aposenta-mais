@@ -24,6 +24,8 @@ export function bindPlanningChartInteractions(root) {
   const show = (chart, index, followKeyboard = false) => {
     const readout = chart.querySelector('[data-chart-readout]')
     chart.dataset.chartIndex = String(index)
+    const readoutState = chart.querySelector('[data-chart-readout-state]')
+    if (readoutState) readoutState.textContent = Number(chart.dataset.chartSelectedIndex) === index ? 'Ano selecionado' : 'Prévia, selecione para fixar'
     for (const snapshot of chart.querySelectorAll('[data-chart-snapshot]')) snapshot.hidden = Number(snapshot.dataset.chartSnapshot) !== index
     readout.hidden = false
     const cursor = chart.querySelector('[data-chart-cursor]')
@@ -41,6 +43,10 @@ export function bindPlanningChartInteractions(root) {
     }
   }
   const hide = chart => {
+    if (chart.dataset.chartInlineReadout !== undefined) {
+      show(chart, Number(chart.dataset.chartSelectedIndex || 0))
+      return
+    }
     chart.querySelector('[data-chart-readout]').hidden = true
     const selected = Number(chart.dataset.chartSelectedIndex)
     const cursor = chart.querySelector('[data-chart-cursor]')
@@ -56,8 +62,15 @@ export function bindPlanningChartInteractions(root) {
     index = Math.min(count - 1, Math.max(0, index))
     show(chart, index, followKeyboard)
     const group = chart.closest?.('[data-cash-flow-line-view]')
+    if (chart.dataset.chartInlineReadout !== undefined) {
+      chart.dataset.chartSelectedIndex = String(index)
+      const state = chart.querySelector('[data-chart-readout-state]')
+      if (state) state.textContent = 'Ano selecionado'
+    }
     if (group) {
       chart.dataset.chartSelectedIndex = String(index)
+      const sharedYear = group.querySelector?.('[data-cash-flow-year]')
+      if (sharedYear) sharedYear.value = String(index)
       if (syncPeers) for (const peer of group.querySelectorAll('[data-planning-chart]')) {
         if (peer !== chart && Number(peer.dataset.chartCount) === count) select(peer, index, followKeyboard, false)
       }
@@ -106,9 +119,15 @@ export function bindPlanningChartInteractions(root) {
       return
     }
     const svg = event.target.closest?.('svg'), chart = chartFor(svg)
-    if (chart && (chart.dataset.chartDrilldown !== undefined || chart.closest?.('[data-cash-flow-line-view]'))) select(chart, planningChartIndex(event.clientX, svg.getBoundingClientRect(), Number(chart.dataset.chartCount)))
+    if (chart && (chart.dataset.chartDrilldown !== undefined || chart.dataset.chartInlineReadout !== undefined || chart.closest?.('[data-cash-flow-line-view]'))) select(chart, planningChartIndex(event.clientX, svg.getBoundingClientRect(), Number(chart.dataset.chartCount)))
   }
   const change = event => {
+    const sharedYear = event.target.closest?.('[data-cash-flow-year]')
+    if (sharedYear) {
+      const chart = sharedYear.closest('[data-cash-flow-line-view]')?.querySelector('[data-planning-chart]')
+      if (chart) select(chart, Number(sharedYear.value), true)
+      return
+    }
     const year = event.target.closest?.('[data-chart-year]'), chart = chartFor(year)
     if (chart) select(chart, Number(year.value), true)
   }
@@ -116,7 +135,7 @@ export function bindPlanningChartInteractions(root) {
     const scroll = event.target.closest?.('.planning-chart-scroll'), chart = chartFor(scroll)
     if (!chart) return
     if (event.key === 'Escape') { hide(chart); event.preventDefault(); return }
-    if (chart.dataset.chartDrilldown !== undefined && (event.key === 'Enter' || event.key === ' ')) {
+    if ((chart.dataset.chartDrilldown !== undefined || chart.dataset.chartInlineReadout !== undefined) && (event.key === 'Enter' || event.key === ' ')) {
       select(chart, Number(chart.dataset.chartIndex || 0), true)
       event.preventDefault()
       return

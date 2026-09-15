@@ -1,0 +1,26 @@
+.data-overview { margin-bottom: 24px; padding: clamp(16px, 3vw, 28px); }
+.data-overview__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.data-overview__source, .data-overview__saved { min-width: 0; padding: 20px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.data-overview__source { background: var(--color-blue-soft); }
+.data-overview h3 { margin: 8px 0; font-size: 20px; }
+.data-overview p { line-height: 1.6; }
+.data-overview__tag { margin: 0; color: var(--color-brand); font-size: 11px; font-weight: 750; letter-spacing: .08em; }
+.data-overview__hint { color: var(--color-ink-soft); font-size: 13px; }
+.data-overview__status { font-weight: 650; }
+.data-overview__intro { min-height: 140px; }
+.data-readouts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
+.data-readouts > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); }
+.data-readouts dt { display: flex; align-items: center; min-height: 32px; color: var(--color-ink-soft); font-size: 13px; }
+.data-readouts a { color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px; display: inline-flex; align-items: center; min-height: 32px; }
+.data-readouts dd { margin: 0; color: var(--color-ink); font-size: clamp(28px, 3vw, 38px); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.data-readouts dd.data-readouts__unknown { font-size: 16px; line-height: 1.5; }
+.data-overview .data-actions { gap: 10px; }
+.data-overview .button { min-height: 44px; white-space: normal; text-align: center; }
+#profile-save-copy { scroll-margin-top: 100px; }
+#profile-save-copy:target { outline: 2px solid var(--color-focus); outline-offset: 8px; border-radius: 4px; }
+@media (max-width: 760px) {
+  .data-overview__grid { grid-template-columns: minmax(0, 1fr); }
+  .data-overview__intro { min-height: 0; }
+  .data-overview__source, .data-overview__saved { padding: 16px; }
+  .data-overview .data-actions { flex-direction: column; align-items: stretch; }
+}

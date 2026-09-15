@@ -12,6 +12,17 @@ Use Node.js 24 ou superior e `npm run dev`. Abra http://127.0.0.1:4173. Entre in
 - [Ciclo de três sprints: revisão, cenários e cópias](docs/product/proximas-tres-sprints.md)
 - [Titularidade, histórico de extratos e recorrências](docs/product/sprints-titularidade-historico-recorrencias.md)
 - [Imóveis, solvência e usabilidade dos gráficos](docs/product/sprints-imoveis-solvencia-usabilidade.md)
+- [Dashboard com instrumentos visuais](docs/product/dashboard-instrumentos-visuais.md)
+- [Valores monetários e transferências guiadas](docs/product/sprint-valores-transferencias.md)
+- [Três sprints: valores sem quebra e navegação com ícones](docs/product/sprints-leitura-navegacao.md)
+- [Orçamento em tela dedicada](docs/product/orcamento-tela-dedicada.md)
+- [Cônjuge e conferência de pagamentos, três sprints](docs/product/sprints-conjuge-pagamentos.md)
+- [Legibilidade e pressão dos gastos, três sprints](docs/product/sprints-pressao-orcamento.md)
+- [Comparação visual de receitas e despesas](docs/product/sprint-comparacao-receitas-despesas.md)
+- [Composição do patrimônio ao passar o mouse](docs/product/composicao-patrimonio-callout.md)
+- [Acompanhamento mensal do previsto e registrado](docs/product/sprint-acompanhamento-mensal.md)
+- [Pagamentos parciais no Calendário](docs/product/sprint-pagamentos-parciais.md)
+- [Divisão de pagamentos entre vencimentos](docs/product/sprint-rateio-pagamentos.md)
 
 ## O que está pronto
 

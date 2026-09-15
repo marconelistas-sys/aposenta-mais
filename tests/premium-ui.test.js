@@ -53,7 +53,7 @@ test('home prioriza resultado, uma ação principal e três indicadores', () => 
   assert.doesNotMatch(html, /next-action-card/)
   assert.equal(metricCards.length, 3)
   assert.match(html, /class="planning-chart"/)
-  assert.match(html, /role="img" aria-label="Patrimônio ao longo do tempo/)
+  assert.match(html, /role="img" aria-label="Patrimônio ao fim de cada ano/)
 })
 
 test('home descreve corretamente os três estados de armazenamento', () => {

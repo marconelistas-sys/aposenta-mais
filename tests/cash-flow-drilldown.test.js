@@ -42,8 +42,11 @@ test('composição concilia cada receita, custo, meta, previdência e liberaçã
     const base = finappViability(value, settings, today, { costMultiplier })
     const result = finappViability(value, settings, today, { costMultiplier, includeBreakdown: true })
     result.rows.forEach((row, index) => {
-      const { breakdown, ...plain } = row
+      const { breakdown, wealthBreakdown, ...plain } = row
       assert.deepEqual(plain, base.rows[index])
+      close(sum(wealthBreakdown.financial), row.financialAssets)
+      close(sum(wealthBreakdown.assets), row.assets)
+      close(sum(wealthBreakdown.liabilities), row.liabilities)
       close(sum(breakdown.income), row.income)
       close(sum(breakdown.costs), row.costs)
       close(sum(breakdown.goals), row.goals)

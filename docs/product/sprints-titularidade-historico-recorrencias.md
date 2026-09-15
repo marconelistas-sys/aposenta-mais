@@ -1,5 +1,7 @@
 # Três sprints de novas funcionalidades
 
+Atualização posterior: o vínculo automático da receita com a aposentadoria do cônjuge foi implementado em [Cônjuge e conferência de pagamentos](sprints-conjuge-pagamentos.md). O limite descrito ao final registra o estado da entrega original.
+
 ## Sprint 1: titularidade familiar
 
 Adicionar titular, cônjuge, compartilhado e não informado aos lançamentos. Preservar registros anteriores sem inferir identidade pelo nome. Mostrar e filtrar os lançamentos por titularidade sem alterar o total familiar. O vínculo automático existente continua sendo o mês do titular. Para receitas de cônjuge ou compartilhadas, exigir prazo manual, sem aplicar silenciosamente a aposentadoria do titular.

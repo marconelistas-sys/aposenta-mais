@@ -7,6 +7,10 @@ export function guideBudgetForm(form, customCategories = []) {
   const field = name => form.elements.namedItem(name)
   const category = categoryById(field('categoryId')?.value, customCategories)
   const rules = budgetFieldRules({ frequency: field('frequency')?.value, endMode: field('endMode')?.value, type: category?.type, recordKind: field('recordKind')?.value })
+  const allowSpouse = rules.allowRetirement && field('householdOwner')?.value === 'spouse'
+  const spouseOption = field('endMode')?.querySelector('[value="spouse-retirement"]')
+  if (spouseOption) spouseOption.disabled = !allowSpouse
+  if (!allowSpouse && field('endMode')?.value === 'spouse-retirement') field('endMode').value = 'none'
   if (['spouse', 'shared'].includes(field('householdOwner')?.value)) rules.allowRetirement = false
   if (field('startDate')) field('startDate').required = rules.requireStart
   const retirementOption = field('endMode')?.querySelector('[value="retirement"]')

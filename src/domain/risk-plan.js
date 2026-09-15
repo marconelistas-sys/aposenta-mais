@@ -35,7 +35,7 @@ export function prepareRiskInput(state, settings, today = new Date()) {
   const debtSchedules = prepareCommitmentSchedules(state.cashFlow.commitments)
   const consortia = sanitizeConsortia(state.cashFlow.consortia)
   for (const item of consortia) validateConsortiumAsOf(item, start)
-  const budgetSource = { ...state.cashFlow, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, consortia: [], commitmentSchedules: debtSchedules, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate) }
+  const budgetSource = { ...state.cashFlow, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, consortia: [], commitmentSchedules: debtSchedules, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate) }
   const buckets = state.plan.investments.length ? state.plan.investments.map(item => ({ amount: item.amount, annualRealReturn: resolveInvestmentRealReturn(item, state.plan), annualRealReturns: item.annualRealReturns || [], liquid: item.liquidity === 'available' })) : [{ amount: state.plan.currentAssets, annualRealReturn: state.plan.annualRealReturn, liquid: settings.aggregateLiquid }]
   const debtAt = month => debts.reduce((total, item) => {
     const last = debtSchedules.get(item.id).findLast(row => row.month <= month)

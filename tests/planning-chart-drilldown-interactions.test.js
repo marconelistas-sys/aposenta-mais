@@ -155,3 +155,43 @@ test('selecionar patrimônio ou fluxo mantém os dois gráficos no mesmo ano e a
   wealth.send('click', wealth.legend)
   assert.equal(flow.chart.dataset.chartSelectedIndex, '2')
 })
+
+test('inline annual readout restores selected values after preview and Escape', () => {
+  const view = fixture()
+  view.chart.dataset.chartInlineReadout = ''
+  view.chart.dataset.chartSelectedIndex = '0'
+  const caption = { textContent: '' }, query = view.chart.querySelector.bind(view.chart)
+  view.chart.querySelector = selector => selector === '[data-chart-readout-state]' ? caption : query(selector)
+  view.send('click', view.svg, { clientX: 582 })
+  assert.equal(caption.textContent, 'Ano selecionado')
+  view.send('pointermove', view.svg, { clientX: 999 })
+  assert.equal(caption.textContent, 'Prévia, selecione para fixar')
+  view.send('pointerout', view.svg, { relatedTarget: null })
+  assert.equal(view.readout.hidden, false)
+  assert.equal(view.chart.dataset.chartIndex, '1')
+  assert.equal(caption.textContent, 'Ano selecionado')
+  view.send('keydown', view.scroll, { key: 'Escape' })
+  assert.equal(view.readout.hidden, false)
+  assert.equal(view.content.children[0].index, 1)
+})
+
+test('shared annual selector and chart clicks update both charts and the composition', () => {
+  const wealth = fixture(), flow = fixture()
+  delete wealth.chart.dataset.chartDrilldown
+  const sharedYear = { value: '2' }
+  const container = { querySelectorAll: () => [wealth.chart, flow.chart], querySelector: selector => selector === '[data-cash-flow-year]' ? sharedYear : wealth.chart }
+  sharedYear.closest = selector => selector === '[data-cash-flow-year]' ? sharedYear : selector === '[data-cash-flow-line-view]' ? container : null
+  for (const view of [wealth, flow]) {
+    view.chart.dataset.chartInlineReadout = ''
+    const closest = view.chart.closest
+    view.chart.closest = selector => selector === '[data-cash-flow-line-view]' ? container : closest(selector)
+  }
+  wealth.send('change', sharedYear)
+  assert.equal(wealth.chart.dataset.chartSelectedIndex, '2')
+  assert.equal(flow.chart.dataset.chartSelectedIndex, '2')
+  assert.equal(flow.year.value, '2')
+  assert.equal(flow.content.children[0].index, 2)
+  wealth.send('click', wealth.svg, { clientX: 582 })
+  assert.equal(sharedYear.value, '1')
+  assert.equal(flow.content.children[0].index, 1)
+})
