@@ -1,6 +1,6 @@
 import { state } from '../../app/state.js'
 import { retirementMonth } from '../../domain/cash-flow-timeline.js'
-import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
+import { escapeHtml, percentInputValue, privateCurrency } from '../../shared/formatters.js'
 import { renderBudgetStep } from './budget-step.js'
 import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { projectRetirementWithSchedules } from '../../domain/retirement.js'
@@ -18,7 +18,7 @@ export function renderGuidedPlan(step = 'objetivo') {
     ${input('retirementAge', 'Idade desejada de aposentadoria', state.plan.retirementAge, 17, 100, '1')}
     ${input('targetMonthlyIncome', 'Renda mensal desejada', state.plan.targetMonthlyIncome, 0, 10000000)}
     ${input('expectedMonthlyBenefit', 'Benefício mensal esperado', state.plan.expectedMonthlyBenefit, 0, 1000000)}
-    ${input('annualRealReturn', 'Rendimento real anual informado (%)', state.plan.annualRealReturn * 100, -99, 100)}
+    ${input('annualRealReturn', 'Rendimento real anual informado (%)', percentInputValue(state.plan.annualRealReturn), -99, 100)}
     <label class="form-field"><span>Mês confirmado para término salarial no orçamento</span><input type="month" name="retirementMonth" min="2000-01" max="2199-12" value="${state.cashFlow.retirementMonth || retirementMonth(state.plan)}" required /></label>
     </div><p>O mês confirmado controla as receitas vinculadas e o prazo patrimonial. Revise o mês antes de salvar. Benefício estimado não entra automaticamente nas receitas do orçamento.</p><div class="wizard-actions"><button class="button button--primary" type="submit">Salvar objetivo e continuar</button></div></form>`
   if (index === 1) content = renderBudgetStep()

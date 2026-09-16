@@ -27,6 +27,7 @@ export function renderCashFlowTimeline() {
     return { ...row, spending: row.expenses, goals, costs: row.expenses - goals, pensionCredits: row.pension, freeCashFlow: row.balance }
   })
   const markers = [{ year: retirement.slice(0, 4), label: 'Aposentadoria' }]
+  if (annual?.firstFailure) markers.push({ year: annual.firstFailure.year, label: 'Insolvência' })
   if (timelineView.period === '100' && annual) {
     markers.push({ year: annual.horizon.endYear, label: '100 anos' })
     if (Number.isInteger(state.plan.targetAge) && state.plan.targetAge !== 100) markers.push({ year: Number(annual.horizon.reference.slice(0, 4)) + state.plan.targetAge - state.plan.currentAge, label: 'Idade-alvo salva' })

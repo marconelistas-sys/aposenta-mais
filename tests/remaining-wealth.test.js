@@ -58,9 +58,13 @@ test('callouts follow the displayed nominal year and do not invent unavailable c
 test('each rendered year exposes labelled controls and hidden mode excludes callout content', () => {
   const rows = fixture()
   const html = cashFlowDetailPanels(rows, plan, 'BRL').map(detail => detail.html).join('')
-  assert.equal((html.match(/data-wealth-trigger aria-expanded="false"/g) || []).length, 6)
-  assert.equal((html.match(/data-wealth-callout hidden role="region"/g) || []).length, 6)
-  for (const row of rows) assert.ok(html.includes(`aria-label="Composição: Financeiro líquido de dívidas em ${row.year}"`))
+  assert.equal((html.match(/data-wealth-trigger aria-expanded="false"/g) || []).length, 12)
+  assert.equal((html.match(/data-wealth-callout hidden role="region"/g) || []).length, 12)
+  for (const row of rows) {
+    assert.ok(html.includes(`aria-label="Composição: Financeiro líquido de dívidas em ${row.year}"`))
+    assert.ok(html.includes(`aria-label="Composição: Receitas em ${row.year}"`))
+    assert.ok(html.includes(`aria-label="Composição: Despesas e metas em ${row.year}"`))
+  }
   assert.match(html, /O que compõe este valor em 2031/)
   assert.deepEqual(cashFlowDetailPanels(rows, plan, 'BRL', true), [])
   assert.doesNotMatch(renderCashFlowLineChart({ rows, plan, currency: 'BRL', hidden: true }), /data-wealth-callout|Dívidas a descontar/)
@@ -145,7 +149,7 @@ test('moving between years fills each meter relative to its own fixed maximum th
   assert.deepEqual(peaks.financialNet, { value: 1000, year: 2030 })
   assert.deepEqual(peaks.grossAssets, { value: 3000, year: 2031 })
   const details = cashFlowDetailPanels(rows, plan, 'BRL')
-  for (const [index, expected] of [[0, ['100.0000', '66.6667']], [1, ['60.0000', '100.0000']], [2, ['80.0000', '50.0000']]]) {
+  for (const [index, expected] of [[0, ['0.0000', '100.0000', '100.0000', '66.6667']], [1, ['0.0000', '100.0000', '60.0000', '100.0000']], [2, ['0.0000', '100.0000', '80.0000', '50.0000']]]) {
     assert.deepEqual([...details[index].html.matchAll(/role="meter"[^>]*aria-valuenow="([\d.]+)"/g)].map(match => match[1]), expected)
     assert.ok(details[index].html.indexOf('remaining-wealth') < details[index].html.indexOf('budget-comparison'))
     assert.match(details[index].html, /Máximo: <strong class="money-value">R\$\s*1\.000,00<\/strong> em 2030/)

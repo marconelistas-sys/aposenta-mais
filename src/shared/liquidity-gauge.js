@@ -42,7 +42,7 @@ export function liquidityGauge({ available, restricted, unknown, hidden = false 
   )).join('')
 
   return `<div class="liquidity-gauge">
-    <div class="liquidity-gauge-face"><svg viewBox="0 0 120 120" role="img" aria-label="Distribuição da liquidez da carteira: ${escapeHtml(availablePercent)} disponível para resgate"><circle class="liquidity-gauge-track" cx="60" cy="60" r="49"/>${arcs}</svg><div class="liquidity-gauge-readout" aria-hidden="true"><strong>${availablePercent}</strong><small>disponível</small></div></div>
+    <div class="liquidity-gauge-face"><svg viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Distribuição da liquidez da carteira: ${escapeHtml(availablePercent)} disponível para resgate"><circle class="liquidity-gauge-track" cx="60" cy="60" r="49"/>${arcs}</svg><div class="liquidity-gauge-readout" aria-hidden="true"><strong>${availablePercent}</strong><small>disponível</small></div></div>
     <ul class="liquidity-gauge-legend">${legend}</ul>
   </div>`
 }

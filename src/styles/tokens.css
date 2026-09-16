@@ -47,4 +47,13 @@
 
   /* Cor única de foco visível. Não redefinir em outro lugar do CSS. */
   --color-focus: #167354;
+
+  /* Paleta categórica para gráficos de distribuição (pizza/donut). Ordem fixa, validada
+     para contraste e separação sob daltonismo (ver skill de dataviz). "Outros" usa
+     --color-ink-muted, não faz parte desta lista. */
+  --chart-green: #1f8a5f;
+  --chart-terracotta: #c9622f;
+  --chart-blue: #1f6fa8;
+  --chart-gold: #a8790f;
+  --chart-plum: #7a3f96;
 }

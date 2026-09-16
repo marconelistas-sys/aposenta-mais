@@ -4,6 +4,7 @@ import { bindFinancialValueLayout } from './shared/financial-value-layout.js'
 import { bindNavigationMenu } from './app/navigation.js'
 import { bindMoneyInputs, enhanceMoneyInputs, readMoneyFormData, setFormFieldValue, parseMoney } from './shared/money-input.js'
 import { bindWealthCallouts } from './shared/wealth-callout.js'
+import { flashRecalculation } from './shared/recalc-indicator.js'
 import { appLayout } from './app/layout.js'
 import { parseAnnualRealReturns, formatAnnualRealReturns } from './domain/investment-returns.js'
 import { renderViability, saveViability } from './features/plan/viability.js'
@@ -82,7 +83,7 @@ import {
   renderSimulationResult,
   renderSimulations
 } from './features/simulations/simulations.js'
-import { formatCurrency, parseNumber, privateCurrency } from './shared/formatters.js'
+import { formatCurrency, parseNumber, percentInputValue, privateCurrency } from './shared/formatters.js'
 import { serializeExportableState, storageKeys } from './app/state-storage.js'
 import { parseFinappImport, mergeFinappImport } from './domain/finapp-import.js'
 import { renderFinappReconciliation } from './features/profile/finapp-review.js'
@@ -212,9 +213,10 @@ function restoreSimulationForm(values) {
   }
 }
 
-function render({ focusMain = false, resetSimulation = false } = {}) {
+function render({ focusMain = false, resetSimulation = false, indicateRecalculation = true } = {}) {
   disposeValueLayout()
   if (!sessionReady) { app.innerHTML = '<main class="page-shell"><p role="status">Verificando a sessão antes de abrir seus dados…</p></main>'; return }
+  if (indicateRecalculation) flashRecalculation()
   const pathname = currentPath()
   const simulationValues = pathname === '/simulacoes' && !resetSimulation ? captureSimulationForm() : null
   const selectedRenderer = pathname === '/inicio' || !canRenderFinancialPage(pathname) ? renderWelcome : pathname.startsWith('/construir/') ? () => renderGuidedPlan(pathname.split('/')[2]) : routes[pathname] || renderDashboard
@@ -259,7 +261,7 @@ function navigate(href) {
   if (currentPath() !== href) window.history.pushState({}, '', href)
   lastReviewLocation = null
   window.scrollTo({ top: 0, behavior: 'instant' })
-  render({ focusMain: true })
+  render({ focusMain: true, indicateRecalculation: false })
 }
 
 let toastTimer
@@ -418,6 +420,27 @@ function openCashItemDialog(id) {
 
 function closeCashItemDialog() {
   const dialog = document.querySelector('[data-cash-item-dialog]')
+  if (!dialog) return
+  if (typeof dialog.close === 'function') dialog.close()
+  else dialog.removeAttribute('open')
+}
+
+function openAnnualGoalDialog(id) {
+  const row = (state.cashFlow.annualGoals || []).find((candidate) => candidate.id === id)
+  const dialog = document.querySelector('[data-annual-goal-dialog]')
+  const form = dialog?.querySelector('[data-annual-planning="annualGoals"]')
+  if (!row || !dialog || !form) throw new TypeError('Provisão anual não encontrada.')
+  form.reset()
+  for (const [key, value] of Object.entries(row)) {
+    const field = form.elements.namedItem(key)
+    if (field) setFormFieldValue(field, key === 'realGrowth' ? value * 100 : value)
+  }
+  if (typeof dialog.showModal === 'function') dialog.showModal()
+  else dialog.setAttribute('open', '')
+}
+
+function closeAnnualGoalDialog() {
+  const dialog = document.querySelector('[data-annual-goal-dialog]')
   if (!dialog) return
   if (typeof dialog.close === 'function') dialog.close()
   else dialog.removeAttribute('open')
@@ -907,8 +930,8 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('investmentAcquiredAt').value = investment.acquiredAt || ''
     form.elements.namedItem('investmentReleaseYear').value = state.plan.finappMethod?.releases?.find(row => row.investmentId === investment.id)?.year ?? ''
     form.elements.namedItem('returnType').value = investment.returnType
-    form.elements.namedItem('investmentReturn').value = investment.returnValue === null ? '' : investment.returnValue * 100
-    form.elements.namedItem('investmentIndexRate').value = investment.indexAnnualRate === null ? '' : investment.indexAnnualRate * 100
+    form.elements.namedItem('investmentReturn').value = investment.returnValue === null ? '' : percentInputValue(investment.returnValue)
+    form.elements.namedItem('investmentIndexRate').value = investment.indexAnnualRate === null ? '' : percentInputValue(investment.indexAnnualRate)
     form.elements.namedItem('investmentAnnualReturns').value = formatAnnualRealReturns(investment.annualRealReturns)
     form.querySelector('[data-investment-form-title]').textContent = 'Revise os dados do investimento'
     form.querySelector('[data-investment-submit]').textContent = 'Salvar investimento'
@@ -1026,6 +1049,21 @@ document.addEventListener('click', async (event) => {
 
   if (event.target.closest('[data-close-cash-item-dialog]')) {
     closeCashItemDialog()
+    return
+  }
+
+  const editAnnualGoalButton = event.target.closest('[data-edit-annual-goal]')
+  if (editAnnualGoalButton) {
+    try {
+      openAnnualGoalDialog(editAnnualGoalButton.dataset.editAnnualGoal)
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
+  if (event.target.closest('[data-close-annual-goal-dialog]')) {
+    closeAnnualGoalDialog()
     return
   }
 
@@ -1863,7 +1901,7 @@ document.addEventListener('submit', async (event) => {
   }
 })
 
-window.addEventListener('popstate', () => { resetExpenseImpact(); render({ focusMain: true }) })
+window.addEventListener('popstate', () => { resetExpenseImpact(); render({ focusMain: true, indicateRecalculation: false }) })
 document.addEventListener('input', event => {
   const consortium = event.target.closest('[data-consortium-form]')
   if (consortium) guideConsortiumForm(consortium)
@@ -1905,15 +1943,15 @@ document.addEventListener('cancel', (event) => {
 }, true)
 
 let sessionReady = false
-render()
+render({ indicateRecalculation: false })
 loadAuthState().then(async () => {
   switchSessionPlan()
   sessionReady = true
-  render()
+  render({ indicateRecalculation: false })
   // Public quotes must not block opening the local plan when the network is slow.
-  loadExchangeRates().then(() => { if (['/', '/inicio', '/cambio'].includes(currentPath())) render() })
+  loadExchangeRates().then(() => { if (['/', '/inicio', '/cambio'].includes(currentPath())) render({ indicateRecalculation: false }) })
   if (authState.authenticated) {
     await loadSyncState()
-    if (['/', '/inicio', '/perfil'].includes(currentPath())) render()
+    if (['/', '/inicio', '/perfil'].includes(currentPath())) render({ indicateRecalculation: false })
   }
 })

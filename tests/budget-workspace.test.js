@@ -62,8 +62,18 @@ test('list counts results separately from stored capacity and shows amounts per 
 
 test('derived entries link to their source and cannot be edited or deleted as manual entries', () => {
   const html = renderBudgetEntryResults({ convertedItems: [item('goal', { annualGoalId: 'g' }), item('consortium', { consortiumId: 'c' }), item('commitment', { commitmentId: 'd' }), item('ledger:1')] })
-  for (const href of ['/calendario', '/consorcios', '/contas']) assert.ok(html.includes(`href="${href}"`))
+  for (const href of ['/consorcios', '/contas']) assert.ok(html.includes(`href="${href}"`))
+  assert.match(html, /href="\/calendario"/)
   assert.doesNotMatch(html, /data-edit-cash-item|data-remove-cash-item/)
+})
+
+test('annual goal entries edit their provision in place instead of leaving the budget page', () => {
+  const html = renderBudgetEntries()
+  assert.match(html, /data-annual-goal-dialog/)
+  assert.match(html, /data-annual-planning="annualGoals"/)
+  const results = renderBudgetEntryResults({ convertedItems: [item('goal', { annualGoalId: 'g' })] })
+  assert.match(results, /data-edit-annual-goal="g"/)
+  assert.doesNotMatch(results, /href="\/calendario"/)
 })
 
 test('empty filters provide recovery, imported origins and unsafe names remain safe', () => {

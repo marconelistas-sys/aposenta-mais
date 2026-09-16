@@ -3,9 +3,10 @@ import { renderLiquidity, liquidityLabels } from './liquidity.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { resolveInvestmentRealReturn, investmentAccumulationFactors } from '../../domain/investment-returns.js'
 import { projectRetirementWithSchedules, retirementMonths } from '../../domain/retirement.js'
-import { escapeHtml, formatPercent, privateCurrency } from '../../shared/formatters.js'
+import { escapeHtml, formatPercent, percentInputValue, privateCurrency } from '../../shared/formatters.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { icon } from '../../shared/icons.js'
+import { categoryDonut } from '../../shared/category-donut.js'
 
 export const classLabels = {
   'fixed-income': 'Renda fixa',
@@ -53,6 +54,14 @@ function portfolioReturn() {
   return investments.reduce((total, investment) => (
     total + investment.amount * resolveInvestmentRealReturn(investment, state.plan, new Date().getUTCFullYear())
   ), 0) / state.plan.currentAssets
+}
+
+function investmentAllocation(investments, money) {
+  const totals = new Map()
+  for (const investment of investments) totals.set(investment.assetClass, (totals.get(investment.assetClass) || 0) + investment.amount)
+  return [...totals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([assetClass, amount]) => ({ key: assetClass, label: classLabels[assetClass] || classLabels.other, value: amount, valueLabel: money(amount) }))
 }
 
 function signedMoney(value) {
@@ -149,19 +158,33 @@ export function renderInvestments() {
       <article class="panel"><span>Retorno médio em ${new Date().getUTCFullYear()}</span><strong>${state.valuesHidden ? 'Oculto' : formatPercent(portfolioReturn())}</strong><small>Real ao ano, ponderado pelo saldo atual</small></article>
     </section>
 
+    <section class="panel investment-allocation" aria-label="Alocação da carteira por classe">
+      <div class="panel__header"><div><p class="eyebrow">ONDE ATUAR</p><h2>Alocação por classe</h2></div>${icon('pie', 21, 'panel__header-icon')}</div>
+      <p>Veja em que classes seu patrimônio está concentrado antes de decidir onde rebalancear.</p>
+      ${categoryDonut({
+        segments: investmentAllocation(investments, value => privateCurrency(value, state.valuesHidden, false, state.currency)),
+        ariaLabel: 'Distribuição da carteira por classe de ativo',
+        hidden: state.valuesHidden,
+        emptyMessage: 'Cadastre um investimento para ver a alocação por classe.'
+      })}
+    </section>
+
     <form class="panel investment-assumptions" data-investment-assumptions-form>
-      <div>
-        <p class="eyebrow">PREMISSAS DA CARTEIRA</p>
-        <h2>Defina a base das conversões</h2>
-        <p>O retorno real continua sendo o padrão. A inflação converte taxas nominais e percentuais do CDI para valores de hoje.</p>
+      <div class="panel__header">
+        <div>
+          <p class="eyebrow">PREMISSAS DA CARTEIRA</p>
+          <h2>Defina a base das conversões</h2>
+        </div>
+        ${icon('calculator', 21, 'panel__header-icon')}
       </div>
+      <p>O retorno real continua sendo o padrão. A inflação converte taxas nominais e percentuais do CDI para valores de hoje.</p>
       <label class="form-field">
         <span class="form-field__label">Retorno real padrão</span>
-        <span class="input-shell"><input type="number" name="defaultRealReturn" value="${state.plan.annualRealReturn * 100}" min="-99" max="100" step="0.1" required /><span class="input-suffix">%</span></span>
+        <span class="input-shell"><input type="number" name="defaultRealReturn" value="${percentInputValue(state.plan.annualRealReturn)}" min="-99" max="100" step="0.1" required /><span class="input-suffix">%</span></span>
       </label>
       <label class="form-field">
         <span class="form-field__label">Inflação anual esperada</span>
-        <span class="input-shell"><input type="number" name="annualInflation" value="${state.plan.annualInflation * 100}" min="-99" max="100" step="0.1" required /><span class="input-suffix">%</span></span>
+        <span class="input-shell"><input type="number" name="annualInflation" value="${percentInputValue(state.plan.annualInflation)}" min="-99" max="100" step="0.1" required /><span class="input-suffix">%</span></span>
       </label>
       <button class="button button--secondary" type="submit">Salvar premissas</button>
     </form>

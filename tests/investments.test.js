@@ -114,6 +114,24 @@ test('a carteira exibe o mostrador de liquidez com a distribuição declarada e 
   state.valuesHidden = false
 })
 
+test('a carteira exibe a alocação por classe de ativo e a oculta na privacidade', () => {
+  resetState()
+  upsertInvestment({ id: 'liquido', name: 'Conta líquida', assetClass: 'cash', amount: 6000, monthlyContribution: 0, liquidity: 'available', annualRealReturn: null })
+  upsertInvestment({ id: 'preso', name: 'Precatório', assetClass: 'other', amount: 3000, monthlyContribution: 0, liquidity: 'restricted', annualRealReturn: null })
+  upsertInvestment({ id: 'sem-info', name: 'Fundo legado', assetClass: 'fund', amount: 1000, monthlyContribution: 0, liquidity: 'unknown', annualRealReturn: null })
+
+  const html = renderInvestments()
+  assert.match(html, /category-donut-face/)
+  assert.match(html, /Caixa e liquidez — .* · 60%/)
+  assert.match(html, /Outro — .* · 30%/)
+  assert.match(html, /Fundos — .* · 10%/)
+
+  state.valuesHidden = true
+  const hiddenHtml = renderInvestments()
+  assert.doesNotMatch(hiddenHtml, /category-donut-face|60%|30%|10%/)
+  state.valuesHidden = false
+})
+
 test('carteira recém-criada, sem investimentos declarados, mostra 100% de liquidez não informada', () => {
   resetState()
   assert.equal(state.plan.investments.length, 0)

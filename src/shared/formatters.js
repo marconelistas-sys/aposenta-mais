@@ -41,6 +41,12 @@ export function parseNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+// Stored fractions round-trip through /100 then *100 for editable percent inputs.
+// That reintroduces binary floating-point noise (e.g. 3.33 becomes 3.3300000000000005) — clean it before display.
+export function percentInputValue(value) {
+  return Number.isFinite(value) ? Number((value * 100).toFixed(10)) : ''
+}
+
 export function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')

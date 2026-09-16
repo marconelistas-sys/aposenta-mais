@@ -859,6 +859,8 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
 .remaining-wealth-bar { position: absolute; left: 0; top: 0; height: 100%; }
 .remaining-wealth-bar--financialNet { background: #047857; }
 .remaining-wealth-bar--grossAssets { background: #a35c1a; }
+.remaining-wealth-bar--income { background: #0369a1; }
+.remaining-wealth-bar--costs { background: #c2410c; }
 .remaining-wealth-row[data-negative="true"] .remaining-wealth-bar { background: #b33e2e; }
 .remaining-wealth-row[data-negative="true"] .money-value { color: #963322; }
 .remaining-wealth-reference { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .35rem 1rem; font-size: .85rem; line-height: 1.5; margin-top: .4rem; }
@@ -978,8 +980,8 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
 .liquidity-gauge-face svg { display: block; width: 100%; height: auto; }
 .liquidity-gauge-face circle { fill: none; stroke-width: 10; }
 .liquidity-gauge-track { stroke: #dce6eb; }
-.liquidity-gauge-readout { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; line-height: 1.1; }
-.liquidity-gauge-readout strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; letter-spacing: -.03em; color: var(--color-ink); }
+.liquidity-gauge-readout { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.1; padding-inline: 6px; }
+.liquidity-gauge-readout strong { font-size: 1rem; font-variant-numeric: tabular-nums; letter-spacing: -.03em; color: var(--color-ink); }
 .liquidity-gauge-readout small { font-size: .65rem; color: #425a64; }
 .liquidity-gauge-legend { flex: 1 1 180px; min-width: 0; margin: 0; padding: 0; list-style: none; display: grid; gap: .35rem; font-size: .85rem; color: #20363f; }
 .liquidity-gauge-legend li { display: flex; align-items: center; gap: .5rem; overflow-wrap: anywhere; }
@@ -987,6 +989,18 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
 .liquidity-gauge-empty { font-size: .85rem; line-height: 1.5; color: #425a64; margin-block: .8rem; }
 @media (max-width: 400px) {
   .liquidity-gauge-face { margin-inline: auto; }
+}
+.category-donut { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-block: .8rem; }
+.category-donut-face { position: relative; width: 104px; flex: 0 0 104px; }
+.category-donut-face svg { display: block; width: 100%; height: auto; }
+.category-donut-face circle { fill: none; stroke-width: 10; }
+.category-donut-track { stroke: var(--color-border); }
+.category-donut-legend { flex: 1 1 200px; min-width: 0; margin: 0; padding: 0; list-style: none; display: grid; gap: .35rem; font-size: .85rem; color: var(--color-ink-soft); }
+.category-donut-legend li { display: flex; align-items: center; gap: .5rem; overflow-wrap: anywhere; }
+.category-donut-dot { flex: 0 0 10px; width: 10px; height: 10px; border-radius: 50%; }
+.category-donut-empty { font-size: .85rem; line-height: 1.5; color: var(--color-ink-soft); margin-block: .8rem; }
+@media (max-width: 400px) {
+  .category-donut-face { margin-inline: auto; }
 }
 .cockpit-budget-detail { margin-bottom: .65rem; font-size: .82rem; }
 .cockpit-budget-detail summary { cursor: pointer; min-height: 44px; padding-block: .65rem; color: #145775; }

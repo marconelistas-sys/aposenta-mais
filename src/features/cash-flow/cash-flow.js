@@ -104,7 +104,7 @@ function cashFlowItems(result) {
             ${item.currency === state.currency ? '' : `<span class="money-value">${converted}</span><span>na moeda da visão geral</span>`}
           </div>
           <div class="cash-item__actions">
-            ${item.annualGoalId ? '<a href="/calendario" data-route>Editar provisão anual</a>' : item.consortiumId ? '<a href="/consorcios" data-route>Editar consórcio</a>' : item.commitmentId ? '<a href="/calendario" data-route>Editar no calendário</a>' : item.id.startsWith('ledger:') ? '<a href="/contas" data-route>Editar em Contas</a>' : `
+            ${item.annualGoalId ? `<button class="cash-item__edit" type="button" data-edit-annual-goal="${escapeHtml(item.annualGoalId)}" aria-label="Editar provisão anual de ${escapeHtml(item.description || item.category.name)}">Editar provisão anual</button>` : item.consortiumId ? '<a href="/consorcios" data-route>Editar consórcio</a>' : item.commitmentId ? '<a href="/calendario" data-route>Editar no calendário</a>' : item.id.startsWith('ledger:') ? '<a href="/contas" data-route>Editar em Contas</a>' : `
             <button class="cash-item__edit" type="button" data-edit-cash-item="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.description || item.category.name)}">Editar</button>
             <button class="cash-item__edit" type="button" data-remove-cash-item="${escapeHtml(item.id)}" aria-label="Excluir ${escapeHtml(item.description || item.category.name)}">Excluir</button>
             `}
@@ -172,6 +172,56 @@ function cashItemEditDialog() {
         <div class="cash-edit-dialog__actions">
           <button class="button button--secondary" type="button" data-close-cash-item-dialog>Cancelar</button>
           <button class="button button--primary" type="submit">Salvar alterações</button>
+        </div>
+      </form>
+    </dialog>
+  `
+}
+
+function annualGoalEditDialog() {
+  return `
+    <dialog class="cash-edit-dialog" data-annual-goal-dialog aria-labelledby="annual-goal-edit-title">
+      <form data-annual-planning="annualGoals">
+        <div class="cash-edit-dialog__header">
+          <div><p class="eyebrow">PROVISÃO ANUAL</p><h2 id="annual-goal-edit-title">Ajuste a provisão</h2></div>
+          <button class="icon-button" type="button" data-close-annual-goal-dialog aria-label="Fechar edição">×</button>
+        </div>
+        <input type="hidden" name="kind" value="annualGoals" />
+        <input type="hidden" name="id" />
+        <p class="cash-edit-dialog__source">Informe o valor total que pretende gastar por ano com isso, por exemplo viagens. O orçamento distribui esse valor em 12 provisões mensais iguais, sem presumir uma data de pagamento: o dinheiro fica reservado mês a mês para ser usado quando a despesa realmente acontecer.</p>
+        <div class="form-grid form-grid--two cash-edit-dialog__grid">
+          <label class="form-field">
+            <span class="form-field__label">Nome</span>
+            <span class="input-shell"><input name="name" maxlength="60" required /></span>
+          </label>
+          <label class="form-field">
+            <span class="form-field__label">Moeda</span>
+            <span class="input-shell"><select name="currency" required>${currencyOptions()}</select></span>
+          </label>
+          <label class="form-field">
+            <span class="form-field__label">Despesa total no ano inicial</span>
+            <span class="input-shell"><input type="number" name="amount" min="0.01" max="1000000000" step="0.01" required /></span>
+          </label>
+          <label class="form-field">
+            <span class="form-field__label">Ano inicial</span>
+            <span class="input-shell"><input type="number" name="startYear" min="2000" max="2199" step="1" required /></span>
+          </label>
+          <label class="form-field">
+            <span class="form-field__label">Ano final, inclusive</span>
+            <span class="input-shell"><input type="number" name="endYear" min="2000" max="2199" step="1" required /></span>
+          </label>
+          <label class="form-field">
+            <span class="form-field__label">Repetir a cada quantos anos</span>
+            <span class="input-shell"><input type="number" name="everyYears" min="1" max="100" step="1" required /></span>
+          </label>
+          <label class="form-field">
+            <span class="form-field__label">Crescimento real anual (%)</span>
+            <span class="input-shell"><input type="number" name="realGrowth" min="-99" max="100" step="0.01" required /></span>
+          </label>
+        </div>
+        <div class="cash-edit-dialog__actions">
+          <button class="button button--secondary" type="button" data-close-annual-goal-dialog>Cancelar</button>
+          <button class="button button--primary" type="submit">Salvar provisão</button>
         </div>
       </form>
     </dialog>
@@ -544,5 +594,6 @@ export function renderBudgetEntries(statementReview = null) {
     ${budgetImportTools()}
     ${newCashItemDialog()}
     ${cashItemEditDialog()}
+    ${annualGoalEditDialog()}
     ${statementReviewDialog(statementReview)}`
 }

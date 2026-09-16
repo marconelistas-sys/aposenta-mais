@@ -9,7 +9,7 @@ import { annualRiskPath, calculateFinappRisk } from '../src/domain/finapp-risk.j
 import { defaultRiskSettings } from '../src/domain/risk-plan.js'
 import { state } from '../src/app/state.js'
 import { renderRisk, renderMonthlyRisk, riskView, riskRevision, cancelRisk, riskSettingsFromForm } from '../src/features/plan/risk.js'
-import { renderCashFlowTimeline } from '../src/features/cash-flow/timeline.js'
+import { renderCashFlowTimeline, timelineView } from '../src/features/cash-flow/timeline.js'
 
 const today = new Date('2026-01-01T00:00:00Z')
 const settings = { ...defaultRiskSettings, simulations: 50, annualVolatility: 0 }
@@ -68,6 +68,22 @@ test('sucesso finapp não equivale a liquidez e recuperação não apaga AF nega
   const path = annualRiskPath(base, [0, 0])
   assert.deepEqual(path.map(row => row.financialAssets), [-10, 90])
   assert.equal(path.every(row => row.financialAssets >= 0), false)
+})
+test('gráfico anual marca o ano da primeira insuficiência e não marca nada quando o plano é sustentável', () => {
+  const before = structuredClone(state), view = { ...timelineView }
+  try {
+    const year = new Date().getUTCFullYear()
+    const insolvent = fixture(year)
+    insolvent.plan.investments[0].liquidity = 'restricted'
+    insolvent.cashFlow.items = insolvent.cashFlow.items.filter(item => item.id === 'cost')
+    insolvent.plan.investments[0].amount = 10000
+    Object.assign(state, insolvent)
+    timelineView.period = 'target'
+    assert.match(renderCashFlowTimeline(), /Insolvência/)
+
+    Object.assign(state, fixture(year))
+    assert.doesNotMatch(renderCashFlowTimeline(), /Insolvência/)
+  } finally { Object.assign(state, before); Object.assign(timelineView, view) }
 })
 test('retorno anual aritmético recebe fração inicial e piso, sem conversão lognormal mensal', () => {
   const base = { openingFinancial: 100, settings: { openingYearPeriod: 0.5 }, rows: [{ year: '2026', freeCashFlow: 0, pensionCredits: 0, assets: 0, liabilities: 0 }] }

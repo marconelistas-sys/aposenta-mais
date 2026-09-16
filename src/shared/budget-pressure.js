@@ -1,6 +1,19 @@
 import { budgetGauge } from './budget-gauge.js'
+import { categoryDonut } from './category-donut.js'
 import { budgetPressure } from '../domain/budget-pressure.js'
+import { icon } from './icons.js'
 import { escapeHtml, privateCurrency } from './formatters.js'
+
+function categoryBreakdown(entries, money, limit = 5) {
+  const totals = new Map()
+  for (const item of entries) totals.set(item.category, (totals.get(item.category) || 0) + item.amount)
+  const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1])
+  const top = sorted.slice(0, limit)
+  const restTotal = sorted.slice(limit).reduce((sum, [, amount]) => sum + amount, 0)
+  const segments = top.map(([category, amount]) => ({ key: category, label: category, value: amount, valueLabel: money(amount) }))
+  if (restTotal > 0) segments.push({ key: 'other', label: 'Outras categorias', value: restTotal, valueLabel: money(restTotal) })
+  return segments
+}
 
 export function expenseImpactAction(item, row, targetAge) {
   if (!Number.isFinite(row.financialReturn) || !Number.isInteger(targetAge) || item.source !== 'Orçamento' || !item.budgetItemId || !['essential', 'variable'].includes(item.budgetGroup)) return ''
@@ -15,8 +28,10 @@ export function renderBudgetPressure(row, currency, { limit = 5, monthly = false
   const top = model.entries.slice(0, limit)
   const rest = model.entries.slice(limit).reduce((sum, item) => sum + item.amount, 0)
   const canSimulate = !monthly && Number.isFinite(row.financialReturn) && Number.isInteger(targetAge)
+  const categorySegments = categoryBreakdown(model.entries, money)
   return `<section class="budget-pressure" aria-label="Pressão dos gastos no orçamento">${showSummary ? `<div class="pressure-totals"><div><span>Receitas previstas</span><strong class="money-value">${money(model.income)}</strong></div><div><span>Saídas, despesas e metas</span><strong class="money-value">${money(model.outflows)}</strong></div><div data-tone="${model.balance < -0.005 ? 'negative' : 'neutral'}"><span>Saldo antes dos rendimentos</span><strong class="money-value">${money(model.balance)}</strong></div></div>` : ''}
     ${showSummary ? budgetGauge({ income: model.income, expenses: model.outflows, label: 'das receitas em saídas' }) : ''}
+    ${showSummary && categorySegments.length ? `<div class="panel__header"><h4>Para onde vai o orçamento</h4>${icon('pie', 19, 'panel__header-icon')}</div>${categoryDonut({ segments: categorySegments, ariaLabel: 'Distribuição das saídas por categoria' })}` : ''}
     <h4>O que mais pesa ${monthly ? 'neste mês' : 'neste período'}</h4>
     ${showSummary ? `<p class="pressure-reading">${model.income <= 0 ? 'Sem receitas previstas neste período. As saídas dependem de outras fontes, como patrimônio disponível.' : `As saídas consomem ${percent(model.coverage)} das receitas previstas.${model.balance < -0.005 ? ' A diferença precisa de cobertura pelo patrimônio ou de ajustes no orçamento.' : model.balance > 0.005 ? ' O saldo positivo pode contribuir para o patrimônio, conforme as demais premissas.' : ' As receitas e saídas estão equilibradas neste período.'}`}</p>` : ''}
     <p class="pressure-basis">${monthly ? 'Planejado da família inteira, independente dos filtros da lista. Valores mensais equivalentes. Anuais provisionados e previdência conforme a origem configurada.' : `Totais de ${row.year}, ${model.months} meses incluídos. Média mensal = total dividido por ${model.months}, inclusive meses sem ocorrência.`} Valores em ${escapeHtml(currency)}${row.priceBasis === 'nominal' ? ', nominais do ano selecionado' : ', em poder de compra atual'}. Barras e percentuais do ranking representam participação nas saídas.</p>

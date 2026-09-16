@@ -2,7 +2,7 @@ import { scenarioEditor, simulationContext, simulationCashFlow } from './scenari
 import { state } from '../../app/state.js'
 import { projectAssetSeriesWithSchedules, projectRetirementWithSchedules } from '../../domain/retirement.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
-import { escapeHtml, formatPercent, privateCurrency } from '../../shared/formatters.js'
+import { escapeHtml, formatPercent, percentInputValue, privateCurrency } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { convertCurrency } from '../../shared/exchange-rates.js'
@@ -273,9 +273,9 @@ export function renderSimulations() {
         <fieldset class="form-section">
           <legend>Premissas financeiras</legend>
           <div class="form-grid form-grid--two">
-            ${field({ label: 'Retorno real anual', name: 'annualRealReturn', value: plan.annualRealReturn * 100, min: -99, max: 100, step: 'any', suffix: '%' })}
-            ${field({ label: 'Inflação anual esperada', name: 'annualInflation', value: plan.annualInflation * 100, min: -99, max: 100, step: 'any', suffix: '%', hint: 'Usada para converter taxas nominais e CDI.' })}
-            ${field({ label: 'Taxa de retirada anual', name: 'annualWithdrawalRate', value: plan.annualWithdrawalRate * 100, min: 0.1, max: 100, step: 'any', suffix: '%' })}
+            ${field({ label: 'Retorno real anual', name: 'annualRealReturn', value: percentInputValue(plan.annualRealReturn), min: -99, max: 100, step: 'any', suffix: '%' })}
+            ${field({ label: 'Inflação anual esperada', name: 'annualInflation', value: percentInputValue(plan.annualInflation), min: -99, max: 100, step: 'any', suffix: '%', hint: 'Usada para converter taxas nominais e CDI.' })}
+            ${field({ label: 'Taxa de retirada anual', name: 'annualWithdrawalRate', value: percentInputValue(plan.annualWithdrawalRate), min: 0.1, max: 100, step: 'any', suffix: '%' })}
           </div>
         </fieldset>
 
