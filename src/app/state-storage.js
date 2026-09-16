@@ -14,6 +14,7 @@ import { sanitizeDecumulation } from '../domain/post-retirement.js'
 import { linkedBudgetItem } from '../domain/ledger-links.js'
 import { sanitizeAnnualRows, sanitizeMigration } from '../domain/annual-planning.js'
 import { sanitizeFinappMethod } from '../domain/finapp-viability.js'
+import { sanitizeTargetAllocation } from '../domain/target-allocation.js'
 
 export const stateVersion = 10
 export const storageKeys = Object.freeze({
@@ -99,6 +100,7 @@ export function sanitizeInvestment(investment, index = 0) {
   if (!name || !validNumber(amount, [0.01, 1000000000]) || !validNumber(monthlyContribution, [0, 10000000])) return null
   if (['real', 'nominal', 'ipca'].includes(returnType) && !validNumber(returnValue, [-0.99, 1])) return null
   if (returnType === 'cdi' && (!validNumber(returnValue, [0, 3]) || !validNumber(indexAnnualRate, [0, 1]))) return null
+  const annualFee = Number(investment.annualFee || 0)
   let annualRealReturns = []
   try { annualRealReturns = validateAnnualRealReturns(investment.annualRealReturns) } catch {}
   return {
@@ -112,6 +114,7 @@ export function sanitizeInvestment(investment, index = 0) {
     returnValue,
     indexAnnualRate,
     ...(annualRealReturns.length ? { annualRealReturns } : {}),
+    ...(validNumber(annualFee, [0.0001, 0.1]) ? { annualFee } : {}),
     // Only meaningful for assetClass 'pension': holding period for the regressive tax table.
     ...(assetClass === 'pension' && safeDate(investment.acquiredAt) ? { acquiredAt: safeDate(investment.acquiredAt) } : {})
   }
@@ -211,6 +214,7 @@ export function sanitizePlan(candidate = {}) {
   plan.targetAge = Number.isInteger(source.targetAge) && source.targetAge >= 17 && source.targetAge <= 110 ? source.targetAge : null
   plan.horizonReferenceMonth = typeof source.horizonReferenceMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.horizonReferenceMonth) ? source.horizonReferenceMonth : null
   plan.riskSettings = sanitizeRiskSettings(source.riskSettings)
+  plan.targetAllocation = sanitizeTargetAllocation(source.targetAllocation)
   plan.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
   plan.spouseEnabled = source.spouseEnabled === true
   plan.spouseRetirementMonth = typeof source.spouseRetirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.spouseRetirementMonth) ? source.spouseRetirementMonth : null

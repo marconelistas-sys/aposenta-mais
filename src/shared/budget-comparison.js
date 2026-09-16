@@ -1,6 +1,7 @@
 import { budgetPressure } from '../domain/budget-pressure.js'
 import { escapeHtml, privateCurrency } from './formatters.js'
 import { icon } from './icons.js'
+import { moneyWithMonthly, moneyWithMonthlyText } from './monthly-equivalent.js'
 
 // Only presents totals already included in the selected projection row.
 export function renderBudgetComparison(row, currency) {
@@ -24,15 +25,15 @@ export function renderBudgetComparison(row, currency) {
     : 'As receitas cobrem exatamente as saídas, sem sobra no período.'
   const scale = Math.max(model.income, model.outflows) || 1
   const width = value => Math.min(100, Math.max(0, value / scale * 100)).toFixed(4)
-  const bar = (label, total, segments) => `<div class="budget-comparison-row"><div class="budget-comparison-label"><span>${label}</span><strong class="money-value">${money(total)}</strong></div><div class="budget-comparison-track" aria-hidden="true">${segments.map(([kind, value]) => `<span class="budget-comparison-segment budget-comparison-segment--${kind}" style="width:${width(value)}%"></span>`).join('')}</div></div>`
+  const bar = (label, total, segments) => `<div class="budget-comparison-row"><div class="budget-comparison-label"><span>${label}</span><strong class="money-value">${moneyWithMonthly(money, total, model.months)}</strong></div><div class="budget-comparison-track" aria-hidden="true">${segments.map(([kind, value]) => `<span class="budget-comparison-segment budget-comparison-segment--${kind}" style="width:${width(value)}%"></span>`).join('')}</div></div>`
   const basis = row.priceBasis === 'nominal' ? 'valores nominais do ano selecionado' : row.priceBaseYear ? `valores reais de ${escapeHtml(row.priceBaseYear)}` : 'valores em poder de compra atual'
   const coverage = model.income > 0 ? `Saídas equivalentes a ${(model.coverage * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% das receitas.` : model.outflows > 0 ? 'Sem receitas previstas para cobrir as saídas.' : ''
   return `<section class="budget-comparison" data-balance="${tone}" aria-label="Receitas e despesas de ${year}">
-    <div class="budget-comparison-heading"><div><h4>${icon(tone === 'deficit' ? 'alertTriangle' : tone === 'surplus' ? 'check' : 'info')}<span>${title}</span></h4><p>${reading}</p></div>${empty ? '' : `<div class="budget-comparison-result"><span>${balanceCents < 0 ? 'Falta no período' : balanceCents > 0 ? 'Sobra no período' : 'Saldo do período'}</span><strong class="money-value">${money(balanceCents === 0 ? 0 : Math.abs(model.balance))}</strong><small>Após despesas${row.goals > 0 ? ' e metas' : ''}, antes dos rendimentos</small></div>`}</div>
+    <div class="budget-comparison-heading"><div><h4>${icon(tone === 'deficit' ? 'alertTriangle' : tone === 'surplus' ? 'check' : 'info')}<span>${title}</span></h4><p>${reading}</p></div>${empty ? '' : `<div class="budget-comparison-result"><span>${balanceCents < 0 ? 'Falta no período' : balanceCents > 0 ? 'Sobra no período' : 'Saldo do período'}</span><strong class="money-value">${moneyWithMonthly(money, balanceCents === 0 ? 0 : Math.abs(model.balance), model.months)}</strong><small>Após despesas${row.goals > 0 ? ' e metas' : ''}, antes dos rendimentos</small></div>`}</div>
     <figure class="budget-comparison-chart"><figcaption>Receitas e saídas na mesma escala</figcaption>
       ${bar('Receitas', model.income, [['income', model.income]])}
       ${bar(row.goals > 0 ? 'Saídas: despesas e metas' : 'Despesas', model.outflows, [['costs', row.costs], ['goals', row.goals]])}
-      ${row.goals > 0 ? `<ul class="budget-comparison-legend"><li><span class="budget-comparison-swatch budget-comparison-segment--costs" aria-hidden="true"></span>Despesas <strong class="money-value">${money(row.costs)}</strong></li><li><span class="budget-comparison-swatch budget-comparison-segment--goals" aria-hidden="true"></span>Metas <strong class="money-value">${money(row.goals)}</strong></li></ul>` : ''}
+      ${row.goals > 0 ? `<ul class="budget-comparison-legend"><li><span class="budget-comparison-swatch budget-comparison-segment--costs" aria-hidden="true"></span>Despesas <strong class="money-value">${moneyWithMonthly(money, row.costs, model.months)}</strong></li><li><span class="budget-comparison-swatch budget-comparison-segment--goals" aria-hidden="true"></span>Metas <strong class="money-value">${moneyWithMonthly(money, row.goals, model.months)}</strong></li></ul>` : ''}
     </figure>
     <p class="budget-comparison-basis">${coverage} Totais de ${year}, ${model.months} meses incluídos, em ${escapeHtml(currency)}, ${basis}.</p>
   </section>`

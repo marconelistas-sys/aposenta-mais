@@ -2,6 +2,7 @@ import { state } from '../../app/state.js'
 import { privateCurrency, escapeHtml } from '../../shared/formatters.js'
 import { simulateExpenseReduction } from '../../domain/expense-impact.js'
 import { planningChart } from '../../shared/planning-chart.js'
+import { moneyWithMonthly, moneyWithMonthlyText } from '../../shared/monthly-equivalent.js'
 
 export const expenseImpactView = { input: null, result: null, signature: null, trigger: null }
 const signature = () => JSON.stringify([state.plan, state.cashFlow, state.currency, state.exchangeRates, state.customCategories])
@@ -25,7 +26,7 @@ export function renderExpenseImpactResult() {
   const difference = result.finalDifference
   return `<div class="expense-impact-result"><p role="status">Comparação calculada. O plano salvo permanece inalterado.</p><h3>Hipótese de redução de ${result.percent.toLocaleString('pt-BR')}% a partir de ${result.startYear}</h3><p>Menor desembolso acumulado: <strong class="money-value">${money(result.totalReduction)}</strong>. Diferença no patrimônio financeiro final: <strong class="money-value">${money(difference)}</strong>. A diferença patrimonial também incorpora rendimentos e eventuais impostos de resgate recalculados.</p>
   <div class="table-scroll" role="region" tabindex="0" aria-label="Comparação do plano com redução de despesa"><table><thead><tr><th>Indicador</th><th>Plano atual</th><th>Hipótese</th></tr></thead><tbody>${[
-    [`Saldo do orçamento em ${result.startYear}`, money(before.freeCashFlow), money(first.freeCashFlow)],
+    [`Saldo do orçamento em ${result.startYear}`, moneyWithMonthly(money, before.freeCashFlow, before.months), moneyWithMonthly(money, first.freeCashFlow, first.months)],
     [`Patrimônio financeiro em ${result.endYear}`, money(base.financialAssets), money(next.financialAssets)],
     [`Liquidez em ${result.endYear}`, money(base.liquidAssets), money(next.liquidAssets)],
     ['Primeira insuficiência anual', result.baseline.firstFailure?.year || 'Não ocorre no horizonte', result.firstFailure?.year || 'Não ocorre no horizonte']

@@ -5,7 +5,7 @@ import { escapeHtml } from '../shared/formatters.js'
 import { syncState } from './sync-state.js'
 import { isLocalPlanOpen } from './local-access.js'
 
-import { primaryNavigation as navigation, additionalNavigation } from './navigation.js'
+import { primaryNavigation as navigation, additionalNavigation, groupedNavigation } from './navigation.js'
 
 const mobileNavigation = [
   navigation[0],
@@ -32,7 +32,7 @@ function navigationLink(item, pathname, mobile = false) {
 function fullNavigation(pathname) {
   const current = [...navigation, ...additionalNavigation].find(item => item.href === pathname)
   const group = (title, items) => `<section><h2>${title}</h2>${items.map(item => `<a href="${item.href}" data-route ${item.href === pathname ? 'aria-current="page"' : ''}>${icon(item.icon, 20)}<span>${item.label}</span>${item.href === pathname ? '<small>Atual</small>' : ''}</a>`).join('')}</section>`
-  return `<details class="navigation-menu" data-navigation-menu><summary aria-label="Menu de navegação">${icon('menu', 22)}<span>Menu</span></summary><nav class="navigation-menu-panel" aria-label="Todas as telas"><p>Você está em: <strong>${current?.label || 'Planejamento'}</strong></p><div class="navigation-menu-groups">${group('Planejamento', navigation)}${group('Contas e ferramentas', additionalNavigation)}</div></nav></details>`
+  return `<details class="navigation-menu" data-navigation-menu><summary aria-label="Menu de navegação">${icon('menu', 22)}<span>Menu</span></summary><nav class="navigation-menu-panel" aria-label="Todas as telas"><p>Você está em: <strong>${current?.label || 'Planejamento'}</strong></p><div class="navigation-menu-groups">${groupedNavigation().map(item => group(item.title, item.items)).join('')}</div></nav></details>`
 }
 
 export function logo() {

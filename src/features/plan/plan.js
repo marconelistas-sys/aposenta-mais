@@ -28,9 +28,6 @@ export function renderPlan() {
       </a>
     </section>
 
-    <section class="panel settings-card"><h2>Planeje também os anos de aposentadoria</h2><p>A meta de acumulação não mostra sozinha quando o patrimônio pode acabar.</p><a class="button button--secondary" href="/apos-aposentadoria" data-route>Simular despesas e resgates após aposentar</a></section>
-    <section class="panel settings-card">${renderHorizonForm()}</section>
-    <section class="panel settings-card">${renderSpouseForm()}</section>
     <section class="plan-overview">
       <article class="panel goal-card">
         <div class="panel__header">
@@ -132,5 +129,12 @@ export function renderPlan() {
         <a class="text-link" href="/carteira" data-route>Revisar investimentos e rendimentos</a>
       </article>
     </section>
+
+    <h2 class="plan-settings-title">Ajustes do plano</h2>
+    <div class="plan-settings">
+    <section class="panel settings-card"><h2>Planeje também os anos de aposentadoria</h2><p>A meta de acumulação não mostra sozinha quando o patrimônio pode acabar.</p><a class="button button--secondary" href="/apos-aposentadoria" data-route>Simular despesas e resgates após aposentar</a></section>
+    <section class="panel settings-card">${renderHorizonForm()}</section>
+    <section class="panel settings-card">${renderSpouseForm()}</section>
+    </div>
   `
 }

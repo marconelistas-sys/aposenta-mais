@@ -1,5 +1,13 @@
 # Backlog inicial
 
+## Entrega: Sprint 35, leitura mensal e alocação-alvo
+
+Todo total anual de receitas, despesas, metas e saldo mostra o equivalente mensal, dividido pelos meses incluídos. Lançamentos anuais mostram o valor por mês, também durante a digitação. Fluxo de caixa reorganizado, renda na aposentadoria no topo da Visão geral, alocação-alvo com bandas e divisão de aportes, volatilidade por classe opcional no risco mensal. 692 testes e build aprovados. Inspeção visual feita. [Escopo, regras e pendências](sprint-35-leitura-mensal-alocacao.md).
+
+## Entrega: Sprint 34, carteira confiável
+
+Time com especialista em usabilidade, especialista em investimentos e aposentadoria e staff developer. Tabela do IR 2026 com redutor da Lei 15.270/2025, custo anual por investimento, painel Saúde da carteira com regras testadas, Carteira reorganizada, formulário condicional, menu agrupado por tarefa, texto mínimo de 12 px e percentuais com uma casa decimal. 683 testes e build aprovados. Inspeção visual feita em desktop e celular. [Escopo, decisões e pendências](sprint-34-carteira-confiavel.md).
+
 ## Entrega: mostrador de liquidez da carteira
 
 Implementado o mostrador radial de liquidez apontado como oportunidade posterior na avaliação anterior de instrumentos visuais: proporção disponível para resgate, restrita ou com prazo e não informada, com leitura digital central e legenda textual sempre visível. Revisão do agente de UX corrigiu a cor de "não informada", que reaproveitava indevidamente a semântica de alerta do mostrador de orçamento. 656 testes e build aprovados. Inspeção visual em navegador pendente. [Escopo e validação](sprint-mostrador-liquidez-carteira.md).

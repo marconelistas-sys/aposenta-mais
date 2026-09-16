@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { progressiveTaxAmount, regressiveRate, withdrawalTaxAmount } from '../src/domain/tax.js'
+import { progressiveTableTaxAmount, progressiveTaxAmount, regressiveRate, withdrawalTaxAmount } from '../src/domain/tax.js'
 
 test('tabela regressiva reduz a alíquota conforme o tempo de aporte', () => {
   assert.equal(regressiveRate(0), 0.35)
@@ -20,15 +20,30 @@ test('regressiva sem tempo informado assume o pior caso', () => {
   assert.equal(regressiveRate(-5), 0.35)
 })
 
-test('tabela progressiva isenta a primeira faixa e aplica dedução nas demais', () => {
-  assert.equal(progressiveTaxAmount(2000), 0)
+test('tabela progressiva 2026 isenta a primeira faixa e aplica dedução nas demais', () => {
+  assert.equal(progressiveTableTaxAmount(2428.80), 0)
+  assert.ok(Math.abs(progressiveTableTaxAmount(2500) - (2500 * 0.075 - 182.16)) < 0.01)
+  assert.ok(Math.abs(progressiveTableTaxAmount(10000) - (10000 * 0.275 - 908.73)) < 0.01)
+})
+
+test('redutor da Lei 15.270 zera o imposto até R$ 5.000', () => {
   assert.equal(progressiveTaxAmount(0), 0)
-  assert.ok(Math.abs(progressiveTaxAmount(2500) - (2500 * 0.075 - 169.44)) < 0.01)
-  assert.ok(Math.abs(progressiveTaxAmount(5000) - (5000 * 0.275 - 896)) < 0.01)
+  assert.equal(progressiveTaxAmount(3000), 0)
+  assert.equal(progressiveTaxAmount(5000), 0)
+})
+
+test('redutor decresce linearmente entre R$ 5.000 e R$ 7.350 e some acima', () => {
+  const amount = 6000
+  const base = amount - 607.20
+  const expected = base * 0.275 - 908.73 - (978.62 - 0.133145 * amount)
+  assert.ok(Math.abs(progressiveTaxAmount(amount) - expected) < 0.01)
+  assert.ok(Math.abs(progressiveTaxAmount(8000) - ((8000 - 607.20) * 0.275 - 908.73)) < 0.01)
+  assert.ok(progressiveTaxAmount(5000.01) < 1)
 })
 
 test('progressiva nunca resulta em imposto negativo perto da transição de faixa', () => {
-  assert.ok(progressiveTaxAmount(2259.21) >= 0)
+  assert.ok(progressiveTaxAmount(2428.81) >= 0)
+  assert.ok(progressiveTableTaxAmount(2428.81) >= 0)
 })
 
 test('withdrawalTaxAmount despacha por regime e ignora valores não positivos', () => {

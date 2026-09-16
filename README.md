@@ -23,6 +23,9 @@ Use Node.js 24 ou superior e `npm run dev`. Abra http://127.0.0.1:4173. Entre in
 - [Acompanhamento mensal do previsto e registrado](docs/product/sprint-acompanhamento-mensal.md)
 - [Pagamentos parciais no Calendário](docs/product/sprint-pagamentos-parciais.md)
 - [Divisão de pagamentos entre vencimentos](docs/product/sprint-rateio-pagamentos.md)
+- [Sprint 34: carteira confiável](docs/product/sprint-34-carteira-confiavel.md)
+- [Regras do diagnóstico da carteira](docs/finance/diagnostico-carteira.md)
+- [Sprint 35: leitura mensal e alocação-alvo](docs/product/sprint-35-leitura-mensal-alocacao.md)
 
 ## O que está pronto
 

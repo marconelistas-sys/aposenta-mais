@@ -28,7 +28,7 @@ export function formatCompactCurrency(value, currency = 'BRL') {
 export function formatPercent(value) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'percent',
-    maximumFractionDigits: 0
+    maximumFractionDigits: 1
   }).format(value)
 }
 
@@ -64,4 +64,10 @@ export function formatUpdateTime(value) {
     dateStyle: 'short',
     timeStyle: 'short'
   }).format(date)
+}
+
+// "2026-09" -> "setembro de 2026". Keeps the original text when it is not a month.
+export function formatMonth(value) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(value || ''))) return String(value ?? '')
+  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}-15T12:00:00Z`))
 }

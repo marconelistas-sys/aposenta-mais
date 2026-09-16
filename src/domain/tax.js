@@ -16,20 +16,40 @@ export function regressiveRate(monthsHeld) {
   return (regressiveBrackets.find(bracket => months <= bracket.maxMonths) ?? { rate: 0.10 }).rate
 }
 
-// Tabela progressiva mensal do IR (isento/7,5%/15%/22,5%/27,5%), com parcela a
-// deduzir para manter a curva contínua nas transições de faixa.
+// Tabela progressiva mensal do IRRF vigente em 2026 (Lei 15.191/2025), com
+// parcela a deduzir para manter a curva contínua nas transições de faixa.
 const progressiveBrackets = [
-  { limit: 2259.20, rate: 0, deduction: 0 },
-  { limit: 2826.65, rate: 0.075, deduction: 169.44 },
-  { limit: 3751.05, rate: 0.15, deduction: 381.44 },
-  { limit: 4664.68, rate: 0.225, deduction: 662.77 },
-  { limit: Infinity, rate: 0.275, deduction: 896.00 }
+  { limit: 2428.80, rate: 0, deduction: 0 },
+  { limit: 2826.65, rate: 0.075, deduction: 182.16 },
+  { limit: 3751.05, rate: 0.15, deduction: 394.16 },
+  { limit: 4664.68, rate: 0.225, deduction: 675.49 },
+  { limit: Infinity, rate: 0.275, deduction: 908.73 }
 ]
 
-export function progressiveTaxAmount(monthlyAmount) {
+// Redutor mensal da Lei 15.270/2025, válido a partir de 2026. Zera o imposto
+// até R$ 5.000 e decresce linearmente até R$ 7.350. Aplicado sobre o valor
+// tributável informado, uma simplificação sem deduções legais.
+export function monthlyTaxReduction(monthlyAmount, tableTax) {
+  const amount = Number.isFinite(monthlyAmount) ? Math.max(0, monthlyAmount) : 0
+  if (amount <= 5000) return Math.min(tableTax, 312.89)
+  if (amount <= 7350) return Math.min(tableTax, Math.max(0, 978.62 - 0.133145 * amount))
+  return 0
+}
+
+export function progressiveTableTaxAmount(monthlyAmount) {
   const amount = Number.isFinite(monthlyAmount) ? Math.max(0, monthlyAmount) : 0
   const bracket = progressiveBrackets.find(item => amount <= item.limit)
   return Math.max(0, amount * bracket.rate - bracket.deduction)
+}
+
+// Desconto simplificado mensal do IRRF (25% da primeira faixa), usado no lugar
+// das deduções legais que o plano não conhece.
+export const SIMPLIFIED_MONTHLY_DEDUCTION = 607.20
+
+export function progressiveTaxAmount(monthlyAmount) {
+  const amount = Number.isFinite(monthlyAmount) ? Math.max(0, monthlyAmount) : 0
+  const tableTax = progressiveTableTaxAmount(Math.max(0, amount - SIMPLIFIED_MONTHLY_DEDUCTION))
+  return Math.max(0, Math.round((tableTax - monthlyTaxReduction(amount, tableTax)) * 100) / 100)
 }
 
 // grossAmount is annual; the progressive table is monthly, so it's applied to

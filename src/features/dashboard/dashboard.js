@@ -119,6 +119,17 @@ export function renderDashboard() {
       </div>
     </section>
 
+    <section class="panel retirement-income-strip" aria-labelledby="retirement-income-title">
+      <div class="retirement-income-strip__heading"><div><p class="eyebrow">RENDA NA APOSENTADORIA</p><h2 id="retirement-income-title">${state.valuesHidden ? 'Valores ocultos' : result.goalReached ? 'A projeção alcança a renda desejada' : 'A projeção ainda não alcança a renda desejada'}</h2></div><a class="button button--secondary" href="/plano" data-route>Ajustar meta e aporte</a></div>
+      <dl class="metric-row">
+        <div><dt>Renda desejada</dt><dd class="money-value">${money(state.plan.targetMonthlyIncome)}<small>/mês</small></dd></div>
+        <div><dt>Renda projetada aos ${state.plan.retirementAge} anos</dt><dd class="money-value">${money(result.projectedMonthlyIncome)}<small>/mês</small></dd></div>
+        <div data-tone="${result.monthlyIncomeGap > 0 ? 'negative' : 'positive'}"><dt>${result.monthlyIncomeGap > 0 ? 'Falta por mês' : 'Sobra por mês'}</dt><dd class="money-value">${money(Math.abs(result.monthlyIncomeGap))}</dd></div>
+        <div><dt>Aporte necessário</dt><dd class="money-value">${money(result.requiredMonthlyContribution)}<small>/mês</small></dd></div>
+      </dl>
+      ${state.valuesHidden ? '' : `<div class="retirement-income-strip__progress" role="meter" aria-label="Patrimônio projetado em relação ao necessário" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, Math.round(result.progress * 100))}"><span style="width:${Math.min(100, result.progress * 100).toFixed(1)}%"></span></div><p class="annual-chart-basis">Patrimônio projetado cobre ${Math.round(result.progress * 100)}% do necessário. Renda projetada = benefício estimado ${money(result.householdExpectedMonthlyBenefit)} + retirada de ${formatPercent(state.plan.annualWithdrawalRate)} ao ano do patrimônio. Aporte atual: ${money(state.plan.monthlyContribution)}/mês. Valores em poder de compra de hoje.</p>`}
+    </section>
+
     <section class="dashboard-grid" data-dashboard-overview aria-label="Impacto de longo prazo">
       ${renderPlanningOverview({ compact: true, cockpit: true, budget: cashFlow, today })}
       <details class="panel disclosure cockpit-secondary"><summary>Meta de renda e premissas complementares</summary><div class="dashboard-side">

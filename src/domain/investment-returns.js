@@ -37,9 +37,25 @@ export function realToNominalReturn(realReturn, annualInflation) {
   return (1 + realReturn) * (1 + annualInflation) - 1
 }
 
+// Annual product cost (administration fee, TER) charged on the balance.
+export function investmentAnnualFee(investment) {
+  const fee = Number(investment?.annualFee)
+  return Number.isFinite(fee) && fee > 0 && fee < 1 ? fee : 0
+}
+
+export function applyAnnualFee(annualReturn, fee) {
+  return fee > 0 ? (1 + annualReturn) * (1 - fee) - 1 : annualReturn
+}
+
+// Yearly overrides are entered as the net real return of that year, so the
+// annual fee applies only to the habitual rate.
 export function resolveInvestmentRealReturn(investment, plan, year) {
   const override = investment?.annualRealReturns?.find(row => row.year === Number(year))
   if (override) return override.rate
+  return applyAnnualFee(resolveGrossInvestmentRealReturn(investment, plan), investmentAnnualFee(investment))
+}
+
+export function resolveGrossInvestmentRealReturn(investment, plan) {
   const defaultReturn = Number(plan?.annualRealReturn)
   const inflation = Number.isFinite(plan?.annualInflation) ? plan.annualInflation : 0
   const legacyReturn = investment?.annualRealReturn
@@ -59,8 +75,9 @@ export function resolveInvestmentNominalReturn(investment, plan, year) {
   const inflation = Number.isFinite(plan?.annualInflation) ? plan.annualInflation : 0
   const realReturn = resolveInvestmentRealReturn(investment, plan, year)
   if (investment?.annualRealReturns?.some(row => row.year === Number(year))) return realToNominalReturn(realReturn, inflation)
-  if (investment?.returnType === 'nominal') return investment.returnValue
-  if (investment?.returnType === 'cdi') return investment.indexAnnualRate * investment.returnValue
+  const fee = investmentAnnualFee(investment)
+  if (investment?.returnType === 'nominal') return applyAnnualFee(investment.returnValue, fee)
+  if (investment?.returnType === 'cdi') return applyAnnualFee(investment.indexAnnualRate * investment.returnValue, fee)
   return realToNominalReturn(realReturn, inflation)
 }
 

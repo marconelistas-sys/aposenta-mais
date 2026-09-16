@@ -7,13 +7,18 @@ import { convertCurrency } from '../shared/exchange-rates.js'
 import { nonFinancialValue } from './annual-planning.js'
 import { planningHorizon } from './planning-horizon.js'
 
-export const defaultRiskSettings = Object.freeze({ method: 'annual', months: 120, horizonMode: 'target', annualVolatility: 0, simulations: 300, seed: 12345, varyContemplation: false, aggregateLiquid: false, benefitIncluded: false, targetAssets: 0 })
+export const defaultRiskSettings = Object.freeze({ method: 'annual', months: 120, horizonMode: 'target', annualVolatility: 0, simulations: 300, seed: 12345, varyContemplation: false, aggregateLiquid: false, benefitIncluded: false, targetAssets: 0, volatilityModel: 'common' })
 export function validateRiskSettings(value) {
   if (value.method !== undefined && !['annual', 'monthly'].includes(value.method)) throw new Error('Metodologia de risco inválida.')
+  if (value.volatilityModel !== undefined && !['common', 'class'].includes(value.volatilityModel)) throw new Error('Modelo de volatilidade inválido.')
   if (value.horizonMode !== undefined && !['target', 'months'].includes(value.horizonMode)) throw new Error('Modo de horizonte inválido.')
   for (const [field, min, max] of [['months', 1, 720], ['simulations', 50, 1000], ['seed', 0, 4294967295]]) if (!Number.isInteger(value[field]) || value[field] < min || value[field] > max) throw new RangeError('Revise horizonte (1 a 720 meses), simulações (50 a 1.000) e semente inteira.')
   if (!Number.isFinite(value.annualVolatility) || value.annualVolatility < 0 || value.annualVolatility > 1 || !Number.isFinite(value.targetAssets) || value.targetAssets < 0 || value.targetAssets > 1e12) throw new RangeError('Revise volatilidade anual (0% a 100%) e meta financeira.')
 }
+// Reference annual volatilities by asset class, used only when the person
+// chooses the per-class model. Educational hypotheses, not market estimates.
+export const classVolatility = Object.freeze({ cash: 0.01, 'fixed-income': 0.06, pension: 0.08, fund: 0.10, equity: 0.20 })
+
 export function sanitizeRiskSettings(source) {
   const value = { ...defaultRiskSettings }
   for (const key of Object.keys(value)) if (source && Object.hasOwn(source, key)) value[key] = typeof value[key] === 'boolean' ? source[key] === true : source[key]
@@ -36,7 +41,7 @@ export function prepareRiskInput(state, settings, today = new Date()) {
   const consortia = sanitizeConsortia(state.cashFlow.consortia)
   for (const item of consortia) validateConsortiumAsOf(item, start)
   const budgetSource = { ...state.cashFlow, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, consortia: [], commitmentSchedules: debtSchedules, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate) }
-  const buckets = state.plan.investments.length ? state.plan.investments.map(item => ({ amount: item.amount, annualRealReturn: resolveInvestmentRealReturn(item, state.plan), annualRealReturns: item.annualRealReturns || [], liquid: item.liquidity === 'available' })) : [{ amount: state.plan.currentAssets, annualRealReturn: state.plan.annualRealReturn, liquid: settings.aggregateLiquid }]
+  const buckets = state.plan.investments.length ? state.plan.investments.map(item => ({ amount: item.amount, annualRealReturn: resolveInvestmentRealReturn(item, state.plan), annualRealReturns: item.annualRealReturns || [], liquid: item.liquidity === 'available', ...(settings.volatilityModel === 'class' ? { volatility: classVolatility[item.assetClass] ?? settings.annualVolatility } : {}) })) : [{ amount: state.plan.currentAssets, annualRealReturn: state.plan.annualRealReturn, liquid: settings.aggregateLiquid }]
   const debtAt = month => debts.reduce((total, item) => {
     const last = debtSchedules.get(item.id).findLast(row => row.month <= month)
     return total + convert(last?.balance ?? item.amount, item.currency)

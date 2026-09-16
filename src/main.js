@@ -59,7 +59,8 @@ import {
   updatePlan,
   updateCashFlow,
   updateCashFlowItem,
-  upsertInvestment
+  upsertInvestment,
+  setTargetAllocation
 } from './app/state.js'
 import {
   deleteRemoteState,
@@ -128,6 +129,7 @@ import { saveStatementAnalysis, deleteStatementAnalysis, applyStatementRecurrenc
 import { compareStatementPeriods } from './domain/statement-history.js'
 import { budgetOwnerView } from './shared/household-owner.js'
 import { renderStatements, readStatementAnalysis } from './features/statements/statements.js'
+import { bindMonthlyHints, updateMonthlyHint } from './app/monthly-hint.js'
 
 bindMoneyInputs(document)
 const app = document.querySelector('#app')
@@ -288,6 +290,23 @@ function showInvestmentStep(form, step) {
   if (badge) badge.textContent = `${step} de 2`
 }
 
+// Shows fields only when they apply: release year for restricted balances and
+// first contribution date for private pension plans.
+function setInvestmentConditionalFields(form) {
+  const restricted = form.elements.namedItem('liquidity').value === 'restricted'
+  const pension = form.elements.namedItem('assetClass').value === 'pension'
+  const release = form.querySelector('[data-investment-release-field]')
+  const pensionField = form.querySelector('[data-investment-pension-field]')
+  if (release) {
+    release.hidden = !restricted
+    if (!restricted) form.elements.namedItem('investmentReleaseYear').value = ''
+  }
+  if (pensionField) {
+    pensionField.hidden = !pension
+    if (!pension) form.elements.namedItem('investmentAcquiredAt').value = ''
+  }
+}
+
 function setInvestmentReturnFields(form) {
   const returnType = form.elements.namedItem('returnType').value
   const returnField = form.querySelector('[data-investment-return-field]')
@@ -414,6 +433,7 @@ function openCashItemDialog(id) {
     : 'Item manual. Você pode alterar todos os campos.'
   syncCashItemRecordFields(form)
   guideBudgetForm(form, state.customCategories)
+  updateMonthlyHint(dialog.querySelector('form'))
   if (typeof dialog.showModal === 'function') dialog.showModal()
   else dialog.setAttribute('open', '')
 }
@@ -435,6 +455,7 @@ function openAnnualGoalDialog(id) {
     const field = form.elements.namedItem(key)
     if (field) setFormFieldValue(field, key === 'realGrowth' ? value * 100 : value)
   }
+  updateMonthlyHint(dialog.querySelector('form'))
   if (typeof dialog.showModal === 'function') dialog.showModal()
   else dialog.setAttribute('open', '')
 }
@@ -927,18 +948,27 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('liquidity').value = investment.liquidity || 'unknown'
     setFormFieldValue(form.elements.namedItem('investmentAmount'), investment.amount)
     setFormFieldValue(form.elements.namedItem('investmentContribution'), investment.monthlyContribution)
+    setInvestmentConditionalFields(form)
     form.elements.namedItem('investmentAcquiredAt').value = investment.acquiredAt || ''
     form.elements.namedItem('investmentReleaseYear').value = state.plan.finappMethod?.releases?.find(row => row.investmentId === investment.id)?.year ?? ''
     form.elements.namedItem('returnType').value = investment.returnType
     form.elements.namedItem('investmentReturn').value = investment.returnValue === null ? '' : percentInputValue(investment.returnValue)
     form.elements.namedItem('investmentIndexRate').value = investment.indexAnnualRate === null ? '' : percentInputValue(investment.indexAnnualRate)
     form.elements.namedItem('investmentAnnualReturns').value = formatAnnualRealReturns(investment.annualRealReturns)
+    form.elements.namedItem('investmentAnnualFee').value = investment.annualFee ? percentInputValue(investment.annualFee) : ''
     form.querySelector('[data-investment-form-title]').textContent = 'Revise os dados do investimento'
     form.querySelector('[data-investment-submit]').textContent = 'Salvar investimento'
     setInvestmentReturnFields(form)
     showInvestmentStep(form, 1)
     form.scrollIntoView({ behavior: 'smooth', block: 'start' })
     form.elements.namedItem('investmentName').focus({ preventScroll: true })
+    return
+  }
+
+  if (event.target.closest('[data-clear-target-allocation]')) {
+    setTargetAllocation(null)
+    render()
+    showToast('Alocação-alvo removida.')
     return
   }
 
@@ -1258,6 +1288,19 @@ document.addEventListener('change', async (event) => {
       confirm.disabled = review.selectedCount === 0 || review.overLimit
     }
     if (limitError) limitError.hidden = !review.overLimit
+    return
+  }
+
+  if (event.target.matches('[data-spouse-plan] input[name="spouseEnabled"]')) {
+    const form = event.target.closest('[data-spouse-plan]')
+    const fields = form.querySelector('[data-spouse-fields]')
+    if (fields) fields.hidden = !event.target.checked
+    for (const name of ['spouseCurrentAge', 'spouseRetirementAge']) form.elements.namedItem(name).required = event.target.checked
+    return
+  }
+
+  if (event.target.matches('[data-investment-form] select[name="liquidity"], [data-investment-form] select[name="assetClass"]')) {
+    setInvestmentConditionalFields(event.target.closest('[data-investment-form]'))
     return
   }
 
@@ -1712,6 +1755,22 @@ document.addEventListener('submit', async (event) => {
     return
   }
 
+  const targetAllocationForm = event.target.closest('[data-target-allocation-form]')
+  if (targetAllocationForm) {
+    event.preventDefault()
+    const data = new FormData(targetAllocationForm)
+    const shares = {}
+    for (const [name, value] of data.entries()) if (name.startsWith('target:') && value !== '') shares[name.slice(7)] = parseNumber(value) / 100
+    try {
+      setTargetAllocation({ shares, band: parseNumber(data.get('targetBand')) / 100 })
+      render()
+      showToast('Alocação-alvo salva.')
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
+
   const investmentForm = event.target.closest('[data-investment-form]')
   if (investmentForm) {
     event.preventDefault()
@@ -1729,6 +1788,7 @@ document.addEventListener('submit', async (event) => {
         returnValue: returnType === 'default' ? null : parseNumber(data.get('investmentReturn')) / 100,
         indexAnnualRate: returnType === 'cdi' ? parseNumber(data.get('investmentIndexRate')) / 100 : null,
         annualRealReturns: parseAnnualRealReturns(data.get('investmentAnnualReturns') || ''),
+        annualFee: data.get('investmentAnnualFee') ? parseNumber(data.get('investmentAnnualFee')) / 100 : 0,
         acquiredAt: data.get('investmentAcquiredAt') || null,
         releaseYear: data.get('investmentReleaseYear') || null
       })
@@ -1902,6 +1962,14 @@ document.addEventListener('submit', async (event) => {
 })
 
 window.addEventListener('popstate', () => { resetExpenseImpact(); render({ focusMain: true, indicateRecalculation: false }) })
+bindMonthlyHints(document)
+document.addEventListener('input', event => {
+  const form = event.target.closest?.('[data-target-allocation-form]')
+  if (!form) return
+  const total = [...form.querySelectorAll('input[name^="target:"]')].reduce((sum, input) => sum + (parseNumber(input.value || 0) || 0), 0)
+  const output = form.querySelector('[data-target-allocation-total]')
+  if (output) output.textContent = `Soma atual: ${total.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%. ${Math.abs(total - 100) <= 0.5 ? 'Pronto para salvar.' : 'A soma precisa ser 100%.'}`
+})
 document.addEventListener('input', event => {
   const consortium = event.target.closest('[data-consortium-form]')
   if (consortium) guideConsortiumForm(consortium)

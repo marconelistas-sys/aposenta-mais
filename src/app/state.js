@@ -15,6 +15,7 @@ import {
 import { convertCurrency, sanitizeExchangeRates } from '../shared/exchange-rates.js'
 import { normalizeCurrency } from '../shared/currencies.js'
 import { ownedStorage } from './owned-storage.js'
+import { validateTargetAllocation } from '../domain/target-allocation.js'
 
 const unavailableStorage = {
   getItem: () => null,
@@ -111,8 +112,13 @@ export function updatePlan(patch) {
   saveState()
 }
 
+export function setTargetAllocation(candidate) {
+  updatePlan({ targetAllocation: candidate === null ? null : validateTargetAllocation(candidate) })
+}
+
 export function upsertInvestment(candidate) {
   validateAnnualRealReturns(candidate.annualRealReturns)
+  if (candidate.annualFee !== undefined && candidate.annualFee !== null && (!Number.isFinite(candidate.annualFee) || candidate.annualFee < 0 || candidate.annualFee > 0.1)) throw new RangeError('Informe um custo anual entre 0% e 10%.')
   const releaseYear = candidate.releaseYear === '' || candidate.releaseYear == null ? null : Number(candidate.releaseYear)
   if (Object.hasOwn(candidate, 'releaseYear') && releaseYear !== null) {
     if (!Number.isInteger(releaseYear) || releaseYear < new Date().getUTCFullYear() || releaseYear > 2199) throw new TypeError('Informe um ano de liberação entre o ano atual e 2199.')

@@ -1,5 +1,6 @@
 import { solvencyWealthLabel } from '../../domain/property-solvency.js'
 import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
+import { moneyWithMonthly, moneyWithMonthlyText } from '../../shared/monthly-equivalent.js'
 
 export function renderPlanInterpretation(result, { currency, hidden = false } = {}) {
   if (hidden) return ''
@@ -19,7 +20,7 @@ export function renderPlanInterpretation(result, { currency, hidden = false } = 
     const failed = result.firstFailure
     explanation = `Em ${escapeHtml(failed.year)}, ${failed.liquidAssets < -0.005 ? `a liquidez projetada é ${money(failed.liquidAssets)}. Falta dinheiro disponível para cobrir os pagamentos, mesmo que existam bens ou saldos bloqueados` : `o patrimônio financeiro líquido de dívidas é ${money(failed.netFinancial)}. Os recursos financeiros não cobrem as obrigações neste fechamento`}.`
   } else if (negativeBudget) {
-    explanation = `Em ${escapeHtml(negativeBudget.year)}, despesas e metas superam receitas em ${money(-negativeBudget.freeCashFlow)}. Ainda assim, o ano termina com ${money(negativeBudget.liquidAssets)} de liquidez e ${money(negativeBudget.financialAssets)} de patrimônio financeiro. O déficit do orçamento é coberto na projeção, sem esgotar os recursos nesse fechamento.`
+    explanation = `Em ${escapeHtml(negativeBudget.year)}, despesas e metas superam receitas em ${moneyWithMonthlyText(money, -negativeBudget.freeCashFlow, negativeBudget.months)}. Ainda assim, o ano termina com ${money(negativeBudget.liquidAssets)} de liquidez e ${money(negativeBudget.financialAssets)} de patrimônio financeiro. O déficit do orçamento é coberto na projeção, sem esgotar os recursos nesse fechamento.`
   } else {
     explanation = 'As receitas cobrem despesas e metas nos totais anuais calculados. A liquidez ao longo de cada ano ainda depende das datas de recebimento e pagamento.'
   }

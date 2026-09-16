@@ -29,14 +29,14 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
   const readoutCaption = `${currency} · ${basisLabel}`
   const rate = (plan.annualInflation * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   const series = financialView ? [
-    { key: 'freeCashFlow', label: 'Saldo do orçamento', color: '#0369a1' },
+    { key: 'freeCashFlow', label: 'Saldo do orçamento', color: '#0369a1', monthly: true },
     { key: 'financialReturn', label: nominal ? 'Rendimento nominal implícito' : 'Rendimento real', color: '#7c3aed', dash: '2 3' },
-    { key: 'pensionCredits', label: 'Créditos previdenciários', color: '#a35c1a', dash: '8 4' },
+    { key: 'pensionCredits', label: 'Créditos previdenciários', color: '#a35c1a', dash: '8 4', monthly: true },
     { key: 'financialChange', label: 'Variação do patrimônio financeiro no ano', color: '#1e293b', width: 3, emphasize: true }
   ] : [
-    { key: 'income', label: 'Receitas', color: '#0369a1' },
-    { key: 'outflows', label: 'Despesas e metas', color: '#c2410c', dash: '6 3' },
-    { key: 'freeCashFlow', label: 'Saldo do orçamento, antes dos rendimentos', color: '#1e293b', width: 3, emphasize: true }
+    { key: 'income', label: 'Receitas', color: '#0369a1', monthly: true },
+    { key: 'outflows', label: 'Despesas e metas', color: '#c2410c', dash: '6 3', monthly: true },
+    { key: 'freeCashFlow', label: 'Saldo do orçamento, antes dos rendimentos', color: '#1e293b', width: 3, emphasize: true, monthly: true }
   ]
   const wealthSeries = [
     { key: display.every(row => Number.isFinite(row.solvencyNetWorth)) ? 'solvencyNetWorth' : 'netWorth', label: solvencyWealthLabel(display.find(row => row.excludedRealEstateAssets > 0) || display.at(-1)), color: '#475569', width: 3, emphasize: true },
@@ -62,8 +62,8 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
     <section class="annual-chart-section" aria-label="Fluxos anuais"><div class="annual-chart-heading"><div><span class="annual-chart-kind">TOTAL DURANTE O ANO</span><h3>O que entra e sai durante o ano</h3></div>${hasReturn ? `<label>Visão dos fluxos<select data-annual-chart-mode="flow"><option value="budget" ${financialView ? '' : 'selected'}>Orçamento: receitas, despesas e saldo</option><option value="financial" ${financialView ? 'selected' : ''}>Resultado: saldo, rendimentos e previdência</option></select></label>` : ''}</div>
     <p class="annual-chart-equation">${financialView ? 'Saldo do orçamento + rendimentos + créditos previdenciários = variação do patrimônio financeiro no ano.' : 'Receitas − despesas e metas = saldo do orçamento, antes dos rendimentos.'}</p>
     <p>${financialView ? 'A variação indica quanto os ativos financeiros aumentam ou diminuem durante o ano. Não é o patrimônio acumulado. Créditos previdenciários podem permanecer restritos.' : `Receitas e despesas aparecem como valores positivos para comparação. Quando as despesas superam as receitas, o saldo fica abaixo de zero. ${hasReturn ? 'Rendimentos e créditos previdenciários estão na visão Resultado.' : 'Este recorte não projeta rendimentos.'}`} ${financialView ? 'Variação abaixo de zero indica redução dos ativos financeiros no ano.' : 'Saldo abaixo de zero indica déficit no orçamento.'} Liberações transferem saldo existente, sem criar receita.</p>
-    <p class="annual-chart-basis">${escapeHtml(readoutCaption)} · Totais dos meses incluídos em cada ano · Escala independente do patrimônio.</p>
-    ${planningChart({ title: financialView ? 'Variação anual do patrimônio financeiro' : title || 'Fluxos anuais do orçamento', rows: display, series, currency, markers, selectedYear, interpolation: 'linear', annualReadout: true, readoutCaption: `${readoutCaption} · Total anual`, details: cashFlowDetailPanels(display, plan, currency, false, { wealthTargetAge }) })}</section>
+    <p class="annual-chart-basis">${escapeHtml(readoutCaption)} · Totais dos meses incluídos em cada ano, com a média mensal ao lado · Escala independente do patrimônio.</p>
+    ${planningChart({ title: financialView ? 'Variação anual do patrimônio financeiro' : title || 'Fluxos anuais do orçamento', rows: display, series, currency, markers, selectedYear, interpolation: 'linear', annualReadout: true, readoutCaption: `${readoutCaption} · Total anual e média mensal`, details: cashFlowDetailPanels(display, plan, currency, false, { wealthTargetAge }) })}</section>
     <details class="disclosure"><summary>Como a inflação entra nesta projeção</summary><p>Na visão real, os valores já estão em poder de compra de ${baseYear} e o retorno já desconta inflação. Não se deve aumentar apenas as despesas pela inflação e manter receitas e rendimento em valores reais.</p><p>Na visão nominal, o índice acumulado é (1 + inflação anual) elevado ao número de anos desde ${baseYear}. O ano-base tem índice 1. O rendimento nominal implícito também inclui a atualização do saldo inicial, para conciliar aberturas e fechamentos. A hipótese de inflação é constante, não uma previsão.</p><p>Manter um lançamento constante em termos reais pressupõe que ele acompanha a inflação. Salários ou benefícios sem reajuste perdem poder de compra e exigem outra regra. O modelo ainda não separa indexação por contrato ou inflação por categoria. Parcelas, consórcios e metas conservam as regras atualmente cadastradas.</p><p>A conversão usa a inflação da moeda de apresentação após o câmbio fixo. Não projeta inflação ou câmbio de cada país. Dados originais na composição e os demais gráficos, tabelas e riscos continuam em valores reais. Alternar a visão não altera a viabilidade, não acrescenta receita e não duplica inflação.</p><a href="/plano" data-route>Revisar inflação e retorno do plano</a></details>
   </section>`
 }

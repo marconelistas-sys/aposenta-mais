@@ -22,6 +22,24 @@ export const additionalNavigation = [
   { href: '/privacidade', label: 'Privacidade', icon: 'shield' }
 ]
 
+// The full menu groups every screen by the task the person wants to do.
+export const navigationGroups = [
+  { title: 'Planejar', hrefs: ['/', '/plano', '/simulacoes', '/viabilidade', '/apos-aposentadoria'] },
+  { title: 'Patrimônio e investimentos', hrefs: ['/carteira', '/patrimonio', '/consorcios', '/cambio'] },
+  { title: 'Dinheiro do dia a dia', hrefs: ['/fluxo-caixa', '/orcamento', '/contas', '/extratos', '/calendario'] },
+  { title: 'Riscos', hrefs: ['/riscos', '/riscos-mensais'] },
+  { title: 'Conta e aprendizado', hrefs: ['/conteudos', '/perfil', '/privacidade'] }
+]
+
+export function groupedNavigation() {
+  const all = [...primaryNavigation, ...additionalNavigation]
+  const byHref = new Map(all.map(item => [item.href, item]))
+  const groups = navigationGroups.map(group => ({ title: group.title, items: group.hrefs.map(href => byHref.get(href)).filter(Boolean) }))
+  const grouped = new Set(navigationGroups.flatMap(group => group.hrefs))
+  const rest = all.filter(item => !grouped.has(item.href))
+  return rest.length ? [...groups, { title: 'Outras telas', items: rest }] : groups
+}
+
 export function bindNavigationMenu(root) {
   const close = focus => {
     const menu = root.querySelector('[data-navigation-menu][open]')
