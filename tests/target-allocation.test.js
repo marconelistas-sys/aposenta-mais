@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { contributionSplit, rebalanceAnalysis, sanitizeTargetAllocation, validateTargetAllocation } from '../src/domain/target-allocation.js'
+import { contributionSplit, exposureDistribution, rebalanceAnalysis, sanitizeTargetAllocation, validateTargetAllocation } from '../src/domain/target-allocation.js'
 import { simulateRisk, deterministicPath } from '../src/domain/risk-simulation.js'
 import { sanitizeRiskSettings } from '../src/domain/risk-plan.js'
 
@@ -30,10 +30,10 @@ test('análise aponta classes fora da banda e valor até o alvo', () => {
 })
 
 test('aportes vão primeiro para a classe abaixo do alvo', () => {
-  const split = contributionSplit({ 'fixed-income': 8000, equity: 2000, fund: 0, pension: 0, cash: 0, other: 0 }, target, 1000)
+  const split = contributionSplit({ 'fixed-income': 8000, equity: 2000, fund: 0, pension: 0, cash: 0, other: 0 }, target.shares, 1000)
   assert.equal(split.equity, 1000)
   assert.equal(split['fixed-income'], 0)
-  const balanced = contributionSplit({ 'fixed-income': 6000, equity: 4000, fund: 0, pension: 0, cash: 0, other: 0 }, target, 1000)
+  const balanced = contributionSplit({ 'fixed-income': 6000, equity: 4000, fund: 0, pension: 0, cash: 0, other: 0 }, target.shares, 1000)
   assert.ok(Math.abs(balanced['fixed-income'] - 600) < 1e-9)
   assert.ok(Math.abs(balanced.equity - 400) < 1e-9)
 })
@@ -57,4 +57,27 @@ test('configuração de risco preserva o modelo de volatilidade', () => {
   assert.equal(sanitizeRiskSettings({}).volatilityModel, 'common')
   assert.equal(sanitizeRiskSettings({ volatilityModel: 'class' }).volatilityModel, 'class')
   assert.equal(sanitizeRiskSettings({ volatilityModel: 'x' }).volatilityModel, 'common')
+})
+
+test('alvos por moeda e região são opcionais e independentes da classe', () => {
+  const clean = sanitizeTargetAllocation({ currencyShares: { BRL: 0.7, USD: 0.3 }, band: 0.05 })
+  assert.deepEqual(clean, { currencyShares: { BRL: 0.7, USD: 0.3 }, band: 0.05 })
+  assert.equal(sanitizeTargetAllocation({ shares: { equity: 1 }, regionShares: { domestic: 0.5 } }), null)
+  assert.equal(sanitizeTargetAllocation({ band: 0.05 }), null)
+})
+
+test('análise por moeda usa a moeda do plano quando a exposição não foi informada', () => {
+  const portfolio = { monthlyContribution: 500, investments: [
+    { assetClass: 'equity', amount: 9000 },
+    { assetClass: 'equity', amount: 1000, exposureCurrency: 'USD', region: 'international' }
+  ] }
+  const target = { currencyShares: { BRL: 0.7, USD: 0.3 }, regionShares: { domestic: 0.7, international: 0.3 } }
+  const currency = rebalanceAnalysis(portfolio, target, { dimension: 'currency', baseCurrency: 'BRL' })
+  assert.equal(currency.rows.find(row => row.key === 'BRL').currentShare, 0.9)
+  assert.equal(currency.rows.find(row => row.key === 'USD').status, 'below')
+  assert.equal(currency.rows.find(row => row.key === 'USD').monthlyContribution, 500)
+  const region = rebalanceAnalysis(portfolio, target, { dimension: 'region' })
+  assert.equal(region.rows.find(row => row.key === 'international').currentShare, 0.1)
+  assert.equal(rebalanceAnalysis(portfolio, target, { dimension: 'class' }), null)
+  assert.deepEqual(exposureDistribution(portfolio, 'currency', 'CHF').map(row => row.key), ['CHF', 'USD'])
 })

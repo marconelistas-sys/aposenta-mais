@@ -4,7 +4,7 @@
  * docs/finance/diagnostico-carteira.md.
  */
 import { investmentAnnualFee, resolveInvestmentRealReturn } from './investment-returns.js'
-import { rebalanceAnalysis } from './target-allocation.js'
+import { currentByDimension, rebalanceAnalysis } from './target-allocation.js'
 
 export const diagnosticThresholds = Object.freeze({
   classAttention: 0.6,
@@ -23,7 +23,8 @@ export const diagnosticThresholds = Object.freeze({
   longRetirementWithdrawal: 0.035,
   riskyWithdrawal: 0.05,
   feeAttention: 0.01,
-  guaranteeLimitBRL: 250000
+  guaranteeLimitBRL: 250000,
+  homeCurrencyAttention: 0.9
 })
 
 const levelOrder = { risk: 0, attention: 1, info: 2, ok: 3 }
@@ -76,7 +77,7 @@ export function portfolioMetrics(plan, { monthlyExpenses = 0, year = new Date().
   }
 }
 
-export function diagnosePortfolio(plan, { monthlyExpenses = 0, yearsToRetirement = 0, currency = 'BRL', year = new Date().getUTCFullYear() } = {}) {
+export function diagnosePortfolio(plan, { monthlyExpenses = 0, yearsToRetirement = 0, currency = 'BRL', baseCurrency = currency, year = new Date().getUTCFullYear() } = {}) {
   const t = diagnosticThresholds
   const metrics = portfolioMetrics(plan, { monthlyExpenses, year })
   const findings = []
@@ -135,11 +136,19 @@ export function diagnosePortfolio(plan, { monthlyExpenses = 0, yearsToRetirement
       add('mark-to-market', 'info', 'Taxa de IPCA + garantida só no vencimento', 'Títulos atrelados ao IPCA oscilam de preço antes do vencimento. Um resgate antecipado pode render menos que a taxa contratada.', 'Use esses títulos para objetivos com data próxima ao vencimento, não como reserva.')
     }
 
-    const rebalance = plan.targetAllocation ? rebalanceAnalysis(plan, plan.targetAllocation) : null
-    if (!rebalance && metrics.count > 1) {
-      add('target-allocation', 'info', 'Sem alocação-alvo definida', 'Sem um alvo por classe, não há critério para decidir onde aplicar os próximos aportes.', 'Defina a alocação-alvo abaixo, com banda de tolerância.')
-    } else if (rebalance?.needsRebalance) {
-      add('target-allocation', 'attention', 'Carteira fora da alocação-alvo', `${rebalance.outsideCount} ${rebalance.outsideCount === 1 ? 'classe está' : 'classes estão'} fora da banda definida.`, 'Direcione os próximos aportes conforme a tabela de rebalanceamento.')
+    const analyses = plan.targetAllocation ? ['class', 'currency', 'region'].map(dimension => rebalanceAnalysis(plan, plan.targetAllocation, { dimension, baseCurrency })).filter(Boolean) : []
+    const dimensionNames = { class: 'classe', currency: 'moeda', region: 'região' }
+    const outside = analyses.filter(item => item.needsRebalance)
+    if (!analyses.length && metrics.count > 1) {
+      add('target-allocation', 'info', 'Sem alocação-alvo definida', 'Sem um alvo por classe, moeda ou região, não há critério para decidir onde aplicar os próximos aportes.', 'Defina a alocação-alvo abaixo, com banda de tolerância.')
+    } else if (outside.length) {
+      add('target-allocation', 'attention', 'Carteira fora da alocação-alvo', `Há desvio acima da banda por ${outside.map(item => dimensionNames[item.dimension]).join(', ')}.`, 'Direcione os próximos aportes conforme a tabela de rebalanceamento.')
+    }
+
+    const byCurrency = currentByDimension(plan.investments, 'currency', baseCurrency)
+    const homeShare = metrics.total > 0 ? byCurrency[baseCurrency] / metrics.total : 0
+    if (homeShare >= t.homeCurrencyAttention) {
+      add('home-currency', 'info', 'Carteira quase toda na moeda do plano', `${Math.round(homeShare * 100)}% do patrimônio depende de ${baseCurrency}. Uma perda de poder de compra dessa moeda atinge todo o plano.`, plan.investments.some(item => item.exposureCurrency) ? 'Avalie se despesas futuras em outras moedas justificam exposição externa.' : 'Informe a moeda de exposição de cada investimento para confirmar.')
     }
 
     const pensionWithoutDate = plan.investments.filter(item => item.assetClass === 'pension' && !item.acquiredAt)

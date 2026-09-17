@@ -97,3 +97,14 @@ test('taxa contratada de IPCA + não é tratada como premissa otimista', () => {
   assert.equal(ids.includes('return-consistency'), false)
   assert.ok(ids.includes('mark-to-market'))
 })
+
+test('diagnóstico aponta dependência da moeda do plano e salva moeda e região do investimento', () => {
+  const plan = { ...basePlan, investments: [investment({ name: 'CDB', amount: 1000 })] }
+  assert.ok(diagnosePortfolio(plan, { baseCurrency: 'BRL', yearsToRetirement: 20 }).findings.some(item => item.id === 'home-currency'))
+  const diversified = { ...basePlan, investments: [investment({ name: 'CDB', amount: 500 }), investment({ name: 'ETF', amount: 500, assetClass: 'equity', exposureCurrency: 'USD', region: 'global' })] }
+  assert.equal(diagnosePortfolio(diversified, { baseCurrency: 'BRL', yearsToRetirement: 20 }).findings.some(item => item.id === 'home-currency'), false)
+  const saved = sanitizeInvestment(investment({ name: 'ETF', amount: 100, exposureCurrency: 'USD', region: 'global' }))
+  assert.equal(saved.exposureCurrency, 'USD')
+  assert.equal(saved.region, 'global')
+  assert.equal(Object.hasOwn(sanitizeInvestment(investment({ name: 'X', amount: 100, exposureCurrency: 'JPY', region: 'mars' })), 'region'), false)
+})

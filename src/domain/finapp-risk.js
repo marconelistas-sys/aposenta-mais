@@ -26,11 +26,12 @@ export function percentile(sorted, probability) {
 }
 
 export function annualRiskPath(base, annualReturns) {
-  if (annualReturns.length !== base.rows.length || annualReturns.some(value => !Number.isFinite(value))) throw new Error('Percurso de retornos inválido.')
+  const valid = value => Number.isFinite(value) || (value && typeof value === 'object' && Number.isFinite(value.default) && Object.values(value.shifts || {}).every(Number.isFinite))
+  if (annualReturns.length !== base.rows.length || !annualReturns.every(valid)) throw new Error('Percurso de retornos inválido.')
   if (base.investmentModel) return projectAnnualInvestments(base.rows, base.investmentModel, annualReturns).map(row => ({ year: row.year, month: row.month, financialAssets: row.financialAssets, wealth: row.financialAssets + row.assets, netWorth: row.netWorth }))
   let financialAssets = base.openingFinancial
   return base.rows.map((row, index) => {
-    const rate = Math.max(-0.999999, annualReturns[index])
+    const rate = Math.max(-0.999999, typeof annualReturns[index] === 'number' ? annualReturns[index] : annualReturns[index].default)
     const effectiveReturn = index === 0 ? (1 + rate) ** base.settings.openingYearPeriod - 1 : rate
     financialAssets = financialAssets * (1 + effectiveReturn) + row.freeCashFlow + row.pensionCredits
     if (!Number.isFinite(financialAssets) || Math.abs(financialAssets) >= 1e100) throw new Error('Percurso excede limite numérico.')
@@ -43,11 +44,22 @@ export function calculateFinappRisk(state, settings, today = new Date(), returnP
   const base = finappViability(state, state.plan.finappMethod, today)
   if (returnPaths && (returnPaths.length !== settings.simulations || returnPaths.some(path => path.length !== base.rows.length))) throw new Error('Amostra de retornos incompatível.')
   const normal = normalGenerator(settings.seed)
+  // Per-class model: one common factor plus an own shock per class, preserving
+  // each class variance. Hypothesis chosen by the person, not calibration.
+  const perClass = settings.volatilityModel === 'class'
+  const rho = settings.classCorrelation ?? 0.5
+  const classReturn = () => {
+    const common = normal()
+    const factor = () => Math.sqrt(rho) * common + Math.sqrt(1 - rho) * normal()
+    const shifts = {}
+    for (const [assetClass, volatility] of Object.entries(settings.classVolatilities || {})) shifts[assetClass] = volatility * factor()
+    return { default: state.plan.annualRealReturn + settings.annualVolatility * factor(), shifts }
+  }
   const samples = base.rows.map(() => ({ af: [], wealth: [], net: [] }))
   let successes = 0, targetSuccesses = 0
   const endings = []
   for (let simulation = 0; simulation < settings.simulations; simulation++) {
-    const returns = returnPaths?.[simulation] || base.rows.map(() => state.plan.annualRealReturn + settings.annualVolatility * normal())
+    const returns = returnPaths?.[simulation] || (perClass ? base.rows.map(() => classReturn()) : base.rows.map(() => state.plan.annualRealReturn + settings.annualVolatility * normal()))
     const rows = annualRiskPath(base, returns)
     if (rows.every(row => row.financialAssets >= 0)) successes++
     if (rows.at(-1).financialAssets >= settings.targetAssets) targetSuccesses++

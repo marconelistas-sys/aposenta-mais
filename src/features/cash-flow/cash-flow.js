@@ -350,7 +350,22 @@ function retirementScenario(label, contribution, detail, tone, schedules) {
   `
 }
 
+export const cashFlowTabs = Object.freeze({ resumo: 'Resumo do mês', anual: 'Evolução anual', mensal: 'Mês a mês' })
+export const cashFlowView = { tab: 'resumo' }
+
+// The tab can come from a link (?aba=anual) and stays for the session.
+export function selectCashFlowTab(tab) {
+  if (Object.hasOwn(cashFlowTabs, tab)) cashFlowView.tab = tab
+  return cashFlowView.tab
+}
+
+function renderCashFlowTabs(active) {
+  return `<div class="cash-flow-tabs" role="tablist" aria-label="Visões do fluxo de caixa">${Object.entries(cashFlowTabs).map(([key, label]) => `<button type="button" role="tab" id="cash-flow-tab-${key}" aria-controls="cash-flow-panel" aria-selected="${key === active}" tabindex="${key === active ? 0 : -1}" data-cash-flow-tab="${key}">${label}</button>`).join('')}</div>`
+}
+
 export function renderCashFlow() {
+  if (typeof window !== 'undefined' && window.location) selectCashFlowTab(new URLSearchParams(window.location.search).get('aba'))
+  const tab = cashFlowView.tab
   const selectedDate = referenceDate(state.cashFlow.referenceMonth)
   const firstMonth = cashFlowTimeline(state, state.cashFlow.referenceMonth, 1)[0]
   const schedules = retirementContributionSchedules(
@@ -374,6 +389,7 @@ export function renderCashFlow() {
     : result.contributionGap > 0
       ? 'Existe espaço para investir, mas ainda há uma diferença para a meta.'
       : 'O fluxo atual comporta o aporte necessário.'
+  const monthSummary = `<section class="panel settings-card cash-month-summary"><div class="cash-month-summary__header"><div><p class="eyebrow">MÊS DE REFERÊNCIA</p><h2>Orçamento previsto de ${monthLabel(state.cashFlow.referenceMonth)}</h2></div><label class="form-field"><span class="form-field__label">Mês de início da análise</span><span class="input-shell"><input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></span></label></div><dl class="metric-row"><div><dt>Receitas</dt><dd class="money-value">${money(firstMonth.income)}</dd></div><div><dt>Despesas e metas</dt><dd class="money-value">${money(firstMonth.expenses)}</dd></div><div data-tone="${firstMonth.balance < 0 ? 'negative' : 'positive'}"><dt>Saldo do orçamento</dt><dd class="money-value">${money(firstMonth.balance)}</dd></div><div><dt>Créditos previdenciários</dt><dd class="money-value">${money(firstMonth.pension)}</dd></div></dl><details class="disclosure"><summary>O que este saldo representa</summary><p>O saldo do orçamento (receitas menos despesas e metas) não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas na tela Orçamento. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></details></section>`
 
   return `
     <section class="page-heading page-heading--inner">
@@ -393,10 +409,11 @@ export function renderCashFlow() {
       <div class="privacy-chip">${icon('lock', 16)} Cálculo local, sem envio automático</div>
     </section>
 
-    <section class="panel settings-card cash-month-summary"><div class="cash-month-summary__header"><div><p class="eyebrow">MÊS DE REFERÊNCIA</p><h2>Orçamento previsto de ${monthLabel(state.cashFlow.referenceMonth)}</h2></div><label class="form-field"><span class="form-field__label">Mês de início da análise</span><span class="input-shell"><input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></span></label></div><dl class="metric-row"><div><dt>Receitas</dt><dd class="money-value">${money(firstMonth.income)}</dd></div><div><dt>Despesas e metas</dt><dd class="money-value">${money(firstMonth.expenses)}</dd></div><div data-tone="${firstMonth.balance < 0 ? 'negative' : 'positive'}"><dt>Saldo do orçamento</dt><dd class="money-value">${money(firstMonth.balance)}</dd></div><div><dt>Créditos previdenciários</dt><dd class="money-value">${money(firstMonth.pension)}</dd></div></dl><details class="disclosure"><summary>O que este saldo representa</summary><p>O saldo do orçamento (receitas menos despesas e metas) não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas na tela Orçamento. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></details></section>
-    ${renderCashFlowTimeline()}
+    ${renderCashFlowTabs(tab)}
+    <div class="cash-flow-tab-panel" id="cash-flow-panel" role="tabpanel" aria-labelledby="cash-flow-tab-${tab}">
+    ${tab === 'anual' ? renderCashFlowTimeline({ part: 'annual' }) : tab === 'mensal' ? monthSummary + renderCashFlowTimeline({ part: 'monthly' }) : `${monthSummary}
     ${renderMonthTracking(state)}
-    <section class="cash-flow-layout">
+        <section class="cash-flow-layout">
       <div class="cash-flow-editor">
         <form class="panel reserve-form" data-reserve-form>
           <div class="panel__header"><div><p class="eyebrow">RESERVA</p><h2>Reserva de emergência</h2></div></div>
@@ -455,8 +472,8 @@ export function renderCashFlow() {
         ${retirementScenario('Meta', result.requiredMonthlyContribution, 'Aporte adicional estimado após a previdência.', 'target', schedules)}
       </div>
     </section>
-    </details>
-
+    </details>`}
+    </div>
   `
 }
 

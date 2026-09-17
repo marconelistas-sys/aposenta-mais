@@ -3,7 +3,8 @@ import { renderLiquidity, liquidityLabels } from './liquidity.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { resolveInvestmentRealReturn, resolveGrossInvestmentRealReturn, investmentAccumulationFactors, investmentAnnualFee } from '../../domain/investment-returns.js'
 import { diagnosePortfolio } from '../../domain/portfolio-diagnostics.js'
-import { allocationClasses, defaultRebalanceBand, rebalanceAnalysis } from '../../domain/target-allocation.js'
+import { allocationDimensions, defaultRebalanceBand, exposureDistribution, rebalanceAnalysis, regionLabels } from '../../domain/target-allocation.js'
+import { currencies } from '../../shared/currencies.js'
 import { cashFlowTimeline } from '../../domain/cash-flow-timeline.js'
 import { projectRetirementWithSchedules, retirementMonths } from '../../domain/retirement.js'
 import { escapeHtml, formatPercent, percentInputValue, privateCurrency } from '../../shared/formatters.js'
@@ -82,6 +83,7 @@ function portfolioDiagnostics() {
   const point = cashFlowTimeline(state, state.cashFlow.referenceMonth, 1)[0]
   const result = diagnosePortfolio(state.plan, {
     monthlyExpenses: point?.expenses || 0,
+    baseCurrency: state.currency,
     yearsToRetirement: retirementMonths(state.plan) / 12,
     currency: state.currency
   })
@@ -108,27 +110,50 @@ function portfolioDiagnostics() {
   </section>`
 }
 
+export const allocationView = { dimension: 'class' }
+
+function dimensionLabel(dimension, key) {
+  if (dimension === 'class') return classLabels[key] || classLabels.other
+  if (dimension === 'region') return regionLabels[key]
+  return `${key} · ${currencies[key]?.label || key}`
+}
+
+const dimensionTitles = { class: 'Classe', currency: 'Moeda de exposição', region: 'Região' }
+
 function targetAllocationPanel() {
   const target = state.plan.targetAllocation
+  const dimension = allocationDimensions[allocationView.dimension] ? allocationView.dimension : 'class'
+  const config = allocationDimensions[dimension]
   const percent = value => `${(value * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
   const points = value => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} p.p.`
   const money = value => privateCurrency(value, state.valuesHidden, false, state.currency)
-  const analysis = target ? rebalanceAnalysis(state.plan, target) : null
+  const hide = text => state.valuesHidden ? 'Oculto' : text
+  const analysis = target ? rebalanceAnalysis(state.plan, target, { dimension, baseCurrency: state.currency }) : null
+  const distribution = exposureDistribution(state.plan, dimension, state.currency)
   const statusLabels = { within: 'Dentro da banda', above: 'Acima do alvo', below: 'Abaixo do alvo' }
+  const tabs = `<div class="segmented-control" role="group" aria-label="Dimensão da alocação">${Object.keys(allocationDimensions).map(key => `<button type="button" class="${key === dimension ? 'is-active' : ''}" data-allocation-dimension="${key}" aria-pressed="${key === dimension}">${dimensionTitles[key]}${target?.[allocationDimensions[key].sharesKey] ? ' · com alvo' : ''}</button>`).join('')}</div>`
+  const fieldset = key => {
+    const item = allocationDimensions[key]
+    const shares = target?.[item.sharesKey]
+    return `<fieldset class="target-allocation-fieldset" data-target-dimension="${key}"><legend>${dimensionTitles[key]}${key === 'class' ? '' : ', opcional'}</legend><div class="target-allocation-inputs">${item.keys.map(option => `<label class="form-field"><span class="form-field__label">${dimensionLabel(key, option)}</span><span class="input-shell"><input type="number" name="target:${key}:${option}" min="0" max="100" step="1" value="${shares ? Math.round((shares[option] || 0) * 1000) / 10 : ''}" placeholder="0" /><span class="input-suffix">%</span></span></label>`).join('')}</div><p class="form-context" data-target-allocation-total aria-live="polite">${shares ? 'Soma atual: 100%.' : 'Deixe em branco para não usar este alvo.'}</p></fieldset>`
+  }
   const form = `<form class="target-allocation-form" data-target-allocation-form>
-    <div class="target-allocation-inputs">${allocationClasses.map(key => `<label class="form-field"><span class="form-field__label">${classLabels[key]}</span><span class="input-shell"><input type="number" name="target:${key}" min="0" max="100" step="1" value="${target ? Math.round((target.shares[key] || 0) * 1000) / 10 : ''}" placeholder="0" /><span class="input-suffix">%</span></span></label>`).join('')}
-      <label class="form-field"><span class="form-field__label">Banda de tolerância</span><span class="input-shell"><input type="number" name="targetBand" min="1" max="20" step="1" value="${Math.round((target?.band ?? defaultRebalanceBand) * 100)}" required /><span class="input-suffix">p.p.</span></span></label>
-    </div>
-    <p class="form-context" data-target-allocation-total aria-live="polite">A soma precisa ser 100%.</p>
-    <div class="investment-form__actions"><button class="button button--primary" type="submit">Salvar alocação-alvo</button>${target ? '<button class="button button--secondary" type="button" data-clear-target-allocation>Remover alvo</button>' : ''}</div>
+    ${fieldset('class')}${fieldset('currency')}${fieldset('region')}
+    <label class="form-field target-allocation-band"><span class="form-field__label">Banda de tolerância, para todos os alvos</span><span class="input-shell"><input type="number" name="targetBand" min="1" max="20" step="1" value="${Math.round((target?.band ?? defaultRebalanceBand) * 100)}" required /><span class="input-suffix">p.p.</span></span></label>
+    <div class="investment-form__actions"><button class="button button--primary" type="submit">Salvar alocação-alvo</button>${target ? '<button class="button button--secondary" type="button" data-clear-target-allocation>Remover alvos</button>' : ''}</div>
   </form>`
-  const table = analysis && analysis.total > 0 ? `<div class="table-scroll" role="region" tabindex="0" aria-label="Alocação atual e alvo"><table class="target-allocation-table"><thead><tr><th scope="col">Classe</th><th scope="col">Atual</th><th scope="col">Alvo</th><th scope="col">Desvio</th><th scope="col">Situação</th><th scope="col">Até o alvo</th><th scope="col">Próximos aportes por mês</th></tr></thead><tbody>${analysis.rows.map(row => `<tr data-status="${row.status}"><th scope="row">${classLabels[row.assetClass]}</th><td>${state.valuesHidden ? 'Oculto' : percent(row.currentShare)}</td><td>${state.valuesHidden ? 'Oculto' : percent(row.targetShare)}</td><td>${state.valuesHidden ? 'Oculto' : points(row.deviation)}</td><td><span class="allocation-status allocation-status--${row.status}">${statusLabels[row.status]}</span></td><td><span class="money-value">${money(row.amountToTarget)}</span></td><td><span class="money-value">${money(row.monthlyContribution)}</span></td></tr>`).join('')}</tbody></table></div>
-    <p class="portfolio-diagnostics__summary">${analysis.needsRebalance ? `${analysis.outsideCount} ${analysis.outsideCount === 1 ? 'classe está' : 'classes estão'} fora da banda de ${points(analysis.band).replace('+', '')} ${analysis.monthsToCloseWithContributions ? `Direcionando todo o aporte mensal, a maior diferença fecha em cerca de ${analysis.monthsToCloseWithContributions} ${analysis.monthsToCloseWithContributions === 1 ? 'mês' : 'meses'}, sem vender.` : ''}` : 'Todas as classes estão dentro da banda. Mantenha os aportes na proporção do alvo.'}</p>` : target ? '<p>Cadastre investimentos para comparar com o alvo.</p>' : ''
+  const label = dimensionTitles[dimension].toLowerCase()
+  const table = analysis && analysis.total > 0 ? `<div class="table-scroll" role="region" tabindex="0" aria-label="Alocação atual e alvo por ${label}"><table class="target-allocation-table"><thead><tr><th scope="col">${dimensionTitles[dimension]}</th><th scope="col">Atual</th><th scope="col">Alvo</th><th scope="col">Desvio</th><th scope="col">Situação</th><th scope="col">Até o alvo</th><th scope="col">Próximos aportes por mês</th></tr></thead><tbody>${analysis.rows.map(row => `<tr data-status="${row.status}"><th scope="row">${dimensionLabel(dimension, row.key)}</th><td>${hide(percent(row.currentShare))}</td><td>${hide(percent(row.targetShare))}</td><td>${hide(points(row.deviation))}</td><td><span class="allocation-status allocation-status--${row.status}">${statusLabels[row.status]}</span></td><td><span class="money-value">${money(row.amountToTarget)}</span></td><td><span class="money-value">${money(row.monthlyContribution)}</span></td></tr>`).join('')}</tbody></table></div>
+    <p class="portfolio-diagnostics__summary">${analysis.needsRebalance ? `${analysis.outsideCount} ${analysis.outsideCount === 1 ? 'item está' : 'itens estão'} fora da banda de ${points(analysis.band).replace('+', '')} ${analysis.monthsToCloseWithContributions ? `Direcionando todo o aporte mensal, a maior diferença fecha em cerca de ${analysis.monthsToCloseWithContributions} ${analysis.monthsToCloseWithContributions === 1 ? 'mês' : 'meses'}, sem vender.` : ''}` : `Tudo dentro da banda por ${label}. Mantenha os aportes na proporção do alvo.`}</p>`
+    : distribution.length ? `<div class="table-scroll" role="region" tabindex="0" aria-label="Distribuição atual por ${label}"><table class="target-allocation-table"><thead><tr><th scope="col">${dimensionTitles[dimension]}</th><th scope="col">Atual</th><th scope="col">Saldo</th></tr></thead><tbody>${distribution.map(row => `<tr><th scope="row">${dimensionLabel(dimension, row.key)}</th><td>${hide(percent(row.share))}</td><td><span class="money-value">${money(row.amount)}</span></td></tr>`).join('')}</tbody></table></div><p class="portfolio-diagnostics__summary">Sem alvo por ${label}. Defina um alvo abaixo para ver desvios e a divisão dos aportes.</p>`
+    : '<p>Cadastre investimentos para ver a distribuição.</p>'
   return `<section class="panel target-allocation" aria-labelledby="target-allocation-title">
-    <div class="panel__header"><div><p class="eyebrow">REBALANCEAMENTO</p><h2 id="target-allocation-title">Alocação-alvo</h2><p class="portfolio-diagnostics__summary">Defina quanto quer em cada classe. O aplicativo mostra o desvio e direciona os próximos aportes antes de sugerir vendas.</p></div>${icon('target', 21, 'panel__header-icon')}</div>
+    <div class="panel__header"><div><p class="eyebrow">REBALANCEAMENTO</p><h2 id="target-allocation-title">Alocação-alvo</h2><p class="portfolio-diagnostics__summary">Defina quanto quer por classe, moeda de exposição e região. O aplicativo mostra o desvio e direciona os próximos aportes antes de sugerir vendas.</p></div>${icon('target', 21, 'panel__header-icon')}</div>
+    ${tabs}
     ${table}
+    ${dimension === 'class' ? '' : '<p class="form-context">Investimentos sem moeda ou região informadas contam na moeda do plano e no mercado local. Edite cada investimento para corrigir.</p>'}
     <details class="disclosure" ${target ? '' : 'open'}><summary>${target ? 'Editar alocação-alvo' : 'Definir alocação-alvo'}</summary>${form}</details>
-    <p class="result-disclaimer">Regra de bandas: rebalanceie quando uma classe se afastar do alvo mais que a banda. Previdência e saldos com prazo podem não permitir resgate ou troca imediata. Vendas podem gerar imposto e custos. Não é recomendação de investimento.</p>
+    <p class="result-disclaimer">Regra de bandas: rebalanceie quando um item se afastar do alvo mais que a banda. Previdência e saldos com prazo podem não permitir resgate ou troca imediata. Vendas e câmbio podem gerar imposto e custos. Não é recomendação de investimento.</p>
   </section>`
 }
 
@@ -183,6 +208,7 @@ function investmentList() {
             <div><dt>Liquidez declarada</dt><dd>${liquidityLabels[investment.liquidity] || liquidityLabels.unknown}</dd></div>
             <div><dt>Ano previsto de liberação</dt><dd>${state.valuesHidden ? 'Oculto' : investment.liquidity === 'available' ? 'Já disponível' : state.plan.finappMethod?.releases?.find(row => row.investmentId === investment.id)?.year || 'Não informado'}</dd></div>
             <div><dt>Aporte mensal</dt><dd>${privateCurrency(investment.monthlyContribution, state.valuesHidden, false, state.currency)}</dd></div>
+            <div><dt>Exposição</dt><dd>${escapeHtml(investment.exposureCurrency || state.currency)} · ${regionLabels[investment.region] || regionLabels.domestic}</dd></div>
             <div><dt>Custo anual</dt><dd>${state.valuesHidden ? 'Oculto' : investmentAnnualFee(investment) ? preciseRate(investmentAnnualFee(investment)) : 'Não informado'}</dd></div>
             <div><dt>Retorno usado em ${new Date().getUTCFullYear()}</dt><dd>${state.valuesHidden ? 'Oculto' : `${preciseRate(rate)} real ao ano`}</dd></div>
             <div><dt>Valor no prazo confirmado do plano</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}</dd></div>
@@ -281,6 +307,10 @@ export function renderInvestments() {
             <label class="form-field"><span class="form-field__label">Saldo atual</span><span class="input-shell"><span class="input-prefix">${moneySymbol}</span><input type="number" name="investmentAmount" min="0.01" max="1000000000" step="0.01" value="${firstInvestment ? state.plan.currentAssets : ''}" required /></span></label>
           </div>
           <label class="form-field"><span class="form-field__label">Liquidez declarada</span><span class="input-shell"><select name="liquidity" data-investment-liquidity><option value="unknown">Não informada</option><option value="available">Disponível para resgate</option><option value="restricted">Restrita ou com prazo</option></select></span><small>Disponível significa resgate em poucos dias, sem perda relevante.</small></label>
+          <div class="form-grid form-grid--two">
+            <label class="form-field"><span class="form-field__label">Moeda de exposição</span><span class="input-shell"><select name="exposureCurrency">${Object.values(currencies).map(currency => `<option value="${currency.code}" ${currency.code === state.currency ? 'selected' : ''}>${currency.code} · ${currency.label}</option>`).join('')}</select></span><small>A moeda que move o valor do investimento, não a moeda da conta.</small></label>
+            <label class="form-field"><span class="form-field__label">Região</span><span class="input-shell"><select name="region">${Object.entries(regionLabels).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></span><small>Global diversificado para fundos ou ETFs com vários países.</small></label>
+          </div>
           <label class="form-field"><span class="form-field__label">Quanto você aporta por mês</span><span class="input-shell"><span class="input-prefix">${moneySymbol}</span><input type="number" name="investmentContribution" min="0" max="10000000" step="0.01" value="${firstInvestment ? state.plan.monthlyContribution : 0}" required /></span><small>Informe zero se você não faz novos aportes neste investimento.</small></label>
           <label class="form-field" data-investment-release-field hidden><span class="form-field__label">Ano previsto de liberação</span><span class="input-shell"><input type="number" name="investmentReleaseYear" min="${new Date().getUTCFullYear()}" max="2199" step="1" placeholder="Ex.: ${new Date().getUTCFullYear() + 2}" aria-describedby="investment-release-help" /></span><small id="investment-release-help">Para precatórios e outros saldos restritos, informe o ano em que espera receber ou resgatar. A projeção anual disponibiliza o saldo no fechamento desse ano, sem criar uma nova receita. Em branco, o saldo permanece restrito. Dia e mês ainda não são considerados. Este campo também aparece nas premissas de <a href="/viabilidade" data-route>avaliação anual</a>.</small></label>
           <label class="form-field" data-investment-pension-field hidden><span class="form-field__label">Data do primeiro aporte</span><span class="input-shell"><input type="date" name="investmentAcquiredAt" /></span><small>Usada para calcular a tabela regressiva de imposto sobre resgates nas premissas de <a href="/viabilidade" data-route>avaliação anual</a>. Sem data, o cálculo assume o pior caso (35%).</small></label>

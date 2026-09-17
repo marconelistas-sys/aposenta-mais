@@ -23,13 +23,17 @@ export function projectAnnualInvestments(rows, model, annualReturns = null) {
   const total = liquidOnly => buckets.reduce((sum, bucket) => sum + (!liquidOnly || bucket.liquid ? bucket.balance : 0), 0)
   return rows.map((row, index) => {
     const year = Number(row.year)
-    const shift = annualReturns ? annualReturns[index] - plan.annualRealReturn : 0
+    // A path entry is either one annual return for all holdings or, in the
+    // per-class model, { default, shifts } with deviations by asset class.
+    const entry = annualReturns ? annualReturns[index] : null
+    const defaultShift = entry === null ? 0 : typeof entry === 'number' ? entry - plan.annualRealReturn : entry.default - plan.annualRealReturn
+    const shiftFor = bucket => entry && typeof entry === 'object' && Number.isFinite(entry.shifts?.[bucket.investment?.assetClass]) ? entry.shifts[bucket.investment.assetClass] : defaultShift
     const period = index === 0 ? openingYearPeriod : 1
     const previousFinancial = total(false), previousLiquid = total(true)
     let financialReturn = 0, liquidReturn = 0, released = 0
     const releasedItems = []
     for (const bucket of buckets) {
-      const rate = Math.max(-0.999999, resolveInvestmentRealReturn(bucket.investment, plan, year) + shift)
+      const rate = Math.max(-0.999999, resolveInvestmentRealReturn(bucket.investment, plan, year) + shiftFor(bucket))
       if (!Number.isFinite(rate)) throw new Error('Retorno anual inválido.')
       const growth = bucket.balance * Math.expm1(Math.log1p(rate) * period)
       bucket.balance += growth

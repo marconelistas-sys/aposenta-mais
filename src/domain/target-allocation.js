@@ -1,73 +1,103 @@
 /**
- * Alocação-alvo por classe com bandas de rebalanceamento.
- * Educativo: não recomenda produtos. Direciona aportes antes de sugerir vendas,
- * o que evita custos de transação e imposto em muitos casos.
+ * Alocação-alvo por classe, moeda de exposição e região, com bandas de
+ * rebalanceamento. Educativo: não recomenda produtos. Direciona aportes antes
+ * de sugerir vendas, o que evita custos de transação e imposto em muitos casos.
  */
+import { currencies } from '../shared/currencies.js'
+
 export const allocationClasses = Object.freeze(['fixed-income', 'equity', 'fund', 'pension', 'cash', 'other'])
+export const allocationCurrencies = Object.freeze(Object.keys(currencies))
+export const allocationRegions = Object.freeze(['domestic', 'international', 'global'])
+export const regionLabels = Object.freeze({ domestic: 'Mercado local', international: 'Exterior', global: 'Global diversificado' })
 export const defaultRebalanceBand = 0.05
 
-export function sanitizeTargetAllocation(source) {
-  if (!source || typeof source !== 'object') return null
+// shares keeps the original class target for compatibility with saved plans.
+export const allocationDimensions = Object.freeze({
+  class: { sharesKey: 'shares', keys: allocationClasses, keyOf: item => allocationClasses.includes(item.assetClass) ? item.assetClass : 'other' },
+  currency: { sharesKey: 'currencyShares', keys: allocationCurrencies, keyOf: (item, baseCurrency) => allocationCurrencies.includes(item.exposureCurrency) ? item.exposureCurrency : baseCurrency },
+  region: { sharesKey: 'regionShares', keys: allocationRegions, keyOf: item => allocationRegions.includes(item.region) ? item.region : 'domestic' }
+})
+
+function sanitizeShares(source, keys) {
+  if (!source || typeof source !== 'object') return undefined
   const shares = {}
   let total = 0
-  for (const key of allocationClasses) {
-    const value = Number(source.shares?.[key] ?? 0)
+  for (const key of keys) {
+    const value = Number(source[key] ?? 0)
     if (!Number.isFinite(value) || value < 0 || value > 1) return null
     if (value > 0) shares[key] = value
     total += value
   }
-  if (Math.abs(total - 1) > 0.005) return null
+  return Math.abs(total - 1) > 0.005 ? null : shares
+}
+
+export function sanitizeTargetAllocation(source) {
+  if (!source || typeof source !== 'object') return null
+  const result = {}
+  for (const dimension of Object.values(allocationDimensions)) {
+    const shares = sanitizeShares(source[dimension.sharesKey], dimension.keys)
+    if (shares === null) return null
+    if (shares) result[dimension.sharesKey] = shares
+  }
+  if (!Object.keys(result).length) return null
   const band = Number(source.band ?? defaultRebalanceBand)
-  return { shares, band: Number.isFinite(band) && band >= 0.01 && band <= 0.2 ? band : defaultRebalanceBand }
+  return { ...result, band: Number.isFinite(band) && band >= 0.01 && band <= 0.2 ? band : defaultRebalanceBand }
 }
 
 export function validateTargetAllocation(source) {
   const clean = sanitizeTargetAllocation(source)
-  if (!clean) throw new RangeError('A alocação-alvo precisa somar 100%, com cada classe entre 0% e 100%, e banda entre 1 e 20 pontos percentuais.')
+  if (!clean) throw new RangeError('Cada alvo preenchido precisa somar 100%, com valores entre 0% e 100%, e banda entre 1 e 20 pontos percentuais. Informe ao menos um alvo.')
   return clean
 }
 
-function currentByClass(investments) {
-  const totals = Object.fromEntries(allocationClasses.map(key => [key, 0]))
-  for (const item of investments || []) {
-    const key = allocationClasses.includes(item.assetClass) ? item.assetClass : 'other'
-    totals[key] += Number(item.amount) || 0
-  }
+export function currentByDimension(investments, dimension = 'class', baseCurrency = 'BRL') {
+  const { keys, keyOf } = allocationDimensions[dimension]
+  const totals = Object.fromEntries(keys.map(key => [key, 0]))
+  for (const item of investments || []) totals[keyOf(item, baseCurrency)] += Number(item.amount) || 0
   return totals
 }
 
-// Splits the monthly contribution toward classes below target after the
-// contribution. Any remainder follows the target weights.
-export function contributionSplit(current, target, contribution) {
+export function exposureDistribution(plan, dimension = 'class', baseCurrency = 'BRL') {
+  const current = currentByDimension(plan?.investments, dimension, baseCurrency)
   const total = Object.values(current).reduce((sum, value) => sum + value, 0)
-  const split = Object.fromEntries(allocationClasses.map(key => [key, 0]))
+  return Object.entries(current).filter(([, amount]) => amount > 0).map(([key, amount]) => ({ key, amount, share: total > 0 ? amount / total : 0 })).sort((a, b) => b.amount - a.amount)
+}
+
+// Splits the monthly contribution toward keys below target after the
+// contribution. Any remainder follows the target weights.
+export function contributionSplit(current, shares, contribution, keys = Object.keys(current)) {
+  const total = Object.values(current).reduce((sum, value) => sum + value, 0)
+  const split = Object.fromEntries(keys.map(key => [key, 0]))
   if (!(contribution > 0)) return split
   const futureTotal = total + contribution
-  const gaps = Object.fromEntries(allocationClasses.map(key => [key, Math.max(0, (target.shares[key] || 0) * futureTotal - current[key])]))
+  const gaps = Object.fromEntries(keys.map(key => [key, Math.max(0, (shares[key] || 0) * futureTotal - (current[key] || 0))]))
   const gapTotal = Object.values(gaps).reduce((sum, value) => sum + value, 0)
   if (gapTotal >= contribution) {
-    for (const key of allocationClasses) split[key] = contribution * gaps[key] / gapTotal
+    for (const key of keys) split[key] = contribution * gaps[key] / gapTotal
     return split
   }
   const rest = contribution - gapTotal
-  for (const key of allocationClasses) split[key] = gaps[key] + rest * (target.shares[key] || 0)
+  for (const key of keys) split[key] = gaps[key] + rest * (shares[key] || 0)
   return split
 }
 
-export function rebalanceAnalysis(plan, target, { monthlyContribution = plan?.monthlyContribution || 0 } = {}) {
+export function rebalanceAnalysis(plan, target, { monthlyContribution = plan?.monthlyContribution || 0, dimension = 'class', baseCurrency = 'BRL' } = {}) {
   const clean = sanitizeTargetAllocation(target)
-  if (!clean) return null
-  const current = currentByClass(plan?.investments)
+  const config = allocationDimensions[dimension]
+  const shares = clean?.[config.sharesKey]
+  if (!shares) return null
+  const current = currentByDimension(plan?.investments, dimension, baseCurrency)
   const total = Object.values(current).reduce((sum, value) => sum + value, 0)
-  const split = contributionSplit(current, clean, monthlyContribution)
-  const rows = allocationClasses
-    .filter(key => current[key] > 0 || clean.shares[key] > 0)
+  const split = contributionSplit(current, shares, monthlyContribution, config.keys)
+  const rows = config.keys
+    .filter(key => current[key] > 0 || shares[key] > 0)
     .map(key => {
       const currentShare = total > 0 ? current[key] / total : 0
-      const targetShare = clean.shares[key] || 0
+      const targetShare = shares[key] || 0
       const deviation = currentShare - targetShare
       return {
-        assetClass: key,
+        key,
+        assetClass: dimension === 'class' ? key : undefined,
         amount: current[key],
         currentShare,
         targetShare,
@@ -81,6 +111,7 @@ export function rebalanceAnalysis(plan, target, { monthlyContribution = plan?.mo
   // Months of redirected contributions needed to close the largest shortfall, without selling.
   const largestShortfall = Math.max(0, ...rows.map(row => row.amountToTarget))
   return {
+    dimension,
     total,
     band: clean.band,
     rows,

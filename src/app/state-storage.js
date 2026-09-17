@@ -15,6 +15,7 @@ import { linkedBudgetItem } from '../domain/ledger-links.js'
 import { sanitizeAnnualRows, sanitizeMigration } from '../domain/annual-planning.js'
 import { sanitizeFinappMethod } from '../domain/finapp-viability.js'
 import { sanitizeTargetAllocation } from '../domain/target-allocation.js'
+import { currencies } from '../shared/currencies.js'
 
 export const stateVersion = 10
 export const storageKeys = Object.freeze({
@@ -115,6 +116,8 @@ export function sanitizeInvestment(investment, index = 0) {
     indexAnnualRate,
     ...(annualRealReturns.length ? { annualRealReturns } : {}),
     ...(validNumber(annualFee, [0.0001, 0.1]) ? { annualFee } : {}),
+    ...(currencies[investment.exposureCurrency] ? { exposureCurrency: investment.exposureCurrency } : {}),
+    ...(['domestic', 'international', 'global'].includes(investment.region) ? { region: investment.region } : {}),
     // Only meaningful for assetClass 'pension': holding period for the regressive tax table.
     ...(assetClass === 'pension' && safeDate(investment.acquiredAt) ? { acquiredAt: safeDate(investment.acquiredAt) } : {})
   }

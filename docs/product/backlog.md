@@ -1,5 +1,9 @@
 # Backlog inicial
 
+## Entrega: Sprint 36, fluxo em abas, risco por classe e exposição geográfica
+
+Fluxo de caixa em abas Resumo do mês, Evolução anual e Mês a mês. Volatilidade por classe também na avaliação anual, com referências e correlação editáveis. Moeda de exposição e região por investimento, com distribuição, alvos, divisão de aportes e diagnóstico de dependência da moeda do plano. 702 testes e build aprovados. Inspeção em navegador feita. [Escopo, decisões e pendências](sprint-36-abas-risco-exposicao.md).
+
 ## Entrega: Sprint 35, leitura mensal e alocação-alvo
 
 Todo total anual de receitas, despesas, metas e saldo mostra o equivalente mensal, dividido pelos meses incluídos. Lançamentos anuais mostram o valor por mês, também durante a digitação. Fluxo de caixa reorganizado, renda na aposentadoria no topo da Visão geral, alocação-alvo com bandas e divisão de aportes, volatilidade por classe opcional no risco mensal. 692 testes e build aprovados. Inspeção visual feita. [Escopo, regras e pendências](sprint-35-leitura-mensal-alocacao.md).

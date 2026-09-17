@@ -14,6 +14,9 @@ Regras educativas em `src/domain/portfolio-diagnostics.js`. Não são recomenda�
 | Risco de sequência | Atenção | Até 5 anos da aposentadoria e mais de 50% em ações |
 | Marcação a mercado | Informação | IPCA + taxa sem liquidez restrita |
 | Previdência sem data | Informação | Previdência sem data do primeiro aporte |
+| Sem alocação-alvo | Informação | Mais de um investimento e nenhum alvo por classe, moeda ou região |
+| Fora da alocação-alvo | Atenção | Algum item fora da banda em uma dimensão com alvo |
+| Moeda do plano | Informação | 90% ou mais do patrimônio exposto à moeda do plano |
 | Retorno assumido | Atenção / Risco | Retorno real médio sem IPCA + de 6% / 8% ou mais |
 | Taxa de retirada | Risco | Acima de 5% ao ano |
 | Retirada longa | Atenção | Mais de 30 anos após a aposentadoria e taxa acima de 3,5% |

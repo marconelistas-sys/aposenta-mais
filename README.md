@@ -26,6 +26,7 @@ Use Node.js 24 ou superior e `npm run dev`. Abra http://127.0.0.1:4173. Entre in
 - [Sprint 34: carteira confiável](docs/product/sprint-34-carteira-confiavel.md)
 - [Regras do diagnóstico da carteira](docs/finance/diagnostico-carteira.md)
 - [Sprint 35: leitura mensal e alocação-alvo](docs/product/sprint-35-leitura-mensal-alocacao.md)
+- [Sprint 36: fluxo em abas, risco por classe e exposição geográfica](docs/product/sprint-36-abas-risco-exposicao.md)
 
 ## O que está pronto
 

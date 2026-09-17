@@ -75,7 +75,7 @@ import { projectRetirementWithSchedules } from './domain/retirement.js'
 import { renderContent } from './features/content/content.js'
 import { renderDashboard } from './features/dashboard/dashboard.js'
 import { renderWealth } from './features/wealth/wealth.js'
-import { renderCashFlow, renderBudgetEntries, updateBudgetEntryResults } from './features/cash-flow/cash-flow.js'
+import { renderCashFlow, renderBudgetEntries, updateBudgetEntryResults, selectCashFlowTab, cashFlowTabs } from './features/cash-flow/cash-flow.js'
 import { budgetEntriesView, resetBudgetEntriesView, readBudgetFilters } from './features/cash-flow/budget-entries-view.js'
 import { renderPlan } from './features/plan/plan.js'
 import { renderProfile } from './features/profile/profile.js'
@@ -111,7 +111,7 @@ import {
   renderRegister
 } from './features/auth/auth.js'
 import { renderPremium } from './features/premium/premium.js'
-import { renderInvestments } from './features/investments/investments.js'
+import { allocationView, renderInvestments } from './features/investments/investments.js'
 import { trackProductEvent } from './app/product-events.js'
 import { categoryById } from './data/cash-flow-categories.js'
 import { loadExchangeRates } from './app/exchange-rate-state.js'
@@ -130,6 +130,7 @@ import { compareStatementPeriods } from './domain/statement-history.js'
 import { budgetOwnerView } from './shared/household-owner.js'
 import { renderStatements, readStatementAnalysis } from './features/statements/statements.js'
 import { bindMonthlyHints, updateMonthlyHint } from './app/monthly-hint.js'
+import { classVolatility, defaultClassCorrelation } from './domain/risk-plan.js'
 
 bindMoneyInputs(document)
 const app = document.querySelector('#app')
@@ -256,6 +257,23 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
 
 const trackedProductImpressions = new Set()
 let lastReviewLocation = null
+
+function openCashFlowTab(tab, focus = true) {
+  const selected = selectCashFlowTab(tab)
+  window.history.replaceState({}, '', `/fluxo-caixa?aba=${selected}`)
+  render({ indicateRecalculation: false })
+  if (focus) app.querySelector(`[data-cash-flow-tab="${selected}"]`)?.focus({ preventScroll: true })
+}
+
+document.addEventListener('keydown', event => {
+  const tab = event.target.closest?.('[data-cash-flow-tab]')
+  if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  const keys = Object.keys(cashFlowTabs)
+  const index = keys.indexOf(tab.dataset.cashFlowTab)
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? keys.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + keys.length) % keys.length
+  event.preventDefault()
+  openCashFlowTab(keys[next])
+})
 
 function navigate(href) {
   resetExpenseImpact()
@@ -946,6 +964,8 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('investmentName').value = investment.name
     form.elements.namedItem('assetClass').value = investment.assetClass
     form.elements.namedItem('liquidity').value = investment.liquidity || 'unknown'
+    form.elements.namedItem('exposureCurrency').value = investment.exposureCurrency || state.currency
+    form.elements.namedItem('region').value = investment.region || 'domestic'
     setFormFieldValue(form.elements.namedItem('investmentAmount'), investment.amount)
     setFormFieldValue(form.elements.namedItem('investmentContribution'), investment.monthlyContribution)
     setInvestmentConditionalFields(form)
@@ -962,6 +982,27 @@ document.addEventListener('click', async (event) => {
     showInvestmentStep(form, 1)
     form.scrollIntoView({ behavior: 'smooth', block: 'start' })
     form.elements.namedItem('investmentName').focus({ preventScroll: true })
+    return
+  }
+
+  const resetVolatility = event.target.closest('[data-reset-volatility]')
+  if (resetVolatility) {
+    const fields = resetVolatility.closest('[data-volatility-fields]')
+    for (const [key, value] of Object.entries(classVolatility)) fields.querySelector(`[name="vol:${key}"]`).value = Math.round(value * 1000) / 10
+    fields.querySelector('[name="classCorrelation"]').value = defaultClassCorrelation
+    return
+  }
+
+  const cashFlowTab = event.target.closest('[data-cash-flow-tab]')
+  if (cashFlowTab) {
+    openCashFlowTab(cashFlowTab.dataset.cashFlowTab)
+    return
+  }
+
+  const allocationDimension = event.target.closest('[data-allocation-dimension]')
+  if (allocationDimension) {
+    allocationView.dimension = allocationDimension.dataset.allocationDimension
+    render()
     return
   }
 
@@ -1288,6 +1329,12 @@ document.addEventListener('change', async (event) => {
       confirm.disabled = review.selectedCount === 0 || review.overLimit
     }
     if (limitError) limitError.hidden = !review.overLimit
+    return
+  }
+
+  if (event.target.matches('[data-volatility-model]')) {
+    const group = event.target.closest('[data-volatility-fields]')?.querySelector('[data-class-volatility]')
+    if (group) group.hidden = event.target.value !== 'class'
     return
   }
 
@@ -1759,10 +1806,14 @@ document.addEventListener('submit', async (event) => {
   if (targetAllocationForm) {
     event.preventDefault()
     const data = new FormData(targetAllocationForm)
-    const shares = {}
-    for (const [name, value] of data.entries()) if (name.startsWith('target:') && value !== '') shares[name.slice(7)] = parseNumber(value) / 100
+    const groups = { class: {}, currency: {}, region: {} }
+    for (const [name, value] of data.entries()) {
+      const [prefix, dimension, key] = name.split(':')
+      if (prefix === 'target' && groups[dimension] && value !== '') groups[dimension][key] = parseNumber(value) / 100
+    }
+    const filled = group => Object.values(group).some(value => value > 0) ? group : undefined
     try {
-      setTargetAllocation({ shares, band: parseNumber(data.get('targetBand')) / 100 })
+      setTargetAllocation({ shares: filled(groups.class), currencyShares: filled(groups.currency), regionShares: filled(groups.region), band: parseNumber(data.get('targetBand')) / 100 })
       render()
       showToast('Alocação-alvo salva.')
     } catch (error) {
@@ -1789,6 +1840,8 @@ document.addEventListener('submit', async (event) => {
         indexAnnualRate: returnType === 'cdi' ? parseNumber(data.get('investmentIndexRate')) / 100 : null,
         annualRealReturns: parseAnnualRealReturns(data.get('investmentAnnualReturns') || ''),
         annualFee: data.get('investmentAnnualFee') ? parseNumber(data.get('investmentAnnualFee')) / 100 : 0,
+        exposureCurrency: data.get('exposureCurrency') || state.currency,
+        region: data.get('region') || 'domestic',
         acquiredAt: data.get('investmentAcquiredAt') || null,
         releaseYear: data.get('investmentReleaseYear') || null
       })
@@ -1964,11 +2017,12 @@ document.addEventListener('submit', async (event) => {
 window.addEventListener('popstate', () => { resetExpenseImpact(); render({ focusMain: true, indicateRecalculation: false }) })
 bindMonthlyHints(document)
 document.addEventListener('input', event => {
-  const form = event.target.closest?.('[data-target-allocation-form]')
-  if (!form) return
-  const total = [...form.querySelectorAll('input[name^="target:"]')].reduce((sum, input) => sum + (parseNumber(input.value || 0) || 0), 0)
-  const output = form.querySelector('[data-target-allocation-total]')
-  if (output) output.textContent = `Soma atual: ${total.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%. ${Math.abs(total - 100) <= 0.5 ? 'Pronto para salvar.' : 'A soma precisa ser 100%.'}`
+  const group = event.target.closest?.('[data-target-dimension]')
+  if (!group) return
+  const inputs = [...group.querySelectorAll('input[name^="target:"]')]
+  const total = inputs.reduce((sum, input) => sum + (parseNumber(input.value || 0) || 0), 0)
+  const output = group.querySelector('[data-target-allocation-total]')
+  if (output) output.textContent = inputs.every(input => input.value === '' || parseNumber(input.value) === 0) ? 'Deixe em branco para não usar este alvo.' : `Soma atual: ${total.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%. ${Math.abs(total - 100) <= 0.5 ? 'Pronto para salvar.' : 'A soma precisa ser 100%.'}`
 })
 document.addEventListener('input', event => {
   const consortium = event.target.closest('[data-consortium-form]')

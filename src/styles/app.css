@@ -4096,3 +4096,18 @@ label:focus-within > .money-input-hint, .form-field:focus-within .money-input-hi
 .allocation-status--above { background: #fbf1d9; color: #6f4f06; }
 .allocation-status--below { background: var(--color-blue-soft); color: #1b527a; }
 @media (max-width: 680px) { .target-allocation { padding: 22px 18px; } }
+.volatility-fields { margin-block: 12px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.volatility-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-block: 8px; }
+.target-allocation-fieldset { margin: 12px 0 0; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.target-allocation-fieldset legend { padding-inline: 6px; font-weight: 650; }
+.target-allocation-band { max-width: 280px; margin-block: 14px; }
+.target-allocation .segmented-control { margin-top: 14px; }
+
+/* Sprint 36: abas do fluxo de caixa */
+.cash-flow-tabs { display: flex; gap: 4px; margin: 0 0 20px; padding: 4px; overflow-x: auto; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); }
+.cash-flow-tabs button { flex: 1 0 auto; min-height: 44px; padding: 0 18px; border: 0; border-radius: 10px; background: transparent; color: var(--color-ink-soft); font: inherit; font-weight: 650; cursor: pointer; }
+.cash-flow-tabs button[aria-selected="true"] { background: var(--color-brand); color: white; }
+.cash-flow-tabs button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.timeline-controls--single { grid-template-columns: minmax(200px, 360px); }
+.monthly-table { max-height: 560px; overflow: auto; }
+.monthly-table td[data-tone="negative"] { color: var(--color-danger); font-weight: 650; }
