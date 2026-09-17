@@ -15,6 +15,8 @@ import { categoriesForType, categoryById } from '../../data/cash-flow-categories
 import { renderCashFlowTimeline } from './timeline.js'
 import { cashFlowTimeline } from '../../domain/cash-flow-timeline.js'
 import { budgetEntriesView, filterBudgetEntries } from './budget-entries-view.js'
+import { expenseCategoryOptions } from '../plan/annual-planning.js'
+import { pageTabState, renderTabbedPanels } from '../../shared/page-tabs.js'
 
 const frequencyLabels = {
   monthly: 'Mensal',
@@ -101,6 +103,7 @@ function cashFlowItems(result) {
           </div>
           <div class="cash-item__amount">
             <strong class="money-value">${original}${item.frequency === 'annual' ? ' <small>por ano</small>' : ''}</strong>
+            ${item.consortiumId && !state.valuesHidden && Number.isFinite(item.consortiumSavings) ? `<span class="consortium-item-split">${privateCurrency(item.consortiumSavings, false, true, item.currency)} vira cota · ${privateCurrency(item.consortiumCosts, false, true, item.currency)} custo</span>` : ''}
             ${item.frequency === 'annual' && !state.valuesHidden ? `<span class="monthly-equivalent money-value">${privateCurrency(item.amount / 12, false, true, item.currency)}/mês</span>` : ''}
             ${item.currency === state.currency ? '' : `<span class="money-value">${converted}${item.frequency === 'annual' && !state.valuesHidden ? ` · ${privateCurrency(item.convertedAmount / 12, false, true, state.currency)}/mês` : ''}</span><span>na moeda da visão geral</span>`}
           </div>
@@ -198,6 +201,10 @@ function annualGoalEditDialog() {
           <label class="form-field">
             <span class="form-field__label">Moeda</span>
             <span class="input-shell"><select name="currency" required>${currencyOptions()}</select></span>
+          </label>
+          <label class="form-field">
+            <span class="form-field__label">Categoria</span>
+            <span class="input-shell"><select name="categoryId" required>${expenseCategoryOptions()}</select></span>
           </label>
           <label class="form-field">
             <span class="form-field__label">Despesa total no ano inicial</span>
@@ -351,21 +358,15 @@ function retirementScenario(label, contribution, detail, tone, schedules) {
 }
 
 export const cashFlowTabs = Object.freeze({ resumo: 'Resumo do mês', anual: 'Evolução anual', mensal: 'Mês a mês' })
-export const cashFlowView = { tab: 'resumo' }
+// Session memory lives in the shared tab component, under the page id 'fluxo-caixa'.
+export const cashFlowView = { get tab() { return Object.hasOwn(cashFlowTabs, pageTabState['fluxo-caixa']) ? pageTabState['fluxo-caixa'] : 'resumo' } }
 
-// The tab can come from a link (?aba=anual) and stays for the session.
 export function selectCashFlowTab(tab) {
-  if (Object.hasOwn(cashFlowTabs, tab)) cashFlowView.tab = tab
+  if (Object.hasOwn(cashFlowTabs, tab)) pageTabState['fluxo-caixa'] = tab
   return cashFlowView.tab
 }
 
-function renderCashFlowTabs(active) {
-  return `<div class="cash-flow-tabs" role="tablist" aria-label="Visões do fluxo de caixa">${Object.entries(cashFlowTabs).map(([key, label]) => `<button type="button" role="tab" id="cash-flow-tab-${key}" aria-controls="cash-flow-panel" aria-selected="${key === active}" tabindex="${key === active ? 0 : -1}" data-cash-flow-tab="${key}">${label}</button>`).join('')}</div>`
-}
-
 export function renderCashFlow() {
-  if (typeof window !== 'undefined' && window.location) selectCashFlowTab(new URLSearchParams(window.location.search).get('aba'))
-  const tab = cashFlowView.tab
   const selectedDate = referenceDate(state.cashFlow.referenceMonth)
   const firstMonth = cashFlowTimeline(state, state.cashFlow.referenceMonth, 1)[0]
   const schedules = retirementContributionSchedules(
@@ -409,9 +410,8 @@ export function renderCashFlow() {
       <div class="privacy-chip">${icon('lock', 16)} Cálculo local, sem envio automático</div>
     </section>
 
-    ${renderCashFlowTabs(tab)}
-    <div class="cash-flow-tab-panel" id="cash-flow-panel" role="tabpanel" aria-labelledby="cash-flow-tab-${tab}">
-    ${tab === 'anual' ? renderCashFlowTimeline({ part: 'annual' }) : tab === 'mensal' ? monthSummary + renderCashFlowTimeline({ part: 'monthly' }) : `${monthSummary}
+    ${renderTabbedPanels('fluxo-caixa', [
+      { key: 'resumo', label: cashFlowTabs.resumo, html: `${monthSummary}
     ${renderMonthTracking(state)}
         <section class="cash-flow-layout">
       <div class="cash-flow-editor">
@@ -472,8 +472,10 @@ export function renderCashFlow() {
         ${retirementScenario('Meta', result.requiredMonthlyContribution, 'Aporte adicional estimado após a previdência.', 'target', schedules)}
       </div>
     </section>
-    </details>`}
-    </div>
+    </details>` },
+      { key: 'anual', label: cashFlowTabs.anual, html: renderCashFlowTimeline({ part: 'annual' }) },
+      { key: 'mensal', label: cashFlowTabs.mensal, html: monthSummary + renderCashFlowTimeline({ part: 'monthly' }) }
+    ], { label: 'Visões do fluxo de caixa' })}
   `
 }
 
@@ -596,7 +598,8 @@ export function renderBudgetEntries(statementReview = null) {
   const pressure = state.valuesHidden ? '' : `<section class="panel budget-month-pressure"><h2>Pressão no orçamento de ${monthLabel(state.cashFlow.referenceMonth)}</h2>${renderBudgetPressure({ ...point, costs: point.expenses - goals, goals, months: 1 }, state.currency, { monthly: true, limit: 3 })}<a href="/fluxo-caixa" data-route>Ver composição anual e simular efeito futuro</a></section>`
   const options = (values, selected) => Object.entries(values).map(([value, label]) => `<option value="${value}" ${selected === value ? 'selected' : ''}>${label}</option>`).join('')
   return `<section class="page-heading page-heading--inner budget-heading"><div><p class="eyebrow">ORÇAMENTO</p><h1>Receitas e despesas</h1><p>Consulte seus lançamentos e ajuste o que entra e sai do orçamento familiar.</p><a href="/fluxo-caixa" data-route>Ver fluxo de caixa e projeções ${icon('arrowRight', 16)}</a></div><div class="budget-page-actions"><button class="button button--primary" type="button" data-new-cash-item ${state.cashFlow.items.length >= 100 ? 'disabled' : ''}>${icon('plus', 18)} Adicionar lançamento</button><button class="button button--secondary" type="button" data-open-budget-import>${icon('document', 18)} Importar extrato</button>${state.cashFlow.items.length >= 100 ? '<p class="budget-capacity">Limite de 100 registros atingido. Edite os registros existentes ou exclua os desnecessários.</p>' : ''}</div></section>
-    ${pressure}<section class="panel budget-workspace" aria-labelledby="cash-items-title">
+    ${renderTabbedPanels('orcamento', [
+      { key: 'lancamentos', label: 'Lançamentos', html: `<section class="panel budget-workspace" aria-labelledby="cash-items-title">
       <form class="budget-filters" data-budget-filters role="search" aria-label="Filtrar lançamentos">
         <label class="form-field"><span>Mês de referência</span><input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month required /></label>
         <label class="form-field"><span>Período</span><select name="period">${options({ active: 'Vigentes no mês', all: 'Todos os períodos' }, budgetEntriesView.period)}</select></label>
@@ -610,8 +613,10 @@ export function renderBudgetEntries(statementReview = null) {
       <div data-budget-results>${renderBudgetEntryResults(result)}</div>
       <p class="budget-capacity">${state.cashFlow.items.length} de 100 registros no cadastro manual e importado.${state.cashFlow.items.length >= 100 ? ' Limite atingido. Edite um registro existente ou exclua um que não seja mais necessário.' : ''}</p>
     </section>
-    ${renderMonthTracking(state, { compact: true })}
-    ${budgetImportTools()}
+` },
+      { key: 'mes', label: 'Pressão e acompanhamento', html: `${pressure}${renderMonthTracking(state, { compact: true })}` },
+      { key: 'importar', label: 'Importar extratos', html: budgetImportTools() }
+    ], { label: 'Visões do orçamento' })}
     ${newCashItemDialog()}
     ${cashItemEditDialog()}
     ${annualGoalEditDialog()}

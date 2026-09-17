@@ -7,6 +7,9 @@ const finite = Number.isFinite
 const palette = ['var(--chart-green)', 'var(--chart-terracotta)', 'var(--chart-blue)', 'var(--chart-gold)', 'var(--chart-plum)']
 const otherColor = 'var(--color-ink-muted)'
 
+// Asset classes keep the same color in every chart, whatever their rank.
+export const assetClassColors = Object.freeze({ cash: 'var(--chart-green)', 'fixed-income': 'var(--chart-blue)', fund: 'var(--chart-gold)', pension: 'var(--chart-plum)', equity: 'var(--chart-terracotta)', other: otherColor })
+
 function segmentColor(segment, index) {
   return segment.color || (segment.key === 'other' ? otherColor : palette[index % palette.length])
 }

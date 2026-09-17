@@ -151,6 +151,12 @@ export function diagnosePortfolio(plan, { monthlyExpenses = 0, yearsToRetirement
       add('home-currency', 'info', 'Carteira quase toda na moeda do plano', `${Math.round(homeShare * 100)}% do patrimônio depende de ${baseCurrency}. Uma perda de poder de compra dessa moeda atinge todo o plano.`, plan.investments.some(item => item.exposureCurrency) ? 'Avalie se despesas futuras em outras moedas justificam exposição externa.' : 'Informe a moeda de exposição de cada investimento para confirmar.')
     }
 
+    const releaseIds = new Set((plan.finappMethod?.releases || []).map(row => row.investmentId))
+    const withoutRelease = plan.investments.filter(item => item.liquidity === 'restricted' && item.assetClass !== 'pension' && !releaseIds.has(item.id))
+    if (withoutRelease.length) {
+      add('release-year', 'info', 'Saldo restrito sem data de liberação', `${withoutRelease.map(item => item.name).join(', ')} não ${withoutRelease.length === 1 ? 'tem' : 'têm'} ano de liberação. Sem ele, o plano nunca usa esse dinheiro para pagar despesas.`, 'Para precatórios e outros direitos a receber, edite o investimento e informe o ano previsto de liberação.')
+    }
+
     const pensionWithoutDate = plan.investments.filter(item => item.assetClass === 'pension' && !item.acquiredAt)
     if (pensionWithoutDate.length) {
       add('pension-date', 'info', 'Previdência sem data de aporte', 'Sem data, o imposto regressivo usa o pior caso de 35%.', 'Informe a data do primeiro aporte de cada plano.')

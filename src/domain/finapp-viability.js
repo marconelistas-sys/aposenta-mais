@@ -9,7 +9,8 @@ import { propertyValues, assessPropertySolvency } from './property-solvency.js'
 import { convertCurrency, sanitizeExchangeRates } from '../shared/exchange-rates.js'
 import { categoryById } from '../data/cash-flow-categories.js'
 import { openSalaryItems, salaryEndMessage } from './cash-flow-checks.js'
-import { createAnnualBreakdown, collectAnnualBudget, addAnnualBreakdown, finishAnnualBreakdown } from './annual-cash-flow-breakdown.js'
+import { addConsortiumParts, createAnnualBreakdown, collectAnnualBudget, addAnnualBreakdown, finishAnnualBreakdown } from './annual-cash-flow-breakdown.js'
+import { migrationStatus } from './migration-review.js'
 
 const taxRegimes = new Set(['none', 'regressive', 'progressive', 'manual'])
 
@@ -67,7 +68,7 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   for (const item of openSalaries) issue(salaryEndMessage([item]), budgetReviewLink(item.id, 'endMode'), 'Definir término deste salário')
   for (const item of state.cashFlow.items.filter(item => item.recordKind !== 'actual' && item.source !== 'txt' && item.frequency === 'occasional' && !item.startDate)) issue(`${reviewItemName(item)}: lançamento único sem data, excluído da projeção. Informe o mês para incluí-lo.`, budgetReviewLink(item.id), 'Informar data deste lançamento')
   if (!state.plan.investments.length && state.plan.currentAssets > 0) issue('Patrimônio agregado sem disponibilidade comprovada. Detalhe a Carteira.', fieldReviewLink('/carteira', 'investmentName'), 'Detalhar o patrimônio na carteira')
-  for (const [index, row] of (state.cashFlow.finappMigration?.pending || []).entries()) { const detail = migrationReview(row, index); issue(detail.message, detail.href, detail.action) }
+  for (const { row, index } of migrationStatus(state).open) { const detail = migrationReview(row, index); issue(detail.message, detail.href, detail.action) }
   for (const item of state.plan.investments.filter(item => item.liquidity === 'unknown')) issue(`${item.name}: liquidez não informada. Classifique se o saldo está disponível ou restrito.`, investmentReviewLink(item.id), 'Classificar liquidez deste investimento')
   const releaseMap = new Map(settings.releases.map(row => [row.investmentId, row.year]))
   if (releaseMap.size !== settings.releases.length || [...releaseMap.keys()].some(id => !state.plan.investments.some(item => item.id === id && item.liquidity !== 'available'))) throw new Error('Liberação duplicada ou investimento restrito não encontrado.')
@@ -108,7 +109,8 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
         const originalAmount = consortium.rows.find(row => row.month === key)?.cashExpense || 0
         const amount = convert(originalAmount, consortium.item.currency)
         costs += amount
-        addAnnualBreakdown(breakdown, 'costs', { id: `consortium:${consortium.item.id}`, name: consortium.item.name, category: 'Consórcio', source: 'Consórcio', currency: consortium.item.currency, frequency: 'Eventos contratuais' }, amount * costMultiplier, originalAmount * costMultiplier)
+        const row = consortium.rows.find(current => current.month === key)
+        if (row) addConsortiumParts(breakdown, { id: `consortium:${consortium.item.id}`, name: consortium.item.name, category: 'Consórcio', source: 'Consórcio', currency: consortium.item.currency, frequency: 'Eventos contratuais' }, { amount: row.cashExpense, consortiumSavings: row.savingsOutflow }, amount * costMultiplier, originalAmount * costMultiplier)
       }
     }
     // Goals are already in costs from the monthly budget. Separate their annual

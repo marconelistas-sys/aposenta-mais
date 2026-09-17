@@ -1,5 +1,6 @@
 // Scenario assumptions, not calibrated probabilities or investment guarantees.
 import { validateAnnualRealReturns } from './investment-returns.js'
+import { choleskyFactor, correlatedShocks, correlationKeys, uniformCorrelations } from './class-correlation.js'
 const MAX_VALUE = 1e15
 function number(value, name, min = -MAX_VALUE, max = MAX_VALUE) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new Error(`${name}: valor inválido.`)
@@ -14,7 +15,7 @@ function validate(input) {
   if (!input || !Array.isArray(input.buckets) || input.buckets.length > 100) throw new Error('Carteira inválida ou acima de 100 aplicações.')
   const buckets = input.buckets.map(bucket => {
     if (bucket.liquid !== undefined && typeof bucket.liquid !== 'boolean') throw new Error('Liquidez inválida.')
-    return { amount: number(bucket.amount, 'Saldo', 0), annualRealReturn: number(bucket.annualRealReturn, 'Retorno', -0.999999999999, 1), annualRealReturns: validateAnnualRealReturns(bucket.annualRealReturns), liquid: bucket.liquid ?? true, ...(bucket.volatility === undefined || bucket.volatility === null ? {} : { volatility: number(bucket.volatility, 'Volatilidade da classe', 0, 1) }) }
+    return { amount: number(bucket.amount, 'Saldo', 0), annualRealReturn: number(bucket.annualRealReturn, 'Retorno', -0.999999999999, 1), annualRealReturns: validateAnnualRealReturns(bucket.annualRealReturns), liquid: bucket.liquid ?? true, ...(typeof bucket.releaseMonth === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(bucket.releaseMonth) ? { releaseMonth: bucket.releaseMonth } : {}), ...(bucket.volatility === undefined || bucket.volatility === null ? {} : { volatility: number(bucket.volatility, 'Volatilidade da classe', 0, 1), volatilityKey: correlationKeys.includes(bucket.volatilityKey) ? bucket.volatilityKey : 'other' }) }
   })
   if (!Array.isArray(input.timelines) || !input.timelines.length || input.timelines.length > 100) throw new Error('Informe entre 1 e 100 cenários.')
   const length = input.timelines[0]?.length
@@ -31,7 +32,7 @@ function validate(input) {
       return { month: row.month, cashFlow: number(row.cashFlow, 'Fluxo'), income: number(row.income, 'Receita', 0), expenses, stressExpenses: number(row.stressExpenses ?? expenses, 'Gastos correntes sujeitos ao cenário', 0, expenses), nonLiquidAssets: number(row.nonLiquidAssets, 'Posição vinculada líquida'), liabilities: number(row.liabilities, 'Obrigações', 0) }
     })
   })
-  return { ...input, buckets, timelines, classCorrelation: number(input.classCorrelation ?? 0.5, 'Correlação entre classes', 0, 1), defaultAnnualReturn: number(input.defaultAnnualReturn ?? 0, 'Retorno dos aportes', -0.999999999999, 1), targetAssets: number(input.targetAssets ?? 0, 'Meta', 0) }
+  return { ...input, buckets, timelines, classCorrelation: number(input.classCorrelation ?? 0.5, 'Correlação entre classes', 0, 1), correlationFactor: choleskyFactor(input.classCorrelations || uniformCorrelations(input.classCorrelation ?? 0.5)), defaultAnnualReturn: number(input.defaultAnnualReturn ?? 0, 'Retorno dos aportes', -0.999999999999, 1), targetAssets: number(input.targetAssets ?? 0, 'Meta', 0) }
 }
 function generator(seed) {
   let state = seed >>> 0
@@ -53,11 +54,10 @@ function path(input, timeline, shift, expenseMultiplier, volatility = 0, random)
   const buckets = [...input.buckets.map(bucket => ({ ...bucket })), { amount: 0, annualRealReturn: input.defaultAnnualReturn, liquid: true }]
   const meansByYear = new Map()
   const deviation = volatility / Math.sqrt(12)
-  // Per-class volatility uses a one-factor model: a common market shock with
-  // correlation rho plus an independent shock per bucket. Hypothesis, not calibration.
+  // Per-class volatility draws correlated shocks by class from the pairwise
+  // correlation matrix (Cholesky). Hypothesis chosen by the person, not calibration.
   const perClass = random && input.buckets.some(bucket => Number.isFinite(bucket.volatility))
   const bucketVolatility = buckets.map(bucket => Number.isFinite(bucket.volatility) ? bucket.volatility : volatility)
-  const rho = input.classCorrelation ?? 0.5
   let unfunded = 0
   let firstShortfall = null
   const rows = timeline.map(row => {
@@ -70,16 +70,17 @@ function path(input, timeline, shift, expenseMultiplier, volatility = 0, random)
     // One common monthly shock preserves individual expected returns. This is
     // a perfect-correlation assumption, not a calibrated covariance model.
     if (perClass) {
-      const common = gaussian(random)
+      const shocks = correlatedShocks(input.correlationFactor, () => gaussian(random))
       buckets.forEach((bucket, index) => {
-        const own = gaussian(random)
-        const bucketShock = bucketVolatility[index] / Math.sqrt(12) * (Math.sqrt(rho) * common + Math.sqrt(1 - rho) * own)
+        const bucketShock = bucketVolatility[index] / Math.sqrt(12) * shocks[bucket.volatilityKey || 'other']
         bucket.amount = finite(bucket.amount * Math.exp(means[index] + bucketShock))
       })
     } else {
       const shock = volatility ? gaussian(random) * deviation : 0
       buckets.forEach((bucket, index) => { bucket.amount = finite(bucket.amount * Math.exp(means[index] + shock)) })
     }
+    // Declared releases (e.g. a precatório) become available from their month on.
+    for (const bucket of buckets) if (!bucket.liquid && bucket.releaseMonth && row.month >= bucket.releaseMonth) bucket.liquid = true
     const cashFlow = row.cashFlow - row.stressExpenses * (expenseMultiplier - 1)
     if (cashFlow >= 0) buckets[buckets.length - 1].amount = finite(buckets[buckets.length - 1].amount + cashFlow)
     else {

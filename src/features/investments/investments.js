@@ -1,7 +1,7 @@
 import { state } from '../../app/state.js'
 import { renderLiquidity, liquidityLabels } from './liquidity.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
-import { resolveInvestmentRealReturn, resolveGrossInvestmentRealReturn, investmentAccumulationFactors, investmentAnnualFee } from '../../domain/investment-returns.js'
+import { resolveInvestmentRealReturn, resolveGrossInvestmentRealReturn, investmentAccumulationFactors, investmentAnnualFee, investmentExposureShare } from '../../domain/investment-returns.js'
 import { diagnosePortfolio } from '../../domain/portfolio-diagnostics.js'
 import { allocationDimensions, defaultRebalanceBand, exposureDistribution, rebalanceAnalysis, regionLabels } from '../../domain/target-allocation.js'
 import { currencies } from '../../shared/currencies.js'
@@ -10,7 +10,7 @@ import { projectRetirementWithSchedules, retirementMonths } from '../../domain/r
 import { escapeHtml, formatPercent, percentInputValue, privateCurrency } from '../../shared/formatters.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { icon } from '../../shared/icons.js'
-import { categoryDonut } from '../../shared/category-donut.js'
+import { assetClassColors, categoryDonut } from '../../shared/category-donut.js'
 
 export const classLabels = {
   'fixed-income': 'Renda fixa',
@@ -48,6 +48,7 @@ function planWithReturns(transform) {
       returnValue: transform(resolveInvestmentRealReturn(investment, state.plan)),
       annualRealReturns: (investment.annualRealReturns || []).map(row => ({ ...row, rate: transform(row.rate) })),
       annualFee: 0,
+      exposureCurrency: undefined,
       indexAnnualRate: null
     }))
   }
@@ -66,11 +67,23 @@ function investmentAllocation(investments, money) {
   for (const investment of investments) totals.set(investment.assetClass, (totals.get(investment.assetClass) || 0) + investment.amount)
   return [...totals.entries()]
     .sort((a, b) => b[1] - a[1])
-    .map(([assetClass, amount]) => ({ key: assetClass, label: classLabels[assetClass] || classLabels.other, value: amount, valueLabel: money(amount) }))
+    .map(([assetClass, amount]) => ({ key: assetClass, color: assetClassColors[assetClass] || assetClassColors.other, label: classLabels[assetClass] || classLabels.other, value: amount, valueLabel: money(amount) }))
 }
 
 function preciseRate(value) {
   return `${(value * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`
+}
+
+function currencyTrendsPanel() {
+  const trends = state.plan.currencyTrends
+  const codes = Object.keys(currencies).filter(code => code !== state.currency)
+  const exposed = (state.plan.investments || []).filter(item => item.exposureCurrency && item.exposureCurrency !== state.currency)
+  return `<form class="panel currency-trends" data-currency-trends-form>
+    <div class="investment-assumptions__intro"><p class="eyebrow">CÂMBIO NA PROJEÇÃO</p><h2>Tendência cambial real, opcional</h2><p>Variação real ao ano de cada moeda contra ${state.currency}. Positivo significa que a moeda estrangeira ganha poder de compra. Aplica-se só à parcela exposta dos investimentos. ${exposed.length ? `${exposed.length} ${exposed.length === 1 ? 'investimento tem' : 'investimentos têm'} exposição externa.` : 'Nenhum investimento tem exposição externa cadastrada.'}</p></div>
+    <div class="currency-trends__fields">${codes.map(code => `<label class="form-field"><span class="form-field__label">${code} · ${currencies[code].label}</span><span class="input-shell"><input type="number" name="trend:${code}" min="-20" max="20" step="0.1" value="${trends?.rates?.[code] ? Math.round(trends.rates[code] * 1000) / 10 : ''}" placeholder="0" /><span class="input-suffix">% a.a.</span></span></label>`).join('')}</div>
+    <div class="investment-form__actions"><button class="button button--secondary" type="submit">Salvar tendência</button></div>
+    <p class="result-disclaimer">Hipótese de planejamento, não previsão de câmbio. Trocar a moeda do plano apaga as tendências, porque elas deixam de fazer sentido. Retornos informados por ano não recebem o ajuste.</p>
+  </form>`
 }
 
 function planWithoutFees() {
@@ -152,7 +165,7 @@ function targetAllocationPanel() {
     ${tabs}
     ${table}
     ${dimension === 'class' ? '' : '<p class="form-context">Investimentos sem moeda ou região informadas contam na moeda do plano e no mercado local. Edite cada investimento para corrigir.</p>'}
-    <details class="disclosure" ${target ? '' : 'open'}><summary>${target ? 'Editar alocação-alvo' : 'Definir alocação-alvo'}</summary>${form}</details>
+    <details class="disclosure" ${target || !distribution.length ? '' : 'open'}><summary>${target ? 'Editar alocação-alvo' : 'Definir alocação-alvo'}</summary>${form}</details>
     <p class="result-disclaimer">Regra de bandas: rebalanceie quando um item se afastar do alvo mais que a banda. Previdência e saldos com prazo podem não permitir resgate ou troca imediata. Vendas e câmbio podem gerar imposto e custos. Não é recomendação de investimento.</p>
   </section>`
 }
@@ -208,7 +221,7 @@ function investmentList() {
             <div><dt>Liquidez declarada</dt><dd>${liquidityLabels[investment.liquidity] || liquidityLabels.unknown}</dd></div>
             <div><dt>Ano previsto de liberação</dt><dd>${state.valuesHidden ? 'Oculto' : investment.liquidity === 'available' ? 'Já disponível' : state.plan.finappMethod?.releases?.find(row => row.investmentId === investment.id)?.year || 'Não informado'}</dd></div>
             <div><dt>Aporte mensal</dt><dd>${privateCurrency(investment.monthlyContribution, state.valuesHidden, false, state.currency)}</dd></div>
-            <div><dt>Exposição</dt><dd>${escapeHtml(investment.exposureCurrency || state.currency)} · ${regionLabels[investment.region] || regionLabels.domestic}</dd></div>
+            <div><dt>Exposição</dt><dd>${escapeHtml(investment.exposureCurrency || state.currency)}${investment.exposureCurrency && investment.exposureCurrency !== state.currency && investmentExposureShare(investment) < 1 ? ` ${preciseRate(investmentExposureShare(investment))}` : ''} · ${regionLabels[investment.region] || regionLabels.domestic}</dd></div>
             <div><dt>Custo anual</dt><dd>${state.valuesHidden ? 'Oculto' : investmentAnnualFee(investment) ? preciseRate(investmentAnnualFee(investment)) : 'Não informado'}</dd></div>
             <div><dt>Retorno usado em ${new Date().getUTCFullYear()}</dt><dd>${state.valuesHidden ? 'Oculto' : `${preciseRate(rate)} real ao ano`}</dd></div>
             <div><dt>Valor no prazo confirmado do plano</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}</dd></div>
@@ -239,6 +252,8 @@ export function renderInvestments() {
   const lowerReturn = projectRetirementWithSchedules(planWithReturns((rate) => Math.max(rate - 0.01, -0.99)), schedules())
   const returnImpact = projection.projectedAssets - withoutReturn.projectedAssets
   const lowerImpact = lowerReturn.projectedAssets - projection.projectedAssets
+  const hasTrends = Boolean(state.plan.currencyTrends) && investments.some(investment => investment.exposureCurrency && investment.exposureCurrency !== state.currency)
+  const withoutTrends = hasTrends ? projectRetirementWithSchedules({ ...state.plan, currencyTrends: null }, schedules()) : null
   const hasFees = investments.some(investment => investmentAnnualFee(investment) > 0)
   const withoutFees = hasFees ? projectRetirementWithSchedules(planWithoutFees(), schedules()) : projection
   const feeImpact = withoutFees.projectedAssets - projection.projectedAssets
@@ -309,6 +324,7 @@ export function renderInvestments() {
           <label class="form-field"><span class="form-field__label">Liquidez declarada</span><span class="input-shell"><select name="liquidity" data-investment-liquidity><option value="unknown">Não informada</option><option value="available">Disponível para resgate</option><option value="restricted">Restrita ou com prazo</option></select></span><small>Disponível significa resgate em poucos dias, sem perda relevante.</small></label>
           <div class="form-grid form-grid--two">
             <label class="form-field"><span class="form-field__label">Moeda de exposição</span><span class="input-shell"><select name="exposureCurrency">${Object.values(currencies).map(currency => `<option value="${currency.code}" ${currency.code === state.currency ? 'selected' : ''}>${currency.code} · ${currency.label}</option>`).join('')}</select></span><small>A moeda que move o valor do investimento, não a moeda da conta.</small></label>
+            <label class="form-field"><span class="form-field__label">Parcela exposta a essa moeda</span><span class="input-shell"><input type="number" name="exposureShare" min="0" max="100" step="1" value="100" /><span class="input-suffix">%</span></span><small>Exemplo: fundo com parte em dólar e o resto em real. Informe USD e a parte em dólar.</small></label>
             <label class="form-field"><span class="form-field__label">Região</span><span class="input-shell"><select name="region">${Object.entries(regionLabels).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></span><small>Global diversificado para fundos ou ETFs com vários países.</small></label>
           </div>
           <label class="form-field"><span class="form-field__label">Quanto você aporta por mês</span><span class="input-shell"><span class="input-prefix">${moneySymbol}</span><input type="number" name="investmentContribution" min="0" max="10000000" step="0.01" value="${firstInvestment ? state.plan.monthlyContribution : 0}" required /></span><small>Informe zero se você não faz novos aportes neste investimento.</small></label>
@@ -363,6 +379,7 @@ export function renderInvestments() {
           <div><span>Com os rendimentos cadastrados</span><strong>${privateCurrency(projection.projectedAssets, state.valuesHidden, false, state.currency)}</strong></div>
           <div><span>Sem rendimento real</span><strong>${privateCurrency(withoutReturn.projectedAssets, state.valuesHidden, false, state.currency)}</strong></div>
           <div><span>Se os rendimentos forem 1 ponto percentual menores</span><strong>${privateCurrency(lowerReturn.projectedAssets, state.valuesHidden, false, state.currency)}</strong></div>
+          ${hasTrends ? `<div><span>Sem a tendência cambial</span><strong>${privateCurrency(withoutTrends.projectedAssets, state.valuesHidden, false, state.currency)}</strong></div>` : ''}
           ${hasFees ? `<div><span>Sem os custos anuais informados</span><strong>${privateCurrency(withoutFees.projectedAssets, state.valuesHidden, false, state.currency)}</strong></div>` : ''}
         </div>
         <p class="impact-callout">Efeito estimado dos rendimentos até os ${state.plan.retirementAge} anos: <strong>${signedMoney(returnImpact)}</strong>.</p>
@@ -388,6 +405,7 @@ export function renderInvestments() {
       <button class="button button--secondary" type="submit">Salvar premissas</button>
     </form>
 
+    ${currencyTrendsPanel()}
     ${firstInvestment ? portfolioSection(investments) : ''}
   `
 }

@@ -27,6 +27,11 @@ Use Node.js 24 ou superior e `npm run dev`. Abra http://127.0.0.1:4173. Entre in
 - [Regras do diagnóstico da carteira](docs/finance/diagnostico-carteira.md)
 - [Sprint 35: leitura mensal e alocação-alvo](docs/product/sprint-35-leitura-mensal-alocacao.md)
 - [Sprint 36: fluxo em abas, risco por classe e exposição geográfica](docs/product/sprint-36-abas-risco-exposicao.md)
+- [Sprint 37: correlação por par, câmbio na projeção e abas](docs/product/sprint-37-correlacao-cambio-abas.md)
+- [Sprint 38: consórcio compreensível](docs/product/sprint-38-consorcio-compreensivel.md)
+- [Sprint 39: precatório e patrimônio visual](docs/product/sprint-39-precatorio-patrimonio.md)
+- [Sprint 40: abas unificadas, categorias do calendário e correlação](docs/product/sprint-40-abas-categorias-correlacao.md)
+- [Sprint 41: affordance e consistência visual](docs/product/sprint-41-affordance-consistencia.md)
 
 ## O que está pronto
 

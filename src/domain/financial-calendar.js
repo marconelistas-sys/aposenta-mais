@@ -26,6 +26,8 @@ export function sanitizeCommitments(raw) {
       item.monthlyFee = value.monthlyFee ?? 0
       item.extraPayments = Array.isArray(value.extraPayments) ? value.extraPayments.map(row => ({ month: row?.month, amount: row?.amount })) : []
     }
+    // Expense category chosen by the person. Kept only when present, so older plans round-trip unchanged.
+    if (typeof value?.categoryId === 'string' && /^[a-z0-9-]{1,60}$/.test(value.categoryId)) item.categoryId = value.categoryId
     try { validateCommitment(item); if (!result.some(row => row.id === item.id)) result.push(item) } catch {}
   }
   return result
@@ -49,7 +51,7 @@ export function prepareCommitmentSchedules(items) {
 export function commitmentEvents(items, month, prepared = null) {
   return sanitizeCommitments(items).flatMap(item => {
     const row = item.kind === 'debt' ? (prepared?.get(item.id) || debtSchedule(item)).find(row => row.month === month) : item.date.slice(0, 7) === month ? { amount: item.amount - item.saved } : null
-    return row && row.amount > 0 ? [{ id: `${item.id}:${month}`, commitmentId: item.id, description: item.name, type: 'expense', categoryId: item.kind === 'debt' ? 'debt' : 'other-expense', amount: row.amount, currency: item.currency, date: dueDate(month, Number(item.date.slice(8))), startDate: dueDate(month, Number(item.date.slice(8))), frequency: 'occasional', recordKind: 'planned', source: 'manual' }] : []
+    return row && row.amount > 0 ? [{ id: `${item.id}:${month}`, commitmentId: item.id, description: item.name, type: 'expense', categoryId: item.categoryId || (item.kind === 'debt' ? 'debt' : 'other-expense'), amount: row.amount, currency: item.currency, date: dueDate(month, Number(item.date.slice(8))), startDate: dueDate(month, Number(item.date.slice(8))), frequency: 'occasional', recordKind: 'planned', source: 'manual' }] : []
   })
 }
 

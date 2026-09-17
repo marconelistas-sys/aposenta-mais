@@ -19,7 +19,7 @@ export function paymentCalendarEvents(cashFlow, month) {
       ['installment', 'Parcela', (cents(row.common) + cents(row.administration) + cents(row.reserve) + cents(row.insurance)) / 100],
       ['own-bid', 'Lance com recursos próprios', row.ownBid],
       ['top-up', 'Complemento da compra', row.topUp]
-    ]) if (cents(amount) > 0) events.push({ id: `consortium:${item.id}:${month}:${component}`, consortiumId: item.id, description: `${item.name}: ${label}`, type: 'expense', categoryId: 'debt', currency: item.currency, amount, date: `${month}-01`, estimatedDate: true })
+    ]) if (cents(amount) > 0) events.push({ id: `consortium:${item.id}:${month}:${component}`, consortiumId: item.id, description: `${item.name}: ${label}`, type: 'expense', categoryId: 'consortium', currency: item.currency, amount, date: `${month}-01`, estimatedDate: true })
   }
   return { events: events.sort((a, b) => a.date.localeCompare(b.date)), undated: calendar.undated }
 }

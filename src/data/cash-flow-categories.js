@@ -21,6 +21,8 @@ export const standardCashFlowCategories = Object.freeze([
   { id: 'travel', name: 'Viagens', type: 'expense', budgetGroup: 'variable' },
   { id: 'taxes', name: 'Impostos e taxas', type: 'expense', budgetGroup: 'essential' },
   { id: 'debt', name: 'Empréstimos e dívidas', type: 'expense', budgetGroup: 'debt' },
+  // Generated from the Consórcios screen. Part of each installment becomes linked wealth.
+  { id: 'consortium', name: 'Consórcio', type: 'expense', budgetGroup: 'debt' },
   { id: 'donations', name: 'Doações', type: 'expense', budgetGroup: 'variable' },
   { id: 'other-expense', name: 'Outras despesas', type: 'expense', budgetGroup: 'variable' }
 ])

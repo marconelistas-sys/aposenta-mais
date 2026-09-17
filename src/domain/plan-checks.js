@@ -3,7 +3,7 @@ import { retirementMonth } from './cash-flow-timeline.js'
 import { openSalaryItems, salaryEndMessage } from './cash-flow-checks.js'
 import { planningHorizon } from './planning-horizon.js'
 import { prepareCommitmentSchedules, sanitizeCommitments } from './financial-calendar.js'
-import { prepareConsortiumEvents } from './consortium.js'
+import { findConsortiumDuplicates, prepareConsortiumEvents } from './consortium.js'
 import { sanitizeAnnualRows } from './annual-planning.js'
 
 function hasPlannedExpenses(cashFlow, planned) {
@@ -32,6 +32,7 @@ export function planChecks(state, today = new Date()) {
   if (!state.plan.spouseEnabled || !state.plan.spouseRetirementMonth) for (const item of planned.filter(item => item.endMode === 'spouse-retirement')) add('spouse-income-end', `${reviewItemName(item)}: receita vinculada ao cônjuge sem aposentadoria confirmada fica fora dos cálculos. Confirme o mês ou use término manual.`, budgetReviewLink(item.id, 'endMode'))
   // Multiple pensions may belong to spouses or represent distinct benefits of one person.
   // A count alone does not establish duplication.
+  for (const match of findConsortiumDuplicates(state.cashFlow, today.toISOString().slice(0, 7))) add('consortium-duplicate', `${match.itemName}: parece repetir a parcela do consórcio ${match.consortiumName}, que já entra no orçamento automaticamente.`, budgetReviewLink(match.itemId, 'description'))
   if (state.cashFlow.ledger?.accounts.length) add('accounts-separate', 'Contas, reserva e Carteira são registros separados. Confira sobreposição antes de consolidar seu patrimônio.', '/contas')
   if (state.plan.investments.length && Math.abs(state.plan.currentAssets - state.plan.investments.reduce((sum, item) => sum + item.amount, 0)) > 0.01) add('wealth-total', 'O patrimônio agregado difere da soma da Carteira. Revise os saldos.', '/carteira')
   if (state.plan.spouseEnabled && !(state.plan.spouseExpectedMonthlyBenefit > 0)) add('spouse-no-benefit', 'O cônjuge está incluído no plano, mas sem renda de previdência privada informada.', fieldReviewLink('/plano', 'spouseExpectedMonthlyBenefit'))

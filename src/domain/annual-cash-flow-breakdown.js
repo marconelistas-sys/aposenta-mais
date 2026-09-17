@@ -32,8 +32,20 @@ export function collectAnnualBudget(breakdown, budget, { pensionMode, costMultip
     if (pension && pensionMode === 'external') continue
     const group = item.type === 'income' ? 'income' : item.annualGoalId ? 'goals' : 'costs'
     const scale = group === 'costs' ? costMultiplier : 1
+    if (item.consortiumId && item.amount > 0) {
+      addConsortiumParts(breakdown, entry, item, amount * scale, originalAmount * scale)
+      continue
+    }
     addAnnualBreakdown(breakdown, group, entry, amount * scale, originalAmount * scale)
   }
+}
+
+// Presentation split of a consortium installment: the linked savings part and the cost part.
+export function addConsortiumParts(breakdown, entry, item, amount, originalAmount) {
+  const savingsShare = Number.isFinite(item.consortiumSavings) && item.amount > 0 ? Math.min(1, Math.max(0, item.consortiumSavings / item.amount)) : 0
+  const base = entry.name.replace(/: parcela do consórcio$/, '')
+  if (savingsShare > 0) addAnnualBreakdown(breakdown, 'costs', { ...entry, id: `${entry.id}:cota`, name: `${base}: cota, vira patrimônio vinculado`, category: 'Consórcio · cota', consortiumPart: 'savings' }, amount * savingsShare, originalAmount * savingsShare)
+  if (savingsShare < 1) addAnnualBreakdown(breakdown, 'costs', { ...entry, id: `${entry.id}:custos`, name: `${base}: taxas e seguro, custo`, category: 'Consórcio · custo', consortiumPart: 'costs' }, amount * (1 - savingsShare), originalAmount * (1 - savingsShare))
 }
 
 export function finishAnnualBreakdown(breakdown) {

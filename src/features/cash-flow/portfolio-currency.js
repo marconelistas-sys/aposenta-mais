@@ -30,12 +30,12 @@ export function renderPortfolioCurrencyScenario() {
   const choices = Object.keys(currencies).filter(code => code !== state.currency)
   const currency = choices.includes(selectedCurrency) ? selectedCurrency : choices[0]
   // Without a saved hypothesis, start from the exposure currency informed in the portfolio.
-  const hypothesis = scenarios.get(`${state.currency}:${currency}`) || { change: 0, exposures: Object.fromEntries(investments.map(item => [item.id, item.exposureCurrency === currency ? 1 : 0])) }
+  const hypothesis = scenarios.get(`${state.currency}:${currency}`) || { change: 0, exposures: Object.fromEntries(investments.map(item => [item.id, item.exposureCurrency === currency ? (Number.isFinite(item.exposureShare) ? item.exposureShare : 1) : 0])) }
   const result = comparePortfolioCurrencyScenario(investments, hypothesis.exposures, hypothesis.change)
   const money = amount => privateCurrency(amount, state.valuesHidden, false, state.currency)
   return `<section class="panel settings-card">
     <h2>Câmbio no patrimônio</h2>
-    <p>Informe a parcela do saldo de cada investimento que acompanha a moeda escolhida. O ponto de partida é 100% para investimentos cadastrados com essa moeda de exposição e 0% para os demais. Os saldos cadastrados já estão em ${state.currency}.</p>
+    <p>Informe a parcela do saldo de cada investimento que acompanha a moeda escolhida. O ponto de partida é a parcela exposta cadastrada para investimentos nessa moeda e 0% para os demais. Os saldos cadastrados já estão em ${state.currency}.</p>
     <form data-portfolio-currency-form class="form-grid form-grid--two">
       <label class="form-field"><span>Moeda da exposição</span><select name="portfolioCurrency">${choices.map(code => `<option ${code === currency ? 'selected' : ''}>${code}</option>`).join('')}</select></label>
       <label class="form-field"><span>Variação cambial (%)</span><input name="portfolioChange" type="number" min="-50" max="50" step="any" value="${hypothesis.change * 100}" required /></label>

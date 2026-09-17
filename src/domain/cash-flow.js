@@ -121,7 +121,9 @@ export function summarizeCashFlowItems(
   // A commitment is a payable in this month, including one-off goals.
   const commitmentItems = commitmentEvents(cashFlow.commitments, dateKey(asOfDate).slice(0, 7), cashFlow.commitmentSchedules).map(item => ({ ...item, frequency: 'monthly', endDate: item.startDate }))
   for (const item of [...(cashFlow.items || []), ...annualGoalEvents(cashFlow.annualGoals, dateKey(asOfDate).slice(0, 7)), ...commitmentItems, ...consortiumEvents(cashFlow.consortia, dateKey(asOfDate).slice(0, 7), cashFlow.consortiumEvents)]) {
-    const category = categoryById(item.categoryId, customCategories)
+    // Provisions and calendar commitments keep counting when their category was removed or is not an expense.
+    const found = categoryById(item.categoryId, customCategories)
+    const category = (item.annualGoalId || item.commitmentId) && (!found || found.type !== 'expense') ? categoryById('other-expense') : found
     if (!category) continue
     const convertedAmount = convertCurrency(item.amount, item.currency, baseCurrency, exchangeRates)
     const isActive = isCashFlowItemActive(item, asOfDate, cashFlow.retirementMonth, cashFlow.spouseRetirementMonth)

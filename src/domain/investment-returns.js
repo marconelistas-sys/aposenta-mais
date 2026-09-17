@@ -47,12 +47,41 @@ export function applyAnnualFee(annualReturn, fee) {
   return fee > 0 ? (1 + annualReturn) * (1 - fee) - 1 : annualReturn
 }
 
+// Share of the balance that follows the exposure currency. The rest follows the plan currency.
+export function investmentExposureShare(investment) {
+  const share = Number(investment?.exposureShare)
+  return Number.isFinite(share) && share >= 0 && share <= 1 ? share : 1
+}
+
+// Optional real annual change of a foreign currency against the plan currency,
+// applied to the exposed share. { base, rates: { USD: 0.01 } }. Hypothesis, not forecast.
+export function currencyTrendAdjustment(investment, plan) {
+  const trends = plan?.currencyTrends
+  const code = investment?.exposureCurrency
+  if (!trends || !code || code === trends.base) return 0
+  const rate = Number(trends.rates?.[code])
+  return Number.isFinite(rate) ? rate * investmentExposureShare(investment) : 0
+}
+
 // Yearly overrides are entered as the net real return of that year, so the
-// annual fee applies only to the habitual rate.
+// annual fee and the currency trend apply only to the habitual rate.
 export function resolveInvestmentRealReturn(investment, plan, year) {
   const override = investment?.annualRealReturns?.find(row => row.year === Number(year))
   if (override) return override.rate
-  return applyAnnualFee(resolveGrossInvestmentRealReturn(investment, plan), investmentAnnualFee(investment))
+  const net = applyAnnualFee(resolveGrossInvestmentRealReturn(investment, plan), investmentAnnualFee(investment))
+  const trend = currencyTrendAdjustment(investment, plan)
+  return trend ? (1 + net) * (1 + trend) - 1 : net
+}
+
+export function sanitizeCurrencyTrends(source, codes = ['BRL', 'EUR', 'USD', 'CHF']) {
+  if (!source || typeof source !== 'object' || !codes.includes(source.base)) return null
+  const rates = {}
+  for (const code of codes) {
+    if (code === source.base) continue
+    const value = Number(source.rates?.[code])
+    if (Number.isFinite(value) && value !== 0 && value >= -0.2 && value <= 0.2) rates[code] = value
+  }
+  return Object.keys(rates).length ? { base: source.base, rates } : null
 }
 
 export function resolveGrossInvestmentRealReturn(investment, plan) {

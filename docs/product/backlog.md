@@ -1,5 +1,25 @@
 # Backlog inicial
 
+## Entrega: Sprint 41, affordance e consistência visual
+
+Auditoria com skills de visualização de dados, UI financeira e usabilidade, com inspeção em navegador. Links do conteúdo visíveis como links, marcador único de divulgação, controles na cor da marca, cores semânticas corrigidas no Patrimônio, linha do zero neutra sem valores negativos, abas da avaliação anual unificadas e alocação-alvo recolhida sem investimentos. 734 testes e build aprovados. [Escopo e pendências](sprint-41-affordance-consistencia.md).
+
+## Entrega: Sprint 40, abas unificadas, categorias do calendário e correlação
+
+Fluxo de caixa no componente de abas compartilhado, categoria de despesa em metas e dívidas do calendário, conjuntos prontos de correlação e correção do salvamento de compromissos com valor mascarado. 727 testes e build aprovados. [Escopo](sprint-40-abas-categorias-correlacao.md).
+
+## Entrega: Sprint 39, precatório e patrimônio visual
+
+Pendência de conversão de liquidez resolvida automaticamente quando o saldo restrito tem ano de liberação, com resolução manual reversível no Perfil. Risco mensal libera saldos no ano informado. Patrimônio com composição por liquidez, liberações ao longo do tempo, rosca por classe e ranking de itens. 725 testes e build aprovados. [Escopo e orientação](sprint-39-precatorio-patrimonio.md).
+
+## Entrega: Sprint 38, consórcio compreensível
+
+Com agentes de planejamento e usabilidade: a parcela continua saindo do caixa, mas agora é dividida em cota, que vira patrimônio vinculado, e custo. Nova categoria Consórcio, composição separada, explicação visual das três fases, cartão com resumo, detecção de parcela repetida no Orçamento e rótulos simples. 721 testes e build aprovados. [Análise, decisão e entregas](sprint-38-consorcio-compreensivel.md).
+
+## Entrega: Sprint 37, correlação por par, câmbio na projeção e abas
+
+Correção: provisões anuais agora têm categoria editável, com retorno seguro a Outras despesas. Matriz de correlação por par de classes nas simulações, exposição parcial à moeda, tendência cambial real opcional na projeção e abas no Orçamento e na Viabilidade. 715 testes e build aprovados. Inspeção em navegador feita. [Escopo, decisões e pendências](sprint-37-correlacao-cambio-abas.md).
+
 ## Entrega: Sprint 36, fluxo em abas, risco por classe e exposição geográfica
 
 Fluxo de caixa em abas Resumo do mês, Evolução anual e Mês a mês. Volatilidade por classe também na avaliação anual, com referências e correlação editáveis. Moeda de exposição e região por investimento, com distribuição, alvos, divisão de aportes e diagnóstico de dependência da moeda do plano. 702 testes e build aprovados. Inspeção em navegador feita. [Escopo, decisões e pendências](sprint-36-abas-risco-exposicao.md).

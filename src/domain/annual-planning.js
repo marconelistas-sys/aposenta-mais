@@ -14,6 +14,8 @@ export function sanitizeAnnualRows(raw) {
     // Only stamp a category when the source row already carries one, so rows
     // without the concept (e.g. annualGoals, older finapp imports) round-trip byte-for-byte.
     const category = value?.category !== undefined ? (assetCategories.has(value.category) ? value.category : 'other') : undefined
+    // Expense category of an annual goal. Kept only when present, like category above.
+    if (typeof value?.categoryId === 'string' && /^[a-z0-9-]{1,60}$/.test(value.categoryId)) row.categoryId = value.categoryId
     if (category === 'real-estate' && typeof value.includeInSolvency === 'boolean') row.includeInSolvency = value.includeInSolvency
     try { validateAnnualRow(row); if (!result.some(item => item.id === row.id)) result.push(category !== undefined ? { ...row, category } : row) } catch {}
   }
@@ -28,7 +30,7 @@ export function annualGoalEvents(rows, month) {
   return sanitizeAnnualRows(rows).flatMap(row => {
     const cents = Math.round(annualValue(row, year) * 100)
     const amount = (Math.floor(cents / 12) + (number <= cents % 12 ? 1 : 0)) / 100
-    return amount > 0 ? [{ id: `${row.id}:${month}`, annualGoalId: row.id, description: `${row.name} (provisão anual)`, amount, currency: row.currency, type: 'expense', categoryId: 'other-expense', frequency: 'monthly', source: 'manual', recordKind: 'planned', startDate: `${month}-01`, endDate: `${month}-01`, provisional: true }] : []
+    return amount > 0 ? [{ id: `${row.id}:${month}`, annualGoalId: row.id, description: `${row.name} (provisão anual)`, amount, currency: row.currency, type: 'expense', categoryId: row.categoryId || 'other-expense', frequency: 'monthly', source: 'manual', recordKind: 'planned', startDate: `${month}-01`, endDate: `${month}-01`, provisional: true }] : []
   })
 }
 export function nonFinancialValue(rows, month, currency, rates) {
@@ -42,5 +44,7 @@ export function sanitizeMigration(raw) {
     const record = Object.fromEntries(Object.entries(row.record || {}).filter(([key, value]) => /^[a-z_]{1,50}$/.test(key) && !/password|token|secret|email/.test(key) && ((typeof value === 'number' && Number.isFinite(value)) || typeof value === 'boolean' || value === null || typeof value === 'string')).slice(0, 25).map(([key, value]) => [key, typeof value === 'string' ? value.slice(0, 1000) : value]))
     return [{ table: row.table, id: row.id, reason: row.reason.slice(0, 1000), record }]
   })
-  return { source: 'finapp', pending, importedAt: typeof raw.importedAt === 'string' ? raw.importedAt.slice(0, 40) : null }
+  // Pending rows stay as imported evidence. Resolution is a separate, reversible mark.
+  const resolved = (Array.isArray(raw.resolved) ? raw.resolved.slice(0, 100) : []).flatMap(row => row && typeof row.table === 'string' && Number.isInteger(row.id) && pending.some(item => item.table === row.table && item.id === row.id) ? [{ table: row.table, id: row.id, at: typeof row.at === 'string' ? row.at.slice(0, 40) : null }] : [])
+  return { source: 'finapp', pending, importedAt: typeof raw.importedAt === 'string' ? raw.importedAt.slice(0, 40) : null, ...(resolved.length ? { resolved } : {}) }
 }

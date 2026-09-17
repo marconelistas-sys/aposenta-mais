@@ -7,23 +7,23 @@ import { renderCashFlowTimeline } from '../src/features/cash-flow/timeline.js'
 test('fluxo de caixa abre no resumo e separa as visões em abas', () => {
   resetState()
   selectCashFlowTab('resumo')
+  const panel = (html, key) => html.match(new RegExp(`data-page-tab-panel="fluxo-caixa:${key}"( hidden)?`))
   const summary = renderCashFlow()
   assert.match(summary, /role="tablist"/)
-  assert.match(summary, /data-cash-flow-tab="resumo"[^>]*|aria-selected="true"[^>]*data-cash-flow-tab="resumo"/)
+  assert.equal(panel(summary, 'resumo')[1], undefined)
+  assert.equal(panel(summary, 'anual')[1], ' hidden')
   assert.match(summary, /Reserva de emergência/)
-  assert.doesNotMatch(summary, /timeline-title/)
+  assert.match(summary, /timeline-title/)
 
   selectCashFlowTab('anual')
   const annual = renderCashFlow()
-  assert.match(annual, /timeline-title/)
-  assert.doesNotMatch(annual, /Reserva de emergência/)
-  assert.doesNotMatch(annual, /timeline-monthly-title/)
+  assert.equal(panel(annual, 'anual')[1], undefined)
+  assert.equal(panel(annual, 'resumo')[1], ' hidden')
 
   selectCashFlowTab('mensal')
   const monthly = renderCashFlow()
+  assert.equal(panel(monthly, 'mensal')[1], undefined)
   assert.match(monthly, /timeline-monthly-title/)
-  assert.match(monthly, /Orçamento previsto de/)
-  assert.doesNotMatch(monthly, /timeline-title"/)
 })
 
 test('aba inválida mantém a aba atual', () => {

@@ -1,7 +1,7 @@
 import { sanitizePaymentMatches } from '../domain/calendar-payments.js'
 import { sanitizeStatementHistory } from '../domain/statement-history.js'
 import { defaultPlan } from '../data/mock-plan.js'
-import { validateAnnualRealReturns } from '../domain/investment-returns.js'
+import { sanitizeCurrencyTrends, validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import { normalizeCurrency } from '../shared/currencies.js'
 import { bundledExchangeRates, sanitizeExchangeRates } from '../shared/exchange-rates.js'
@@ -117,6 +117,7 @@ export function sanitizeInvestment(investment, index = 0) {
     ...(annualRealReturns.length ? { annualRealReturns } : {}),
     ...(validNumber(annualFee, [0.0001, 0.1]) ? { annualFee } : {}),
     ...(currencies[investment.exposureCurrency] ? { exposureCurrency: investment.exposureCurrency } : {}),
+    ...(currencies[investment.exposureCurrency] && validNumber(Number(investment.exposureShare), [0, 0.9999]) ? { exposureShare: Number(investment.exposureShare) } : {}),
     ...(['domestic', 'international', 'global'].includes(investment.region) ? { region: investment.region } : {}),
     // Only meaningful for assetClass 'pension': holding period for the regressive tax table.
     ...(assetClass === 'pension' && safeDate(investment.acquiredAt) ? { acquiredAt: safeDate(investment.acquiredAt) } : {})
@@ -218,6 +219,7 @@ export function sanitizePlan(candidate = {}) {
   plan.horizonReferenceMonth = typeof source.horizonReferenceMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.horizonReferenceMonth) ? source.horizonReferenceMonth : null
   plan.riskSettings = sanitizeRiskSettings(source.riskSettings)
   plan.targetAllocation = sanitizeTargetAllocation(source.targetAllocation)
+  plan.currencyTrends = sanitizeCurrencyTrends(source.currencyTrends)
   plan.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
   plan.spouseEnabled = source.spouseEnabled === true
   plan.spouseRetirementMonth = typeof source.spouseRetirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.spouseRetirementMonth) ? source.spouseRetirementMonth : null

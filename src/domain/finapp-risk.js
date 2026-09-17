@@ -1,6 +1,7 @@
 import { finappViability } from './finapp-viability.js'
 import { projectAnnualInvestments } from './annual-investment-projection.js'
 import { validateRiskSettings } from './risk-plan.js'
+import { choleskyFactor, correlatedShocks, uniformCorrelations } from './class-correlation.js'
 
 export const finappCostLevels = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5]
 export const finappReturnRates = [-0.02, 0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06]
@@ -44,16 +45,15 @@ export function calculateFinappRisk(state, settings, today = new Date(), returnP
   const base = finappViability(state, state.plan.finappMethod, today)
   if (returnPaths && (returnPaths.length !== settings.simulations || returnPaths.some(path => path.length !== base.rows.length))) throw new Error('Amostra de retornos incompatível.')
   const normal = normalGenerator(settings.seed)
-  // Per-class model: one common factor plus an own shock per class, preserving
-  // each class variance. Hypothesis chosen by the person, not calibration.
+  // Per-class model: correlated shocks by class from the pairwise matrix.
+  // Classes without reference and new savings use the "other" key.
   const perClass = settings.volatilityModel === 'class'
-  const rho = settings.classCorrelation ?? 0.5
+  const factor = perClass ? choleskyFactor(settings.classCorrelations || uniformCorrelations(settings.classCorrelation ?? 0.5)) : null
   const classReturn = () => {
-    const common = normal()
-    const factor = () => Math.sqrt(rho) * common + Math.sqrt(1 - rho) * normal()
+    const shocks = correlatedShocks(factor, normal)
     const shifts = {}
-    for (const [assetClass, volatility] of Object.entries(settings.classVolatilities || {})) shifts[assetClass] = volatility * factor()
-    return { default: state.plan.annualRealReturn + settings.annualVolatility * factor(), shifts }
+    for (const [assetClass, volatility] of Object.entries(settings.classVolatilities || {})) shifts[assetClass] = volatility * shocks[assetClass]
+    return { default: state.plan.annualRealReturn + settings.annualVolatility * shocks.other, shifts }
   }
   const samples = base.rows.map(() => ({ af: [], wealth: [], net: [] }))
   let successes = 0, targetSuccesses = 0

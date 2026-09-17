@@ -60,7 +60,9 @@ import {
   updateCashFlow,
   updateCashFlowItem,
   upsertInvestment,
-  setTargetAllocation
+  setTargetAllocation,
+  setCurrencyTrends,
+  setMigrationResolved
 } from './app/state.js'
 import {
   deleteRemoteState,
@@ -75,7 +77,7 @@ import { projectRetirementWithSchedules } from './domain/retirement.js'
 import { renderContent } from './features/content/content.js'
 import { renderDashboard } from './features/dashboard/dashboard.js'
 import { renderWealth } from './features/wealth/wealth.js'
-import { renderCashFlow, renderBudgetEntries, updateBudgetEntryResults, selectCashFlowTab, cashFlowTabs } from './features/cash-flow/cash-flow.js'
+import { renderCashFlow, renderBudgetEntries, updateBudgetEntryResults } from './features/cash-flow/cash-flow.js'
 import { budgetEntriesView, resetBudgetEntriesView, readBudgetFilters } from './features/cash-flow/budget-entries-view.js'
 import { renderPlan } from './features/plan/plan.js'
 import { renderProfile } from './features/profile/profile.js'
@@ -130,7 +132,9 @@ import { compareStatementPeriods } from './domain/statement-history.js'
 import { budgetOwnerView } from './shared/household-owner.js'
 import { renderStatements, readStatementAnalysis } from './features/statements/statements.js'
 import { bindMonthlyHints, updateMonthlyHint } from './app/monthly-hint.js'
-import { classVolatility, defaultClassCorrelation } from './domain/risk-plan.js'
+import { bindPageTabs, revealInPageTab } from './shared/page-tabs.js'
+import { classVolatility } from './domain/risk-plan.js'
+import { correlationPresets, defaultClassCorrelations } from './domain/class-correlation.js'
 
 bindMoneyInputs(document)
 const app = document.querySelector('#app')
@@ -257,23 +261,6 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
 
 const trackedProductImpressions = new Set()
 let lastReviewLocation = null
-
-function openCashFlowTab(tab, focus = true) {
-  const selected = selectCashFlowTab(tab)
-  window.history.replaceState({}, '', `/fluxo-caixa?aba=${selected}`)
-  render({ indicateRecalculation: false })
-  if (focus) app.querySelector(`[data-cash-flow-tab="${selected}"]`)?.focus({ preventScroll: true })
-}
-
-document.addEventListener('keydown', event => {
-  const tab = event.target.closest?.('[data-cash-flow-tab]')
-  if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
-  const keys = Object.keys(cashFlowTabs)
-  const index = keys.indexOf(tab.dataset.cashFlowTab)
-  const next = event.key === 'Home' ? 0 : event.key === 'End' ? keys.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + keys.length) % keys.length
-  event.preventDefault()
-  openCashFlowTab(keys[next])
-})
 
 function navigate(href) {
   resetExpenseImpact()
@@ -473,6 +460,8 @@ function openAnnualGoalDialog(id) {
     const field = form.elements.namedItem(key)
     if (field) setFormFieldValue(field, key === 'realGrowth' ? value * 100 : value)
   }
+  const categoryField = form.elements.namedItem('categoryId')
+  if (categoryField) categoryField.value = row.categoryId && [...categoryField.options].some(option => option.value === row.categoryId) ? row.categoryId : 'other-expense'
   updateMonthlyHint(dialog.querySelector('form'))
   if (typeof dialog.showModal === 'function') dialog.showModal()
   else dialog.setAttribute('open', '')
@@ -605,6 +594,7 @@ document.addEventListener('click', async (event) => {
   }
   if (event.target.closest('[data-open-budget-import]')) {
     const section = app.querySelector('.statement-import')
+    revealInPageTab(app, section)
     if (section) { section.open = true; section.querySelector('summary')?.focus(); section.scrollIntoView({ block: 'start' }) }
     return
   }
@@ -645,6 +635,7 @@ document.addEventListener('click', async (event) => {
         const field = form.elements.namedItem(key)
         if (field && field.type !== 'checkbox') setFormFieldValue(field, key === 'realGrowth' ? value * 100 : value)
       }
+      if (kind === 'annualGoals' && form.elements.namedItem('categoryId')) form.elements.namedItem('categoryId').value = row.categoryId || 'other-expense'
       if (kind === 'nonFinancialAssets') {
         form.elements.namedItem('category').value = row.category || 'unclassified'
         form.elements.namedItem('includeInSolvency').checked = row.includeInSolvency !== false
@@ -705,6 +696,7 @@ document.addEventListener('click', async (event) => {
     const form = document.querySelector('[data-commitment-form]')
     if (item && form) {
       for (const [key, value] of Object.entries(item)) { const field = form.elements.namedItem(key); if (field) setFormFieldValue(field, key === 'annualRate' ? value * 100 : key === 'extraPayments' ? value.map(row => `${row.month};${row.amount.toFixed(2)}`).join('\n') : value) }
+      if (form.elements.namedItem('categoryId')) form.elements.namedItem('categoryId').value = item.categoryId || (item.kind === 'debt' ? 'debt' : 'other-expense')
       form.closest('details').open = true
       guideCommitmentForm(form)
       form.elements.namedItem('name').focus()
@@ -965,6 +957,7 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('assetClass').value = investment.assetClass
     form.elements.namedItem('liquidity').value = investment.liquidity || 'unknown'
     form.elements.namedItem('exposureCurrency').value = investment.exposureCurrency || state.currency
+    form.elements.namedItem('exposureShare').value = Math.round((investment.exposureShare ?? 1) * 100)
     form.elements.namedItem('region').value = investment.region || 'domestic'
     setFormFieldValue(form.elements.namedItem('investmentAmount'), investment.amount)
     setFormFieldValue(form.elements.namedItem('investmentContribution'), investment.monthlyContribution)
@@ -985,17 +978,31 @@ document.addEventListener('click', async (event) => {
     return
   }
 
+  const correlationPreset = event.target.closest('[data-correlation-preset]')
+  if (correlationPreset) {
+    const fields = correlationPreset.closest('[data-volatility-fields]')
+    const preset = correlationPresets[correlationPreset.dataset.correlationPreset]
+    if (fields && preset) for (const [pair, value] of Object.entries(preset.pairs)) { const input = fields.querySelector(`[name="corr:${pair}"]`); if (input) input.value = value }
+    showToast(`${preset?.label || 'Conjunto'} aplicado. Calcule novamente para ver o efeito.`)
+    return
+  }
+
   const resetVolatility = event.target.closest('[data-reset-volatility]')
   if (resetVolatility) {
     const fields = resetVolatility.closest('[data-volatility-fields]')
     for (const [key, value] of Object.entries(classVolatility)) fields.querySelector(`[name="vol:${key}"]`).value = Math.round(value * 1000) / 10
-    fields.querySelector('[name="classCorrelation"]').value = defaultClassCorrelation
+    for (const [pair, value] of Object.entries(defaultClassCorrelations)) { const input = fields.querySelector(`[name="corr:${pair}"]`); if (input) input.value = value }
     return
   }
 
-  const cashFlowTab = event.target.closest('[data-cash-flow-tab]')
-  if (cashFlowTab) {
-    openCashFlowTab(cashFlowTab.dataset.cashFlowTab)
+  const migrationToggle = event.target.closest('[data-resolve-migration], [data-reopen-migration]')
+  if (migrationToggle) {
+    const [table, id] = (migrationToggle.dataset.resolveMigration || migrationToggle.dataset.reopenMigration).split(':')
+    try {
+      setMigrationResolved(table, Number(id), Boolean(migrationToggle.dataset.resolveMigration))
+      render()
+      showToast(migrationToggle.dataset.resolveMigration ? 'Pendência marcada como resolvida. O alerta sai da avaliação.' : 'Pendência reaberta.')
+    } catch (error) { showToast(error.message) }
     return
   }
 
@@ -1688,7 +1695,8 @@ document.addEventListener('submit', async (event) => {
   if (planningForm) {
     event.preventDefault()
     if (!planningForm.reportValidity()) return
-    const data = new FormData(planningForm)
+    // Money fields use the Brazilian mask (20.000,00). Read them as numbers.
+    const data = readMoneyFormData(planningForm)
     try {
       if (planningForm.matches('[data-decumulation-form]')) {
         const settings = { years: Number(data.get('years')), expenseMode: data.get('expenseMode'), annualFee: Number(data.get('annualFee')) / 100, withdrawalTax: Number(data.get('withdrawalTax')) / 100, benefitIncluded: data.get('benefitIncluded') === 'on' }
@@ -1764,6 +1772,18 @@ document.addEventListener('submit', async (event) => {
     render()
     return
   }
+  const currencyTrendsForm = event.target.closest('[data-currency-trends-form]')
+  if (currencyTrendsForm) {
+    event.preventDefault()
+    const rates = {}
+    for (const [name, value] of new FormData(currencyTrendsForm).entries()) if (name.startsWith('trend:') && value !== '') rates[name.slice(6)] = parseNumber(value) / 100
+    if (Object.values(rates).some(value => !Number.isFinite(value) || value < -0.2 || value > 0.2)) { showToast('Informe tendências entre −20% e 20% ao ano.'); return }
+    setCurrencyTrends(rates)
+    render()
+    showToast(state.plan.currencyTrends ? 'Tendência cambial aplicada à projeção.' : 'Projeção sem tendência cambial.')
+    return
+  }
+
   const investmentAssumptionsForm = event.target.closest('[data-investment-assumptions-form]')
   if (investmentAssumptionsForm) {
     event.preventDefault()
@@ -1841,6 +1861,7 @@ document.addEventListener('submit', async (event) => {
         annualRealReturns: parseAnnualRealReturns(data.get('investmentAnnualReturns') || ''),
         annualFee: data.get('investmentAnnualFee') ? parseNumber(data.get('investmentAnnualFee')) / 100 : 0,
         exposureCurrency: data.get('exposureCurrency') || state.currency,
+        exposureShare: data.get('exposureShare') === '' || data.get('exposureShare') === null ? 1 : parseNumber(data.get('exposureShare')) / 100,
         region: data.get('region') || 'domestic',
         acquiredAt: data.get('investmentAcquiredAt') || null,
         releaseYear: data.get('investmentReleaseYear') || null
@@ -2016,6 +2037,7 @@ document.addEventListener('submit', async (event) => {
 
 window.addEventListener('popstate', () => { resetExpenseImpact(); render({ focusMain: true, indicateRecalculation: false }) })
 bindMonthlyHints(document)
+bindPageTabs(app)
 document.addEventListener('input', event => {
   const group = event.target.closest?.('[data-target-dimension]')
   if (!group) return

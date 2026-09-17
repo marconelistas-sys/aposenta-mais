@@ -53,7 +53,14 @@ export function validateTargetAllocation(source) {
 export function currentByDimension(investments, dimension = 'class', baseCurrency = 'BRL') {
   const { keys, keyOf } = allocationDimensions[dimension]
   const totals = Object.fromEntries(keys.map(key => [key, 0]))
-  for (const item of investments || []) totals[keyOf(item, baseCurrency)] += Number(item.amount) || 0
+  for (const item of investments || []) {
+    const amount = Number(item.amount) || 0
+    const key = keyOf(item, baseCurrency)
+    // Partial currency exposure: only the exposed share follows the foreign currency.
+    const share = dimension === 'currency' && key !== baseCurrency && Number.isFinite(item.exposureShare) ? Math.min(1, Math.max(0, item.exposureShare)) : 1
+    totals[key] += amount * share
+    if (share < 1) totals[baseCurrency] += amount * (1 - share)
+  }
   return totals
 }
 

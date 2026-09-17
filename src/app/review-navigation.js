@@ -1,3 +1,5 @@
+import { revealInPageTab } from '../shared/page-tabs.js'
+
 // Review links only open local editors or focus existing fields. They never save data.
 const fields = {
   '/carteira': ['investmentName', 'liquidity', 'investmentReleaseYear', 'investmentAmount'],
@@ -29,6 +31,7 @@ export function openReviewTarget(root, location, { hidden = false, openBudget, o
     if (original) original.open = true
   }
   if (!target) return false
+  revealInPageTab(root, target)
   for (let parent = target.parentElement; parent && parent !== root; parent = parent.parentElement) if (parent.tagName === 'DETAILS') parent.open = true
   target.focus({ preventScroll: true })
   target.scrollIntoView({ block: 'center', behavior: 'instant' })

@@ -1,5 +1,5 @@
 import { defaultPlan } from '../data/mock-plan.js'
-import { validateAnnualRealReturns } from '../domain/investment-returns.js'
+import { sanitizeCurrencyTrends, validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import {
   loadStoredState,
@@ -110,6 +110,17 @@ export function updatePlan(patch) {
   state.isDemo = false
   state.lastUpdatedAt = new Date().toISOString()
   saveState()
+}
+
+export function setMigrationResolved(table, id, resolved = true) {
+  const migration = state.cashFlow.finappMigration
+  if (!migration?.pending?.some(row => row.table === table && row.id === id)) throw new Error('Pendência não encontrada.')
+  const others = (migration.resolved || []).filter(row => !(row.table === table && row.id === id))
+  updateCashFlow({ finappMigration: { ...migration, resolved: resolved ? [...others, { table, id, at: new Date().toISOString() }] : others } })
+}
+
+export function setCurrencyTrends(rates) {
+  updatePlan({ currencyTrends: sanitizeCurrencyTrends({ base: state.currency, rates }) })
 }
 
 export function setTargetAllocation(candidate) {
@@ -310,6 +321,8 @@ export function setCurrency(currency) {
   for (const field of ['currentEmergencyReserve', 'emergencyReserveTarget']) {
     state.cashFlow[field] = convert(state.cashFlow[field])
   }
+  // Trends are relative to the previous plan currency and would change meaning.
+  state.plan.currencyTrends = null
   state.currency = nextCurrency
   state.lastUpdatedAt = new Date().toISOString()
   saveState()
