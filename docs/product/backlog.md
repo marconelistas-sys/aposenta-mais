@@ -1,5 +1,9 @@
 # Backlog inicial
 
+## Entrega: Sprint 42, moeda de ponta a ponta
+
+Time com usabilidade, planejamento financeiro e staff developer. Exposição cambial segue a moeda do saldo, viabilidade converte saldos e despesas em CHF com a mesma taxa, cenários e reimportação do FinApp respeitam saldos em moeda própria, sincronização ignora cotações, Patrimônio mostra valor nativo e distribuição por moeda, equivalentes mensais completados e build sem exclusão. 741 testes aprovados. Inspeção em navegador feita. [Escopo, decisões e próximo sprint](sprint-42-moeda-ponta-a-ponta.md).
+
 ## Entrega: Sprint 41, affordance e consistência visual
 
 Auditoria com skills de visualização de dados, UI financeira e usabilidade, com inspeção em navegador. Links do conteúdo visíveis como links, marcador único de divulgação, controles na cor da marca, cores semânticas corrigidas no Patrimônio, linha do zero neutra sem valores negativos, abas da avaliação anual unificadas e alocação-alvo recolhida sem investimentos. 734 testes e build aprovados. [Escopo e pendências](sprint-41-affordance-consistencia.md).

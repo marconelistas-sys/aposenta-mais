@@ -7,7 +7,7 @@ import { icon } from '../../shared/icons.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { convertCurrency } from '../../shared/exchange-rates.js'
 
-const comparisonColors = ['#2f785e', '#3d6cb4', '#b46b3d', '#7864a6']
+const comparisonColors = ['#2e7550', '#23609e', '#c75a28', '#8e3b6b']
 
 function planInDashboardCurrency(plan, sourceCurrency) {
   if (sourceCurrency === state.currency) return plan
@@ -74,19 +74,19 @@ export function renderSimulationResult(result, plan = state.plan, currency = sta
         <p>${result.goalReached ? 'Você criou uma margem para o plano.' : `A diferença estimada é ${money(gap)} por mês.`}</p>
       </div>
     </div>
-    <div class="simulation-result__hero">
-      <span>Renda mensal projetada</span>
-      <strong>${money(result.projectedMonthlyIncome)}</strong>
-      <small>em valores de hoje</small>
-    </div>
-    <div class="progress-track" role="progressbar" aria-label="Progresso da simulação" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(incomeProgress * 100)}">
-      <span style="width: ${incomeProgress * 100}%"></span>
+    <div class="simulation-result__hero simulation-result__hero--ring">
+      <div>
+        <span>Renda mensal projetada</span>
+        <strong>${money(result.projectedMonthlyIncome)}</strong>
+        <small>em valores de hoje</small>
+      </div>
+      ${state.valuesHidden ? '' : `<svg class="simulation-ring" viewBox="0 0 120 120" role="img" aria-label="Progresso da simulação: ${formatPercent(incomeProgress)} da renda desejada"><circle cx="60" cy="60" r="50" fill="none" stroke="#efe7dc" stroke-width="12"/><circle cx="60" cy="60" r="50" fill="none" stroke="${result.goalReached ? '#2e7550' : '#c75a28'}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(Math.min(1, Math.max(0, incomeProgress)) * 314.16).toFixed(2)} 314.16" transform="rotate(-90 60 60)"/><text x="60" y="66" text-anchor="middle" font-size="20" font-weight="700" fill="#2b211c">${Math.round(incomeProgress * 100)}%</text></svg>`}
     </div>
     <div class="simulation-result__metrics">
-      <div><span>Patrimônio projetado</span><strong>${money(result.projectedAssets)}</strong></div>
-      <div><span>Meta de patrimônio</span><strong>${money(result.targetAssets)}</strong></div>
-      <div><span>Aporte sugerido</span><strong>${money(result.requiredMonthlyContribution)}</strong></div>
-      <div><span>Progresso da renda</span><strong>${formatPercent(incomeProgress)}</strong></div>
+      <div>${icon('pie', 18, 'metric-glyph')}<span>Patrimônio projetado</span><strong>${money(result.projectedAssets)}</strong></div>
+      <div>${icon('target', 18, 'metric-glyph')}<span>Meta de patrimônio</span><strong>${money(result.targetAssets)}</strong></div>
+      <div>${icon('calendar', 18, 'metric-glyph')}<span>Aporte sugerido</span><strong>${money(result.requiredMonthlyContribution)}</strong></div>
+      <div>${icon('trendUp', 18, 'metric-glyph')}<span>Progresso da renda</span><strong>${formatPercent(incomeProgress)}</strong></div>
     </div>
     <div class="simulation-result__actions">
       <button class="button button--primary button--full" type="button" data-apply-simulation>

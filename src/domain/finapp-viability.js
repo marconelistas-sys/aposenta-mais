@@ -7,6 +7,7 @@ import { consortiumSchedule, sanitizeConsortia, validateConsortiumAsOf } from '.
 import { nonFinancialValue, sanitizeAnnualRows, annualValue } from './annual-planning.js'
 import { propertyValues, assessPropertySolvency } from './property-solvency.js'
 import { convertCurrency, sanitizeExchangeRates } from '../shared/exchange-rates.js'
+import { investmentTotals, syncInvestmentCurrencies } from './investment-currency.js'
 import { categoryById } from '../data/cash-flow-categories.js'
 import { openSalaryItems, salaryEndMessage } from './cash-flow-checks.js'
 import { addConsortiumParts, createAnnualBreakdown, collectAnnualBudget, addAnnualBreakdown, finishAnnualBreakdown } from './annual-cash-flow-breakdown.js'
@@ -50,6 +51,11 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   if (!Number.isFinite(returnShift) || Math.abs(returnShift) > 2) throw new Error('Ajuste de retorno inválido.')
   const settings = sanitizeFinappMethod(rawSettings)
   state = { ...state, exchangeRates: finappExchangeRates(state, settings) }
+  // Foreign-currency balances use the same rate as the budget, including a stressed CHF rate.
+  if (state.plan.investments?.some(item => item.currency && item.currency !== state.currency)) {
+    const investments = syncInvestmentCurrencies(state.plan.investments, state.currency, state.exchangeRates)
+    state = { ...state, plan: { ...state.plan, investments, ...investmentTotals(investments) } }
+  }
   const startYear = today.getUTCFullYear()
   const horizon = planningHorizon(state.plan, `${startYear}-01`, today)
   const convert = (amount, currency) => convertCurrency(amount, currency, state.currency, state.exchangeRates)

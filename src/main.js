@@ -117,6 +117,8 @@ import { allocationView, renderInvestments } from './features/investments/invest
 import { trackProductEvent } from './app/product-events.js'
 import { categoryById } from './data/cash-flow-categories.js'
 import { loadExchangeRates } from './app/exchange-rate-state.js'
+import { currencySymbol } from './shared/currencies.js'
+import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution } from './domain/investment-currency.js'
 import { inspectStatementText, reviewStatementImport } from './domain/statement-import.js'
 
 import { configureLocalAccess, selectStorageProvider } from './app/auth-state.js'
@@ -310,6 +312,8 @@ function setInvestmentConditionalFields(form) {
     pensionField.hidden = !pension
     if (!pension) form.elements.namedItem('investmentAcquiredAt').value = ''
   }
+  const balanceCurrency = form.elements.namedItem('investmentCurrency')?.value || state.currency
+  for (const prefix of form.querySelectorAll('[data-investment-currency-prefix]')) prefix.textContent = currencySymbol(balanceCurrency)
 }
 
 function setInvestmentReturnFields(form) {
@@ -956,11 +960,12 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('investmentName').value = investment.name
     form.elements.namedItem('assetClass').value = investment.assetClass
     form.elements.namedItem('liquidity').value = investment.liquidity || 'unknown'
+    form.elements.namedItem('investmentCurrency').value = investmentBalanceCurrency(investment, state.currency)
     form.elements.namedItem('exposureCurrency').value = investment.exposureCurrency || state.currency
     form.elements.namedItem('exposureShare').value = Math.round((investment.exposureShare ?? 1) * 100)
     form.elements.namedItem('region').value = investment.region || 'domestic'
-    setFormFieldValue(form.elements.namedItem('investmentAmount'), investment.amount)
-    setFormFieldValue(form.elements.namedItem('investmentContribution'), investment.monthlyContribution)
+    setFormFieldValue(form.elements.namedItem('investmentAmount'), investmentNativeAmount(investment, state.currency))
+    setFormFieldValue(form.elements.namedItem('investmentContribution'), investmentNativeContribution(investment, state.currency))
     setInvestmentConditionalFields(form)
     form.elements.namedItem('investmentAcquiredAt').value = investment.acquiredAt || ''
     form.elements.namedItem('investmentReleaseYear').value = state.plan.finappMethod?.releases?.find(row => row.investmentId === investment.id)?.year ?? ''
@@ -1353,8 +1358,11 @@ document.addEventListener('change', async (event) => {
     return
   }
 
-  if (event.target.matches('[data-investment-form] select[name="liquidity"], [data-investment-form] select[name="assetClass"]')) {
-    setInvestmentConditionalFields(event.target.closest('[data-investment-form]'))
+  if (event.target.matches('[data-investment-form] select[name="liquidity"], [data-investment-form] select[name="assetClass"], [data-investment-form] select[name="investmentCurrency"]')) {
+    const investmentForm = event.target.closest('[data-investment-form]')
+    // The exposure follows the balance currency. The person can still change it afterwards.
+    if (event.target.name === 'investmentCurrency') investmentForm.elements.namedItem('exposureCurrency').value = event.target.value
+    setInvestmentConditionalFields(investmentForm)
     return
   }
 
@@ -1860,6 +1868,7 @@ document.addEventListener('submit', async (event) => {
         indexAnnualRate: returnType === 'cdi' ? parseNumber(data.get('investmentIndexRate')) / 100 : null,
         annualRealReturns: parseAnnualRealReturns(data.get('investmentAnnualReturns') || ''),
         annualFee: data.get('investmentAnnualFee') ? parseNumber(data.get('investmentAnnualFee')) / 100 : 0,
+        currency: data.get('investmentCurrency') || state.currency,
         exposureCurrency: data.get('exposureCurrency') || state.currency,
         exposureShare: data.get('exposureShare') === '' || data.get('exposureShare') === null ? 1 : parseNumber(data.get('exposureShare')) / 100,
         region: data.get('region') || 'domestic',

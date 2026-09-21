@@ -61,13 +61,22 @@ function sameFinancialRecord(left, right, collection) {
   return keys.every(key => (left[key] ?? null) === (right[key] ?? null))
 }
 
+// A saved investment may now hold its balance in another currency (CHF), with the
+// plan-currency amount recalculated at each quote. The file only knows BRL values.
+// For those records the fields sent by the file are compared, except the converted amounts.
+function sameImportedRecord(previous, incoming, collection) {
+  if (collection !== 'investments' || !previous?.currency || !Number.isFinite(previous.nativeAmount)) return equal(previous, incoming)
+  const derived = new Set(['amount', 'monthlyContribution'])
+  return Object.keys(incoming).every(key => derived.has(key) || JSON.stringify(previous[key] ?? null) === JSON.stringify(incoming[key] ?? null))
+}
+
 export function reconcileFinappImport(current, file) {
   const targets = { items: current.cashFlow.items, investments: current.plan.investments, annualGoals: current.cashFlow.annualGoals || [], nonFinancialAssets: current.cashFlow.nonFinancialAssets || [] }
   return Object.entries(targets).flatMap(([collection, existing]) => (file[collection] || []).map(raw => {
     const item = collection === 'investments' ? { ...raw, amount: Math.round(convertCurrency(raw.amount, 'BRL', current.currency, current.exchangeRates) * 100) / 100 } : raw
     const sameId = existing.find(row => row.id === item.id)
     const similar = !sameId && existing.find(row => sameFinancialRecord(row, item, collection))
-    return { id: item.id, collection, label: item.description || item.name, status: sameId ? equal(sameId, item) ? 'identical' : 'conflict' : similar ? 'possible-duplicate' : 'missing', existingId: sameId?.id || similar?.id || null }
+    return { id: item.id, collection, label: item.description || item.name, status: sameId ? sameImportedRecord(sameId, item, collection) ? 'identical' : 'conflict' : similar ? 'possible-duplicate' : 'missing', existingId: sameId?.id || similar?.id || null }
   }))
 }
 
@@ -102,7 +111,7 @@ export function mergeFinappImport(current, file, mode = 'merge') {
       if (mode === 'complete' && reconciliation.find(row => row.collection === collection && row.id === item.id)?.status !== 'missing') { skipped++; continue }
       const previous = result.find(row => row.id === item.id)
       if (previous) {
-        if (!equal(previous, item)) throw new Error(`Conflito no registro ${item.id}. Nenhum dado foi aplicado.`)
+        if (!sameImportedRecord(previous, item, collection)) throw new Error(`Conflito no registro ${item.id}. Nenhum dado foi aplicado.`)
         skipped++
       } else { result.push(item); added++ }
     }

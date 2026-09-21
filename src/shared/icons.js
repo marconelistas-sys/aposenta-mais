@@ -31,6 +31,11 @@ const paths = {
   logout: '<path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>',
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   close: '<path d="M18 6 6 18M6 6l12 12"/>',
+  pencil: '<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>',
+  arrowDownLeft: '<path d="M17 7 7 17M17 17H7V7"/>',
+  arrowUpRight: '<path d="M7 17 17 7M7 7h10v10"/>',
+  percent: '<path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
   refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'
 }
 

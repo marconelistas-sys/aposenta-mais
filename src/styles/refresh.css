@@ -1,0 +1,463 @@
+/* Visual refresh: warm palette, lighter surfaces, icon-first cards.
+   Loaded last. Only visual overrides, no layout logic that tests depend on. */
+
+body {
+  background:
+    radial-gradient(circle at 8% 0%, rgb(233 162 59 / 12%), transparent 26rem),
+    radial-gradient(circle at 96% 12%, rgb(156 63 34 / 6%), transparent 24rem),
+    var(--color-background);
+}
+
+/* Headings and eyebrows */
+.page-heading h1 {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.eyebrow {
+  color: var(--color-brand);
+  letter-spacing: 0.08em;
+  font-weight: 750;
+}
+
+.eyebrow--dark { color: var(--color-brand-deep); }
+
+/* Navigation */
+.main-nav__link::after { background: var(--color-brand); }
+.main-nav__link:hover,
+.main-nav__link.is-active { color: var(--color-brand); }
+.main-nav__link.is-active .icon { color: var(--color-brand); }
+.brand__name span { color: var(--color-lime); }
+
+/* Panels: lighter, one border level */
+.panel {
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-card);
+}
+
+.disclosure > summary .icon { flex: 0 0 auto; color: var(--color-brand); }
+
+/* Primary buttons */
+.button--primary,
+.account-cta {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #fff;
+}
+
+.button--primary:hover,
+.account-cta:hover { background: var(--color-brand-deep); }
+
+.status-dot,
+.profile-status i { background: var(--color-green); box-shadow: 0 0 0 3px var(--color-green-soft); }
+
+/* KPI tiles with icon chips */
+.metric-row > div {
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-2);
+}
+
+.metric-row dt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.metric-row dd {
+  padding-left: 42px;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+.metric-glyph {
+  flex: 0 0 32px;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+  border-radius: 50%;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.metric-row > div[data-tone="negative"] { border-color: #f3c9d0; }
+.metric-row > div[data-tone="negative"] .metric-glyph { background: #fff; color: var(--color-danger); }
+.metric-row > div[data-tone="positive"] { border-color: #cfe6d7; }
+.metric-row > div[data-tone="positive"] .metric-glyph { background: #fff; color: var(--color-green); }
+
+/* Retirement strip progress: number first, explanation on demand */
+.retirement-income-strip__progress {
+  height: 10px;
+  background: var(--color-track);
+}
+
+.retirement-income-strip__progress span {
+  background: linear-gradient(90deg, var(--color-green), var(--chart-green));
+}
+
+.retirement-income-strip__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--color-ink-soft);
+  font-size: 13px;
+}
+
+.retirement-income-strip__pct {
+  color: var(--color-green);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inline-info { position: relative; }
+.inline-info > summary {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.inline-info > summary::-webkit-details-marker { display: none; }
+.inline-info > summary:hover,
+.inline-info[open] > summary { background: var(--color-brand-soft); color: var(--color-brand); }
+.inline-info > p,
+.inline-info > .annual-chart-basis {
+  flex-basis: 100%;
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-surface-2);
+  font-size: 12.5px;
+}
+.retirement-income-strip__meta .inline-info[open] { flex-basis: 100%; }
+.retirement-income-strip__meta .inline-info[open] > summary { margin-left: auto; }
+
+/* Sustainability banner: icon + compact status */
+.plan-sustainability {
+  position: relative;
+  padding: 18px 20px 18px 76px;
+  border: 1px solid #cfe6d7;
+  border-inline-start-width: 1px;
+  border-radius: 14px;
+  background: var(--color-green-soft);
+  color: var(--color-ink);
+}
+
+.plan-sustainability--insufficient { border-color: #f3c9d0; background: var(--color-danger-soft); color: var(--color-ink); }
+.plan-sustainability--incomplete { border-color: #f1d9a6; background: var(--color-warning-soft); color: var(--color-ink); }
+
+.plan-sustainability__icon {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--color-green);
+  box-shadow: var(--shadow-card);
+}
+
+.plan-sustainability--insufficient .plan-sustainability__icon { color: var(--color-danger); }
+.plan-sustainability--incomplete .plan-sustainability__icon { color: var(--color-warning); }
+.plan-sustainability .eyebrow { margin-bottom: 2px; color: var(--color-ink-soft); }
+.plan-sustainability h2 { margin-block: 0 .35rem; font-size: var(--text-xl); }
+.plan-sustainability > p:not(.eyebrow) { margin-block: .35rem; color: var(--color-ink-soft); font-size: .92rem; }
+
+@media (max-width: 560px) {
+  .plan-sustainability { padding: 70px 16px 16px; }
+  .plan-sustainability__icon { top: 16px; left: 16px; }
+}
+
+/* Cockpit instruments: flat cards, icon titles, notes on demand */
+.cockpit-instrument {
+  padding: 1.1rem 1.1rem 1rem;
+  border: 1px solid var(--color-border);
+  border-top: 3px solid var(--chart-blue);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.cockpit-instrument[data-cockpit="coverage"] { border-top-color: var(--color-green); }
+.cockpit-instrument[data-cockpit="budget"] { border-top-color: var(--chart-gold); }
+.cockpit-instrument[data-cockpit="liquidity"] { border-top-color: var(--chart-terracotta); }
+.cockpit-instrument[data-cockpit="wealth"] { border-top-color: var(--chart-blue); }
+
+.cockpit-instrument .cockpit-kicker {
+  color: var(--color-ink-muted);
+  font-size: .68rem;
+  letter-spacing: .08em;
+}
+
+.cockpit-instrument h3 {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  min-height: 2.4em;
+  margin: .35rem 0 .6rem;
+}
+
+.cockpit-icon {
+  display: grid;
+  flex: 0 0 34px;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.cockpit-instrument[data-cockpit="coverage"] .cockpit-icon { background: var(--color-green-soft); color: var(--color-green); }
+.cockpit-instrument[data-cockpit="budget"] .cockpit-icon { background: var(--color-lime-soft); color: var(--color-warning); }
+.cockpit-instrument[data-cockpit="wealth"] .cockpit-icon { background: var(--color-info-soft); color: var(--color-info); }
+
+.cockpit-status {
+  min-height: 0;
+  width: fit-content;
+  padding: .3rem .65rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.cockpit-status .icon { flex: 0 0 auto; }
+.cockpit-status[data-tone="good"] { background: var(--color-green-soft); color: var(--color-green); }
+
+.cockpit-instrument .cockpit-value {
+  padding: 0;
+  margin-top: .8rem;
+  border: 0;
+  background: none;
+  color: var(--color-ink);
+}
+
+.cockpit-instrument .cockpit-caption { color: var(--color-ink-muted); font-size: .78rem; }
+
+.cockpit-info { margin: .2rem 0 .6rem; font-size: .76rem; }
+.cockpit-info > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  min-height: 32px;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.cockpit-info > summary::-webkit-details-marker { display: none; }
+.cockpit-info > summary:hover,
+.cockpit-info[open] > summary { color: var(--color-brand); }
+.cockpit-info .cockpit-note { margin: .25rem 0 0; padding: .55rem .65rem; border-radius: 8px; background: var(--color-surface-2); font-size: .76rem; }
+
+.cockpit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  margin-top: auto;
+  padding-top: .7rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-brand);
+  font-weight: 650;
+  text-decoration: none;
+}
+.cockpit-link:hover { color: var(--color-brand-deep); }
+.cockpit-link .icon { transition: transform 150ms ease; }
+.cockpit-link:hover .icon { transform: translateX(3px); }
+
+.cockpit-budget-detail summary { color: var(--color-info); }
+
+/* Charts: title row with help icon instead of a paragraph */
+.planning-chart-head {
+  display: flex;
+  align-items: flex-start;
+  gap: .4rem;
+  margin-bottom: .5rem;
+}
+
+.planning-chart-head figcaption { margin: 0; padding-top: .2rem; }
+
+.planning-chart-help { position: relative; margin: 0; }
+.planning-chart-help > summary {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.planning-chart-help > summary::-webkit-details-marker { display: none; }
+.planning-chart-help > summary:hover,
+.planning-chart-help[open] > summary { background: var(--color-brand-soft); color: var(--color-brand); }
+.planning-chart-help > p {
+  position: absolute;
+  z-index: 5;
+  top: 32px;
+  left: 0;
+  width: min(320px, 80vw);
+  margin: 0;
+  padding: .7rem .8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+  color: var(--color-ink-soft);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+.planning-chart-legend button[aria-pressed="true"] { border-color: var(--color-border-strong); }
+
+/* Demo banner softer */
+.demo-banner { background: var(--color-lime-soft); border-color: #f1d9a6; }
+.demo-banner a { color: var(--color-brand); }
+
+/* Links in body text */
+:where(main) a:where(:not([class])) { color: var(--color-brand); text-decoration-color: rgb(156 63 34 / 40%); }
+:where(main) a:where(:not([class])):hover { color: var(--color-brand-deep); }
+
+/* Icon-only summaries do not use the shared chevron. */
+.inline-info > summary::before,
+.cockpit-info > summary::before,
+.planning-chart-help > summary::before { content: none; display: none; }
+
+/* Tiles without an icon keep the value aligned left. */
+.metric-row dt:not(:has(.metric-glyph)) + dd { padding-left: 0; }
+.metric-row > div[data-kind="expense"] .metric-glyph { background: #fbe4d8; color: var(--chart-terracotta); }
+.metric-row > div[data-tone="positive"] { background: var(--color-green-soft); }
+.metric-row > div[data-tone="negative"] { background: var(--color-danger-soft); }
+
+/* Portfolio summary tiles */
+.investment-summary > article {
+  grid-template-columns: auto 1fr;
+  column-gap: 14px;
+  align-content: start;
+}
+.investment-summary > article > * { grid-column: 2; }
+.investment-summary > article > .summary-glyph {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-style: normal;
+}
+.investment-summary > article:nth-child(2) > .summary-glyph { background: var(--color-lime-soft); color: var(--color-warning); }
+.investment-summary > article:nth-child(3) > .summary-glyph { background: var(--color-green-soft); color: var(--color-green); }
+.investment-summary > article:nth-child(4) > .summary-glyph { background: var(--color-info-soft); color: var(--color-info); }
+
+/* Budget rows: direction icon instead of a text pill, icon actions */
+.cash-item__type {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  background: #fbe4d8;
+  color: var(--chart-terracotta);
+}
+.cash-item__type--income { background: var(--color-green-soft); color: var(--color-green); }
+.budget-workspace .cash-item__type { justify-self: start; }
+
+.cash-item__edit {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-color: transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-ink-muted);
+}
+.cash-item__edit:hover { background: var(--color-brand-soft); color: var(--color-brand); }
+.cash-item__edit[data-remove-cash-item]:hover { background: var(--color-danger-soft); color: var(--color-danger); }
+.budget-workspace .cash-item__edit { width: 44px; min-height: 44px; padding: 0; justify-content: center; }
+
+/* Tabs: soft active state instead of a heavy block */
+.page-tabs { background: var(--color-surface-2); }
+.page-tabs button[aria-selected="true"],
+.page-tabs--links a[aria-current="page"] {
+  background: var(--color-surface);
+  color: var(--color-brand);
+  box-shadow: 0 1px 2px rgb(43 33 28 / 8%), 0 0 0 1px var(--color-border);
+}
+
+.back-link { color: var(--color-brand); }
+.metric-row > div[data-kind="income"] .metric-glyph { background: var(--color-green-soft); color: var(--color-green); }
+.planning-chart-help__glyph {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border: 1.6px solid currentColor;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: Georgia, serif;
+  line-height: 1;
+}
+
+/* Simulation result: ring instead of a flat bar, icon tiles */
+.simulation-result__hero--ring { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.simulation-result__hero strong { color: var(--color-ink); }
+.simulation-ring { flex: 0 0 104px; width: 104px; height: 104px; }
+.simulation-result__metrics { gap: 10px; border: 0; background: none; margin-top: 12px; }
+.simulation-result__metrics > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-2);
+}
+.simulation-result__metrics > div > .metric-glyph { grid-row: 1 / span 2; }
+.simulation-result__metrics strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+
+/* Cockpit links use the brand colour everywhere. */
+.cockpit-instrument a.cockpit-link { color: var(--color-brand); }
+
+/* Mobile */
+@media (max-width: 680px) {
+  .mobile-nav {
+    border: 1px solid var(--color-border);
+    background: rgb(255 255 255 / 94%);
+    box-shadow: 0 12px 32px rgb(43 33 28 / 14%);
+  }
+  .mobile-nav__link { color: var(--color-ink-muted); font-size: 10px; }
+  .mobile-nav__link.is-active { color: var(--color-brand); background: var(--color-brand-soft); }
+
+  .metric-row dd { padding-left: 0; font-size: 19px; }
+  .metric-row dt { gap: 8px; }
+  .metric-glyph { flex-basis: 28px; width: 28px; height: 28px; padding: 6px; }
+}
+
+/* Foreign-currency balances: native value first, plan equivalent below. */
+.investment-converted { display: block; margin-top: 2px; color: var(--color-ink-muted); font-size: 12px; font-weight: 500; }
+
+/* Patrimônio: liquidity, classes and currencies side by side when there is room. */
+@media (min-width: 1100px) {
+  .wealth-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); }
+}
+.wealth-native { display: block; color: var(--color-ink-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.wealth-ranking__value .wealth-native { text-align: right; }

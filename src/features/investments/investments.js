@@ -10,6 +10,13 @@ import { projectRetirementWithSchedules, retirementMonths } from '../../domain/r
 import { escapeHtml, formatPercent, percentInputValue, privateCurrency } from '../../shared/formatters.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { icon } from '../../shared/icons.js'
+import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution, isForeignBalance } from '../../domain/investment-currency.js'
+
+// Foreign balances show the native value first and the plan-currency equivalent below.
+function foreignBalance(investment, planValue, nativeValue) {
+  if (!isForeignBalance(investment, state.currency)) return privateCurrency(planValue, state.valuesHidden, false, state.currency)
+  return `${privateCurrency(nativeValue, state.valuesHidden, false, investmentBalanceCurrency(investment, state.currency))}<small class="investment-converted">≈ ${privateCurrency(planValue, state.valuesHidden, false, state.currency)}</small>`
+}
 import { assetClassColors, categoryDonut } from '../../shared/category-donut.js'
 
 export const classLabels = {
@@ -217,10 +224,10 @@ function investmentList() {
             <span class="investment-rate-badge ${usesDefault ? '' : 'is-specific'}">${returnTypeLabels[investment.returnType]}</span>
           </div>
           <dl>
-            <div><dt>Saldo atual</dt><dd>${privateCurrency(investment.amount, state.valuesHidden, false, state.currency)}</dd></div>
+            <div><dt>Saldo atual</dt><dd>${foreignBalance(investment, investment.amount, investmentNativeAmount(investment, state.currency))}</dd></div>
             <div><dt>Liquidez declarada</dt><dd>${liquidityLabels[investment.liquidity] || liquidityLabels.unknown}</dd></div>
             <div><dt>Ano previsto de liberação</dt><dd>${state.valuesHidden ? 'Oculto' : investment.liquidity === 'available' ? 'Já disponível' : state.plan.finappMethod?.releases?.find(row => row.investmentId === investment.id)?.year || 'Não informado'}</dd></div>
-            <div><dt>Aporte mensal</dt><dd>${privateCurrency(investment.monthlyContribution, state.valuesHidden, false, state.currency)}</dd></div>
+            <div><dt>Aporte mensal</dt><dd>${foreignBalance(investment, investment.monthlyContribution, investmentNativeContribution(investment, state.currency))}</dd></div>
             <div><dt>Exposição</dt><dd>${escapeHtml(investment.exposureCurrency || state.currency)}${investment.exposureCurrency && investment.exposureCurrency !== state.currency && investmentExposureShare(investment) < 1 ? ` ${preciseRate(investmentExposureShare(investment))}` : ''} · ${regionLabels[investment.region] || regionLabels.domestic}</dd></div>
             <div><dt>Custo anual</dt><dd>${state.valuesHidden ? 'Oculto' : investmentAnnualFee(investment) ? preciseRate(investmentAnnualFee(investment)) : 'Não informado'}</dd></div>
             <div><dt>Retorno usado em ${new Date().getUTCFullYear()}</dt><dd>${state.valuesHidden ? 'Oculto' : `${preciseRate(rate)} real ao ano`}</dd></div>
@@ -274,10 +281,10 @@ export function renderInvestments() {
     </section>
 
     <section class="investment-summary" aria-label="Resumo da carteira">
-      <article class="panel"><span>Patrimônio cadastrado</span><strong>${privateCurrency(state.plan.currentAssets, state.valuesHidden, false, state.currency)}</strong><small>${investments.length} ${investments.length === 1 ? 'investimento' : 'investimentos'}</small></article>
-      <article class="panel"><span>Aportes mensais</span><strong>${privateCurrency(state.plan.monthlyContribution, state.valuesHidden, false, state.currency)}</strong><small>Somados pela carteira</small></article>
-      <article class="panel"><span>Retorno médio em ${new Date().getUTCFullYear()}</span><strong>${state.valuesHidden ? 'Oculto' : preciseRate(portfolioReturn())}</strong><small>Real ao ano, líquido de custos, ponderado pelo saldo</small></article>
-      <article class="panel"><span>Custo médio anual</span><strong>${state.valuesHidden ? 'Oculto' : hasFees ? preciseRate(weightedFee) : 'Não informado'}</strong><small>${hasFees && !state.valuesHidden ? `Reduz o patrimônio projetado em ${privateCurrency(feeImpact, false, false, state.currency)}` : 'Informe a taxa de cada produto'}</small></article>
+      <article class="panel"><i class="summary-glyph">${icon('pie', 20)}</i><span>Patrimônio cadastrado</span><strong>${privateCurrency(state.plan.currentAssets, state.valuesHidden, false, state.currency)}</strong><small>${investments.length} ${investments.length === 1 ? 'investimento' : 'investimentos'}</small></article>
+      <article class="panel"><i class="summary-glyph">${icon('calendar', 20)}</i><span>Aportes mensais</span><strong>${privateCurrency(state.plan.monthlyContribution, state.valuesHidden, false, state.currency)}</strong><small>${state.valuesHidden ? 'Somados pela carteira' : `${privateCurrency(state.plan.monthlyContribution * 12, false, false, state.currency)}/ano, somados pela carteira`}</small></article>
+      <article class="panel"><i class="summary-glyph">${icon('trendUp', 20)}</i><span>Retorno médio em ${new Date().getUTCFullYear()}</span><strong>${state.valuesHidden ? 'Oculto' : preciseRate(portfolioReturn())}</strong><small>Real ao ano, líquido de custos, ponderado pelo saldo</small></article>
+      <article class="panel"><i class="summary-glyph">${icon('percent', 20)}</i><span>Custo médio anual</span><strong>${state.valuesHidden ? 'Oculto' : hasFees ? preciseRate(weightedFee) : 'Não informado'}</strong><small>${hasFees && !state.valuesHidden ? `Reduz o patrimônio projetado em ${privateCurrency(feeImpact, false, false, state.currency)}` : 'Informe a taxa de cada produto'}</small></article>
     </section>
 
     ${portfolioDiagnostics()}
@@ -319,7 +326,8 @@ export function renderInvestments() {
           </label>
           <div class="form-grid form-grid--two">
             <label class="form-field"><span class="form-field__label">Classe</span><span class="input-shell"><select name="assetClass" required>${Object.entries(classLabels).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></span></label>
-            <label class="form-field"><span class="form-field__label">Saldo atual</span><span class="input-shell"><span class="input-prefix">${moneySymbol}</span><input type="number" name="investmentAmount" min="0.01" max="1000000000" step="0.01" value="${firstInvestment ? state.plan.currentAssets : ''}" required /></span></label>
+            <label class="form-field"><span class="form-field__label">Moeda do saldo</span><span class="input-shell"><select name="investmentCurrency" data-investment-currency>${Object.values(currencies).map(currency => `<option value="${currency.code}" ${currency.code === state.currency ? 'selected' : ''}>${currency.code} · ${currency.label}</option>`).join('')}</select></span><small>A moeda em que o saldo está registrado, por exemplo CHF para um fundo de pensão suíço. Os totais são convertidos para ${state.currency}.</small></label>
+            <label class="form-field"><span class="form-field__label">Saldo atual</span><span class="input-shell"><span class="input-prefix" data-investment-currency-prefix>${moneySymbol}</span><input type="number" name="investmentAmount" min="0.01" max="1000000000" step="0.01" value="${firstInvestment ? state.plan.currentAssets : ''}" required /></span></label>
           </div>
           <label class="form-field"><span class="form-field__label">Liquidez declarada</span><span class="input-shell"><select name="liquidity" data-investment-liquidity><option value="unknown">Não informada</option><option value="available">Disponível para resgate</option><option value="restricted">Restrita ou com prazo</option></select></span><small>Disponível significa resgate em poucos dias, sem perda relevante.</small></label>
           <div class="form-grid form-grid--two">
@@ -327,7 +335,7 @@ export function renderInvestments() {
             <label class="form-field"><span class="form-field__label">Parcela exposta a essa moeda</span><span class="input-shell"><input type="number" name="exposureShare" min="0" max="100" step="1" value="100" /><span class="input-suffix">%</span></span><small>Exemplo: fundo com parte em dólar e o resto em real. Informe USD e a parte em dólar.</small></label>
             <label class="form-field"><span class="form-field__label">Região</span><span class="input-shell"><select name="region">${Object.entries(regionLabels).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></span><small>Global diversificado para fundos ou ETFs com vários países.</small></label>
           </div>
-          <label class="form-field"><span class="form-field__label">Quanto você aporta por mês</span><span class="input-shell"><span class="input-prefix">${moneySymbol}</span><input type="number" name="investmentContribution" min="0" max="10000000" step="0.01" value="${firstInvestment ? state.plan.monthlyContribution : 0}" required /></span><small>Informe zero se você não faz novos aportes neste investimento.</small></label>
+          <label class="form-field"><span class="form-field__label">Quanto você aporta por mês</span><span class="input-shell"><span class="input-prefix" data-investment-currency-prefix>${moneySymbol}</span><input type="number" name="investmentContribution" min="0" max="10000000" step="0.01" value="${firstInvestment ? state.plan.monthlyContribution : 0}" required /></span><small>Informe zero se você não faz novos aportes neste investimento.</small></label>
           <label class="form-field" data-investment-release-field hidden><span class="form-field__label">Ano previsto de liberação</span><span class="input-shell"><input type="number" name="investmentReleaseYear" min="${new Date().getUTCFullYear()}" max="2199" step="1" placeholder="Ex.: ${new Date().getUTCFullYear() + 2}" aria-describedby="investment-release-help" /></span><small id="investment-release-help">Para precatórios e outros saldos restritos, informe o ano em que espera receber ou resgatar. A projeção anual disponibiliza o saldo no fechamento desse ano, sem criar uma nova receita. Em branco, o saldo permanece restrito. Dia e mês ainda não são considerados. Este campo também aparece nas premissas de <a href="/viabilidade" data-route>avaliação anual</a>.</small></label>
           <label class="form-field" data-investment-pension-field hidden><span class="form-field__label">Data do primeiro aporte</span><span class="input-shell"><input type="date" name="investmentAcquiredAt" /></span><small>Usada para calcular a tabela regressiva de imposto sobre resgates nas premissas de <a href="/viabilidade" data-route>avaliação anual</a>. Sem data, o cálculo assume o pior caso (35%).</small></label>
           <button class="button button--primary button--full" type="button" data-next-investment-step>Continuar para rendimento</button>

@@ -16,6 +16,7 @@ import { sanitizeAnnualRows, sanitizeMigration } from '../domain/annual-planning
 import { sanitizeFinappMethod } from '../domain/finapp-viability.js'
 import { sanitizeTargetAllocation } from '../domain/target-allocation.js'
 import { currencies } from '../shared/currencies.js'
+import { syncPlanInvestments } from '../domain/investment-currency.js'
 
 export const stateVersion = 10
 export const storageKeys = Object.freeze({
@@ -116,6 +117,9 @@ export function sanitizeInvestment(investment, index = 0) {
     indexAnnualRate,
     ...(annualRealReturns.length ? { annualRealReturns } : {}),
     ...(validNumber(annualFee, [0.0001, 0.1]) ? { annualFee } : {}),
+    ...(currencies[investment.currency] ? { currency: investment.currency } : {}),
+    ...(currencies[investment.currency] && validNumber(Number(investment.nativeAmount), [0.01, 1000000000]) ? { nativeAmount: Number(investment.nativeAmount) } : {}),
+    ...(currencies[investment.currency] && validNumber(Number(investment.nativeMonthlyContribution), [0, 10000000]) ? { nativeMonthlyContribution: Number(investment.nativeMonthlyContribution) } : {}),
     ...(currencies[investment.exposureCurrency] ? { exposureCurrency: investment.exposureCurrency } : {}),
     ...(currencies[investment.exposureCurrency] && validNumber(Number(investment.exposureShare), [0, 0.9999]) ? { exposureShare: Number(investment.exposureShare) } : {}),
     ...(['domestic', 'international', 'global'].includes(investment.region) ? { region: investment.region } : {}),
@@ -296,7 +300,7 @@ export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategor
   return cashFlow
 }
 
-function sanitizeScenario(scenario, customCategories) {
+function sanitizeScenario(scenario, customCategories, exchangeRates = bundledExchangeRates) {
   if (!scenario || typeof scenario !== 'object') return null
   const name = typeof scenario.name === 'string' ? scenario.name.trim().slice(0, 40) : ''
   if (!name) return null
@@ -306,7 +310,7 @@ function sanitizeScenario(scenario, customCategories) {
     name,
     createdAt: typeof scenario.createdAt === 'string' ? scenario.createdAt : null,
     currency: normalizeCurrency(scenario.currency),
-    plan: sanitizePlan({ ...scenario.plan, retirementMonth: scenario.cashFlow?.retirementMonth || scenario.plan?.retirementMonth }),
+    plan: syncPlanInvestments(sanitizePlan({ ...scenario.plan, retirementMonth: scenario.cashFlow?.retirementMonth || scenario.plan?.retirementMonth }), normalizeCurrency(scenario.currency), exchangeRates, { inferLegacy: true }),
     cashFlow: scenario.cashFlow
       ? sanitizeCashFlow({ ...scenario.cashFlow, spouseRetirementMonth: scenario.plan?.spouseEnabled ? scenario.plan.spouseRetirementMonth : null, retirementMonth: scenario.cashFlow.retirementMonth || scenario.plan?.retirementMonth }, scenario.currency, customCategories)
       : null
@@ -317,9 +321,14 @@ export function sanitizeStoredState(candidate) {
   const source = candidate && typeof candidate === 'object' ? candidate : {}
   const currency = normalizeCurrency(source.currency)
   const customCategories = sanitizeCustomCategories(source.customCategories)
+  const exchangeRates = sanitizeExchangeRates(source.exchangeRates || bundledExchangeRates)
   const scenarios = Array.isArray(source.scenarios)
-    ? source.scenarios.map((scenario) => sanitizeScenario(scenario, customCategories)).filter(Boolean).slice(0, 3)
+    ? source.scenarios.map((scenario) => sanitizeScenario(scenario, customCategories, exchangeRates)).filter(Boolean).slice(0, 3)
     : []
+  const plan = sanitizePlan(source.plan
+    ? { ...source.plan, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }
+    : { ...defaultPlan, retirementMonth: source.cashFlow?.retirementMonth })
+  Object.assign(plan, syncPlanInvestments(plan, currency, exchangeRates, { inferLegacy: true }))
 
   return {
     version: stateVersion,
@@ -331,11 +340,9 @@ export function sanitizeStoredState(candidate) {
       ? source.activeChartRange
       : 'retirement',
     currency,
-    exchangeRates: sanitizeExchangeRates(source.exchangeRates || bundledExchangeRates),
+    exchangeRates,
     customCategories,
-    plan: sanitizePlan(source.plan
-      ? { ...source.plan, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }
-      : { ...defaultPlan, retirementMonth: source.cashFlow?.retirementMonth }),
+    plan,
     cashFlow: sanitizeCashFlow({ ...source.cashFlow, spouseRetirementMonth: source.plan?.spouseEnabled ? source.plan.spouseRetirementMonth : null, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }, currency, customCategories),
     scenarios
   }

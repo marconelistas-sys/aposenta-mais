@@ -95,7 +95,7 @@ function cashFlowItems(result) {
       const converted = privateCurrency(item.convertedAmount, state.valuesHidden, true, state.currency)
       return `
         <article class="cash-item ${item.isActive ? '' : 'is-inactive'}">
-          <span class="cash-item__type cash-item__type--${item.type}">${item.type === 'income' ? 'Receita' : 'Despesa'}</span>
+          <span class="cash-item__type cash-item__type--${item.type}" title="${item.type === 'income' ? 'Receita' : 'Despesa'}">${icon(item.type === 'income' ? 'arrowDownLeft' : 'arrowUpRight', 18)}<span class="sr-only">${item.type === 'income' ? 'Receita' : 'Despesa'}</span></span>
           <div class="cash-item__identity">
             <strong>${escapeHtml(item.description || item.category.name)}</strong>
             <span>${recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']} · ${escapeHtml(item.category.name)}</span>
@@ -109,8 +109,8 @@ function cashFlowItems(result) {
           </div>
           <div class="cash-item__actions">
             ${item.annualGoalId ? `<button class="cash-item__edit" type="button" data-edit-annual-goal="${escapeHtml(item.annualGoalId)}" aria-label="Editar provisão anual de ${escapeHtml(item.description || item.category.name)}">Editar provisão anual</button>` : item.consortiumId ? '<a href="/consorcios" data-route>Editar consórcio</a>' : item.commitmentId ? '<a href="/calendario" data-route>Editar no calendário</a>' : item.id.startsWith('ledger:') ? '<a href="/contas" data-route>Editar em Contas</a>' : `
-            <button class="cash-item__edit" type="button" data-edit-cash-item="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.description || item.category.name)}">Editar</button>
-            <button class="cash-item__edit" type="button" data-remove-cash-item="${escapeHtml(item.id)}" aria-label="Excluir ${escapeHtml(item.description || item.category.name)}">Excluir</button>
+            <button class="cash-item__edit" type="button" data-edit-cash-item="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.description || item.category.name)}" title="Editar">${icon('pencil', 17)}<span class="sr-only">Editar</span></button>
+            <button class="cash-item__edit" type="button" data-remove-cash-item="${escapeHtml(item.id)}" aria-label="Excluir ${escapeHtml(item.description || item.category.name)}" title="Excluir">${icon('trash', 17)}<span class="sr-only">Excluir</span></button>
             `}
           </div>
         </article>
@@ -390,7 +390,7 @@ export function renderCashFlow() {
     : result.contributionGap > 0
       ? 'Existe espaço para investir, mas ainda há uma diferença para a meta.'
       : 'O fluxo atual comporta o aporte necessário.'
-  const monthSummary = `<section class="panel settings-card cash-month-summary"><div class="cash-month-summary__header"><div><p class="eyebrow">MÊS DE REFERÊNCIA</p><h2>Orçamento previsto de ${monthLabel(state.cashFlow.referenceMonth)}</h2></div><label class="form-field"><span class="form-field__label">Mês de início da análise</span><span class="input-shell"><input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></span></label></div><dl class="metric-row"><div><dt>Receitas</dt><dd class="money-value">${money(firstMonth.income)}</dd></div><div><dt>Despesas e metas</dt><dd class="money-value">${money(firstMonth.expenses)}</dd></div><div data-tone="${firstMonth.balance < 0 ? 'negative' : 'positive'}"><dt>Saldo do orçamento</dt><dd class="money-value">${money(firstMonth.balance)}</dd></div><div><dt>Créditos previdenciários</dt><dd class="money-value">${money(firstMonth.pension)}</dd></div></dl><details class="disclosure"><summary>O que este saldo representa</summary><p>O saldo do orçamento (receitas menos despesas e metas) não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas na tela Orçamento. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></details></section>`
+  const monthSummary = `<section class="panel settings-card cash-month-summary"><div class="cash-month-summary__header"><div><p class="eyebrow">MÊS DE REFERÊNCIA</p><h2>Orçamento previsto de ${monthLabel(state.cashFlow.referenceMonth)}</h2></div><label class="form-field"><span class="form-field__label">Mês de início da análise</span><span class="input-shell"><input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></span></label></div><dl class="metric-row"><div data-kind="income"><dt>${icon('arrowDownLeft', 18, 'metric-glyph')}Receitas</dt><dd class="money-value">${money(firstMonth.income)}</dd></div><div data-kind="expense"><dt>${icon('arrowUpRight', 18, 'metric-glyph')}Despesas e metas</dt><dd class="money-value">${money(firstMonth.expenses)}</dd></div><div data-tone="${firstMonth.balance < 0 ? 'negative' : 'positive'}"><dt>${icon('wallet', 18, 'metric-glyph')}Saldo do orçamento</dt><dd class="money-value">${money(firstMonth.balance)}</dd></div><div><dt>${icon('shield', 18, 'metric-glyph')}Créditos previdenciários</dt><dd class="money-value">${money(firstMonth.pension)}</dd></div></dl><details class="disclosure"><summary>O que este saldo representa</summary><p>O saldo do orçamento (receitas menos despesas e metas) não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas na tela Orçamento. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></details></section>`
 
   return `
     <section class="page-heading page-heading--inner">

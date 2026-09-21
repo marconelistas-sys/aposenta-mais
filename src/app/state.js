@@ -13,7 +13,8 @@ import {
   storageKeys
 } from './state-storage.js'
 import { convertCurrency, sanitizeExchangeRates } from '../shared/exchange-rates.js'
-import { normalizeCurrency } from '../shared/currencies.js'
+import { currencies, normalizeCurrency } from '../shared/currencies.js'
+import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution, investmentTotals, syncInvestmentCurrencies, syncPlanInvestments, round2 } from '../domain/investment-currency.js'
 import { ownedStorage } from './owned-storage.js'
 import { validateTargetAllocation } from '../domain/target-allocation.js'
 
@@ -139,9 +140,14 @@ export function upsertInvestment(candidate) {
   const current = Array.isArray(state.plan.investments) ? state.plan.investments : []
   const existingIndex = current.findIndex((investment) => investment.id === id)
   const next = [...current]
-  if (existingIndex >= 0) next[existingIndex] = { ...candidate, id }
-  else next.push({ ...candidate, id })
-  const investments = sanitizeInvestments(next)
+  // A foreign balance currency means amount and contribution were typed in that currency.
+  const foreign = currencies[candidate.currency] && candidate.currency !== state.currency
+  const record = foreign
+    ? { ...candidate, id, nativeAmount: round2(Number(candidate.amount)), nativeMonthlyContribution: round2(Number(candidate.monthlyContribution) || 0), amount: convertCurrency(Number(candidate.amount) || 0, candidate.currency, state.currency, state.exchangeRates), monthlyContribution: convertCurrency(Number(candidate.monthlyContribution) || 0, candidate.currency, state.currency, state.exchangeRates) }
+    : { ...candidate, id }
+  if (existingIndex >= 0) next[existingIndex] = record
+  else next.push(record)
+  const investments = syncInvestmentCurrencies(sanitizeInvestments(next), state.currency, state.exchangeRates)
   const saved = investments.find((investment) => investment.id === id)
   if (!saved) throw new TypeError('Revise os dados do investimento.')
   const method = state.plan.finappMethod || {}
@@ -150,8 +156,7 @@ export function upsertInvestment(candidate) {
   updatePlan({
     investments,
     finappMethod: { ...method, releases },
-    currentAssets: investments.reduce((total, investment) => total + investment.amount, 0),
-    monthlyContribution: investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
+    ...investmentTotals(investments)
   })
   return saved
 }
@@ -313,11 +318,15 @@ export function setCurrency(currency) {
   for (const field of ['currentAssets', 'monthlyContribution', 'targetMonthlyIncome', 'expectedMonthlyBenefit', 'spouseExpectedMonthlyBenefit']) {
     state.plan[field] = convert(state.plan[field])
   }
-  state.plan.investments = (state.plan.investments || []).map((investment) => ({
+  // Each investment keeps its own balance currency. Only the plan-currency view changes.
+  const pinned = (state.plan.investments || []).map((investment) => ({
     ...investment,
-    amount: convert(investment.amount),
-    monthlyContribution: convert(investment.monthlyContribution)
+    currency: investmentBalanceCurrency(investment, state.currency),
+    nativeAmount: investmentNativeAmount(investment, state.currency),
+    nativeMonthlyContribution: investmentNativeContribution(investment, state.currency)
   }))
+  state.plan.investments = syncInvestmentCurrencies(pinned, nextCurrency, state.exchangeRates)
+  if (state.plan.investments.length) Object.assign(state.plan, investmentTotals(state.plan.investments))
   for (const field of ['currentEmergencyReserve', 'emergencyReserveTarget']) {
     state.cashFlow[field] = convert(state.cashFlow[field])
   }
@@ -329,8 +338,16 @@ export function setCurrency(currency) {
 }
 
 export function setExchangeRates(exchangeRates) {
-  state.exchangeRates = sanitizeExchangeRates(exchangeRates)
+  const next = sanitizeExchangeRates(exchangeRates)
+  // Same quote again: nothing to recalculate or save.
+  if (JSON.stringify(next.rates) === JSON.stringify(state.exchangeRates?.rates) && next.date === state.exchangeRates?.date && next.stale === state.exchangeRates?.stale && next.source === state.exchangeRates?.source) return false
+  state.exchangeRates = next
+  if (state.plan.investments?.length) {
+    state.plan.investments = syncInvestmentCurrencies(state.plan.investments, state.currency, state.exchangeRates)
+    Object.assign(state.plan, investmentTotals(state.plan.investments))
+  }
   saveState()
+  return true
 }
 
 export function addScenario(name, plan, context = {}) {
@@ -359,7 +376,8 @@ export function updateScenario(id, name, plan, context = {}) {
 export function loadScenario(id) {
   const scenario = state.scenarios.find((item) => item.id === id)
   if (!scenario) throw new TypeError('Cenário não encontrado.')
-  state.plan = structuredClone(scenario.plan)
+  // Foreign balances follow the current exchange rates, not the rates of the day it was saved.
+  state.plan = syncPlanInvestments(structuredClone(scenario.plan), scenario.currency, state.exchangeRates)
   if (scenario.cashFlow) state.cashFlow = structuredClone(scenario.cashFlow)
   state.currency = scenario.currency
   state.isDemo = false

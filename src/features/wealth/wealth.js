@@ -1,5 +1,5 @@
 import { state } from '../../app/state.js'
-import { wealthComposition } from '../../domain/wealth-composition.js'
+import { wealthByCurrency, wealthComposition } from '../../domain/wealth-composition.js'
 import { escapeHtml, formatMonth, privateCurrency } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 import { assetClassColors, categoryDonut } from '../../shared/category-donut.js'
@@ -36,7 +36,25 @@ function largestItems(composition, money) {
   const max = top[0]?.amount || 1
   const color = key => composition.groups.find(group => group.key === key)?.color
   const label = key => composition.groups.find(group => group.key === key)?.label
-  return `<ol class="wealth-ranking">${top.map(item => `<li><div class="wealth-ranking__heading"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.assetClass ? classLabels[item.assetClass] || item.kind : item.kind)} · ${escapeHtml(label(item.group))}</small></span><span class="wealth-ranking__value"><strong class="money-value">${money(item.amount)}</strong><small>${percent(item.share)}</small></span></div><div class="wealth-ranking__track" aria-hidden="true"><span style="width:${(item.amount / max * 100).toFixed(2)}%;background:${color(item.group)}"></span></div></li>`).join('')}</ol>${rest > 0 ? `<p>Demais itens: <strong class="money-value">${money(rest)}</strong>.</p>` : ''}`
+  return `<ol class="wealth-ranking">${top.map(item => `<li><div class="wealth-ranking__heading"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.assetClass ? classLabels[item.assetClass] || item.kind : item.kind)} · ${escapeHtml(label(item.group))}</small></span><span class="wealth-ranking__value">${nativeLabel(item)}<strong class="money-value">${money(item.amount)}</strong><small>${percent(item.share)}</small></span></div><div class="wealth-ranking__track" aria-hidden="true"><span style="width:${(item.amount / max * 100).toFixed(2)}%;background:${color(item.group)}"></span></div></li>`).join('')}</ol>${rest > 0 ? `<p>Demais itens: <strong class="money-value">${money(rest)}</strong>.</p>` : ''}`
+}
+
+// Fixed colour per currency, so BRL and CHF keep the same colour on every screen.
+const currencyColors = { BRL: '#3a9272', CHF: '#c75a28', EUR: '#23609e', USD: '#d9a43a' }
+
+function nativeLabel(item) {
+  if (!item.currency || item.currency === state.currency || !Number.isFinite(item.nativeAmount)) return ''
+  return `<small class="wealth-native">${privateCurrency(item.nativeAmount, state.valuesHidden, false, item.currency)}</small>`
+}
+
+function currencyDonut(composition) {
+  const rows = wealthByCurrency(composition, state.currency)
+  const summary = rows.length > 1 ? `${rows.map(row => `${row.currency} ${percent(row.share)}`).join(' · ')}` : ''
+  return categoryDonut({
+    segments: rows.map(row => ({ key: row.currency, color: currencyColors[row.currency] || '#72655b', label: row.currency, value: row.amount, valueLabel: row.currency === state.currency ? privateCurrency(row.amount, false, false, state.currency) : `${privateCurrency(row.nativeAmount, false, false, row.currency)} ≈ ${privateCurrency(row.amount, false, false, state.currency)}` })),
+    ariaLabel: `Patrimônio por moeda${summary ? `: ${summary}` : ''}`,
+    emptyMessage: 'Sem bens cadastrados.'
+  })
 }
 
 function investmentClassDonut(composition, money) {
@@ -54,7 +72,7 @@ export function renderWealth() {
   const money = value => privateCurrency(value, hidden, false, state.currency)
   const composition = wealthComposition(state)
   const available = composition.groups.find(group => group.key === 'available')
-  const table = `<details class="panel disclosure"><summary>Ver todos os itens em tabela</summary><div class="table-scroll" role="region" tabindex="0" aria-label="Itens do patrimônio"><table><thead><tr><th scope="col">Item</th><th scope="col">Tipo</th><th scope="col">Liquidez</th><th scope="col">Valor</th><th scope="col">Participação</th></tr></thead><tbody>${composition.items.map(item => `<tr><th scope="row">${escapeHtml(item.name)}</th><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(composition.groups.find(group => group.key === item.group).label)}${item.releaseYear ? ` · ${item.releaseYear}` : ''}</td><td>${money(item.amount)}</td><td>${hidden ? 'Oculto' : percent(item.share)}</td></tr>`).join('')}${composition.debts.map(item => `<tr><th scope="row">${escapeHtml(item.name)}</th><td>Dívida</td><td>—</td><td>−${money(item.amount)}</td><td>—</td></tr>`).join('')}</tbody><tfoot><tr><th scope="row">Patrimônio líquido</th><td></td><td></td><td>${money(composition.netWorth)}</td><td></td></tr></tfoot></table></div></details>`
+  const table = `<details class="panel disclosure"><summary>Ver todos os itens em tabela</summary><div class="table-scroll" role="region" tabindex="0" aria-label="Itens do patrimônio"><table><thead><tr><th scope="col">Item</th><th scope="col">Tipo</th><th scope="col">Liquidez</th><th scope="col">Valor</th><th scope="col">Participação</th></tr></thead><tbody>${composition.items.map(item => `<tr><th scope="row">${escapeHtml(item.name)}</th><td>${escapeHtml(item.kind)}</td><td>${escapeHtml(composition.groups.find(group => group.key === item.group).label)}${item.releaseYear ? ` · ${item.releaseYear}` : ''}</td><td>${money(item.amount)}${nativeLabel(item)}</td><td>${hidden ? 'Oculto' : percent(item.share)}</td></tr>`).join('')}${composition.debts.map(item => `<tr><th scope="row">${escapeHtml(item.name)}</th><td>Dívida</td><td>—</td><td>−${money(item.amount)}</td><td>—</td></tr>`).join('')}</tbody><tfoot><tr><th scope="row">Patrimônio líquido</th><td></td><td></td><td>${money(composition.netWorth)}</td><td></td></tr></tfoot></table></div></details>`
 
   return `
     <section class="page-heading">
@@ -87,6 +105,11 @@ export function renderWealth() {
         <p class="eyebrow">CARTEIRA</p><h2 id="wealth-classes-title">Investimentos por classe</h2>
         ${hidden ? '<p>Indicador oculto.</p>' : investmentClassDonut(composition, money)}
         <a href="/carteira" data-route>Ver diagnóstico e alocação-alvo ${icon('arrowRight', 16)}</a>
+      </section>
+      <section class="panel wealth-panel" aria-labelledby="wealth-currency-title">
+        <p class="eyebrow">MOEDAS</p><h2 id="wealth-currency-title">Em que moeda está guardado</h2>
+        ${hidden ? '<p>Indicador oculto.</p>' : currencyDonut(composition)}
+        <a href="/cambio" data-route>Simular variação do câmbio ${icon('arrowRight', 16)}</a>
       </section>
     </div>
 

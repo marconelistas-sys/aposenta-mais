@@ -151,6 +151,11 @@ export function diagnosePortfolio(plan, { monthlyExpenses = 0, yearsToRetirement
       add('home-currency', 'info', 'Carteira quase toda na moeda do plano', `${Math.round(homeShare * 100)}% do patrimônio depende de ${baseCurrency}. Uma perda de poder de compra dessa moeda atinge todo o plano.`, plan.investments.some(item => item.exposureCurrency) ? 'Avalie se despesas futuras em outras moedas justificam exposição externa.' : 'Informe a moeda de exposição de cada investimento para confirmar.')
     }
 
+    const mismatched = plan.investments.filter(item => item.currency && item.currency !== baseCurrency && item.exposureCurrency === baseCurrency)
+    if (mismatched.length) {
+      add('balance-exposure', 'info', 'Saldo em moeda estrangeira com exposição na moeda do plano', `${mismatched.map(item => `${item.name} (saldo em ${item.currency})`).join(', ')} ${mismatched.length === 1 ? 'está marcado' : 'estão marcados'} como exposição a ${baseCurrency}. O câmbio e a distribuição por moeda não consideram ${mismatched.length === 1 ? 'esse saldo' : 'esses saldos'} na moeda estrangeira.`, 'Confira a moeda de exposição no cadastro. Normalmente é a mesma do saldo.')
+    }
+
     const releaseIds = new Set((plan.finappMethod?.releases || []).map(row => row.investmentId))
     const withoutRelease = plan.investments.filter(item => item.liquidity === 'restricted' && item.assetClass !== 'pension' && !releaseIds.has(item.id))
     if (withoutRelease.length) {

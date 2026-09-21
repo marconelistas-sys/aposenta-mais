@@ -1,0 +1,2076 @@
+diff --git a/index.html b/index.html
+index c86ef5e..329ae14 100644
+--- a/index.html
++++ b/index.html
+@@ -7,7 +7,7 @@
+       name="description"
+       content="Aposenta+, uma forma clara de planejar sua renda para a aposentadoria."
+     />
+-    <meta name="theme-color" content="#143e3a" />
++    <meta name="theme-color" content="#9c3f22" />
+     <meta
+       http-equiv="Content-Security-Policy"
+       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'"
+@@ -17,6 +17,7 @@
+     <link rel="stylesheet" href="/src/styles/app.css" />
+     <link rel="stylesheet" href="/src/styles/responsive.css" />
+     <link rel="stylesheet" href="/src/styles/data-overview.css" />
++    <link rel="stylesheet" href="/src/styles/refresh.css" />
+     <title>Aposenta+ | Seu futuro, com clareza</title>
+   </head>
+   <body>
+diff --git a/public/favicon.svg b/public/favicon.svg
+index bd5cbb9..a1eb3a6 100644
+--- a/public/favicon.svg
++++ b/public/favicon.svg
+@@ -1,5 +1,5 @@
+ <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+-  <rect width="64" height="64" rx="18" fill="#143e3a"/>
+-  <path d="M17 42 29 19h8l11 23h-9l-2-5H27l-2 5h-8Zm13-12h5l-2.5-6-2.5 6Z" fill="#f7f8f3"/>
+-  <path d="M47 13v10M42 18h10" stroke="#c8f36b" stroke-width="4" stroke-linecap="round"/>
++  <rect width="64" height="64" rx="18" fill="#9c3f22"/>
++  <path d="M17 42 29 19h8l11 23h-9l-2-5H27l-2 5h-8Zm13-12h5l-2.5-6-2.5 6Z" fill="#fffaf4"/>
++  <path d="M47 13v10M42 18h10" stroke="#e9a23b" stroke-width="4" stroke-linecap="round"/>
+ </svg>
+diff --git a/src/features/cash-flow/cash-flow.js b/src/features/cash-flow/cash-flow.js
+index 6b86f59..c2072ba 100644
+--- a/src/features/cash-flow/cash-flow.js
++++ b/src/features/cash-flow/cash-flow.js
+@@ -95,7 +95,7 @@ function cashFlowItems(result) {
+       const converted = privateCurrency(item.convertedAmount, state.valuesHidden, true, state.currency)
+       return `
+         <article class="cash-item ${item.isActive ? '' : 'is-inactive'}">
+-          <span class="cash-item__type cash-item__type--${item.type}">${item.type === 'income' ? 'Receita' : 'Despesa'}</span>
++          <span class="cash-item__type cash-item__type--${item.type}" title="${item.type === 'income' ? 'Receita' : 'Despesa'}">${icon(item.type === 'income' ? 'arrowDownLeft' : 'arrowUpRight', 18)}<span class="sr-only">${item.type === 'income' ? 'Receita' : 'Despesa'}</span></span>
+           <div class="cash-item__identity">
+             <strong>${escapeHtml(item.description || item.category.name)}</strong>
+             <span>${recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']} · ${escapeHtml(item.category.name)}</span>
+@@ -109,8 +109,8 @@ function cashFlowItems(result) {
+           </div>
+           <div class="cash-item__actions">
+             ${item.annualGoalId ? `<button class="cash-item__edit" type="button" data-edit-annual-goal="${escapeHtml(item.annualGoalId)}" aria-label="Editar provisão anual de ${escapeHtml(item.description || item.category.name)}">Editar provisão anual</button>` : item.consortiumId ? '<a href="/consorcios" data-route>Editar consórcio</a>' : item.commitmentId ? '<a href="/calendario" data-route>Editar no calendário</a>' : item.id.startsWith('ledger:') ? '<a href="/contas" data-route>Editar em Contas</a>' : `
+-            <button class="cash-item__edit" type="button" data-edit-cash-item="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.description || item.category.name)}">Editar</button>
+-            <button class="cash-item__edit" type="button" data-remove-cash-item="${escapeHtml(item.id)}" aria-label="Excluir ${escapeHtml(item.description || item.category.name)}">Excluir</button>
++            <button class="cash-item__edit" type="button" data-edit-cash-item="${escapeHtml(item.id)}" aria-label="Editar ${escapeHtml(item.description || item.category.name)}" title="Editar">${icon('pencil', 17)}<span class="sr-only">Editar</span></button>
++            <button class="cash-item__edit" type="button" data-remove-cash-item="${escapeHtml(item.id)}" aria-label="Excluir ${escapeHtml(item.description || item.category.name)}" title="Excluir">${icon('trash', 17)}<span class="sr-only">Excluir</span></button>
+             `}
+           </div>
+         </article>
+@@ -390,7 +390,7 @@ export function renderCashFlow() {
+     : result.contributionGap > 0
+       ? 'Existe espaço para investir, mas ainda há uma diferença para a meta.'
+       : 'O fluxo atual comporta o aporte necessário.'
+-  const monthSummary = `<section class="panel settings-card cash-month-summary"><div class="cash-month-summary__header"><div><p class="eyebrow">MÊS DE REFERÊNCIA</p><h2>Orçamento previsto de ${monthLabel(state.cashFlow.referenceMonth)}</h2></div><label class="form-field"><span class="form-field__label">Mês de início da análise</span><span class="input-shell"><input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></span></label></div><dl class="metric-row"><div><dt>Receitas</dt><dd class="money-value">${money(firstMonth.income)}</dd></div><div><dt>Despesas e metas</dt><dd class="money-value">${money(firstMonth.expenses)}</dd></div><div data-tone="${firstMonth.balance < 0 ? 'negative' : 'positive'}"><dt>Saldo do orçamento</dt><dd class="money-value">${money(firstMonth.balance)}</dd></div><div><dt>Créditos previdenciários</dt><dd class="money-value">${money(firstMonth.pension)}</dd></div></dl><details class="disclosure"><summary>O que este saldo representa</summary><p>O saldo do orçamento (receitas menos despesas e metas) não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas na tela Orçamento. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></details></section>`
++  const monthSummary = `<section class="panel settings-card cash-month-summary"><div class="cash-month-summary__header"><div><p class="eyebrow">MÊS DE REFERÊNCIA</p><h2>Orçamento previsto de ${monthLabel(state.cashFlow.referenceMonth)}</h2></div><label class="form-field"><span class="form-field__label">Mês de início da análise</span><span class="input-shell"><input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month /></span></label></div><dl class="metric-row"><div data-kind="income"><dt>${icon('arrowDownLeft', 18, 'metric-glyph')}Receitas</dt><dd class="money-value">${money(firstMonth.income)}</dd></div><div data-kind="expense"><dt>${icon('arrowUpRight', 18, 'metric-glyph')}Despesas e metas</dt><dd class="money-value">${money(firstMonth.expenses)}</dd></div><div data-tone="${firstMonth.balance < 0 ? 'negative' : 'positive'}"><dt>${icon('wallet', 18, 'metric-glyph')}Saldo do orçamento</dt><dd class="money-value">${money(firstMonth.balance)}</dd></div><div><dt>${icon('shield', 18, 'metric-glyph')}Créditos previdenciários</dt><dd class="money-value">${money(firstMonth.pension)}</dd></div></dl><details class="disclosure"><summary>O que este saldo representa</summary><p>O saldo do orçamento (receitas menos despesas e metas) não é saldo bancário ou patrimonial. A origem da previdência segue as premissas anuais. Eventuais sem data não entram. Cadastre receitas e despesas na tela Orçamento. Use Planejado para o orçamento e Realizado para movimentos que já aconteceram.</p></details></section>`
+ 
+   return `
+     <section class="page-heading page-heading--inner">
+diff --git a/src/features/cash-flow/expense-impact.js b/src/features/cash-flow/expense-impact.js
+index ee4da83..f757c53 100644
+--- a/src/features/cash-flow/expense-impact.js
++++ b/src/features/cash-flow/expense-impact.js
+@@ -33,7 +33,7 @@ export function renderExpenseImpactResult() {
+   ].map(([label, a, b]) => `<tr><th scope="row">${label}</th><td><span class="money-value">${a}</span></td><td><span class="money-value">${b}</span></td></tr>`).join('')}</tbody></table></div>
+   ${result.totalReduction === 0 ? '<p>Esta hipótese não reduz saídas no período. Confira o percentual, o ano inicial e o prazo do lançamento.</p>' : ''}
+   ${result.baseline.issues.length ? `<p>A avaliação tem ${result.baseline.issues.length} pendência(s). A comparação não confirma sustentabilidade enquanto as premissas estiverem incompletas.</p>` : ''}
+-  ${planningChart({ title: 'Liquidez anual, plano atual e hipótese', rows: chartRows, currency: state.currency, series: [{ key: 'current', label: 'Plano atual', color: '#475569' }, { key: 'simulated', label: 'Hipótese', color: '#047857', dash: '6 3' }] })}
++  ${planningChart({ title: 'Liquidez anual, plano atual e hipótese', rows: chartRows, currency: state.currency, series: [{ key: 'current', label: 'Plano atual', color: '#5c4f46' }, { key: 'simulated', label: 'Hipótese', color: '#2e7550', dash: '6 3' }] })}
+   <p>Projeção em poder de compra atual, ${state.currency}, até ${result.targetAge} anos. Insuficiência significa patrimônio financeiro líquido de dívidas ou liquidez negativos no fechamento anual. Não verifica cada mês. Patrimônio positivo não garante liquidez. O resultado depende das premissas cadastradas.</p></div>`
+ }
+ export function renderExpenseImpact() {
+diff --git a/src/features/dashboard/cockpit.js b/src/features/dashboard/cockpit.js
+index 1f65af7..10fe636 100644
+--- a/src/features/dashboard/cockpit.js
++++ b/src/features/dashboard/cockpit.js
+@@ -1,9 +1,10 @@
+ import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
++import { icon } from '../../shared/icons.js'
+ import { budgetGauge } from '../../shared/budget-gauge.js'
+ import { solvencyWealthLabel } from '../../domain/property-solvency.js'
+ 
+ const finite = Number.isFinite
+-const colors = { good: '#047857', danger: '#b42318', caution: '#946200', neutral: '#17658a' }
++const colors = { good: '#2e7550', danger: '#b3243b', caution: '#8f5b00', neutral: '#23609e' }
+ const failed = row => row.liquidAssets < -0.005 || row.netFinancial < -0.005
+ 
+ // Descriptive instruments from the existing projection. No score or probability.
+@@ -39,12 +40,12 @@ function sparkline(rows, key, tone, focusRow = rows.at(-1)) {
+   const y = value => 74 - (value - low) / range * 60
+   const focusIndex = Math.max(0, rows.indexOf(focusRow))
+   const points = rows.map((row, index) => `${x(index).toFixed(2)},${y(row[key]).toFixed(2)}`).join(' ')
+-  return `<svg class="cockpit-sparkline" viewBox="0 0 240 92" aria-hidden="true" focusable="false"><line x1="12" x2="228" y1="${y(0)}" y2="${y(0)}" stroke="#637b83" stroke-dasharray="3 3"/><polyline points="${points}" fill="none" stroke="${colors[tone]}" stroke-width="3" stroke-linejoin="round"/><circle cx="${x(focusIndex)}" cy="${y(rows[focusIndex][key])}" r="4" fill="${colors[tone]}"/><text x="12" y="89" fill="#425a64" font-size="10">${escapeHtml(rows[0].year)}</text><text x="228" y="89" fill="#425a64" font-size="10" text-anchor="end">${escapeHtml(rows.at(-1).year)}</text></svg>`
++  return `<svg class="cockpit-sparkline" viewBox="0 0 240 92" aria-hidden="true" focusable="false"><line x1="12" x2="228" y1="${y(0)}" y2="${y(0)}" stroke="#72655b" stroke-dasharray="3 3"/><polyline points="${points}" fill="none" stroke="${colors[tone]}" stroke-width="3" stroke-linejoin="round"/><circle cx="${x(focusIndex)}" cy="${y(rows[focusIndex][key])}" r="4" fill="${colors[tone]}"/><text x="12" y="89" fill="#5c4f46" font-size="10">${escapeHtml(rows[0].year)}</text><text x="228" y="89" fill="#5c4f46" font-size="10" text-anchor="end">${escapeHtml(rows.at(-1).year)}</text></svg>`
+ }
+ 
+ function horizonStrip(model) {
+   const width = 216 / model.rows.length
+-  return `<svg class="cockpit-horizon" viewBox="0 0 240 92" aria-hidden="true" focusable="false">${model.rows.map((row, index) => `<rect x="${12 + index * width}" y="22" width="${Math.max(.25, width * .8)}" height="36" rx="1" fill="${colors[failed(row) ? 'danger' : model.complete ? 'good' : 'caution']}"/>`).join('')}<text x="12" y="80" fill="#425a64" font-size="11">${escapeHtml(model.rows[0].year)}</text><text x="228" y="80" text-anchor="end" fill="#425a64" font-size="11">${escapeHtml(model.last.year)}</text></svg>`
++  return `<svg class="cockpit-horizon" viewBox="0 0 240 92" aria-hidden="true" focusable="false">${model.rows.map((row, index) => `<rect x="${12 + index * width}" y="22" width="${Math.max(.25, width * .8)}" height="36" rx="1" fill="${colors[failed(row) ? 'danger' : model.complete ? 'good' : 'caution']}"/>`).join('')}<text x="12" y="80" fill="#5c4f46" font-size="11">${escapeHtml(model.rows[0].year)}</text><text x="228" y="80" text-anchor="end" fill="#5c4f46" font-size="11">${escapeHtml(model.last.year)}</text></svg>`
+ }
+ 
+ export function renderDashboardCockpit({ result, budget, currency, today = new Date(), hidden = false }) {
+@@ -52,24 +53,24 @@ export function renderDashboardCockpit({ result, budget, currency, today = new D
+   const model = cockpitModel(result, budget)
+   const money = value => finite(value) ? privateCurrency(value, false, true, currency) : 'Não informado'
+   const month = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(today)
+-  const badge = (tone, text) => `<span class="cockpit-status" data-tone="${tone}"><span aria-hidden="true">${tone === 'danger' ? '!' : tone === 'good' ? '✓' : tone === 'caution' ? '!' : '·'}</span>${escapeHtml(text)}</span>`
++  const badge = (tone, text) => `<span class="cockpit-status" data-tone="${tone}">${icon(tone === 'good' ? 'check' : tone === 'neutral' ? 'info' : 'alertTriangle', 14)}${escapeHtml(text)}</span>`
+   const maxBudget = Math.max(model.income || 0, model.expenses || 0, 1)
+   const bar = (label, value, kind) => `<div class="cockpit-budget-row"><div><span>${label}</span><span>${money(value)}</span></div><div class="cockpit-bar-track" aria-hidden="true"><span class="cockpit-bar cockpit-bar--${kind}" style="width:${(value / maxBudget * 100).toFixed(3)}%"></span></div></div>`
+   const noProjection = '<p class="cockpit-no-data">Configure o horizonte para calcular.</p>'
+   return `<section class="dashboard-cockpit" aria-label="Quatro indicadores do plano" data-dashboard-cockpit>
+-    <article class="cockpit-instrument" data-cockpit="coverage"><p class="cockpit-kicker">PROJEÇÃO ANUAL</p><h3>Cobertura até a data-alvo</h3>${badge(model.rows.length ? model.coverageTone : 'caution', !model.rows.length ? 'Avaliação indisponível' : model.firstFailure ? 'Insuficiência calculada' : model.complete ? 'Cobertura anual suficiente' : 'Premissas a revisar')}
++    <article class="cockpit-instrument" data-cockpit="coverage"><p class="cockpit-kicker">PROJEÇÃO ANUAL</p><h3><span class="cockpit-icon">${icon('shield', 18)}</span>Cobertura até a data-alvo</h3>${badge(model.rows.length ? model.coverageTone : 'caution', !model.rows.length ? 'Avaliação indisponível' : model.firstFailure ? 'Insuficiência calculada' : model.complete ? 'Cobertura anual suficiente' : 'Premissas a revisar')}
+       <p class="cockpit-value">${model.firstFailure ? escapeHtml(model.firstFailure.year) : model.last ? `Até ${escapeHtml(model.last.year)}` : 'Não calculada'}</p><p class="cockpit-caption">${model.firstFailure ? 'Primeiro fechamento com insuficiência.' : model.complete ? 'Sem insuficiência nos fechamentos anuais.' : 'Sem conclusão de sustentabilidade.'}</p>${model.rows.length ? horizonStrip(model) : noProjection}
+-      ${model.rows.length ? `<p class="cockpit-note">${model.coverageCount} de ${model.rows.length} fechamentos sem insuficiência. Cada faixa representa um ano, não uma chance de sucesso.</p>` : ''}<a href="/viabilidade" data-route>Conferir cobertura anual</a>
++      ${model.rows.length ? `<details class="cockpit-info"><summary>${icon('info', 15)}<span>Como ler</span></summary><p class="cockpit-note">${model.coverageCount} de ${model.rows.length} fechamentos sem insuficiência. Cada faixa representa um ano, não uma chance de sucesso.</p></details>` : ''}<a href="/viabilidade" data-route class="cockpit-link">Conferir cobertura anual${icon('arrowRight', 15)}</a>
+     </article>
+-    <article class="cockpit-instrument" data-cockpit="budget"><p class="cockpit-kicker">ORÇAMENTO VIGENTE · ${escapeHtml(month)}</p><h3>Receitas e despesas</h3>${badge(model.budgetTone, !model.budgetAvailable ? 'Sem orçamento ativo' : model.expenses === 0 ? 'Despesas não informadas' : model.balance < -0.005 ? 'Déficit planejado' : model.balance > 0.005 ? 'Sobra planejada' : 'Orçamento equilibrado')}
++    <article class="cockpit-instrument" data-cockpit="budget"><p class="cockpit-kicker">ORÇAMENTO VIGENTE · ${escapeHtml(month)}</p><h3><span class="cockpit-icon">${icon('wallet', 18)}</span>Receitas e despesas</h3>${badge(model.budgetTone, !model.budgetAvailable ? 'Sem orçamento ativo' : model.expenses === 0 ? 'Despesas não informadas' : model.balance < -0.005 ? 'Déficit planejado' : model.balance > 0.005 ? 'Sobra planejada' : 'Orçamento equilibrado')}
+       <p class="cockpit-value">${model.budgetAvailable ? money(model.balance) : 'Não informado'}</p><p class="cockpit-caption">Saldo mensal equivalente, antes dos rendimentos.</p>${budgetGauge({ income: model.income, expenses: model.expenses })}<details class="cockpit-budget-detail"><summary>Comparar valores mensais</summary><div class="cockpit-budget-bars">${model.budgetAvailable ? bar('Receitas', model.income, 'income') + bar('Despesas', model.expenses, 'expenses') : '<p class="cockpit-no-data">Cadastre receitas e despesas para comparar.</p>'}</div></details>
+-      <p class="cockpit-note">${model.balance < -0.005 ? 'O déficit pode consumir reservas. Valores anuais distribuídos por 12 meses.' : 'Barras na mesma escala. Valores anuais distribuídos por 12 meses, sem conciliação bancária.'}</p><a href="/orcamento" data-route>Revisar orçamento</a>
++      <details class="cockpit-info"><summary>${icon('info', 15)}<span>Como ler</span></summary><p class="cockpit-note">${model.balance < -0.005 ? 'O déficit pode consumir reservas. Valores anuais distribuídos por 12 meses.' : 'Barras na mesma escala. Valores anuais distribuídos por 12 meses, sem conciliação bancária.'}</p></details><a href="/orcamento" data-route class="cockpit-link">Revisar orçamento${icon('arrowRight', 15)}</a>
+     </article>
+-    <article class="cockpit-instrument" data-cockpit="liquidity"><p class="cockpit-kicker">PONTO DE MENOR FOLGA</p><h3>Menor liquidez projetada</h3>${badge(model.minimum ? model.liquidityTone : 'caution', !model.minimum ? 'Avaliação indisponível' : model.minimum.liquidAssets < -0.005 ? 'Faltam recursos disponíveis' : model.minimum.liquidAssets <= 0.005 ? 'Sem margem no menor saldo' : model.complete ? 'Saldo mínimo positivo' : 'Projeção a revisar')}
+-      <p class="cockpit-value">${money(model.minimum?.liquidAssets)}</p><p class="cockpit-caption">${model.minimum ? `Em dezembro de ${escapeHtml(model.minimum.year)}.` : 'Sem ano calculado.'}</p>${model.minimum ? sparkline(model.rows, 'liquidAssets', model.liquidityTone, model.minimum) : noProjection}<p class="cockpit-note">Menor saldo nos fechamentos anuais. Imóveis não geram liquidez. Ponto = menor saldo. Tracejado = zero.</p><a href="/riscos-mensais" data-route>Conferir liquidez mensal</a>
++    <article class="cockpit-instrument" data-cockpit="liquidity"><p class="cockpit-kicker">PONTO DE MENOR FOLGA</p><h3><span class="cockpit-icon">${icon('trendUp', 18)}</span>Menor liquidez projetada</h3>${badge(model.minimum ? model.liquidityTone : 'caution', !model.minimum ? 'Avaliação indisponível' : model.minimum.liquidAssets < -0.005 ? 'Faltam recursos disponíveis' : model.minimum.liquidAssets <= 0.005 ? 'Sem margem no menor saldo' : model.complete ? 'Saldo mínimo positivo' : 'Projeção a revisar')}
++      <p class="cockpit-value">${money(model.minimum?.liquidAssets)}</p><p class="cockpit-caption">${model.minimum ? `Em dezembro de ${escapeHtml(model.minimum.year)}.` : 'Sem ano calculado.'}</p>${model.minimum ? sparkline(model.rows, 'liquidAssets', model.liquidityTone, model.minimum) : noProjection}<details class="cockpit-info"><summary>${icon('info', 15)}<span>Como ler</span></summary><p class="cockpit-note">Menor saldo nos fechamentos anuais. Imóveis não geram liquidez. Ponto = menor saldo. Tracejado = zero.</p></details><a href="/riscos-mensais" data-route class="cockpit-link">Conferir liquidez mensal${icon('arrowRight', 15)}</a>
+     </article>
+-    <article class="cockpit-instrument" data-cockpit="wealth"><p class="cockpit-kicker">${model.last ? `DEZEMBRO DE ${escapeHtml(model.last.year)}` : 'DATA-ALVO'}</p><h3>Patrimônio considerado</h3>${badge(model.wealth === null ? 'caution' : model.wealth < -0.005 ? 'danger' : 'neutral', model.wealth === null ? 'Avaliação indisponível' : model.wealth < -0.005 ? 'Patrimônio abaixo das dívidas' : 'Não é dinheiro disponível')}
+-      <p class="cockpit-value">${money(model.wealth)}</p><p class="cockpit-caption">${model.last ? escapeHtml(solvencyWealthLabel(model.last)) + '.' : 'Sem patrimônio projetado.'}</p>${model.wealth !== null ? sparkline(model.rows, 'solvencyNetWorth', model.wealth < -0.005 ? 'danger' : 'neutral') : noProjection}<p class="cockpit-note">${model.last ? `Imóveis excluídos: ${money(model.last.excludedRealEstateAssets)}. Todas as dívidas descontadas. Tracejado = zero.` : 'Revise os dados e a data-alvo.'}${model.firstWealthFailure && model.firstWealthFailure !== model.last ? ` Primeira insuficiência patrimonial em ${escapeHtml(model.firstWealthFailure.year)}.` : ''}</p><a href="/patrimonio" data-route>Revisar imóveis e bens</a>
++    <article class="cockpit-instrument" data-cockpit="wealth"><p class="cockpit-kicker">${model.last ? `DEZEMBRO DE ${escapeHtml(model.last.year)}` : 'DATA-ALVO'}</p><h3><span class="cockpit-icon">${icon('building', 18)}</span>Patrimônio considerado</h3>${badge(model.wealth === null ? 'caution' : model.wealth < -0.005 ? 'danger' : 'neutral', model.wealth === null ? 'Avaliação indisponível' : model.wealth < -0.005 ? 'Patrimônio abaixo das dívidas' : 'Não é dinheiro disponível')}
++      <p class="cockpit-value">${money(model.wealth)}</p><p class="cockpit-caption">${model.last ? escapeHtml(solvencyWealthLabel(model.last)) + '.' : 'Sem patrimônio projetado.'}</p>${model.wealth !== null ? sparkline(model.rows, 'solvencyNetWorth', model.wealth < -0.005 ? 'danger' : 'neutral') : noProjection}<details class="cockpit-info"><summary>${icon('info', 15)}<span>Como ler</span></summary><p class="cockpit-note">${model.last ? `Imóveis excluídos: ${money(model.last.excludedRealEstateAssets)}. Todas as dívidas descontadas. Tracejado = zero.` : 'Revise os dados e a data-alvo.'}${model.firstWealthFailure && model.firstWealthFailure !== model.last ? ` Primeira insuficiência patrimonial em ${escapeHtml(model.firstWealthFailure.year)}.` : ''}</p></details><a href="/patrimonio" data-route class="cockpit-link">Revisar imóveis e bens${icon('arrowRight', 15)}</a>
+     </article>
+   </section>`
+ }
+diff --git a/src/features/dashboard/dashboard.js b/src/features/dashboard/dashboard.js
+index 198da7b..b1445d5 100644
+--- a/src/features/dashboard/dashboard.js
++++ b/src/features/dashboard/dashboard.js
+@@ -122,12 +122,12 @@ export function renderDashboard() {
+     <section class="panel retirement-income-strip" aria-labelledby="retirement-income-title">
+       <div class="retirement-income-strip__heading"><div><p class="eyebrow">RENDA NA APOSENTADORIA</p><h2 id="retirement-income-title">${state.valuesHidden ? 'Valores ocultos' : result.goalReached ? 'A projeção alcança a renda desejada' : 'A projeção ainda não alcança a renda desejada'}</h2></div><a class="button button--secondary" href="/plano" data-route>Ajustar meta e aporte</a></div>
+       <dl class="metric-row">
+-        <div><dt>Renda desejada</dt><dd class="money-value">${money(state.plan.targetMonthlyIncome)}<small>/mês</small></dd></div>
+-        <div><dt>Renda projetada aos ${state.plan.retirementAge} anos</dt><dd class="money-value">${money(result.projectedMonthlyIncome)}<small>/mês</small></dd></div>
+-        <div data-tone="${result.monthlyIncomeGap > 0 ? 'negative' : 'positive'}"><dt>${result.monthlyIncomeGap > 0 ? 'Falta por mês' : 'Sobra por mês'}</dt><dd class="money-value">${money(Math.abs(result.monthlyIncomeGap))}</dd></div>
+-        <div><dt>Aporte necessário</dt><dd class="money-value">${money(result.requiredMonthlyContribution)}<small>/mês</small></dd></div>
++        <div><dt>${icon('target', 18, 'metric-glyph')}Renda desejada</dt><dd class="money-value">${money(state.plan.targetMonthlyIncome)}<small>/mês</small></dd></div>
++        <div><dt>${icon('trendUp', 18, 'metric-glyph')}Renda projetada aos ${state.plan.retirementAge} anos</dt><dd class="money-value">${money(result.projectedMonthlyIncome)}<small>/mês</small></dd></div>
++        <div data-tone="${result.monthlyIncomeGap > 0 ? 'negative' : 'positive'}"><dt>${icon(result.monthlyIncomeGap > 0 ? 'alertTriangle' : 'check', 18, 'metric-glyph')}${result.monthlyIncomeGap > 0 ? 'Falta por mês' : 'Sobra por mês'}</dt><dd class="money-value">${money(Math.abs(result.monthlyIncomeGap))}</dd></div>
++        <div><dt>${icon('wallet', 18, 'metric-glyph')}Aporte necessário</dt><dd class="money-value">${money(result.requiredMonthlyContribution)}<small>/mês</small></dd></div>
+       </dl>
+-      ${state.valuesHidden ? '' : `<div class="retirement-income-strip__progress" role="meter" aria-label="Patrimônio projetado em relação ao necessário" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, Math.round(result.progress * 100))}"><span style="width:${Math.min(100, result.progress * 100).toFixed(1)}%"></span></div><p class="annual-chart-basis">Patrimônio projetado cobre ${Math.round(result.progress * 100)}% do necessário. Renda projetada = benefício estimado ${money(result.householdExpectedMonthlyBenefit)} + retirada de ${formatPercent(state.plan.annualWithdrawalRate)} ao ano do patrimônio. Aporte atual: ${money(state.plan.monthlyContribution)}/mês. Valores em poder de compra de hoje.</p>`}
++      ${state.valuesHidden ? '' : `<div class="retirement-income-strip__progress" role="meter" aria-label="Patrimônio projetado em relação ao necessário" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, Math.round(result.progress * 100))}"><span style="width:${Math.min(100, result.progress * 100).toFixed(1)}%"></span></div><div class="retirement-income-strip__meta"><strong class="retirement-income-strip__pct">${Math.round(result.progress * 100)}%</strong><span>do patrimônio necessário</span><details class="inline-info"><summary aria-label="Como calculamos" title="Como calculamos">${icon('info', 16)}</summary><p class="annual-chart-basis">Patrimônio projetado cobre ${Math.round(result.progress * 100)}% do necessário. Renda projetada = benefício estimado ${money(result.householdExpectedMonthlyBenefit)} + retirada de ${formatPercent(state.plan.annualWithdrawalRate)} ao ano do patrimônio. Aporte atual: ${money(state.plan.monthlyContribution)}/mês. Valores em poder de compra de hoje.</p></details></div>`}
+     </section>
+ 
+     <section class="dashboard-grid" data-dashboard-overview aria-label="Impacto de longo prazo">
+diff --git a/src/features/dashboard/planning-overview.js b/src/features/dashboard/planning-overview.js
+index d2e1d2d..f44401d 100644
+--- a/src/features/dashboard/planning-overview.js
++++ b/src/features/dashboard/planning-overview.js
+@@ -9,6 +9,7 @@ import { renderPlanInterpretation } from './plan-interpretation.js'
+ import { renderPropertyFilter, renderSolvencyAssessment } from '../../shared/property-solvency.js'
+ import { solvencyWealthLabel } from '../../domain/property-solvency.js'
+ import { renderDashboardCockpit } from './cockpit.js'
++import { icon } from '../../shared/icons.js'
+ 
+ export function renderPlanningOverview(options = {}) {
+   const compact = Boolean(options.compact)
+@@ -22,11 +23,11 @@ export function renderPlanningOverview(options = {}) {
+   const assessment = result.firstFailure ? 'insufficient' : result.viable && !result.issues.length ? 'sustainable' : 'incomplete'
+   const status = assessment === 'insufficient' ? 'Recursos insuficientes para sustentar o plano familiar' : assessment === 'sustainable' ? 'Plano familiar sustentável nas premissas informadas' : 'Avaliação incompleta da sustentabilidade familiar'
+   const money = value => privateCurrency(value, false, true, state.currency)
+-  const summary = `<div class="plan-sustainability plan-sustainability--${assessment}" data-plan-sustainability="${assessment}"><p class="eyebrow">SUSTENTABILIDADE FAMILIAR ATÉ DEZEMBRO DE ${last.year}</p><h2>${status}</h2><p>${result.firstFailure ? `Primeiro fechamento com insuficiência financeira ou de liquidez: ${result.firstFailure.year}. Patrimônio total positivo não garante recursos disponíveis para pagar despesas.` : assessment === 'sustainable' ? 'Os recursos cobrem o orçamento familiar em todos os fechamentos anuais calculados até a data-alvo.' : 'Confira os dados e confirme as premissas indicadas abaixo para concluir se os recursos cobrem o orçamento familiar até a data-alvo.'}</p>${compact ? '' : `<dl><div><dt>Patrimônio total líquido de dívidas na data-alvo</dt><dd>${money(last.netWorth)}</dd></div><div><dt>Liquidez na data-alvo</dt><dd>${money(last.liquidAssets)}</dd></div></dl>`}${renderProjectionChecks(result)}<p>Projeção anual nas premissas informadas. Confira também a <a href="/riscos-mensais" data-route>liquidez dentro de cada ano</a>.</p></div>`
++  const summary = `<div class="plan-sustainability plan-sustainability--${assessment}" data-plan-sustainability="${assessment}"><span class="plan-sustainability__icon">${icon(assessment === 'sustainable' ? 'check' : assessment === 'insufficient' ? 'alertTriangle' : 'help', 22)}</span><p class="eyebrow">SUSTENTABILIDADE FAMILIAR ATÉ DEZEMBRO DE ${last.year}</p><h2>${status}</h2><p>${result.firstFailure ? `Primeiro fechamento com insuficiência financeira ou de liquidez: ${result.firstFailure.year}. Patrimônio total positivo não garante recursos disponíveis para pagar despesas.` : assessment === 'sustainable' ? 'Os recursos cobrem o orçamento familiar em todos os fechamentos anuais calculados até a data-alvo.' : 'Confira os dados e confirme as premissas indicadas abaixo para concluir se os recursos cobrem o orçamento familiar até a data-alvo.'}</p>${compact ? '' : `<dl><div><dt>Patrimônio total líquido de dívidas na data-alvo</dt><dd>${money(last.netWorth)}</dd></div><div><dt>Liquidez na data-alvo</dt><dd>${money(last.liquidAssets)}</dd></div></dl>`}${renderProjectionChecks(result)}<p>Projeção anual nas premissas informadas. Confira também a <a href="/riscos-mensais" data-route>liquidez dentro de cada ano</a>.</p></div>`
+   const common = { rows: result.rows.map(row => ({ ...row, outflows: row.costs + row.goals })), currency: state.currency, markers: result.retirement ? [{ year: result.retirement.slice(0, 4), label: 'Aposentadoria' }] : [] }
+   const wealth = compact ? planningChart({ ...common, title: 'Patrimônio ao fim de cada ano', annualReadout: true, interpolation: 'linear', readoutCaption: `${state.currency} · Poder de compra de ${result.rows[0].year} · Saldo no fim do ano`, series: [
+-    { key: 'solvencyNetWorth', label: solvencyWealthLabel(result.rows.find(row => row.excludedRealEstateAssets > 0) || last), color: '#475569', width: 3, emphasize: true },
+-    { key: 'liquidAssets', label: 'Liquidez disponível', color: '#0369a1', dash: '2 3' },
++    { key: 'solvencyNetWorth', label: solvencyWealthLabel(result.rows.find(row => row.excludedRealEstateAssets > 0) || last), color: '#5c4f46', width: 3, emphasize: true },
++    { key: 'liquidAssets', label: 'Liquidez disponível', color: '#23609e', dash: '2 3' },
+   ] }) : ''
+   const pensionNote = result.settings.pensionMode === 'external' ? 'crédito externo, fora do saldo do orçamento' : 'paga com o orçamento'
+   if (compact && cockpit) {
+diff --git a/src/features/investments/investments.js b/src/features/investments/investments.js
+index 55a252e..56381f8 100644
+--- a/src/features/investments/investments.js
++++ b/src/features/investments/investments.js
+@@ -274,10 +274,10 @@ export function renderInvestments() {
+     </section>
+ 
+     <section class="investment-summary" aria-label="Resumo da carteira">
+-      <article class="panel"><span>Patrimônio cadastrado</span><strong>${privateCurrency(state.plan.currentAssets, state.valuesHidden, false, state.currency)}</strong><small>${investments.length} ${investments.length === 1 ? 'investimento' : 'investimentos'}</small></article>
+-      <article class="panel"><span>Aportes mensais</span><strong>${privateCurrency(state.plan.monthlyContribution, state.valuesHidden, false, state.currency)}</strong><small>Somados pela carteira</small></article>
+-      <article class="panel"><span>Retorno médio em ${new Date().getUTCFullYear()}</span><strong>${state.valuesHidden ? 'Oculto' : preciseRate(portfolioReturn())}</strong><small>Real ao ano, líquido de custos, ponderado pelo saldo</small></article>
+-      <article class="panel"><span>Custo médio anual</span><strong>${state.valuesHidden ? 'Oculto' : hasFees ? preciseRate(weightedFee) : 'Não informado'}</strong><small>${hasFees && !state.valuesHidden ? `Reduz o patrimônio projetado em ${privateCurrency(feeImpact, false, false, state.currency)}` : 'Informe a taxa de cada produto'}</small></article>
++      <article class="panel"><i class="summary-glyph">${icon('pie', 20)}</i><span>Patrimônio cadastrado</span><strong>${privateCurrency(state.plan.currentAssets, state.valuesHidden, false, state.currency)}</strong><small>${investments.length} ${investments.length === 1 ? 'investimento' : 'investimentos'}</small></article>
++      <article class="panel"><i class="summary-glyph">${icon('calendar', 20)}</i><span>Aportes mensais</span><strong>${privateCurrency(state.plan.monthlyContribution, state.valuesHidden, false, state.currency)}</strong><small>Somados pela carteira</small></article>
++      <article class="panel"><i class="summary-glyph">${icon('trendUp', 20)}</i><span>Retorno médio em ${new Date().getUTCFullYear()}</span><strong>${state.valuesHidden ? 'Oculto' : preciseRate(portfolioReturn())}</strong><small>Real ao ano, líquido de custos, ponderado pelo saldo</small></article>
++      <article class="panel"><i class="summary-glyph">${icon('percent', 20)}</i><span>Custo médio anual</span><strong>${state.valuesHidden ? 'Oculto' : hasFees ? preciseRate(weightedFee) : 'Não informado'}</strong><small>${hasFees && !state.valuesHidden ? `Reduz o patrimônio projetado em ${privateCurrency(feeImpact, false, false, state.currency)}` : 'Informe a taxa de cada produto'}</small></article>
+     </section>
+ 
+     ${portfolioDiagnostics()}
+diff --git a/src/features/plan/annual-risk.js b/src/features/plan/annual-risk.js
+index eaca56d..8ae146f 100644
+--- a/src/features/plan/annual-risk.js
++++ b/src/features/plan/annual-risk.js
+@@ -19,7 +19,7 @@ export function renderAnnualRisk(view, stale) {
+   const { base, simulated, matrix } = result
+   const rows = base.rows.map((row, index) => ({ ...row, ...simulated.series[index] }))
+   const common = { rows, currency: state.currency, hidden: state.valuesHidden, markers: base.retirement ? [{ year: base.retirement.slice(0, 4), label: 'Aposentadoria' }] : [] }
+-  const charts = planningChart({ ...common, title: 'Patrimônio financeiro: cenário base e Monte Carlo anual', series: [{ key: 'financialAssets', label: 'Patrimônio financeiro base', color: '#334155', dash: '4 3' }, { key: 'afP50', label: 'Mediana P50', color: '#047857' }], bands: [{ low: 'afP10', high: 'afP90', label: 'Faixa P10 a P90', color: '#bae6fd' }, { low: 'afP25', high: 'afP75', label: 'Faixa P25 a P75', color: '#6ee7b7' }] })
++  const charts = planningChart({ ...common, title: 'Patrimônio financeiro: cenário base e Monte Carlo anual', series: [{ key: 'financialAssets', label: 'Patrimônio financeiro base', color: '#2b211c', dash: '4 3' }, { key: 'afP50', label: 'Mediana P50', color: '#2e7550' }], bands: [{ low: 'afP10', high: 'afP90', label: 'Faixa P10 a P90', color: '#cfe0f0' }, { low: 'afP25', high: 'afP75', label: 'Faixa P25 a P75', color: '#bfe0cf' }] })
+   const summary = `<section class="panel settings-card"><h2>Resultado anual do risco</h2><p>${(simulated.probabilitySuccess * 100).toFixed(1)}% dos ${simulated.simulations} percursos mantêm patrimônio financeiro não negativo até ${rows.at(-1).year}. Média dos 10% piores saldos finais: ${money(simulated.cvar10)}.</p><p class="term-hint">P10 a P90: faixa entre o cenário mais pessimista (P10) e mais otimista (P90) dos percursos simulados.</p><p>Patrimônio financeiro inicial: ${money(base.openingFinancial)}. Patrimônio financeiro final base: ${money(rows.at(-1).financialAssets)}. Liquidez final base: ${money(rows.at(-1).liquidAssets)}.</p><p>${base.firstFailure ? `Primeiro fechamento insuficiente de financeiro líquido ou liquidez: ${base.firstFailure.year}.` : 'Sem insuficiência nos fechamentos anuais do cenário base.'}</p>${base.issues.length ? '<p>Avaliação incompleta. As probabilidades são condicionais e não resolvem estas pendências:</p>' : ''}${renderProjectionChecks(base)}${charts}<details class="disclosure"><summary>Tabela anual do fluxo e risco</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Auditoria anual do risco"><table><thead><tr>${['Ano', 'Receitas', 'Custos', 'Metas', 'Saldo do orçamento', 'Previdência fora do saldo do orçamento', 'Patrimônio financeiro base', 'Liquidez base', 'P10', 'P50', 'P90'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr><th scope="row">${row.year}</th>${['income', 'costs', 'goals', 'freeCashFlow', 'pensionCredits', 'financialAssets', 'liquidAssets', 'afP10', 'afP50', 'afP90'].map(key => `<td>${['income', 'costs', 'goals', 'freeCashFlow', 'pensionCredits'].includes(key) ? moneyWithMonthly(money, row[key], row.months, { hidden: state.valuesHidden }) : money(row[key])}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details></section>`
+   const grid = `<section class="panel settings-card"><h2>Matriz anual: custos × retorno real</h2><p>Altera custos, sem multiplicar metas ou contribuições externas. As colunas indicam a taxa global do cenário. A diferença para a taxa global atual é aplicada em pontos percentuais às taxas de cada investimento, inclusive aos ajustes por ano. Cada célula mostra patrimônio financeiro final e liquidez final. O destaque indica algum fechamento negativo, mesmo se houver recuperação depois.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Sensibilidade anual"><table><thead><tr><th scope="col">Custos</th>${matrix.filter(cell => cell.costMultiplier === result.costLevels[0]).map(cell => `<th scope="col">${(cell.annualRealReturn * 100).toFixed(1)}%</th>`).join('')}</tr></thead><tbody>${result.costLevels.map(multiplier => `<tr><th scope="row">${Math.round(multiplier * 100)}%</th>${matrix.filter(cell => cell.costMultiplier === multiplier).map(cell => `<td class="${cell.minFinancial < 0 || cell.minLiquid < 0 ? 'risk-cell-warning' : ''}">Patrimônio financeiro: ${money(cell.financialAssets)}<br/>Liquidez: ${money(cell.liquidAssets)}<br/>${cell.minFinancial < 0 ? 'Patrimônio financeiro negativo no caminho' : 'Patrimônio financeiro não negativo'}<br/>${cell.minLiquid < 0 ? 'Falta de liquidez no caminho' : 'Liquidez não negativa'}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`
+   return heading + form + summary + grid
+diff --git a/src/features/plan/risk.js b/src/features/plan/risk.js
+index c5bc1d0..8a7ffb7 100644
+--- a/src/features/plan/risk.js
++++ b/src/features/plan/risk.js
+@@ -62,17 +62,17 @@ function fanChart(result) {
+   const rows = annualClosing(base.rows.map((row, index) => ({ ...row, ...simulated.series[index], restrictedFinancial: Math.max(0, row.financialAssets - row.liquidAssets) })))
+   const common = { rows, currency: state.currency, hidden: state.valuesHidden, markers: [{ year: result.input.retirementMonth.slice(0, 4), label: 'Aposentadoria' }] }
+   return planningChart({ ...common, title: 'Evolução patrimonial em valores reais, saldo no fechamento de cada ano', series: [
+-    { key: 'netWorth', label: 'Patrimônio líquido total', color: '#475569', dash: '5 3' },
+-    { key: 'financialAssets', label: 'Ativos financeiros', color: '#047857' },
+-    { key: 'liquidAssets', label: 'Financeiro disponível', color: '#0369a1' },
+-    { key: 'restrictedFinancial', label: 'Financeiro restrito', color: '#7c3aed', dash: '2 3' },
+-    { key: 'nonLiquidAssets', label: 'Posição vinculada não incluída no financeiro', color: '#9c5a13', dash: '7 3' }
++    { key: 'netWorth', label: 'Patrimônio líquido total', color: '#5c4f46', dash: '5 3' },
++    { key: 'financialAssets', label: 'Ativos financeiros', color: '#2e7550' },
++    { key: 'liquidAssets', label: 'Financeiro disponível', color: '#23609e' },
++    { key: 'restrictedFinancial', label: 'Financeiro restrito', color: '#8e3b6b', dash: '2 3' },
++    { key: 'nonLiquidAssets', label: 'Posição vinculada não incluída no financeiro', color: '#8f5b00', dash: '7 3' }
+   ] }) + planningChart({ ...common, title: 'Monte Carlo do patrimônio líquido, percentis no fechamento do ano', series: [
+-    { key: 'p50', label: 'Mediana P50', color: '#047857' },
+-    { key: 'netWorth', label: 'Cenário base', color: '#334155', dash: '4 3' }
++    { key: 'p50', label: 'Mediana P50', color: '#2e7550' },
++    { key: 'netWorth', label: 'Cenário base', color: '#2b211c', dash: '4 3' }
+   ], bands: [
+-    { low: 'p10', high: 'p90', label: 'Faixa P10 a P90', color: '#bae6fd' },
+-    { low: 'p25', high: 'p75', label: 'Faixa P25 a P75', color: '#6ee7b7' }
++    { low: 'p10', high: 'p90', label: 'Faixa P10 a P90', color: '#cfe0f0' },
++    { low: 'p25', high: 'p75', label: 'Faixa P25 a P75', color: '#bfe0cf' }
+   ] }) + '<p>Estoques e percentis usam o último mês disponível de cada ano. Não somamos patrimônio nem percentis. Os indicadores de falta de caixa continuam verificando todos os meses, inclusive déficits que não aparecem no fechamento anual.</p>'
+ }
+ 
+diff --git a/src/features/simulations/simulations.js b/src/features/simulations/simulations.js
+index deb4bdb..abaf48f 100644
+--- a/src/features/simulations/simulations.js
++++ b/src/features/simulations/simulations.js
+@@ -7,7 +7,7 @@ import { icon } from '../../shared/icons.js'
+ import { currencySymbol } from '../../shared/currencies.js'
+ import { convertCurrency } from '../../shared/exchange-rates.js'
+ 
+-const comparisonColors = ['#2f785e', '#3d6cb4', '#b46b3d', '#7864a6']
++const comparisonColors = ['#2e7550', '#23609e', '#c75a28', '#8e3b6b']
+ 
+ function planInDashboardCurrency(plan, sourceCurrency) {
+   if (sourceCurrency === state.currency) return plan
+@@ -74,19 +74,19 @@ export function renderSimulationResult(result, plan = state.plan, currency = sta
+         <p>${result.goalReached ? 'Você criou uma margem para o plano.' : `A diferença estimada é ${money(gap)} por mês.`}</p>
+       </div>
+     </div>
+-    <div class="simulation-result__hero">
+-      <span>Renda mensal projetada</span>
+-      <strong>${money(result.projectedMonthlyIncome)}</strong>
+-      <small>em valores de hoje</small>
+-    </div>
+-    <div class="progress-track" role="progressbar" aria-label="Progresso da simulação" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(incomeProgress * 100)}">
+-      <span style="width: ${incomeProgress * 100}%"></span>
++    <div class="simulation-result__hero simulation-result__hero--ring">
++      <div>
++        <span>Renda mensal projetada</span>
++        <strong>${money(result.projectedMonthlyIncome)}</strong>
++        <small>em valores de hoje</small>
++      </div>
++      ${state.valuesHidden ? '' : `<svg class="simulation-ring" viewBox="0 0 120 120" role="img" aria-label="Progresso da simulação: ${formatPercent(incomeProgress)} da renda desejada"><circle cx="60" cy="60" r="50" fill="none" stroke="#efe7dc" stroke-width="12"/><circle cx="60" cy="60" r="50" fill="none" stroke="${result.goalReached ? '#2e7550' : '#c75a28'}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(Math.min(1, Math.max(0, incomeProgress)) * 314.16).toFixed(2)} 314.16" transform="rotate(-90 60 60)"/><text x="60" y="66" text-anchor="middle" font-size="20" font-weight="700" fill="#2b211c">${Math.round(incomeProgress * 100)}%</text></svg>`}
+     </div>
+     <div class="simulation-result__metrics">
+-      <div><span>Patrimônio projetado</span><strong>${money(result.projectedAssets)}</strong></div>
+-      <div><span>Meta de patrimônio</span><strong>${money(result.targetAssets)}</strong></div>
+-      <div><span>Aporte sugerido</span><strong>${money(result.requiredMonthlyContribution)}</strong></div>
+-      <div><span>Progresso da renda</span><strong>${formatPercent(incomeProgress)}</strong></div>
++      <div>${icon('pie', 18, 'metric-glyph')}<span>Patrimônio projetado</span><strong>${money(result.projectedAssets)}</strong></div>
++      <div>${icon('target', 18, 'metric-glyph')}<span>Meta de patrimônio</span><strong>${money(result.targetAssets)}</strong></div>
++      <div>${icon('calendar', 18, 'metric-glyph')}<span>Aporte sugerido</span><strong>${money(result.requiredMonthlyContribution)}</strong></div>
++      <div>${icon('trendUp', 18, 'metric-glyph')}<span>Progresso da renda</span><strong>${formatPercent(incomeProgress)}</strong></div>
+     </div>
+     <div class="simulation-result__actions">
+       <button class="button button--primary button--full" type="button" data-apply-simulation>
+diff --git a/src/shared/cash-flow-line-chart.js b/src/shared/cash-flow-line-chart.js
+index c2563d6..fabc3aa 100644
+--- a/src/shared/cash-flow-line-chart.js
++++ b/src/shared/cash-flow-line-chart.js
+@@ -29,21 +29,21 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
+   const readoutCaption = `${currency} · ${basisLabel}`
+   const rate = (plan.annualInflation * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+   const series = financialView ? [
+-    { key: 'freeCashFlow', label: 'Saldo do orçamento', color: '#0369a1', monthly: true },
+-    { key: 'financialReturn', label: nominal ? 'Rendimento nominal implícito' : 'Rendimento real', color: '#7c3aed', dash: '2 3' },
+-    { key: 'pensionCredits', label: 'Créditos previdenciários', color: '#a35c1a', dash: '8 4', monthly: true },
+-    { key: 'financialChange', label: 'Variação do patrimônio financeiro no ano', color: '#1e293b', width: 3, emphasize: true }
++    { key: 'freeCashFlow', label: 'Saldo do orçamento', color: '#23609e', monthly: true },
++    { key: 'financialReturn', label: nominal ? 'Rendimento nominal implícito' : 'Rendimento real', color: '#8e3b6b', dash: '2 3' },
++    { key: 'pensionCredits', label: 'Créditos previdenciários', color: '#c75a28', dash: '8 4', monthly: true },
++    { key: 'financialChange', label: 'Variação do patrimônio financeiro no ano', color: '#2b211c', width: 3, emphasize: true }
+   ] : [
+-    { key: 'income', label: 'Receitas', color: '#0369a1', monthly: true },
+-    { key: 'outflows', label: 'Despesas e metas', color: '#c2410c', dash: '6 3', monthly: true },
+-    { key: 'freeCashFlow', label: 'Saldo do orçamento, antes dos rendimentos', color: '#1e293b', width: 3, emphasize: true, monthly: true }
++    { key: 'income', label: 'Receitas', color: '#23609e', monthly: true },
++    { key: 'outflows', label: 'Despesas e metas', color: '#c75a28', dash: '6 3', monthly: true },
++    { key: 'freeCashFlow', label: 'Saldo do orçamento, antes dos rendimentos', color: '#2b211c', width: 3, emphasize: true, monthly: true }
+   ]
+   const wealthSeries = [
+-    { key: display.every(row => Number.isFinite(row.solvencyNetWorth)) ? 'solvencyNetWorth' : 'netWorth', label: solvencyWealthLabel(display.find(row => row.excludedRealEstateAssets > 0) || display.at(-1)), color: '#475569', width: 3, emphasize: true },
+-    { key: 'liquidAssets', label: 'Liquidez disponível', color: '#0369a1', dash: '2 3' },
++    { key: display.every(row => Number.isFinite(row.solvencyNetWorth)) ? 'solvencyNetWorth' : 'netWorth', label: solvencyWealthLabel(display.find(row => row.excludedRealEstateAssets > 0) || display.at(-1)), color: '#5c4f46', width: 3, emphasize: true },
++    { key: 'liquidAssets', label: 'Liquidez disponível', color: '#23609e', dash: '2 3' },
+     ...(wealthComparison ? [
+-      { key: 'financialNet', label: 'Financeiro líquido de dívidas, sem bens', color: '#047857', dash: '8 4' },
+-      { key: 'grossAssets', label: 'Patrimônio bruto, com imóveis', color: '#a35c1a', dash: '10 3 2 3' }
++      { key: 'financialNet', label: 'Financeiro líquido de dívidas, sem bens', color: '#2e7550', dash: '8 4' },
++      { key: 'grossAssets', label: 'Patrimônio bruto, com imóveis', color: '#c75a28', dash: '10 3 2 3' }
+     ] : [])
+   ].filter(series => display.some(row => Number.isFinite(row[series.key])))
+   const wealth = wealthSeries.length ? `<section class="cash-flow-wealth-chart annual-chart-section" aria-label="Patrimônio que sustenta o orçamento"><div class="annual-chart-heading"><div><span class="annual-chart-kind">SALDO ACUMULADO</span><h3>Quanto resta ao fim de cada ano</h3></div><label>Visão do patrimônio<select data-annual-chart-mode="wealth"><option value="essential" ${wealthComparison ? '' : 'selected'}>Essencial: patrimônio e liquidez</option><option value="comparison" ${wealthComparison ? 'selected' : ''}>Comparar todos os patrimônios</option></select></label></div>
+diff --git a/src/shared/financial-reconciliation.js b/src/shared/financial-reconciliation.js
+index f415889..e85ae01 100644
+--- a/src/shared/financial-reconciliation.js
++++ b/src/shared/financial-reconciliation.js
+@@ -1,7 +1,7 @@
+ import { escapeHtml, privateCurrency } from './formatters.js'
+ import { moneyWithMonthly, moneyWithMonthlyText } from './monthly-equivalent.js'
+ 
+-export const financialChangeSeries = Object.freeze({ key: 'financialChange', label: 'Variação dos ativos financeiros, após rendimento', color: '#be185d', dash: '5 3' })
++export const financialChangeSeries = Object.freeze({ key: 'financialChange', label: 'Variação dos ativos financeiros, após rendimento', color: '#8e3b6b', dash: '5 3' })
+ 
+ // Same annual rows as viability and risk, never an extra income or cash entry.
+ export function renderFinancialReconciliation({ rows, currency, hidden = false }) {
+diff --git a/src/shared/icons.js b/src/shared/icons.js
+index b063ed0..9e3c684 100644
+--- a/src/shared/icons.js
++++ b/src/shared/icons.js
+@@ -31,6 +31,11 @@ const paths = {
+   logout: '<path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>',
+   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+   close: '<path d="M18 6 6 18M6 6l12 12"/>',
++  pencil: '<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>',
++  trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>',
++  arrowDownLeft: '<path d="M17 7 7 17M17 17H7V7"/>',
++  arrowUpRight: '<path d="M7 17 17 7M7 7h10v10"/>',
++  percent: '<path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+   refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'
+ }
+ 
+diff --git a/src/shared/liquidity-gauge.js b/src/shared/liquidity-gauge.js
+index 6621a14..9de4cb2 100644
+--- a/src/shared/liquidity-gauge.js
++++ b/src/shared/liquidity-gauge.js
+@@ -4,7 +4,7 @@ const finite = Number.isFinite
+ 
+ const segmentColors = {
+   available: 'var(--color-green)',
+-  restricted: '#17658a',
++  restricted: '#23609e',
+   unknown: 'var(--color-ink-muted)'
+ }
+ 
+diff --git a/src/shared/planning-chart.js b/src/shared/planning-chart.js
+index 4c375f5..c640807 100644
+--- a/src/shared/planning-chart.js
++++ b/src/shared/planning-chart.js
+@@ -5,7 +5,7 @@ import { moneyWithMonthly, moneyWithMonthlyText } from './monthly-equivalent.js'
+ const plot = { left: 88, right: 876, top: 42, bottom: 326, width: 900, height: 374 }
+ const finite = Number.isFinite
+ const number = value => Number(value.toFixed(2))
+-const color = value => /^#[\da-f]{3,8}$/i.test(value || '') ? value : '#475569'
++const color = value => /^#[\da-f]{3,8}$/i.test(value || '') ? value : '#5c4f46'
+ const dash = value => /^[\d .]+$/.test(value || '') ? value : ''
+ const period = row => String(row.year ?? row.month ?? '')
+ 
+@@ -50,7 +50,7 @@ export function planningChart({ title, rows, series, bands = [], currency, hidde
+   }
+   const grid = Array.from({ length: Math.round((max - min) / interval) + 1 }, (_, index) => {
+     const value = min + interval * index
+-    return `<line x1="${plot.left}" x2="${plot.right}" y1="${y(value)}" y2="${y(value)}" stroke="#e2e8f0" stroke-dasharray="3 3"/><text x="${plot.left - 10}" y="${y(value) + 4}" text-anchor="end">${escapeHtml(formatCompactCurrency(value, currency))}</text>`
++    return `<line x1="${plot.left}" x2="${plot.right}" y1="${y(value)}" y2="${y(value)}" stroke="#efe7dc" stroke-dasharray="3 3"/><text x="${plot.left - 10}" y="${y(value) + 4}" text-anchor="end">${escapeHtml(formatCompactCurrency(value, currency))}</text>`
+   }).join('')
+   const ticks = rows.map((row, index) => index === 0 || index === rows.length - 1 || index % Math.max(1, Math.ceil(rows.length / 8)) === 0 ? `<text x="${x(index)}" y="${plot.bottom + 25}" text-anchor="middle">${escapeHtml(period(row))}</text>` : '').join('')
+   const areas = bands.map((band, bandIndex) => {
+@@ -69,12 +69,12 @@ export function planningChart({ title, rows, series, bands = [], currency, hidde
+   const lines = series.map((item, seriesIndex) => item.type === 'bar' ? '' : `<g data-chart-series="${seriesIndex}"><path d="${paths(item.key)}" fill="none" stroke="${color(item.color)}" stroke-width="${Number.isFinite(item.width) ? Math.max(1, Math.min(6, item.width)) : 2.5}" stroke-dasharray="${dash(item.dash)}"/>${rows.map((row, index) => !finite(row[item.key]) ? '' : `<circle cx="${x(index)}" cy="${y(row[item.key])}" r="${rows.length === 1 ? 3 : 4}" fill="${rows.length === 1 || item.emphasize === true && index === rows.length - 1 ? color(item.color) : 'transparent'}"><title>${escapeHtml(period(row))} · ${escapeHtml(item.label)}: ${escapeHtml(money(row[item.key]))}</title></circle>`).join('')}</g>`).join('')
+   const marks = markers.map((marker, markerIndex) => {
+     const index = rows.findIndex(row => period(row).slice(0, 4) === String(marker.year))
+-    return index < 0 ? '' : `<g><line x1="${x(index)}" x2="${x(index)}" y1="${plot.top}" y2="${plot.bottom}" stroke="#64748b" stroke-dasharray="2 4"/><text x="${x(index)}" y="${18 + markerIndex % 2 * 15}" text-anchor="${index > rows.length * .7 ? 'end' : 'start'}">${escapeHtml(marker.label)} ${escapeHtml(marker.year)}</text></g>`
++    return index < 0 ? '' : `<g><line x1="${x(index)}" x2="${x(index)}" y1="${plot.top}" y2="${plot.bottom}" stroke="#72655b" stroke-dasharray="2 4"/><text x="${x(index)}" y="${18 + markerIndex % 2 * 15}" text-anchor="${index > rows.length * .7 ? 'end' : 'start'}">${escapeHtml(marker.label)} ${escapeHtml(marker.year)}</text></g>`
+   }).join('')
+   const legend = [...series, ...bands].map((item, index) => `<li><button type="button" data-chart-toggle="${index}" aria-pressed="true" aria-label="Exibir ${escapeHtml(item.label)}"><span class="planning-chart-swatch planning-chart-swatch--${item.type === 'bar' ? 'bar' : item.key ? 'line' : 'band'}" aria-hidden="true" style="--chart-color:${color(item.color)};border-top-style:${item.dash ? 'dashed' : 'solid'}"></span>${escapeHtml(item.label)}</button></li>`).join('')
+   const readouts = rows.map((row, index) => `<div data-chart-snapshot="${index}" ${annualReadout && index === initialIndex ? '' : 'hidden'}><h3>${row.year !== undefined ? 'Ano ' : ''}${escapeHtml(period(row))}</h3><dl>${[...series, ...bands].map((item, seriesIndex) => `<div data-chart-readout-series="${seriesIndex}"><dt><span class="planning-chart-readout-dot" style="background:${color(item.color)}" aria-hidden="true"></span>${escapeHtml(item.label)}</dt><dd>${item.key && item.monthly ? moneyWithMonthly(value => escapeHtml(money(value)), row[item.key], row.months) : escapeHtml(item.key ? money(row[item.key]) : `${money(row[item.low])} a ${money(row[item.high])}`)}</dd></div>`).join('')}</dl></div>`).join('')
+   const legendHtml = `<ul class="planning-chart-legend" aria-label="Séries do gráfico">${legend}</ul>`
+   const table = annualReadout ? `<details class="disclosure annual-chart-table"><summary>Consultar valores de todos os anos</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Tabela: ${escapeHtml(title)}"><table><caption>${escapeHtml(readoutCaption)}</caption><thead><tr><th scope="col">Ano</th>${series.map(item => `<th scope="col">${escapeHtml(item.label)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr><th scope="row">${escapeHtml(period(row))}</th>${series.map(item => `<td>${escapeHtml(item.monthly ? moneyWithMonthlyText(money, row[item.key], row.months) : money(row[item.key]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>` : ''
+   const kind = bands.length ? 'Faixas de cenários e linhas' : barSeries.length ? barSeries.length === series.length ? 'Gráfico de barras' : 'Barras e linhas' : 'Gráfico de linhas'
+-  return `<figure class="planning-chart" data-planning-chart ${annualReadout ? 'data-chart-inline-readout' : ''} ${detailNavigation ? 'data-chart-drilldown' : ''} ${fixedSelection ? `data-chart-selected-index="${initialIndex}" data-chart-index="${initialIndex}"` : ''} data-chart-count="${rows.length}"><figcaption>${escapeHtml(title)}</figcaption><p class="planning-chart-help">${kind}. Passe o ponteiro, toque ou use as setas para comparar um período. Clique na legenda para filtrar séries, sem alterar a escala ou os cálculos.</p>${annualReadout ? legendHtml : ''}<div class="planning-chart-stage"><div class="planning-chart-scroll" tabindex="0" role="region" aria-label="${escapeHtml(title)}. Setas esquerda e direita escolhem o período. Home e End vão ao início e ao fim. ${annualReadout ? 'Escape volta ao ano selecionado. Enter ou Espaço fixa o ano.' : detailNavigation ? 'Escape fecha a prévia. Enter ou Espaço fixa o ano na composição.' : 'Escape fecha os valores.'}"><svg viewBox="0 0 ${plot.width} ${plot.height}" role="img" aria-label="${escapeHtml(title)}. Consulte os valores por período ou a tabela.">${min < 0 ? `<rect x="${plot.left}" y="${y(0)}" width="${plot.right - plot.left}" height="${plot.bottom - y(0)}" fill="#fff7f7"/>` : ''}${grid}${areas}<line class="planning-chart-zero" x1="${plot.left}" x2="${plot.right}" y1="${y(0)}" y2="${y(0)}" stroke="${min < 0 ? '#b45309' : '#94a3b8'}" stroke-width="${min < 0 ? 1.5 : 1}"/>${bars}${lines}${marks}${ticks}<line data-chart-cursor x1="${x(fixedSelection ? initialIndex : 0)}" x2="${x(fixedSelection ? initialIndex : 0)}" y1="${plot.top}" y2="${plot.bottom}" stroke="#334155" stroke-dasharray="4 3" visibility="${fixedSelection ? 'visible' : 'hidden'}" pointer-events="none"/></svg></div><div class="planning-chart-readout" data-chart-readout aria-live="polite" aria-atomic="true" ${annualReadout ? '' : 'hidden'}>${annualReadout ? `<p class="annual-readout-context"><strong data-chart-readout-state>Ano selecionado</strong> · ${escapeHtml(readoutCaption)}</p>` : ''}${readouts}</div></div>${annualReadout ? '' : legendHtml}${table}${detailNavigation}</figure>`
++  return `<figure class="planning-chart" data-planning-chart ${annualReadout ? 'data-chart-inline-readout' : ''} ${detailNavigation ? 'data-chart-drilldown' : ''} ${fixedSelection ? `data-chart-selected-index="${initialIndex}" data-chart-index="${initialIndex}"` : ''} data-chart-count="${rows.length}"><div class="planning-chart-head"><figcaption>${escapeHtml(title)}</figcaption><details class="planning-chart-help"><summary aria-label="Como usar o gráfico" title="Como usar o gráfico"><span class="planning-chart-help__glyph" aria-hidden="true">i</span></summary><p>${kind}. Passe o ponteiro, toque ou use as setas para comparar um período. Clique na legenda para filtrar séries, sem alterar a escala ou os cálculos.</p></details></div>${annualReadout ? legendHtml : ''}<div class="planning-chart-stage"><div class="planning-chart-scroll" tabindex="0" role="region" aria-label="${escapeHtml(title)}. Setas esquerda e direita escolhem o período. Home e End vão ao início e ao fim. ${annualReadout ? 'Escape volta ao ano selecionado. Enter ou Espaço fixa o ano.' : detailNavigation ? 'Escape fecha a prévia. Enter ou Espaço fixa o ano na composição.' : 'Escape fecha os valores.'}"><svg viewBox="0 0 ${plot.width} ${plot.height}" role="img" aria-label="${escapeHtml(title)}. Consulte os valores por período ou a tabela.">${min < 0 ? `<rect x="${plot.left}" y="${y(0)}" width="${plot.right - plot.left}" height="${plot.bottom - y(0)}" fill="#fdecee"/>` : ''}${grid}${areas}<line class="planning-chart-zero" x1="${plot.left}" x2="${plot.right}" y1="${y(0)}" y2="${y(0)}" stroke="${min < 0 ? '#9a6b00' : '#a8998b'}" stroke-width="${min < 0 ? 1.5 : 1}"/>${bars}${lines}${marks}${ticks}<line data-chart-cursor x1="${x(fixedSelection ? initialIndex : 0)}" x2="${x(fixedSelection ? initialIndex : 0)}" y1="${plot.top}" y2="${plot.bottom}" stroke="#2b211c" stroke-dasharray="4 3" visibility="${fixedSelection ? 'visible' : 'hidden'}" pointer-events="none"/></svg></div><div class="planning-chart-readout" data-chart-readout aria-live="polite" aria-atomic="true" ${annualReadout ? '' : 'hidden'}>${annualReadout ? `<p class="annual-readout-context"><strong data-chart-readout-state>Ano selecionado</strong> · ${escapeHtml(readoutCaption)}</p>` : ''}${readouts}</div></div>${annualReadout ? '' : legendHtml}${table}${detailNavigation}</figure>`
+ }
+diff --git a/src/shared/readiness-gauge.js b/src/shared/readiness-gauge.js
+index 49e19d1..fa7cbc4 100644
+--- a/src/shared/readiness-gauge.js
++++ b/src/shared/readiness-gauge.js
+@@ -7,8 +7,8 @@ const track = 'M 12 108 A 88 88 0 0 1 188 108'
+ const arcLength = Math.PI * 88
+ 
+ function band(fraction) {
+-  if (fraction >= 1) return { arc: '#2f785e', chip: 'readiness-card__value--good', status: 'Meta de patrimônio atingida na projeção.' }
+-  return { arc: '#17658a', chip: 'readiness-card__value--neutral', status: 'Patrimônio projetado abaixo da meta de renda desejada.' }
++  if (fraction >= 1) return { arc: '#2e7550', chip: 'readiness-card__value--good', status: 'Meta de patrimônio atingida na projeção.' }
++  return { arc: '#23609e', chip: 'readiness-card__value--neutral', status: 'Patrimônio projetado abaixo da meta de renda desejada.' }
+ }
+ 
+ // Progress can exceed 1 (goal already reached with margin) — the arc caps
+@@ -24,7 +24,7 @@ export function readinessGauge({ progress, hidden }) {
+     <article class="panel readiness-card" aria-label="Prontidão para a meta de aposentadoria">
+       <div class="readiness-card__gauge">
+         <svg viewBox="0 0 200 116" role="img" aria-label="Medidor de prontidão: ${escapeHtml(percentLabel)} da meta">
+-          <path d="${track}" fill="none" stroke="#e2e8f0" stroke-width="16" stroke-linecap="round"/>
++          <path d="${track}" fill="none" stroke="#efe7dc" stroke-width="16" stroke-linecap="round"/>
+           <path d="${track}" fill="none" stroke="${arc}" stroke-width="16" stroke-linecap="round" stroke-dasharray="${dash.toFixed(2)} ${arcLength.toFixed(2)}"/>
+         </svg>
+         <strong class="readiness-card__value ${chip}">${escapeHtml(percentLabel)}</strong>
+diff --git a/src/styles/app.css b/src/styles/app.css
+index 68d09d2..8092b69 100644
+--- a/src/styles/app.css
++++ b/src/styles/app.css
+@@ -18,7 +18,7 @@ body {
+   margin: 0;
+   color: var(--color-ink);
+   background:
+-    radial-gradient(circle at 7% 3%, rgb(201 242 112 / 9%), transparent 22rem),
++    radial-gradient(circle at 7% 3%, rgb(233 162 59 / 9%), transparent 22rem),
+     var(--color-background);
+   font-family: var(--font-sans);
+   font-size: 16px;
+@@ -95,12 +95,12 @@ summary:focus-visible,
+ }
+ 
+ .badge--warn {
+-  color: #8a5a1f;
++  color: #8f5b00;
+   background: #fdf1de;
+ }
+ 
+ .badge--info {
+-  color: #386d82;
++  color: #5c4f46;
+   background: var(--color-blue-soft);
+ }
+ 
+@@ -213,8 +213,8 @@ summary:focus-visible,
+   position: sticky;
+   z-index: 50;
+   top: 0;
+-  border-bottom: 1px solid rgb(203 213 206 / 80%);
+-  background: rgb(250 251 248 / 88%);
++  border-bottom: 1px solid rgb(214 198 180 / 80%);
++  background: rgb(250 246 241 / 88%);
+   backdrop-filter: blur(18px);
+ }
+ 
+@@ -253,7 +253,7 @@ summary:focus-visible,
+   width: 25px;
+   height: 25px;
+   border-radius: 50%;
+-  background: rgb(201 242 112 / 14%);
++  background: rgb(233 162 59 / 14%);
+   content: '';
+ }
+ 
+@@ -358,7 +358,7 @@ summary:focus-visible,
+   place-items: center;
+   border-radius: 50%;
+   color: white;
+-  background: linear-gradient(145deg, #2f785e, #17463e);
++  background: linear-gradient(145deg, #2e7550, #3a2c24);
+   font-size: 12px;
+   font-weight: 750;
+   box-shadow: 0 0 0 3px white, 0 0 0 4px var(--color-border);
+@@ -408,7 +408,7 @@ summary:focus-visible,
+ }
+ 
+ .eyebrow--dark {
+-  color: #466629;
++  color: #296645;
+ }
+ 
+ .last-update,
+@@ -432,8 +432,8 @@ summary:focus-visible,
+   width: 7px;
+   height: 7px;
+   border-radius: 50%;
+-  background: #4a9b72;
+-  box-shadow: 0 0 0 3px #e0f1e7;
++  background: #4a9b70;
++  box-shadow: 0 0 0 3px #e0f1e8;
+ }
+ 
+ .dashboard-top {
+@@ -451,14 +451,14 @@ summary:focus-visible,
+   height: 7px;
+   overflow: hidden;
+   border-radius: 100px;
+-  background: #e6ebe7;
++  background: #ebe8e6;
+ }
+ 
+ .progress-track span {
+   display: block;
+   height: 100%;
+   border-radius: inherit;
+-  background: linear-gradient(90deg, var(--color-green), #5fa77e);
++  background: linear-gradient(90deg, var(--color-green), #5fa781);
+   transition: width 350ms ease;
+ }
+ 
+@@ -544,7 +544,7 @@ summary:focus-visible,
+ 
+ .button--secondary:hover {
+   border-color: var(--color-border-strong);
+-  background: #f9faf8;
++  background: #faf9f8;
+ }
+ 
+ .button--light {
+@@ -663,7 +663,7 @@ summary:focus-visible,
+   padding: 14px 17px;
+   border: 1px solid var(--color-border);
+   border-radius: var(--radius-md);
+-  background: #f8faf7;
++  background: #f7faf8;
+ }
+ 
+ .exchange-rate-panel > div:first-child,
+@@ -742,12 +742,12 @@ summary:focus-visible,
+ }
+ 
+ .metric-card__icon--green {
+-  color: #2f745a;
++  color: #2f744f;
+   background: var(--color-green-soft);
+ }
+ 
+ .metric-card__icon--blue {
+-  color: #386d82;
++  color: #5c4f46;
+   background: var(--color-blue-soft);
+ }
+ 
+@@ -833,7 +833,7 @@ summary:focus-visible,
+   padding: 3px;
+   border: 1px solid var(--color-border);
+   border-radius: 10px;
+-  background: #f5f7f4;
++  background: #f7f6f4;
+ }
+ 
+ .segmented-control button {
+@@ -851,7 +851,7 @@ summary:focus-visible,
+ .segmented-control button.is-active {
+   color: var(--color-brand);
+   background: white;
+-  box-shadow: 0 1px 3px rgb(20 62 58 / 12%);
++  box-shadow: 0 1px 3px rgb(156 63 34 / 12%);
+ }
+ 
+ .dashboard-side {
+@@ -928,7 +928,7 @@ summary:focus-visible,
+ }
+ 
+ .readiness-card__value--ok {
+-  color: #8a5a1f;
++  color: #8f5b00;
+ }
+ 
+ .readiness-card__value--behind {
+@@ -949,7 +949,7 @@ summary:focus-visible,
+ 
+ .app-footer {
+   border-top: 1px solid var(--color-border);
+-  background: #eef1ed;
++  background: #f1efed;
+ }
+ 
+ .app-footer__inner {
+@@ -1062,7 +1062,7 @@ summary:focus-visible,
+   margin: 12px 0 24px;
+   border-radius: 100px;
+   outline: none;
+-  background: linear-gradient(to right, var(--color-green) 0 var(--range-progress), #dfe6e0 var(--range-progress) 100%);
++  background: linear-gradient(to right, var(--color-green) 0 var(--range-progress), #e6e2df var(--range-progress) 100%);
+   cursor: pointer;
+   appearance: none;
+ }
+@@ -1073,7 +1073,7 @@ summary:focus-visible,
+   border: 4px solid white;
+   border-radius: 50%;
+   background: var(--color-green);
+-  box-shadow: 0 1px 7px rgb(20 62 58 / 30%);
++  box-shadow: 0 1px 7px rgb(156 63 34 / 30%);
+   appearance: none;
+ }
+ 
+@@ -1083,7 +1083,7 @@ summary:focus-visible,
+   border: 4px solid white;
+   border-radius: 50%;
+   background: var(--color-green);
+-  box-shadow: 0 1px 7px rgb(20 62 58 / 30%);
++  box-shadow: 0 1px 7px rgb(156 63 34 / 30%);
+ }
+ 
+ .contribution-recommendation {
+@@ -1092,14 +1092,14 @@ summary:focus-visible,
+   gap: 10px;
+   padding: 12px 14px;
+   border-radius: 11px;
+-  color: #4f603f;
++  color: #60503f;
+   background: var(--color-lime-soft);
+   font-size: 11px;
+ }
+ 
+ .contribution-recommendation .icon {
+   margin-top: 1px;
+-  color: #587a32;
++  color: #327a54;
+ }
+ 
+ .contribution-recommendation p {
+@@ -1148,7 +1148,7 @@ summary:focus-visible,
+   place-items: center;
+   border: 5px solid white;
+   border-radius: 50%;
+-  background: #d8dfd9;
++  background: #dfdcd8;
+   box-shadow: 0 0 0 1px var(--color-border);
+ }
+ 
+@@ -1189,7 +1189,7 @@ summary:focus-visible,
+   justify-content: space-between;
+   gap: 20px;
+   padding: 12px 0;
+-  border-bottom: 1px solid #edf0ed;
++  border-bottom: 1px solid #efe7dc;
+ }
+ 
+ .assumptions-list dt {
+@@ -1284,7 +1284,7 @@ summary:focus-visible,
+ 
+ .input-shell:focus-within {
+   border-color: var(--color-green);
+-  box-shadow: 0 0 0 3px rgb(47 120 94 / 10%);
++  box-shadow: 0 0 0 3px rgb(46 117 80 / 10%);
+ }
+ 
+ .input-shell input {
+@@ -1318,7 +1318,7 @@ summary:focus-visible,
+ body.values-hidden .simulation-form input {
+   color: transparent;
+   caret-color: transparent;
+-  text-shadow: 0 0 8px rgb(23 37 34 / 65%);
++  text-shadow: 0 0 8px rgb(43 33 28 / 65%);
+ }
+ 
+ .input-prefix,
+@@ -1410,7 +1410,7 @@ body.values-hidden .simulation-form input {
+ 
+ .simulation-result__metrics > div {
+   padding: 14px;
+-  background: #fafbfa;
++  background: #fbfafa;
+ }
+ 
+ .simulation-result__metrics span,
+@@ -1454,7 +1454,7 @@ body.values-hidden .simulation-form input {
+   overflow: hidden;
+   border-radius: var(--radius-xl);
+   color: white;
+-  background: linear-gradient(130deg, #153f3b, #0e322f);
++  background: linear-gradient(130deg, #9c3f22, #6e2a16);
+   box-shadow: var(--shadow-raised);
+ }
+ 
+@@ -1468,10 +1468,10 @@ body.values-hidden .simulation-form input {
+   display: inline-block;
+   margin-bottom: 18px;
+   padding: 5px 9px;
+-  border: 1px solid rgb(201 242 112 / 22%);
++  border: 1px solid rgb(233 162 59 / 22%);
+   border-radius: 100px;
+   color: var(--color-lime);
+-  background: rgb(201 242 112 / 7%);
++  background: rgb(233 162 59 / 7%);
+   font-size: 12px;
+   font-weight: 750;
+   letter-spacing: 0.1em;
+@@ -1525,7 +1525,7 @@ body.values-hidden .simulation-form input {
+ 
+ .visual-orbit {
+   position: absolute;
+-  border: 1px solid rgb(201 242 112 / 14%);
++  border: 1px solid rgb(233 162 59 / 14%);
+   border-radius: 50%;
+ }
+ 
+@@ -1592,13 +1592,13 @@ body.values-hidden .simulation-form input {
+ }
+ 
+ .article-card__visual--mint {
+-  color: #356e55;
+-  background: #dfeee4;
++  color: #356e50;
++  background: #dfeee6;
+ }
+ 
+ .article-card__visual--blue {
+-  color: #3d687a;
+-  background: #e0ebef;
++  color: #5c4f46;
++  background: #eaf0f7;
+ }
+ 
+ .article-card__visual--sand {
+@@ -1707,8 +1707,8 @@ body.values-hidden .simulation-form input {
+   border: 5px solid white;
+   border-radius: 50%;
+   color: white;
+-  background: linear-gradient(145deg, #3e8c6c, #17463e);
+-  box-shadow: 0 0 0 1px var(--color-border), 0 9px 22px rgb(20 62 58 / 17%);
++  background: linear-gradient(145deg, #3e8c62, #3a2c24);
++  box-shadow: 0 0 0 1px var(--color-border), 0 9px 22px rgb(156 63 34 / 17%);
+   font-size: 21px;
+   font-weight: 750;
+ }
+@@ -1761,7 +1761,7 @@ body.values-hidden .simulation-form input {
+   align-items: center;
+   gap: 13px;
+   padding: 18px 0;
+-  border-bottom: 1px solid #edf0ed;
++  border-bottom: 1px solid #efe7dc;
+ }
+ 
+ .settings-row:last-child {
+@@ -1781,7 +1781,7 @@ body.values-hidden .simulation-form input {
+   align-items: center;
+   justify-content: space-between;
+   padding: 10px 0;
+-  border-bottom: 1px solid #edf0ed;
++  border-bottom: 1px solid #efe7dc;
+   font-size: 12px;
+ }
+ 
+@@ -1833,7 +1833,7 @@ body.values-hidden .simulation-form input {
+   padding: 0;
+   border: 0;
+   border-radius: 100px;
+-  background: #d5ddd7;
++  background: #ddd9d5;
+   cursor: pointer;
+   transition: background 160ms ease;
+ }
+@@ -1846,7 +1846,7 @@ body.values-hidden .simulation-form input {
+   height: 19px;
+   border-radius: 50%;
+   background: white;
+-  box-shadow: 0 1px 4px rgb(20 62 58 / 22%);
++  box-shadow: 0 1px 4px rgb(156 63 34 / 22%);
+   transition: transform 160ms ease;
+ }
+ 
+@@ -1866,7 +1866,7 @@ body.values-hidden .simulation-form input {
+   padding: 15px;
+   border-radius: 12px;
+   color: var(--color-green);
+-  background: #f1f7f2;
++  background: #f1f7f4;
+ }
+ 
+ .data-explanation p {
+@@ -2031,10 +2031,10 @@ body.values-hidden .simulation-form input {
+ .register-benefits {
+   align-self: stretch;
+   padding: 38px;
+-  border: 1px solid #bfdacb;
++  border: 1px solid #d6c6b4;
+   border-radius: var(--radius-lg);
+   background:
+-    radial-gradient(circle at 100% 0, rgb(201 242 112 / 22%), transparent 16rem),
++    radial-gradient(circle at 100% 0, rgb(233 162 59 / 22%), transparent 16rem),
+     var(--color-green-soft);
+ }
+ 
+@@ -2193,11 +2193,11 @@ body.values-hidden .simulation-form input {
+   gap: 34px;
+   margin-top: 18px;
+   padding: 31px 34px;
+-  border: 1px solid #bfdacb;
++  border: 1px solid #d6c6b4;
+   border-radius: var(--radius-lg);
+   background:
+-    radial-gradient(circle at 96% 10%, rgb(201 242 112 / 20%), transparent 16rem),
+-    #edf7f0;
++    radial-gradient(circle at 96% 10%, rgb(233 162 59 / 20%), transparent 16rem),
++    #edf7f2;
+   box-shadow: var(--shadow-card);
+ }
+ 
+@@ -2223,7 +2223,7 @@ body.values-hidden .simulation-form input {
+   min-height: 24px;
+   align-items: center;
+   padding: 0 9px;
+-  border: 1px solid rgb(47 120 94 / 20%);
++  border: 1px solid rgb(46 117 80 / 20%);
+   border-radius: 100px;
+   color: var(--color-green);
+   background: rgb(255 255 255 / 65%);
+@@ -2294,10 +2294,10 @@ body.values-hidden .simulation-form input {
+ 
+ .household-preview {
+   padding: 20px;
+-  border: 1px solid rgb(203 213 206 / 85%);
++  border: 1px solid rgb(214 198 180 / 85%);
+   border-radius: 18px;
+   background: rgb(255 255 255 / 86%);
+-  box-shadow: 0 15px 35px rgb(20 62 58 / 9%);
++  box-shadow: 0 15px 35px rgb(156 63 34 / 9%);
+ }
+ 
+ .household-preview__header {
+@@ -2391,7 +2391,7 @@ body.values-hidden .simulation-form input {
+ }
+ 
+ .household-preview__progress span:nth-child(2) {
+-  background: #7fac99;
++  background: #ac967f;
+ }
+ 
+ .household-preview__progress span:nth-child(3) {
+@@ -2419,10 +2419,10 @@ body.values-hidden .simulation-form input {
+   gap: 48px;
+   padding: 48px;
+   overflow: hidden;
+-  border: 1px solid #bfdacb;
++  border: 1px solid #d6c6b4;
+   border-radius: var(--radius-xl);
+   background:
+-    radial-gradient(circle at 92% 8%, rgb(201 242 112 / 25%), transparent 19rem),
++    radial-gradient(circle at 92% 8%, rgb(233 162 59 / 25%), transparent 19rem),
+     var(--color-green-soft);
+ }
+ 
+@@ -2488,7 +2488,7 @@ body.values-hidden .simulation-form input {
+ .premium-plans {
+   padding: 34px;
+   border-radius: var(--radius-lg);
+-  background: #edf0ec;
++  background: #f0eeec;
+ }
+ 
+ .premium-plans h2 {
+@@ -2505,8 +2505,8 @@ body.values-hidden .simulation-form input {
+ }
+ 
+ .premium-plan-card--featured {
+-  border-color: #8fbea6;
+-  box-shadow: 0 12px 32px rgb(20 62 58 / 9%);
++  border-color: #8fbea5;
++  box-shadow: 0 12px 32px rgb(156 63 34 / 9%);
+ }
+ 
+ .premium-plan-card h3 {
+@@ -2549,7 +2549,7 @@ body.values-hidden .simulation-form input {
+   align-items: center;
+   justify-content: space-between;
+   gap: 24px;
+-  border-color: #bfdacb;
++  border-color: #d6c6b4;
+   background: var(--color-green-soft);
+ }
+ 
+@@ -2570,7 +2570,7 @@ body.values-hidden .simulation-form input {
+   padding: 12px 14px;
+   border-radius: 10px;
+   color: var(--color-ink-soft);
+-  background: #fff8e8;
++  background: #fff3d6;
+   font-size: 12px;
+   line-height: 1.5;
+ }
+@@ -2598,7 +2598,7 @@ body.values-hidden .simulation-form input {
+   margin-top: 18px;
+   padding: 15px;
+   border-radius: 12px;
+-  background: #f7f9f7;
++  background: #fbf8f4;
+ }
+ 
+ .account-status strong,
+@@ -2611,7 +2611,7 @@ body.values-hidden .simulation-form input {
+   padding: 14px;
+   border-radius: 10px;
+   color: var(--color-ink-soft);
+-  background: #f7f9f7;
++  background: #fbf8f4;
+   font-size: 11px;
+ }
+ 
+@@ -2632,7 +2632,7 @@ body.values-hidden .simulation-form input {
+   margin-top: 18px;
+   padding: 15px;
+   border-radius: 12px;
+-  background: #f7f9f7;
++  background: #fbf8f4;
+ }
+ 
+ .sync-status strong,
+@@ -2684,7 +2684,7 @@ body.values-hidden .simulation-form input {
+   border-radius: 12px;
+   color: white;
+   background: var(--color-brand);
+-  box-shadow: 0 15px 35px rgb(12 48 45 / 22%);
++  box-shadow: 0 15px 35px rgb(110 42 22 / 22%);
+   font-size: 12px;
+   font-weight: 620;
+   animation: toast-in 180ms ease-out;
+@@ -2707,7 +2707,7 @@ body.values-hidden .simulation-form input {
+ }
+ .demo-banner {
+   align-items: center;
+-  background: #fff8e8;
++  background: #fff3d6;
+   border-bottom: 1px solid #ead9ad;
+   color: #5f4a17;
+   display: flex;
+@@ -2752,8 +2752,8 @@ body.values-hidden .simulation-form input {
+ }
+ 
+ .scenario-card {
+-  background: var(--color-background, #f7f8f5);
+-  border: 1px solid var(--color-border, #dfe5df);
++  background: var(--color-background, #f8f6f5);
++  border: 1px solid var(--color-border, #eadfd2);
+   border-radius: 16px;
+   padding: 18px;
+ }
+@@ -2891,11 +2891,11 @@ body.values-hidden .simulation-form input {
+   border-radius: 18px;
+   color: var(--color-ink);
+   background: white;
+-  box-shadow: 0 24px 70px rgb(20 45 34 / 28%);
++  box-shadow: 0 24px 70px rgb(43 33 28 / 28%);
+ }
+ 
+ .statement-review-dialog::backdrop {
+-  background: rgb(16 30 24 / 58%);
++  background: rgb(43 33 28 / 58%);
+   backdrop-filter: blur(2px);
+ }
+ 
+@@ -3031,7 +3031,7 @@ body.values-hidden .simulation-form input {
+ }
+ 
+ .is-duplicate .statement-row-status {
+-  color: #73572c;
++  color: #8f5b00;
+ }
+ 
+ .is-invalid .statement-row-status {
+@@ -3136,7 +3136,7 @@ body.values-hidden .simulation-form input {
+ 
+ .budget-variance.is-negative {
+   color: #8b4a3b;
+-  background: #fff0ec;
++  background: #fdecee;
+ }
+ 
+ .cash-entry-grid {
+@@ -3179,7 +3179,7 @@ body.values-hidden .simulation-form input {
+ .budget-step legend { padding-inline: 8px; font-weight: 700; }
+ .budget-entry-list { display: grid; gap: 12px; }
+ .plan-checks { display: grid; gap: 16px; padding-left: 24px; }
+-.form-error { color: #802820; background: #fff0ec; border: 1px solid #b44326; border-radius: 8px; padding: 16px; }
++.form-error { color: #802820; background: #fdecee; border: 1px solid #b44326; border-radius: 8px; padding: 16px; }
+ input:disabled, select:disabled { opacity: .6; cursor: not-allowed; }
+ @media (max-width: 640px) { .wizard-actions > .button { width: 100%; } .wizard-progress { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+ .budget-entry-list article { display: grid; gap: 6px; border: 1px solid var(--color-border); border-radius: 10px; padding: 16px; overflow-wrap: anywhere; }
+@@ -3275,11 +3275,11 @@ input:disabled, select:disabled { opacity: .6; cursor: not-allowed; }
+   border-radius: 18px;
+   color: var(--color-ink);
+   background: white;
+-  box-shadow: 0 24px 70px rgb(20 45 34 / 28%);
++  box-shadow: 0 24px 70px rgb(43 33 28 / 28%);
+ }
+ 
+ .cash-edit-dialog::backdrop {
+-  background: rgb(16 30 24 / 58%);
++  background: rgb(43 33 28 / 58%);
+   backdrop-filter: blur(2px);
+ }
+ 
+@@ -3411,14 +3411,14 @@ input:disabled, select:disabled { opacity: .6; cursor: not-allowed; }
+ body.values-hidden .cash-flow-form input {
+   color: transparent;
+   caret-color: transparent;
+-  text-shadow: 0 0 8px rgb(23 37 34 / 65%);
++  text-shadow: 0 0 8px rgb(43 33 28 / 65%);
+ }
+ 
+ body.values-hidden .cash-entry-form input[type='number'],
+ body.values-hidden .reserve-form input[type='number'] {
+   color: transparent;
+   caret-color: transparent;
+-  text-shadow: 0 0 8px rgb(23 37 34 / 65%);
++  text-shadow: 0 0 8px rgb(43 33 28 / 65%);
+ }
+ 
+ .cash-flow-result {
+@@ -3546,7 +3546,7 @@ body.values-hidden .reserve-form input[type='number'] {
+ }
+ 
+ .cash-scenario--sustainable {
+-  border-color: #88b9a2;
++  border-color: #88b99f;
+   background: #f3faf6;
+ }
+ 
+@@ -3658,7 +3658,7 @@ body.values-hidden .reserve-form input[type='number'] {
+ }
+ 
+ .return-choice:has(input:checked) {
+-  border-color: #75a98f;
++  border-color: #75a98d;
+   background: var(--color-green-soft);
+ }
+ 
+@@ -3794,7 +3794,7 @@ body.values-hidden .reserve-form input[type='number'] {
+ }
+ 
+ .investment-rate-badge.is-specific {
+-  color: #73572c !important;
++  color: #8f5b00 !important;
+   background: var(--color-sand-soft);
+ }
+ 
+@@ -4021,8 +4021,8 @@ body.values-hidden .reserve-form input[type='number'] {
+ .portfolio-finding .portfolio-finding__action { margin-top: 6px; color: var(--color-ink); }
+ .portfolio-finding__badge { padding: 3px 8px; border-radius: 999px; background: var(--finding-soft, var(--color-background)); color: var(--finding-ink, var(--color-ink-soft)); font-size: 12px; font-weight: 700; white-space: nowrap; }
+ .portfolio-finding--risk { --finding-accent: var(--color-danger); --finding-soft: var(--color-danger-soft); --finding-ink: var(--color-danger); }
+-.portfolio-finding--attention { --finding-accent: #a8790f; --finding-soft: #fbf1d9; --finding-ink: #6f4f06; }
+-.portfolio-finding--info { --finding-accent: #1f6fa8; --finding-soft: var(--color-blue-soft); --finding-ink: #1b527a; }
++.portfolio-finding--attention { --finding-accent: #d9a43a; --finding-soft: #fff3d6; --finding-ink: #8f5b00; }
++.portfolio-finding--info { --finding-accent: #23609e; --finding-soft: var(--color-blue-soft); --finding-ink: #23609e; }
+ .portfolio-finding--ok { --finding-accent: var(--color-green); --finding-soft: var(--color-green-soft); --finding-ink: var(--color-brand); }
+ .spouse-fields { display: grid; gap: 14px; margin-block: 12px 16px; }
+ [data-spouse-plan] .checkbox-row { margin-block: 8px; font-size: 14px; }
+@@ -4093,8 +4093,8 @@ label:focus-within > .money-input-hint, .form-field:focus-within .money-input-hi
+ .target-allocation-table thead th { color: var(--color-ink-soft); font-size: 12px; font-weight: 650; }
+ .allocation-status { padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+ .allocation-status--within { background: var(--color-green-soft); color: var(--color-brand); }
+-.allocation-status--above { background: #fbf1d9; color: #6f4f06; }
+-.allocation-status--below { background: var(--color-blue-soft); color: #1b527a; }
++.allocation-status--above { background: #fff3d6; color: #8f5b00; }
++.allocation-status--below { background: var(--color-blue-soft); color: #23609e; }
+ @media (max-width: 680px) { .target-allocation { padding: 22px 18px; } }
+ .volatility-fields { margin-block: 12px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+ .volatility-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-block: 8px; }
+@@ -4135,7 +4135,7 @@ label:focus-within > .money-input-hint, .form-field:focus-within .money-input-hi
+ .consortium-flow__box { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-background); }
+ .consortium-flow__box span { color: var(--color-ink-soft); font-size: 14px; line-height: 1.45; }
+ .consortium-flow__box--savings { border-left: 4px solid var(--color-green); background: var(--color-green-soft); }
+-.consortium-flow__box--costs { border-left: 4px solid #c2410c; background: #fff4ec; }
++.consortium-flow__box--costs { border-left: 4px solid #c75a28; background: #fff4ec; }
+ .consortium-phases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0; padding: 0; list-style: none; counter-reset: none; }
+ .consortium-phases li { display: grid; gap: 4px; align-content: start; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); }
+ .consortium-phases li span:last-child { color: var(--color-ink-soft); font-size: 13px; line-height: 1.45; }
+@@ -4149,12 +4149,12 @@ label:focus-within > .money-input-hint, .form-field:focus-within .money-input-hi
+ .consortium-card__actions { display: flex; gap: 8px; align-items: start; }
+ .consortium-split { display: flex; height: 14px; overflow: hidden; border-radius: 999px; background: var(--color-border); }
+ .consortium-split__savings { background: var(--color-green); }
+-.consortium-split__costs { background: #c2410c; }
++.consortium-split__costs { background: #c75a28; }
+ .consortium-split__legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 8px 0; padding: 0; list-style: none; font-size: 14px; }
+ .consortium-split__legend li { display: flex; align-items: center; gap: 6px; }
+ .consortium-swatch { width: 12px; height: 12px; border-radius: 3px; }
+ .consortium-swatch--savings { background: var(--color-green); }
+-.consortium-swatch--costs { background: #c2410c; }
++.consortium-swatch--costs { background: #c75a28; }
+ .consortium-duplicates { border-left: 4px solid var(--color-danger); }
+ .consortium-item-split { display: block; color: var(--color-ink-soft); font-size: 12px; }
+ @media (max-width: 680px) {
+diff --git a/src/styles/refresh.css b/src/styles/refresh.css
+new file mode 100644
+index 0000000..20bf230
+--- /dev/null
++++ b/src/styles/refresh.css
+@@ -0,0 +1,453 @@
++/* Visual refresh: warm palette, lighter surfaces, icon-first cards.
++   Loaded last. Only visual overrides, no layout logic that tests depend on. */
++
++body {
++  background:
++    radial-gradient(circle at 8% 0%, rgb(233 162 59 / 12%), transparent 26rem),
++    radial-gradient(circle at 96% 12%, rgb(156 63 34 / 6%), transparent 24rem),
++    var(--color-background);
++}
++
++/* Headings and eyebrows */
++.page-heading h1 {
++  font-size: var(--text-2xl);
++  font-weight: 700;
++  letter-spacing: -0.02em;
++}
++
++.eyebrow {
++  color: var(--color-brand);
++  letter-spacing: 0.08em;
++  font-weight: 750;
++}
++
++.eyebrow--dark { color: var(--color-brand-deep); }
++
++/* Navigation */
++.main-nav__link::after { background: var(--color-brand); }
++.main-nav__link:hover,
++.main-nav__link.is-active { color: var(--color-brand); }
++.main-nav__link.is-active .icon { color: var(--color-brand); }
++.brand__name span { color: var(--color-lime); }
++
++/* Panels: lighter, one border level */
++.panel {
++  border-color: var(--color-border);
++  box-shadow: var(--shadow-card);
++}
++
++.disclosure > summary .icon { flex: 0 0 auto; color: var(--color-brand); }
++
++/* Primary buttons */
++.button--primary,
++.account-cta {
++  background: var(--color-brand);
++  border-color: var(--color-brand);
++  color: #fff;
++}
++
++.button--primary:hover,
++.account-cta:hover { background: var(--color-brand-deep); }
++
++.status-dot,
++.profile-status i { background: var(--color-green); box-shadow: 0 0 0 3px var(--color-green-soft); }
++
++/* KPI tiles with icon chips */
++.metric-row > div {
++  padding: 14px 16px;
++  border: 1px solid var(--color-border);
++  border-radius: 12px;
++  background: var(--color-surface-2);
++}
++
++.metric-row dt {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  font-size: 12.5px;
++  font-weight: 600;
++}
++
++.metric-row dd {
++  padding-left: 42px;
++  font-size: 22px;
++  letter-spacing: -0.01em;
++}
++
++.metric-glyph {
++  flex: 0 0 32px;
++  box-sizing: border-box;
++  width: 32px;
++  height: 32px;
++  padding: 7px;
++  border-radius: 50%;
++  background: var(--color-brand-soft);
++  color: var(--color-brand);
++}
++
++.metric-row > div[data-tone="negative"] { border-color: #f3c9d0; }
++.metric-row > div[data-tone="negative"] .metric-glyph { background: #fff; color: var(--color-danger); }
++.metric-row > div[data-tone="positive"] { border-color: #cfe6d7; }
++.metric-row > div[data-tone="positive"] .metric-glyph { background: #fff; color: var(--color-green); }
++
++/* Retirement strip progress: number first, explanation on demand */
++.retirement-income-strip__progress {
++  height: 10px;
++  background: var(--color-track);
++}
++
++.retirement-income-strip__progress span {
++  background: linear-gradient(90deg, var(--color-green), var(--chart-green));
++}
++
++.retirement-income-strip__meta {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: 8px;
++  margin-top: 10px;
++  color: var(--color-ink-soft);
++  font-size: 13px;
++}
++
++.retirement-income-strip__pct {
++  color: var(--color-green);
++  font-size: 18px;
++  font-variant-numeric: tabular-nums;
++}
++
++.inline-info { position: relative; }
++.inline-info > summary {
++  display: inline-grid;
++  place-items: center;
++  width: 28px;
++  height: 28px;
++  border-radius: 50%;
++  color: var(--color-ink-muted);
++  cursor: pointer;
++  list-style: none;
++}
++.inline-info > summary::-webkit-details-marker { display: none; }
++.inline-info > summary:hover,
++.inline-info[open] > summary { background: var(--color-brand-soft); color: var(--color-brand); }
++.inline-info > p,
++.inline-info > .annual-chart-basis {
++  flex-basis: 100%;
++  margin: 6px 0 0;
++  padding: 10px 12px;
++  border-radius: 10px;
++  background: var(--color-surface-2);
++  font-size: 12.5px;
++}
++.retirement-income-strip__meta .inline-info[open] { flex-basis: 100%; }
++.retirement-income-strip__meta .inline-info[open] > summary { margin-left: auto; }
++
++/* Sustainability banner: icon + compact status */
++.plan-sustainability {
++  position: relative;
++  padding: 18px 20px 18px 76px;
++  border: 1px solid #cfe6d7;
++  border-inline-start-width: 1px;
++  border-radius: 14px;
++  background: var(--color-green-soft);
++  color: var(--color-ink);
++}
++
++.plan-sustainability--insufficient { border-color: #f3c9d0; background: var(--color-danger-soft); color: var(--color-ink); }
++.plan-sustainability--incomplete { border-color: #f1d9a6; background: var(--color-warning-soft); color: var(--color-ink); }
++
++.plan-sustainability__icon {
++  position: absolute;
++  top: 18px;
++  left: 20px;
++  display: grid;
++  place-items: center;
++  width: 42px;
++  height: 42px;
++  border-radius: 50%;
++  background: #fff;
++  color: var(--color-green);
++  box-shadow: var(--shadow-card);
++}
++
++.plan-sustainability--insufficient .plan-sustainability__icon { color: var(--color-danger); }
++.plan-sustainability--incomplete .plan-sustainability__icon { color: var(--color-warning); }
++.plan-sustainability .eyebrow { margin-bottom: 2px; color: var(--color-ink-soft); }
++.plan-sustainability h2 { margin-block: 0 .35rem; font-size: var(--text-xl); }
++.plan-sustainability > p:not(.eyebrow) { margin-block: .35rem; color: var(--color-ink-soft); font-size: .92rem; }
++
++@media (max-width: 560px) {
++  .plan-sustainability { padding: 70px 16px 16px; }
++  .plan-sustainability__icon { top: 16px; left: 16px; }
++}
++
++/* Cockpit instruments: flat cards, icon titles, notes on demand */
++.cockpit-instrument {
++  padding: 1.1rem 1.1rem 1rem;
++  border: 1px solid var(--color-border);
++  border-top: 3px solid var(--chart-blue);
++  border-radius: 14px;
++  background: var(--color-surface);
++  box-shadow: var(--shadow-card);
++}
++
++.cockpit-instrument[data-cockpit="coverage"] { border-top-color: var(--color-green); }
++.cockpit-instrument[data-cockpit="budget"] { border-top-color: var(--chart-gold); }
++.cockpit-instrument[data-cockpit="liquidity"] { border-top-color: var(--chart-terracotta); }
++.cockpit-instrument[data-cockpit="wealth"] { border-top-color: var(--chart-blue); }
++
++.cockpit-instrument .cockpit-kicker {
++  color: var(--color-ink-muted);
++  font-size: .68rem;
++  letter-spacing: .08em;
++}
++
++.cockpit-instrument h3 {
++  display: flex;
++  align-items: center;
++  gap: .55rem;
++  min-height: 2.4em;
++  margin: .35rem 0 .6rem;
++}
++
++.cockpit-icon {
++  display: grid;
++  flex: 0 0 34px;
++  place-items: center;
++  width: 34px;
++  height: 34px;
++  border-radius: 10px;
++  background: var(--color-brand-soft);
++  color: var(--color-brand);
++}
++
++.cockpit-instrument[data-cockpit="coverage"] .cockpit-icon { background: var(--color-green-soft); color: var(--color-green); }
++.cockpit-instrument[data-cockpit="budget"] .cockpit-icon { background: var(--color-lime-soft); color: var(--color-warning); }
++.cockpit-instrument[data-cockpit="wealth"] .cockpit-icon { background: var(--color-info-soft); color: var(--color-info); }
++
++.cockpit-status {
++  min-height: 0;
++  width: fit-content;
++  padding: .3rem .65rem;
++  border-radius: 999px;
++  font-weight: 600;
++}
++
++.cockpit-status .icon { flex: 0 0 auto; }
++.cockpit-status[data-tone="good"] { background: var(--color-green-soft); color: var(--color-green); }
++
++.cockpit-instrument .cockpit-value {
++  padding: 0;
++  margin-top: .8rem;
++  border: 0;
++  background: none;
++  color: var(--color-ink);
++}
++
++.cockpit-instrument .cockpit-caption { color: var(--color-ink-muted); font-size: .78rem; }
++
++.cockpit-info { margin: .2rem 0 .6rem; font-size: .76rem; }
++.cockpit-info > summary {
++  display: inline-flex;
++  align-items: center;
++  gap: .35rem;
++  min-height: 32px;
++  color: var(--color-ink-muted);
++  cursor: pointer;
++  list-style: none;
++}
++.cockpit-info > summary::-webkit-details-marker { display: none; }
++.cockpit-info > summary:hover,
++.cockpit-info[open] > summary { color: var(--color-brand); }
++.cockpit-info .cockpit-note { margin: .25rem 0 0; padding: .55rem .65rem; border-radius: 8px; background: var(--color-surface-2); font-size: .76rem; }
++
++.cockpit-link {
++  display: inline-flex;
++  align-items: center;
++  gap: .35rem;
++  margin-top: auto;
++  padding-top: .7rem;
++  border-top: 1px solid var(--color-border);
++  color: var(--color-brand);
++  font-weight: 650;
++  text-decoration: none;
++}
++.cockpit-link:hover { color: var(--color-brand-deep); }
++.cockpit-link .icon { transition: transform 150ms ease; }
++.cockpit-link:hover .icon { transform: translateX(3px); }
++
++.cockpit-budget-detail summary { color: var(--color-info); }
++
++/* Charts: title row with help icon instead of a paragraph */
++.planning-chart-head {
++  display: flex;
++  align-items: flex-start;
++  gap: .4rem;
++  margin-bottom: .5rem;
++}
++
++.planning-chart-head figcaption { margin: 0; padding-top: .2rem; }
++
++.planning-chart-help { position: relative; margin: 0; }
++.planning-chart-help > summary {
++  display: grid;
++  place-items: center;
++  width: 28px;
++  height: 28px;
++  border-radius: 50%;
++  color: var(--color-ink-muted);
++  cursor: pointer;
++  list-style: none;
++}
++.planning-chart-help > summary::-webkit-details-marker { display: none; }
++.planning-chart-help > summary:hover,
++.planning-chart-help[open] > summary { background: var(--color-brand-soft); color: var(--color-brand); }
++.planning-chart-help > p {
++  position: absolute;
++  z-index: 5;
++  top: 32px;
++  left: 0;
++  width: min(320px, 80vw);
++  margin: 0;
++  padding: .7rem .8rem;
++  border: 1px solid var(--color-border);
++  border-radius: 10px;
++  background: var(--color-surface);
++  box-shadow: var(--shadow-raised);
++  color: var(--color-ink-soft);
++  font-size: .8rem;
++  line-height: 1.5;
++}
++
++.planning-chart-legend button[aria-pressed="true"] { border-color: var(--color-border-strong); }
++
++/* Demo banner softer */
++.demo-banner { background: var(--color-lime-soft); border-color: #f1d9a6; }
++.demo-banner a { color: var(--color-brand); }
++
++/* Links in body text */
++:where(main) a:where(:not([class])) { color: var(--color-brand); text-decoration-color: rgb(156 63 34 / 40%); }
++:where(main) a:where(:not([class])):hover { color: var(--color-brand-deep); }
++
++/* Icon-only summaries do not use the shared chevron. */
++.inline-info > summary::before,
++.cockpit-info > summary::before,
++.planning-chart-help > summary::before { content: none; display: none; }
++
++/* Tiles without an icon keep the value aligned left. */
++.metric-row dt:not(:has(.metric-glyph)) + dd { padding-left: 0; }
++.metric-row > div[data-kind="expense"] .metric-glyph { background: #fbe4d8; color: var(--chart-terracotta); }
++.metric-row > div[data-tone="positive"] { background: var(--color-green-soft); }
++.metric-row > div[data-tone="negative"] { background: var(--color-danger-soft); }
++
++/* Portfolio summary tiles */
++.investment-summary > article {
++  grid-template-columns: auto 1fr;
++  column-gap: 14px;
++  align-content: start;
++}
++.investment-summary > article > * { grid-column: 2; }
++.investment-summary > article > .summary-glyph {
++  grid-column: 1;
++  grid-row: 1 / span 3;
++  display: grid;
++  place-items: center;
++  width: 40px;
++  height: 40px;
++  border-radius: 12px;
++  background: var(--color-brand-soft);
++  color: var(--color-brand);
++  font-style: normal;
++}
++.investment-summary > article:nth-child(2) > .summary-glyph { background: var(--color-lime-soft); color: var(--color-warning); }
++.investment-summary > article:nth-child(3) > .summary-glyph { background: var(--color-green-soft); color: var(--color-green); }
++.investment-summary > article:nth-child(4) > .summary-glyph { background: var(--color-info-soft); color: var(--color-info); }
++
++/* Budget rows: direction icon instead of a text pill, icon actions */
++.cash-item__type {
++  display: grid;
++  place-items: center;
++  width: 38px;
++  min-width: 38px;
++  height: 38px;
++  padding: 0;
++  border-radius: 50%;
++  background: #fbe4d8;
++  color: var(--chart-terracotta);
++}
++.cash-item__type--income { background: var(--color-green-soft); color: var(--color-green); }
++.budget-workspace .cash-item__type { justify-self: start; }
++
++.cash-item__edit {
++  display: inline-grid;
++  place-items: center;
++  width: 40px;
++  height: 40px;
++  padding: 0;
++  border-color: transparent;
++  border-radius: 10px;
++  background: transparent;
++  color: var(--color-ink-muted);
++}
++.cash-item__edit:hover { background: var(--color-brand-soft); color: var(--color-brand); }
++.cash-item__edit[data-remove-cash-item]:hover { background: var(--color-danger-soft); color: var(--color-danger); }
++.budget-workspace .cash-item__edit { width: 44px; min-height: 44px; padding: 0; justify-content: center; }
++
++/* Tabs: soft active state instead of a heavy block */
++.page-tabs { background: var(--color-surface-2); }
++.page-tabs button[aria-selected="true"],
++.page-tabs--links a[aria-current="page"] {
++  background: var(--color-surface);
++  color: var(--color-brand);
++  box-shadow: 0 1px 2px rgb(43 33 28 / 8%), 0 0 0 1px var(--color-border);
++}
++
++.back-link { color: var(--color-brand); }
++.metric-row > div[data-kind="income"] .metric-glyph { background: var(--color-green-soft); color: var(--color-green); }
++.planning-chart-help__glyph {
++  display: grid;
++  place-items: center;
++  width: 17px;
++  height: 17px;
++  border: 1.6px solid currentColor;
++  border-radius: 50%;
++  font-size: 11px;
++  font-weight: 800;
++  font-family: Georgia, serif;
++  line-height: 1;
++}
++
++/* Simulation result: ring instead of a flat bar, icon tiles */
++.simulation-result__hero--ring { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
++.simulation-result__hero strong { color: var(--color-ink); }
++.simulation-ring { flex: 0 0 104px; width: 104px; height: 104px; }
++.simulation-result__metrics { gap: 10px; border: 0; background: none; margin-top: 12px; }
++.simulation-result__metrics > div {
++  display: grid;
++  grid-template-columns: auto 1fr;
++  column-gap: 10px;
++  align-items: center;
++  border: 1px solid var(--color-border);
++  border-radius: 12px;
++  background: var(--color-surface-2);
++}
++.simulation-result__metrics > div > .metric-glyph { grid-row: 1 / span 2; }
++.simulation-result__metrics strong { font-size: 15px; font-variant-numeric: tabular-nums; }
++
++/* Cockpit links use the brand colour everywhere. */
++.cockpit-instrument a.cockpit-link { color: var(--color-brand); }
++
++/* Mobile */
++@media (max-width: 680px) {
++  .mobile-nav {
++    border: 1px solid var(--color-border);
++    background: rgb(255 255 255 / 94%);
++    box-shadow: 0 12px 32px rgb(43 33 28 / 14%);
++  }
++  .mobile-nav__link { color: var(--color-ink-muted); font-size: 10px; }
++  .mobile-nav__link.is-active { color: var(--color-brand); background: var(--color-brand-soft); }
++
++  .metric-row dd { padding-left: 0; font-size: 19px; }
++  .metric-row dt { gap: 8px; }
++  .metric-glyph { flex-basis: 28px; width: 28px; height: 28px; padding: 6px; }
++}
+diff --git a/src/styles/responsive.css b/src/styles/responsive.css
+index 91c2fcf..3381ed3 100644
+--- a/src/styles/responsive.css
++++ b/src/styles/responsive.css
+@@ -410,8 +410,8 @@
+     padding: 5px;
+     border: 1px solid rgb(255 255 255 / 10%);
+     border-radius: 19px;
+-    background: rgb(17 55 51 / 96%);
+-    box-shadow: 0 15px 38px rgb(12 48 45 / 28%);
++    background: rgb(110 42 22 / 96%);
++    box-shadow: 0 15px 38px rgb(110 42 22 / 28%);
+     backdrop-filter: blur(16px);
+   }
+ 
+@@ -469,7 +469,7 @@
+ @media (max-width: 640px) { .budget-entry-list article > .button { flex: 1 1 100%; } }
+ .risk-chart svg { width: 100%; height: auto; display: block; }
+ .risk-chart { margin: 1rem 0; }
+-.risk-cell-warning { background: #fff1d6; color: #452d05; }
++.risk-cell-warning { background: #fff3d6; color: #452d05; }
+ .consortium-card { padding-block: 1rem; border-bottom: 1px solid var(--color-border); }
+ .settings-card fieldset { min-width: 0; margin-block: 1rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: .5rem; }
+ .settings-card legend { font-weight: 600; padding-inline: .4rem; }
+@@ -517,14 +517,14 @@
+ .dashboard-grid[data-dashboard-overview] { grid-template-columns: minmax(0, 1fr); }
+ .dashboard-grid[data-dashboard-overview] > .dashboard-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; align-items: start; }
+ .plan-milestones { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 1rem; padding: 0; margin-block: 1rem 1.5rem; counter-reset: milestone; }
+-.plan-milestones > li { padding: 1rem; border: 1px solid var(--color-border-strong); border-block-start: 4px solid #0369a1; border-radius: .5rem; min-width: 0; }
++.plan-milestones > li { padding: 1rem; border: 1px solid var(--color-border-strong); border-block-start: 4px solid #23609e; border-radius: .5rem; min-width: 0; }
+ .plan-milestones h4 { margin: 0; font-size: 1.05rem; }
+ .plan-milestones h4::before { counter-increment: milestone; content: counter(milestone) '. '; color: var(--color-ink-muted); }
+ .plan-milestones p { font-size: .85rem; }
+ .plan-milestones dl { margin: 1rem 0; }
+ .plan-milestones dt { font-size: .8rem; color: var(--color-ink-muted); }
+ .plan-milestones dd { margin: .15rem 0 .75rem; font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+-.plan-graph-reading { padding: 1rem; border-inline-start: 4px solid #64748b; background: var(--color-background); border-radius: .5rem; }
++.plan-graph-reading { padding: 1rem; border-inline-start: 4px solid #72655b; background: var(--color-background); border-radius: .5rem; }
+ .plan-graph-reading h3 { margin-top: 0; }
+ .plan-next-actions ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 1.5rem; padding-left: 1.25rem; }
+ .plan-next-actions li { padding-inline-start: .25rem; }
+@@ -532,15 +532,15 @@
+ .plan-next-actions p { font-size: .85rem; margin-bottom: 0; }
+ .cash-flow-wealth-chart { margin-block: 1.5rem; padding-block: 1rem; border-block: 1px solid var(--color-border-strong); }
+ .cash-flow-wealth-chart > h3 { margin-top: 0; }
+-.plan-sustainability { padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #b9d7c8; border-inline-start: 6px solid #047857; border-radius: .5rem; background: #f0fdf4; color: #172b22; }
+-.plan-sustainability--insufficient { border-color: #fecaca; border-inline-start-color: #b91c1c; background: #fff7f7; color: #451a1a; }
+-.plan-sustainability--incomplete { border-color: #fde68a; border-inline-start-color: #92400e; background: #fffbeb; color: #451a03; }
++.plan-sustainability { padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #d6c6b4; border-inline-start: 6px solid #2e7550; border-radius: .5rem; background: #f3faf6; color: #2b211c; }
++.plan-sustainability--insufficient { border-color: #fecaca; border-inline-start-color: #b3243b; background: #fdecee; color: #451a1a; }
++.plan-sustainability--incomplete { border-color: #fde68a; border-inline-start-color: #92400e; background: #fff3d6; color: #451a03; }
+ .plan-sustainability h2 { font-size: clamp(1.3rem, 2.2vw, 1.8rem); line-height: 1.3; margin-block: .5rem .75rem; }
+ .plan-sustainability dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 1rem; margin-block: 1.25rem; }
+ .plan-sustainability dt { font-size: .85rem; }
+ .plan-sustainability dd { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; margin: .25rem 0 0; overflow-wrap: anywhere; }
+-.cash-flow-year-result { padding: 1rem; margin-block: 1rem; border: 1px solid var(--color-border-strong); border-inline-start: 5px solid #0369a1; border-radius: .5rem; background: var(--color-background); }
+-.cash-flow-year-result--negative { border-inline-start-color: #b91c1c; }
++.cash-flow-year-result { padding: 1rem; margin-block: 1rem; border: 1px solid var(--color-border-strong); border-inline-start: 5px solid #23609e; border-radius: .5rem; background: var(--color-background); }
++.cash-flow-year-result--negative { border-inline-start-color: #b3243b; }
+ .cash-flow-year-result h3 { margin-top: 0; font-size: 1rem; }
+ .cash-flow-year-result dl { display: flex; gap: 1rem; flex-wrap: wrap; margin: 0; }
+ .cash-flow-year-result dl > div { flex: 1 1 10rem; min-width: 0; }
+@@ -553,8 +553,8 @@
+ .property-solvency-control label { display: flex; align-items: center; gap: .65rem; font-weight: 600; min-height: 44px; }
+ .property-solvency-control input { flex: 0 0 auto; width: 1.2rem; height: 1.2rem; }
+ .property-solvency-control p { margin-block: .5rem; font-size: .9rem; }
+-.property-solvency-assessment { padding: 1rem; margin-block: 1rem; border-inline-start: 4px solid #0369a1; background: var(--color-background); }
+-.property-solvency-assessment[data-property-assessment="insufficient"] { border-inline-start-color: #b91c1c; }
++.property-solvency-assessment { padding: 1rem; margin-block: 1rem; border-inline-start: 4px solid #23609e; background: var(--color-background); }
++.property-solvency-assessment[data-property-assessment="insufficient"] { border-inline-start-color: #b3243b; }
+ .property-solvency-assessment h3 { margin-top: 0; font-size: 1rem; }
+ .property-solvency-assessment dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 1rem; }
+ .property-solvency-assessment dd { margin: .3rem 0 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+@@ -621,27 +621,27 @@ body.values-hidden [data-money-input] { visibility: hidden; }
+ 
+ /* Dashboard instruments use scales and text, without a synthetic safety score. */
+ .dashboard-cockpit { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-block: 1.5rem; }
+-.cockpit-instrument { display: flex; flex-direction: column; min-width: 0; padding: 1rem; border: 1px solid #c8d6dc; border-top: 4px solid #526c76; border-radius: 12px; background: linear-gradient(180deg, #f0f5f7 0, #fff 65%); color: #20363f; }
++.cockpit-instrument { display: flex; flex-direction: column; min-width: 0; padding: 1rem; border: 1px solid #d6c6b4; border-top: 4px solid #5c4f46; border-radius: 12px; background: linear-gradient(180deg, #fbf8f4 0, #fff 65%); color: #2b211c; }
+ .cockpit-instrument h3 { margin: .4rem 0 .7rem; font-size: 1rem; line-height: 1.35; min-height: 2.7em; }
+-.cockpit-instrument .cockpit-kicker { font-size: .75rem; line-height: 1.5; letter-spacing: .07em; color: #425a64; margin: 0; font-weight: 650; }
+-.cockpit-status { display: flex; gap: .4rem; align-items: center; min-height: 2.7rem; padding: .35rem .45rem; border-radius: 5px; background: #e8f2f8; color: #175878; font-size: .76rem; line-height: 1.3; }
++.cockpit-instrument .cockpit-kicker { font-size: .75rem; line-height: 1.5; letter-spacing: .07em; color: #5c4f46; margin: 0; font-weight: 650; }
++.cockpit-status { display: flex; gap: .4rem; align-items: center; min-height: 2.7rem; padding: .35rem .45rem; border-radius: 5px; background: #eaf0f7; color: #23609e; font-size: .76rem; line-height: 1.3; }
+ .cockpit-status > span { display: inline-grid; place-items: center; flex: 0 0 18px; width: 18px; height: 18px; border: 1px solid currentColor; border-radius: 50%; font-weight: 750; }
+-.cockpit-status[data-tone="danger"] { background: #fff0ed; color: #9e221b; }
+-.cockpit-status[data-tone="caution"] { background: #fff6de; color: #765200; }
+-.cockpit-status[data-tone="good"] { background: #e7f5ee; color: #066044; }
++.cockpit-status[data-tone="danger"] { background: #fdecee; color: #b3243b; }
++.cockpit-status[data-tone="caution"] { background: #fff3d6; color: #8f5b00; }
++.cockpit-status[data-tone="good"] { background: #e7f5ee; color: #1c4a31; }
+ .cockpit-sparkline, .cockpit-horizon { display: block; width: 100%; height: 92px; margin: .7rem 0 .2rem; }
+ .cockpit-budget-bars { min-height: 92px; margin: .7rem 0 .2rem; }
+ .cockpit-budget-row + .cockpit-budget-row { margin-top: .65rem; }
+ .cockpit-budget-row > div:first-child { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .2rem .5rem; margin-bottom: .2rem; font-size: .75rem; font-variant-numeric: tabular-nums; }
+-.cockpit-bar-track { height: 9px; border-radius: 2px; background: #e2eaf0; overflow: hidden; }
++.cockpit-bar-track { height: 9px; border-radius: 2px; background: #eaf0f7; overflow: hidden; }
+ .cockpit-bar { display: block; height: 100%; }
+-.cockpit-bar--income { background: #17658a; }
+-.cockpit-bar--expenses { background: #a7661d; }
++.cockpit-bar--income { background: #23609e; }
++.cockpit-bar--expenses { background: #c75a28; }
+ .cockpit-instrument .cockpit-value { font-size: clamp(1.25rem, 1.8vw, 1.75rem); line-height: 1.25; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.025em; margin: .5rem 0 .35rem; overflow-wrap: anywhere; }
+ .cockpit-instrument .cockpit-caption { margin: 0 0 .6rem; font-size: .82rem; line-height: 1.45; }
+-.cockpit-instrument .cockpit-note { margin: 0 0 .8rem; font-size: .75rem; line-height: 1.55; color: #425a64; }
+-.cockpit-instrument > a { display: flex; align-items: center; min-height: 44px; margin-top: auto; padding-top: .5rem; border-top: 1px solid #d7e1e7; color: #145775; font-size: .82rem; font-weight: 650; }
+-.cockpit-no-data { display: grid; place-items: center; min-height: 92px; font-size: .85rem; color: #425a64; }
++.cockpit-instrument .cockpit-note { margin: 0 0 .8rem; font-size: .75rem; line-height: 1.55; color: #5c4f46; }
++.cockpit-instrument > a { display: flex; align-items: center; min-height: 44px; margin-top: auto; padding-top: .5rem; border-top: 1px solid #eadfd2; color: #23609e; font-size: .82rem; font-weight: 650; }
++.cockpit-no-data { display: grid; place-items: center; min-height: 92px; font-size: .85rem; color: #5c4f46; }
+ .cockpit-private { display: block; }
+ .cockpit-trajectory { border-top: 1px solid var(--color-border); padding-top: 1rem; }
+ .cockpit-trajectory > h3 { margin: 0; font-size: 1.2rem; }
+@@ -672,7 +672,7 @@ body.values-hidden [data-money-input] { visibility: hidden; }
+   gap: 0.75rem;
+   margin-block: 1rem;
+   padding: 1rem;
+-  border: 1px solid var(--color-border, #d8e2dc);
++  border: 1px solid var(--color-border, #eadfd2);
+   border-radius: 0.75rem;
+ }
+ .projection-checks form[data-confirm-projection] label {
+@@ -685,7 +685,7 @@ body.values-hidden [data-money-input] { visibility: hidden; }
+ form[data-apply-recurrences] > section {
+   margin-block: 1rem;
+   padding: 1rem;
+-  border: 1px solid var(--color-border, #d8e2dc);
++  border: 1px solid var(--color-border, #eadfd2);
+   border-radius: 0.75rem;
+ }
+ form[data-apply-recurrences] fieldset:disabled { display: none; }
+@@ -706,7 +706,7 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ .budget-list-context p { margin: 0; font-size: .85rem; }
+ .budget-workspace .cash-item-list { margin-top: 1rem; }
+ .budget-workspace .cash-item { grid-template-columns: auto minmax(0, 1fr) minmax(150px, 220px) auto; padding: 1rem; gap: 1rem; }
+-.budget-workspace .cash-item.is-inactive { opacity: 1; background: var(--color-surface-muted, #f5f7f6); }
++.budget-workspace .cash-item.is-inactive { opacity: 1; background: var(--color-surface-muted, #f7f6f5); }
+ .budget-workspace .cash-item__identity, .budget-workspace .cash-item__amount { min-width: 0; }
+ .budget-workspace .cash-item__amount { grid-column: auto; grid-row: auto; }
+ .budget-workspace .cash-item__actions { grid-row: auto; flex-direction: row; }
+@@ -756,15 +756,15 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ .payment-card p { font-size: .85rem; line-height: 1.5; margin: .4rem 0; }
+ .payment-status { font-size: .8rem; font-weight: 650; }
+ .payment-card[data-payment-status="linked"] { border-left: 4px solid var(--color-green); }
+-.payment-card[data-payment-status="review"] { border-left: 4px solid #a7661d; }
+-.payment-card[data-payment-status="partial"] { border-left: 4px solid #0369a1; }
++.payment-card[data-payment-status="review"] { border-left: 4px solid #c75a28; }
++.payment-card[data-payment-status="partial"] { border-left: 4px solid #23609e; }
+ .payment-card-progress, .payment-links { grid-column: 1 / -1; min-width: 0; }
+ .payment-expected { min-width: 0; }
+ .payment-expected > span { display: block; color: var(--color-ink-soft); font-size: .85rem; margin-bottom: .3rem; }
+ .payment-expected .money-value { display: block; }
+-.payment-progress { height: 12px; border-radius: 4px; background: #edf0f2; overflow: hidden; margin-block: .5rem .75rem; }
+-.payment-progress > span { display: block; height: 100%; background: #0369a1; }
+-.payment-card[data-payment-status="linked"] .payment-progress > span { background: #047857; }
++.payment-progress { height: 12px; border-radius: 4px; background: #efe7dc; overflow: hidden; margin-block: .5rem .75rem; }
++.payment-progress > span { display: block; height: 100%; background: #23609e; }
++.payment-card[data-payment-status="linked"] .payment-progress > span { background: #2e7550; }
+ .payment-amounts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: .5rem 0; }
+ .payment-amounts > div { min-width: 0; }
+ .payment-amounts dt { font-size: .85rem; color: var(--color-ink-soft); margin-bottom: .3rem; }
+@@ -791,9 +791,9 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ }
+ 
+ /* Both annual bars share a scale. Labels remain outside even the smallest segment. */
+-.budget-comparison { --balance-color: #334155; --balance-surface: #f1f5f9; padding: 1.1rem; margin-block: 1rem; border: 1px solid var(--color-border); border-radius: 12px; border-top: 4px solid var(--balance-color); }
+-.budget-comparison[data-balance="deficit"] { --balance-color: #963322; --balance-surface: #fff1ed; }
+-.budget-comparison[data-balance="surplus"] { --balance-color: #176247; --balance-surface: #edf8f2; }
++.budget-comparison { --balance-color: #2b211c; --balance-surface: #efe7dc; padding: 1.1rem; margin-block: 1rem; border: 1px solid var(--color-border); border-radius: 12px; border-top: 4px solid var(--balance-color); }
++.budget-comparison[data-balance="deficit"] { --balance-color: #b3243b; --balance-surface: #fdecee; }
++.budget-comparison[data-balance="surplus"] { --balance-color: #21583b; --balance-surface: #edf8f2; }
+ .budget-comparison-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, .65fr); align-items: start; gap: 1rem; }
+ .budget-comparison-heading > div { min-width: 0; }
+ .budget-comparison[data-balance="empty"] .budget-comparison-heading { grid-template-columns: minmax(0, 1fr); }
+@@ -809,11 +809,11 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ .budget-comparison-row + .budget-comparison-row { margin-top: 1rem; }
+ .budget-comparison-label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, .6fr); align-items: baseline; gap: .4rem 1rem; margin-bottom: .4rem; }
+ .budget-comparison-label > .money-value { min-width: 0; text-align: right; font-size: 1.1rem; }
+-.budget-comparison-track { display: flex; height: 24px; border-radius: 4px; overflow: hidden; background: #edf0f2; }
++.budget-comparison-track { display: flex; height: 24px; border-radius: 4px; overflow: hidden; background: #efe7dc; }
+ .budget-comparison-segment { display: block; flex-shrink: 0; height: 100%; }
+-.budget-comparison-segment--income { background: #247457; }
+-.budget-comparison-segment--costs { background: #a35c1a; }
+-.budget-comparison-segment--goals { background: repeating-linear-gradient(135deg, #536ba2 0, #536ba2 5px, #8a9dc5 5px, #8a9dc5 8px); }
++.budget-comparison-segment--income { background: #2a6e4a; }
++.budget-comparison-segment--costs { background: #c75a28; }
++.budget-comparison-segment--goals { background: repeating-linear-gradient(135deg, #2b5f8e 0, #2b5f8e 5px, #9fb6d3 5px, #9fb6d3 8px); }
+ .budget-comparison-legend { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; list-style: none; padding: 0; margin: .75rem 0; }
+ .budget-comparison-legend li { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; min-width: 0; max-width: 100%; font-size: .85rem; }
+ .budget-comparison-legend .money-value { min-width: 0; max-width: 100%; }
+@@ -834,41 +834,41 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ .remaining-wealth h4 { font-size: 1.1rem; margin: 0 0 1rem; }
+ .remaining-wealth-row { margin-top: 1rem; position: relative; }
+ .remaining-wealth-label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, .65fr); align-items: baseline; gap: .5rem 1rem; width: 100%; padding: .35rem 0; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+-.remaining-wealth-label:hover { background: #f1f5f9; }
+-.remaining-wealth-label:focus-visible { outline: 2px solid #047857; outline-offset: 3px; }
++.remaining-wealth-label:hover { background: #efe7dc; }
++.remaining-wealth-label:focus-visible { outline: 2px solid #2e7550; outline-offset: 3px; }
+ .wealth-info-icon { color: var(--color-ink-soft); white-space: nowrap; }
+-.wealth-callout { position: absolute; inset: 100% auto auto 0; z-index: 5; width: min(100%, 560px); box-sizing: border-box; padding: 1rem; border: 1px solid #cbd5e1; border-top: 3px solid #047857; border-radius: 8px; background: #fff; color: var(--color-ink); box-shadow: 0 8px 24px #0f172a26; max-height: min(65vh, 560px); overflow-y: auto; overscroll-behavior: contain; }
++.wealth-callout { position: absolute; inset: 100% auto auto 0; z-index: 5; width: min(100%, 560px); box-sizing: border-box; padding: 1rem; border: 1px solid #d6c6b4; border-top: 3px solid #2e7550; border-radius: 8px; background: #fff; color: var(--color-ink); box-shadow: 0 8px 24px #0f172a26; max-height: min(65vh, 560px); overflow-y: auto; overscroll-behavior: contain; }
+ .wealth-callout[hidden] { display: none; }
+ .wealth-callout-header { display: flex; align-items: start; justify-content: space-between; gap: .75rem; position: sticky; top: -1rem; padding-block: .4rem; background: #fff; z-index: 1; }
+-.wealth-callout-header button { flex: 0 0 36px; min-height: 36px; border: 1px solid var(--color-border); border-radius: 6px; background: #f8fafc; color: inherit; font-size: 1.25rem; cursor: pointer; }
++.wealth-callout-header button { flex: 0 0 36px; min-height: 36px; border: 1px solid var(--color-border); border-radius: 6px; background: #fbf8f4; color: inherit; font-size: 1.25rem; cursor: pointer; }
+ .wealth-callout dl { margin: .8rem 0; }
+ .wealth-callout dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(125px, 1fr); gap: .5rem; align-items: baseline; padding: .35rem 0; }
+ .wealth-callout dd { margin: 0; text-align: right; min-width: 0; white-space: nowrap; overflow-x: auto; font-variant-numeric: tabular-nums; }
+ .remaining-wealth-row .wealth-callout .money-value { color: inherit; }
+ .wealth-callout-total { border-top: 1px solid var(--color-border); margin-top: .4rem; font-weight: 700; }
+-.wealth-callout-financial { font-size: .85rem; background: #f8fafc; border-radius: 5px; padding: .5rem; }
++.wealth-callout-financial { font-size: .85rem; background: #fbf8f4; border-radius: 5px; padding: .5rem; }
+ .wealth-component-group { margin-block: .85rem; }
+-.wealth-component-group h5 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(125px, 1fr); gap: .5rem; align-items: baseline; margin: 0; padding: .45rem; background: #f1f5f9; border-radius: 4px; font-size: .9rem; }
++.wealth-component-group h5 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(125px, 1fr); gap: .5rem; align-items: baseline; margin: 0; padding: .45rem; background: #efe7dc; border-radius: 4px; font-size: .9rem; }
+ .wealth-component-group h5 .money-value { text-align: right; }
+ .wealth-component-group dl { margin: .25rem 0; padding-inline: .45rem; font-size: .9rem; }
+-.wealth-component-group dl > div + div { border-top: 1px solid #edf0f2; }
++.wealth-component-group dl > div + div { border-top: 1px solid #efe7dc; }
+ .wealth-callout dt { overflow-wrap: anywhere; }
+ .wealth-callout dt small { display: block; margin-top: .15rem; font-size: .75rem; font-weight: 400; color: var(--color-ink-soft); }
+ .remaining-wealth-label .money-value { text-align: right; font-size: 1.1rem; }
+-.remaining-wealth-track { position: relative; height: 24px; margin-top: .4rem; background: #edf0f2; border-radius: 4px; overflow: hidden; }
++.remaining-wealth-track { position: relative; height: 24px; margin-top: .4rem; background: #efe7dc; border-radius: 4px; overflow: hidden; }
+ .remaining-wealth-bar { position: absolute; left: 0; top: 0; height: 100%; }
+-.remaining-wealth-bar--financialNet { background: #047857; }
+-.remaining-wealth-bar--grossAssets { background: #a35c1a; }
+-.remaining-wealth-bar--income { background: #0369a1; }
+-.remaining-wealth-bar--costs { background: #c2410c; }
+-.remaining-wealth-row[data-negative="true"] .remaining-wealth-bar { background: #b33e2e; }
+-.remaining-wealth-row[data-negative="true"] .money-value { color: #963322; }
++.remaining-wealth-bar--financialNet { background: #2e7550; }
++.remaining-wealth-bar--grossAssets { background: #c75a28; }
++.remaining-wealth-bar--income { background: #23609e; }
++.remaining-wealth-bar--costs { background: #c75a28; }
++.remaining-wealth-row[data-negative="true"] .remaining-wealth-bar { background: #b3243b; }
++.remaining-wealth-row[data-negative="true"] .money-value { color: #b3243b; }
+ .remaining-wealth-reference { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .35rem 1rem; font-size: .85rem; line-height: 1.5; margin-top: .4rem; }
+ .remaining-wealth-reference .money-value { display: inline-block; vertical-align: bottom; }
+ .remaining-wealth-row p, .remaining-wealth-basis { font-size: .8rem; color: var(--color-ink-soft); line-height: 1.5; margin: .4rem 0 0; }
+ .remaining-wealth-liquidity { font-size: .9rem; line-height: 1.5; }
+ .remaining-wealth-liquidity .money-value { display: inline-block; vertical-align: bottom; }
+-.remaining-wealth-liquidity[data-tone="negative"] { color: #963322; }
++.remaining-wealth-liquidity[data-tone="negative"] { color: #b3243b; }
+ @media (max-width: 600px) {
+   .remaining-wealth { padding: .85rem; }
+   .remaining-wealth-label { grid-template-columns: minmax(0, 1fr); }
+@@ -887,7 +887,7 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ .month-tracking-purpose { font-size: 1rem; line-height: 1.6; max-width: 80ch; }
+ .month-tracking-context, .month-tracking-status p { font-size: .9rem; line-height: 1.5; }
+ .month-tracking-context { color: var(--color-ink-soft); }
+-.month-tracking-status { background: #f1f5f9; border-radius: 9px; padding: 1rem; margin-block: 1rem; }
++.month-tracking-status { background: #efe7dc; border-radius: 9px; padding: 1rem; margin-block: 1rem; }
+ .month-tracking-status h3 { margin: 0 0 .4rem; font-size: 1.05rem; }
+ .month-tracking-status p { margin-bottom: 0; }
+ .month-tracking-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-block: 1.25rem; }
+@@ -896,14 +896,14 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ .month-tracking-bar-row + .month-tracking-bar-row { margin-top: .85rem; }
+ .month-tracking-bar-row > div:first-child { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, .85fr); gap: .4rem .8rem; align-items: baseline; font-size: .9rem; }
+ .month-tracking-bar-row .money-value { text-align: right; font-size: 1.05rem; }
+-.month-tracking-track { height: 16px; margin-top: .4rem; border-radius: 3px; background: #edf0f2; overflow: hidden; }
++.month-tracking-track { height: 16px; margin-top: .4rem; border-radius: 3px; background: #efe7dc; overflow: hidden; }
+ .month-tracking-fill { display: block; height: 100%; }
+-.month-tracking-fill--planned { background: repeating-linear-gradient(135deg, #64748b 0, #64748b 5px, #94a3b8 5px, #94a3b8 8px); }
+-.month-tracking-fill--actual { background: #0369a1; }
+-.month-tracking-metric[data-over="true"] .month-tracking-fill--actual { background: #b33e2e; }
++.month-tracking-fill--planned { background: repeating-linear-gradient(135deg, #72655b 0, #72655b 5px, #a8998b 5px, #a8998b 8px); }
++.month-tracking-fill--actual { background: #23609e; }
++.month-tracking-metric[data-over="true"] .month-tracking-fill--actual { background: #b3243b; }
+ .month-tracking-reading { line-height: 1.5; font-size: .9rem; margin-bottom: 0; }
+ .month-tracking-reading .money-value { display: inline-block; vertical-align: bottom; }
+-.month-tracking-metric[data-over="true"] .month-tracking-reading { color: #963322; }
++.month-tracking-metric[data-over="true"] .month-tracking-reading { color: #b3243b; }
+ .month-tracking-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-block: 1rem; }
+ .month-tracking-actions .button { min-height: 44px; }
+ .month-tracking-help p, .month-tracking-help li, .month-tracking-balance p { font-size: .9rem; line-height: 1.6; }
+@@ -922,10 +922,10 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ /* Expense pressure uses the same ordering for visual and keyboard reading. */
+ .budget-month-pressure { padding: 1.25rem; margin-block: 1rem; }
+ .pressure-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+-.pressure-totals > div { min-width: 0; padding: .9rem; border-radius: 8px; background: #f0f5f7; }
++.pressure-totals > div { min-width: 0; padding: .9rem; border-radius: 8px; background: #fbf8f4; }
+ .pressure-totals > div > span { display: block; font-size: .85rem; margin-bottom: .4rem; }
+ .pressure-totals strong { display: block; font-size: 1.15rem; }
+-.pressure-totals [data-tone="negative"] { background: #fff0ed; color: #8e3026; }
++.pressure-totals [data-tone="negative"] { background: #fdecee; color: #8e3026; }
+ .budget-pressure h4 { font-size: 1.05rem; margin: 1.25rem 0 .5rem; }
+ .pressure-reading { font-size: .95rem; line-height: 1.5; }
+ .pressure-basis { font-size: .8rem; line-height: 1.5; color: var(--color-ink-soft); }
+@@ -936,8 +936,8 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ .pressure-rank-heading > div > strong { font-size: .95rem; overflow-wrap: anywhere; }
+ .pressure-rank-heading > div > span { display: block; font-size: .8rem; color: var(--color-ink-soft); margin-top: .2rem; }
+ .pressure-rank-heading > .money-value { text-align: right; font-size: 1rem; min-width: 0; }
+-.pressure-bar { height: 9px; border-radius: 3px; background: #edf0f2; margin: .65rem 0; overflow: hidden; }
+-.pressure-bar > span { display: block; height: 100%; background: #a35c1a; }
++.pressure-bar { height: 9px; border-radius: 3px; background: #efe7dc; margin: .65rem 0; overflow: hidden; }
++.pressure-bar > span { display: block; height: 100%; background: #c75a28; }
+ .pressure-rank-details { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; font-size: .85rem; }
+ .pressure-rank-details .button { min-height: 44px; font-size: .8rem; }
+ .pressure-rank-details .money-value, .pressure-rest .money-value { display: inline-block; vertical-align: bottom; }
+@@ -961,32 +961,32 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ }
+ 
+ /* Readouts and proportional instruments share an explicit financial basis. */
+-.budget-gauge { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-block: .8rem; color: #175878; }
+-.budget-gauge[data-tone="caution"] { color: #765200; }
++.budget-gauge { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-block: .8rem; color: #23609e; }
++.budget-gauge[data-tone="caution"] { color: #8f5b00; }
+ .budget-gauge-face { position: relative; width: 112px; flex: 0 0 112px; }
+ .budget-gauge-face svg { display: block; width: 100%; height: auto; }
+ .budget-gauge-face circle { fill: none; stroke-width: 10; }
+-.budget-gauge-track { stroke: #dce6eb; }
++.budget-gauge-track { stroke: #eadfd2; }
+ .budget-gauge-fill { stroke: currentColor; }
+-.budget-gauge-tick { stroke: #20363f; stroke-width: 2; }
++.budget-gauge-tick { stroke: #2b211c; stroke-width: 2; }
+ .budget-gauge-face strong { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.15rem; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+-.budget-gauge-reading { flex: 1 1 120px; min-width: 0; color: #20363f; font-size: .85rem; line-height: 1.45; }
++.budget-gauge-reading { flex: 1 1 120px; min-width: 0; color: #2b211c; font-size: .85rem; line-height: 1.45; }
+ .budget-gauge-reading > span { font-weight: 650; overflow-wrap: anywhere; }
+ .budget-gauge-reading p { margin: .35rem 0; }
+-.budget-gauge-reading small { display: block; color: #425a64; font-size: .75rem; }
+-.budget-gauge-empty { font-size: .85rem; line-height: 1.5; color: #425a64; }
++.budget-gauge-reading small { display: block; color: #5c4f46; font-size: .75rem; }
++.budget-gauge-empty { font-size: .85rem; line-height: 1.5; color: #5c4f46; }
+ .liquidity-gauge { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-block: .8rem; }
+ .liquidity-gauge-face { position: relative; width: 104px; flex: 0 0 104px; }
+ .liquidity-gauge-face svg { display: block; width: 100%; height: auto; }
+ .liquidity-gauge-face circle { fill: none; stroke-width: 10; }
+-.liquidity-gauge-track { stroke: #dce6eb; }
++.liquidity-gauge-track { stroke: #eadfd2; }
+ .liquidity-gauge-readout { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.1; padding-inline: 6px; }
+ .liquidity-gauge-readout strong { font-size: 1rem; font-variant-numeric: tabular-nums; letter-spacing: -.03em; color: var(--color-ink); }
+-.liquidity-gauge-readout small { font-size: .75rem; color: #425a64; }
+-.liquidity-gauge-legend { flex: 1 1 180px; min-width: 0; margin: 0; padding: 0; list-style: none; display: grid; gap: .35rem; font-size: .85rem; color: #20363f; }
++.liquidity-gauge-readout small { font-size: .75rem; color: #5c4f46; }
++.liquidity-gauge-legend { flex: 1 1 180px; min-width: 0; margin: 0; padding: 0; list-style: none; display: grid; gap: .35rem; font-size: .85rem; color: #2b211c; }
+ .liquidity-gauge-legend li { display: flex; align-items: center; gap: .5rem; overflow-wrap: anywhere; }
+ .liquidity-gauge-dot { flex: 0 0 10px; width: 10px; height: 10px; border-radius: 50%; }
+-.liquidity-gauge-empty { font-size: .85rem; line-height: 1.5; color: #425a64; margin-block: .8rem; }
++.liquidity-gauge-empty { font-size: .85rem; line-height: 1.5; color: #5c4f46; margin-block: .8rem; }
+ @media (max-width: 400px) {
+   .liquidity-gauge-face { margin-inline: auto; }
+ }
+@@ -1003,10 +1003,10 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+   .category-donut-face { margin-inline: auto; }
+ }
+ .cockpit-budget-detail { margin-bottom: .65rem; font-size: .82rem; }
+-.cockpit-budget-detail summary { cursor: pointer; min-height: 44px; padding-block: .65rem; color: #145775; }
++.cockpit-budget-detail summary { cursor: pointer; min-height: 44px; padding-block: .65rem; color: #23609e; }
+ .cockpit-budget-detail summary:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; }
+-.cockpit-instrument .cockpit-value { padding: .65rem .7rem; background: #edf3f6; border-left: 3px solid #526c76; border-radius: 4px; margin-top: .85rem; }
+-.readiness-card__value--neutral { color: #17658a; }
++.cockpit-instrument .cockpit-value { padding: .65rem .7rem; background: #f4ece1; border-left: 3px solid #5c4f46; border-radius: 4px; margin-top: .85rem; }
++.readiness-card__value--neutral { color: #23609e; }
+ .readiness-card__body p { font-size: .8rem; line-height: 1.5; }
+ @media (max-width: 400px) {
+   .readiness-card { grid-template-columns: minmax(0, 1fr); }
+@@ -1014,37 +1014,37 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
+ }
+ 
+ /* Annual balances and flows keep context and values outside the drawing. */
+-.annual-chart-toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 1rem; padding: 1rem; background: #edf3f6; border: 1px solid #c8d6dc; border-radius: .75rem; margin-block: 1rem; }
++.annual-chart-toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 1rem; padding: 1rem; background: #f4ece1; border: 1px solid #d6c6b4; border-radius: .75rem; margin-block: 1rem; }
+ .annual-chart-toolbar label, .annual-chart-heading label { display: grid; gap: .4rem; font-size: .85rem; font-weight: 600; min-width: 0; }
+-.annual-chart-toolbar select, .annual-chart-heading select { width: 100%; max-width: 100%; min-width: 0; min-height: 44px; padding: .5rem; color: #20363f; border: 1px solid #9cafb8; border-radius: .4rem; background: #fff; font: inherit; }
++.annual-chart-toolbar select, .annual-chart-heading select { width: 100%; max-width: 100%; min-width: 0; min-height: 44px; padding: .5rem; color: #2b211c; border: 1px solid #a8998b; border-radius: .4rem; background: #fff; font: inherit; }
+ .annual-chart-toolbar select:focus-visible, .annual-chart-heading select:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; }
+-.annual-chart-section { padding-block: 1.5rem; border-top: 1px solid #c8d6dc; margin-top: 1.5rem; min-width: 0; }
++.annual-chart-section { padding-block: 1.5rem; border-top: 1px solid #d6c6b4; margin-top: 1.5rem; min-width: 0; }
+ .annual-chart-heading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem; }
+ .annual-chart-heading > div { flex: 1 1 18rem; min-width: 0; }
+ .annual-chart-heading > label { flex: 0 1 24rem; }
+ .annual-chart-heading h3 { margin: .3rem 0 0; font-size: 1.25rem; }
+-.annual-chart-kind { font-size: .72rem; font-weight: 700; color: #175878; letter-spacing: .06em; }
+-.annual-chart-basis { color: #425a64; font-size: .85rem; line-height: 1.55; }
+-.annual-chart-equation { padding: .8rem 1rem; border-left: 3px solid #526c76; background: #edf3f6; font-weight: 600; line-height: 1.5; }
++.annual-chart-kind { font-size: .72rem; font-weight: 700; color: #23609e; letter-spacing: .06em; }
++.annual-chart-basis { color: #5c4f46; font-size: .85rem; line-height: 1.55; }
++.annual-chart-equation { padding: .8rem 1rem; border-left: 3px solid #5c4f46; background: #f4ece1; font-weight: 600; line-height: 1.5; }
+ [data-chart-inline-readout] .planning-chart-legend { margin: .8rem 0; }
+ [data-chart-inline-readout] .planning-chart-legend button { min-height: 44px; }
+-[data-chart-inline-readout] .planning-chart-readout { position: static; max-width: none; margin-top: .75rem; padding: 1rem; background: #f0f5f7; box-shadow: none; pointer-events: auto; }
+-[data-chart-inline-readout] .annual-readout-context { margin: 0 0 .5rem; font-size: .8rem; color: #425a64; }
++[data-chart-inline-readout] .planning-chart-readout { position: static; max-width: none; margin-top: .75rem; padding: 1rem; background: #fbf8f4; box-shadow: none; pointer-events: auto; }
++[data-chart-inline-readout] .annual-readout-context { margin: 0 0 .5rem; font-size: .8rem; color: #5c4f46; }
+ [data-chart-inline-readout] .planning-chart-readout dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .75rem; }
+-[data-chart-inline-readout] .planning-chart-readout dl > div { display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: .4rem; padding: .65rem; background: #fff; border: 1px solid #d7e1e7; border-radius: .4rem; min-width: 0; }
++[data-chart-inline-readout] .planning-chart-readout dl > div { display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: .4rem; padding: .65rem; background: #fff; border: 1px solid #eadfd2; border-radius: .4rem; min-width: 0; }
+ [data-chart-inline-readout] .planning-chart-readout dt { align-items: baseline; line-height: 1.45; }
+ [data-chart-inline-readout] .planning-chart-readout dd { text-align: start; font-size: 1.1rem; font-weight: 650; }
+ .annual-chart-table { margin-block: 1rem; }
+ .annual-chart-table summary { min-height: 44px; padding-block: .6rem; cursor: pointer; }
+ .annual-chart-table table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+-.annual-chart-table caption { text-align: start; padding-block: .75rem; color: #425a64; }
+-.annual-chart-table th, .annual-chart-table td { padding: .65rem; border-bottom: 1px solid #d7e1e7; text-align: end; font-variant-numeric: tabular-nums; }
++.annual-chart-table caption { text-align: start; padding-block: .75rem; color: #5c4f46; }
++.annual-chart-table th, .annual-chart-table td { padding: .65rem; border-bottom: 1px solid #eadfd2; text-align: end; font-variant-numeric: tabular-nums; }
+ .annual-chart-table td { white-space: nowrap; }
+ .annual-chart-table th:first-child { text-align: start; }
+ @media (max-width: 640px) {
+   .annual-chart-heading > label { flex-basis: 100%; }
+   [data-chart-inline-readout] .planning-chart-readout { padding: .65rem; }
+-  [data-chart-inline-readout] .planning-chart-scroll::after { content: 'Deslize para ver outros anos. Consulte os valores abaixo.'; display: block; font-size: .8rem; padding-block: .5rem; color: #425a64; }
++  [data-chart-inline-readout] .planning-chart-scroll::after { content: 'Deslize para ver outros anos. Consulte os valores abaixo.'; display: block; font-size: .8rem; padding-block: .5rem; color: #5c4f46; }
+ }
+ 
+ .projection-review-list { padding-left: 1.2rem; }
+diff --git a/src/styles/tokens.css b/src/styles/tokens.css
+index 74b37df..80fea0e 100644
+--- a/src/styles/tokens.css
++++ b/src/styles/tokens.css
+@@ -1,28 +1,28 @@
+ :root {
+   color-scheme: light;
+-  --color-ink: #172522;
+-  --color-ink-soft: #56635f;
+-  --color-ink-muted: #78837f;
+-  --color-brand: #143e3a;
+-  --color-brand-deep: #0c302d;
+-  --color-green: #2f785e;
+-  --color-green-soft: #dff0e6;
+-  --color-lime: #c9f270;
+-  --color-lime-soft: #edfbcf;
+-  --color-blue-soft: #e4eef2;
+-  --color-sand-soft: #f2eadc;
++  --color-ink: #2b211c;
++  --color-ink-soft: #5c4f46;
++  --color-ink-muted: #72655b;
++  --color-brand: #9c3f22;
++  --color-brand-deep: #6e2a16;
++  --color-green: #2e7550;
++  --color-green-soft: #e6f3ea;
++  --color-lime: #e9a23b;
++  --color-lime-soft: #fdf0d8;
++  --color-blue-soft: #eaf0f7;
++  --color-sand-soft: #f4ece1;
+   --color-surface: #ffffff;
+-  --color-background: #f4f6f3;
+-  --color-border: #dfe5df;
+-  --color-border-strong: #cbd5ce;
+-  --color-danger: #a33d36;
+-  --color-danger-soft: #fff1ef;
+-  --shadow-card: 0 1px 2px rgb(18 39 33 / 3%), 0 12px 30px rgb(18 39 33 / 5%);
+-  --shadow-raised: 0 18px 50px rgb(12 48 45 / 16%);
++  --color-background: #faf6f1;
++  --color-border: #eadfd2;
++  --color-border-strong: #d6c6b4;
++  --color-danger: #b3243b;
++  --color-danger-soft: #fdecee;
++  --shadow-card: 0 1px 2px rgb(43 33 28 / 4%), 0 8px 24px rgb(43 33 28 / 5%);
++  --shadow-raised: 0 16px 40px rgb(110 42 22 / 12%);
+   --radius-sm: 10px;
+   --radius-md: 16px;
+-  --radius-lg: 22px;
+-  --radius-xl: 28px;
++  --radius-lg: 16px;
++  --radius-xl: 20px;
+   --page-width: 1180px;
+   --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+ 
+@@ -46,14 +46,25 @@
+   --text-3xl: clamp(30px, 4vw, 42px);
+ 
+   /* Cor única de foco visível. Não redefinir em outro lugar do CSS. */
+-  --color-focus: #167354;
++  --color-focus: #1f5fa0;
+ 
+   /* Paleta categórica para gráficos de distribuição (pizza/donut). Ordem fixa, validada
+      para contraste e separação sob daltonismo (ver skill de dataviz). "Outros" usa
+      --color-ink-muted, não faz parte desta lista. */
+-  --chart-green: #1f8a5f;
+-  --chart-terracotta: #c9622f;
+-  --chart-blue: #1f6fa8;
+-  --chart-gold: #a8790f;
+-  --chart-plum: #7a3f96;
++  --chart-green: #3a9272;
++  --chart-terracotta: #c75a28;
++  --chart-blue: #23609e;
++  --chart-gold: #d9a43a;
++  --chart-plum: #8e3b6b;
++  /* Linha fina em dourado: use esta variante, com contraste suficiente. */
++  --chart-gold-line: #9a6b00;
++
++  /* Paleta morna complementar. */
++  --color-brand-soft: #f8e6dc;
++  --color-surface-2: #fbf8f4;
++  --color-track: #efe7dc;
++  --color-warning: #8f5b00;
++  --color-warning-soft: #fff3d6;
++  --color-info: #2b5f8e;
++  --color-info-soft: #e8f0f8;
+ }
+diff --git a/tests/sprint-41-affordance.test.js b/tests/sprint-41-affordance.test.js
+index f3d0d5b..8ae32cf 100644
+--- a/tests/sprint-41-affordance.test.js
++++ b/tests/sprint-41-affordance.test.js
+@@ -25,8 +25,8 @@ test('controles nativos usam a cor da marca', () => {
+ })
+ 
+ test('linha do zero fica neutra sem valores negativos e em alerta com valores negativos', () => {
+-  assert.match(zeroLine(chart([100, 200, 300])), /stroke="#94a3b8"/)
+-  assert.match(zeroLine(chart([100, -200, 300])), /stroke="#b45309"/)
++  assert.match(zeroLine(chart([100, 200, 300])), /stroke="#a8998b"/)
++  assert.match(zeroLine(chart([100, -200, 300])), /stroke="#9a6b00"/)
+ })
+ 
+ test('abas da avaliação anual seguem o componente de abas e mantêm a navegação por página', () => {

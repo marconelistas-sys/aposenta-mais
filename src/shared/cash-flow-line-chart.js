@@ -29,21 +29,21 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
   const readoutCaption = `${currency} · ${basisLabel}`
   const rate = (plan.annualInflation * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
   const series = financialView ? [
-    { key: 'freeCashFlow', label: 'Saldo do orçamento', color: '#0369a1', monthly: true },
-    { key: 'financialReturn', label: nominal ? 'Rendimento nominal implícito' : 'Rendimento real', color: '#7c3aed', dash: '2 3' },
-    { key: 'pensionCredits', label: 'Créditos previdenciários', color: '#a35c1a', dash: '8 4', monthly: true },
-    { key: 'financialChange', label: 'Variação do patrimônio financeiro no ano', color: '#1e293b', width: 3, emphasize: true }
+    { key: 'freeCashFlow', label: 'Saldo do orçamento', color: '#23609e', monthly: true },
+    { key: 'financialReturn', label: nominal ? 'Rendimento nominal implícito' : 'Rendimento real', color: '#8e3b6b', dash: '2 3' },
+    { key: 'pensionCredits', label: 'Créditos previdenciários', color: '#c75a28', dash: '8 4', monthly: true },
+    { key: 'financialChange', label: 'Variação do patrimônio financeiro no ano', color: '#2b211c', width: 3, emphasize: true }
   ] : [
-    { key: 'income', label: 'Receitas', color: '#0369a1', monthly: true },
-    { key: 'outflows', label: 'Despesas e metas', color: '#c2410c', dash: '6 3', monthly: true },
-    { key: 'freeCashFlow', label: 'Saldo do orçamento, antes dos rendimentos', color: '#1e293b', width: 3, emphasize: true, monthly: true }
+    { key: 'income', label: 'Receitas', color: '#23609e', monthly: true },
+    { key: 'outflows', label: 'Despesas e metas', color: '#c75a28', dash: '6 3', monthly: true },
+    { key: 'freeCashFlow', label: 'Saldo do orçamento, antes dos rendimentos', color: '#2b211c', width: 3, emphasize: true, monthly: true }
   ]
   const wealthSeries = [
-    { key: display.every(row => Number.isFinite(row.solvencyNetWorth)) ? 'solvencyNetWorth' : 'netWorth', label: solvencyWealthLabel(display.find(row => row.excludedRealEstateAssets > 0) || display.at(-1)), color: '#475569', width: 3, emphasize: true },
-    { key: 'liquidAssets', label: 'Liquidez disponível', color: '#0369a1', dash: '2 3' },
+    { key: display.every(row => Number.isFinite(row.solvencyNetWorth)) ? 'solvencyNetWorth' : 'netWorth', label: solvencyWealthLabel(display.find(row => row.excludedRealEstateAssets > 0) || display.at(-1)), color: '#5c4f46', width: 3, emphasize: true },
+    { key: 'liquidAssets', label: 'Liquidez disponível', color: '#23609e', dash: '2 3' },
     ...(wealthComparison ? [
-      { key: 'financialNet', label: 'Financeiro líquido de dívidas, sem bens', color: '#047857', dash: '8 4' },
-      { key: 'grossAssets', label: 'Patrimônio bruto, com imóveis', color: '#a35c1a', dash: '10 3 2 3' }
+      { key: 'financialNet', label: 'Financeiro líquido de dívidas, sem bens', color: '#2e7550', dash: '8 4' },
+      { key: 'grossAssets', label: 'Patrimônio bruto, com imóveis', color: '#c75a28', dash: '10 3 2 3' }
     ] : [])
   ].filter(series => display.some(row => Number.isFinite(row[series.key])))
   const wealth = wealthSeries.length ? `<section class="cash-flow-wealth-chart annual-chart-section" aria-label="Patrimônio que sustenta o orçamento"><div class="annual-chart-heading"><div><span class="annual-chart-kind">SALDO ACUMULADO</span><h3>Quanto resta ao fim de cada ano</h3></div><label>Visão do patrimônio<select data-annual-chart-mode="wealth"><option value="essential" ${wealthComparison ? '' : 'selected'}>Essencial: patrimônio e liquidez</option><option value="comparison" ${wealthComparison ? 'selected' : ''}>Comparar todos os patrimônios</option></select></label></div>

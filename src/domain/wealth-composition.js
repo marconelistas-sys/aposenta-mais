@@ -27,7 +27,7 @@ export function wealthComposition(state, date = today()) {
   const add = (item) => { if (Number.isFinite(item.amount) && item.amount > 0.005) items.push(item) }
 
   for (const account of accountBalances(state.cashFlow.ledger || { accounts: [], movements: [] }, date)) {
-    add({ id: `account:${account.id}`, name: account.name, kind: 'Conta', group: 'available', amount: convert(account.balance, account.currency) })
+    add({ id: `account:${account.id}`, name: account.name, kind: 'Conta', group: 'available', currency: account.currency || state.currency, nativeAmount: account.balance, amount: convert(account.balance, account.currency) })
   }
   const investments = state.plan.investments?.length ? state.plan.investments : [{ id: 'aggregate', name: 'Patrimônio agregado', assetClass: 'other', liquidity: 'unknown', amount: state.plan.currentAssets }]
   for (const investment of investments) {
@@ -36,11 +36,12 @@ export function wealthComposition(state, date = today()) {
       : releaseYear ? 'scheduled'
         : investment.assetClass === 'pension' ? 'pension'
           : 'locked'
-    add({ id: `investment:${investment.id}`, name: investment.name, kind: 'Investimento', assetClass: investment.assetClass, group, releaseYear, amount: investment.amount })
+    const foreign = investment.currency && investment.currency !== state.currency && Number.isFinite(investment.nativeAmount)
+    add({ id: `investment:${investment.id}`, name: investment.name, kind: 'Investimento', assetClass: investment.assetClass, group, releaseYear, currency: foreign ? investment.currency : state.currency, nativeAmount: foreign ? investment.nativeAmount : investment.amount, amount: investment.amount })
   }
   const year = Number(date.slice(0, 4))
   for (const row of sanitizeAnnualRows(state.cashFlow.nonFinancialAssets)) {
-    add({ id: `asset:${row.id}`, name: row.name, kind: 'Bem', category: row.category, group: 'property', amount: convert(annualValue(row, year), row.currency) })
+    add({ id: `asset:${row.id}`, name: row.name, kind: 'Bem', category: row.category, group: 'property', currency: row.currency || state.currency, nativeAmount: annualValue(row, year), amount: convert(annualValue(row, year), row.currency) })
   }
   for (const item of sanitizeConsortia(state.cashFlow.consortia)) {
     try {
@@ -86,4 +87,19 @@ export function liquidityTimeline(items, startYear) {
     rows.push({ year, released: released.map(item => ({ name: item.name, amount: item.amount })), releasedAmount: released.reduce((sum, item) => sum + item.amount, 0), available: cumulative })
   }
   return rows
+}
+
+// Gross assets by the currency in which each item is held. Items without a
+// currency of their own (consortia, aggregates) count in the plan currency.
+export function wealthByCurrency(composition, planCurrency) {
+  const totals = new Map()
+  for (const item of composition.items) {
+    const code = item.currency || planCurrency
+    const row = totals.get(code) || { currency: code, amount: 0, nativeAmount: 0 }
+    row.amount += item.amount
+    row.nativeAmount += code === planCurrency ? item.amount : (item.nativeAmount ?? 0)
+    totals.set(code, row)
+  }
+  const gross = composition.gross || [...totals.values()].reduce((sum, row) => sum + row.amount, 0)
+  return [...totals.values()].sort((a, b) => b.amount - a.amount).map(row => ({ ...row, share: gross > 0 ? row.amount / gross : 0 }))
 }
