@@ -16,7 +16,11 @@ alter table public.financial_plans enable row level security;
 alter table public.financial_plans force row level security;
 
 revoke all on public.financial_plans from anon;
+-- Reset legacy automatic grants and PUBLIC inheritance before allowing access.
+revoke all on public.financial_plans from public, authenticated, service_role;
 grant select, insert, update, delete on public.financial_plans to authenticated;
+-- scripts/migrate-supabase.mjs only reads the source through PostgREST.
+grant select on public.financial_plans to service_role;
 
 drop policy if exists financial_plans_select_own on public.financial_plans;
 create policy financial_plans_select_own
