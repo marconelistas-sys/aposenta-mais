@@ -25,7 +25,7 @@ test('controles nativos usam a cor da marca', () => {
 })
 
 test('linha do zero fica neutra sem valores negativos e em alerta com valores negativos', () => {
-  assert.match(zeroLine(chart([100, 200, 300])), /stroke="#a8998b"/)
+  assert.match(zeroLine(chart([100, 200, 300])), /stroke="#94a3b8"/)
   assert.match(zeroLine(chart([100, -200, 300])), /stroke="#9a6b00"/)
 })
 

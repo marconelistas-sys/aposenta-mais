@@ -1,3 +1,10 @@
+import { reconcileOwnTransfers } from './domain/own-transfers.js'
+import { saveOwnTransferSettings } from './app/state.js'
+import { bindBudgetOverviewInteractions } from './features/cash-flow/budget-overview.js'
+import { reviewStatementBatch, statementBatchLimit } from './domain/statement-batch.js'
+import { statementMerchantKey } from './domain/statement-classification.js'
+import { cashFlowItemLimit } from './shared/limits.js'
+import { readStatementFile } from './domain/statement-file.js'
 import { openReviewTarget } from './app/review-navigation.js'
 import { focusSaveCopy } from './features/profile/data-overview.js'
 import { bindFinancialValueLayout } from './shared/financial-value-layout.js'
@@ -41,7 +48,7 @@ import {
   addCustomCategory,
   addScenario,
   deleteLocalData,
-  importCashFlowItems,
+  upsertStatementItems,
   loadScenario,
   removeInvestment,
   removeCashFlowItem,
@@ -77,7 +84,7 @@ import { projectRetirementWithSchedules } from './domain/retirement.js'
 import { renderContent } from './features/content/content.js'
 import { renderDashboard } from './features/dashboard/dashboard.js'
 import { renderWealth } from './features/wealth/wealth.js'
-import { renderCashFlow, renderBudgetEntries, updateBudgetEntryResults } from './features/cash-flow/cash-flow.js'
+import { renderCashFlow, renderBudgetEntries, updateStatementReviewDialog, readStatementMapping, statementImportBlockReason, updateBudgetEntryResults } from './features/cash-flow/cash-flow.js'
 import { budgetEntriesView, resetBudgetEntriesView, readBudgetFilters } from './features/cash-flow/budget-entries-view.js'
 import { renderPlan } from './features/plan/plan.js'
 import { renderProfile } from './features/profile/profile.js'
@@ -119,7 +126,7 @@ import { categoryById } from './data/cash-flow-categories.js'
 import { loadExchangeRates } from './app/exchange-rate-state.js'
 import { currencySymbol } from './shared/currencies.js'
 import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution } from './domain/investment-currency.js'
-import { inspectStatementText, reviewStatementImport } from './domain/statement-import.js'
+import { changeStatementMapping } from './domain/statement-import.js'
 
 import { configureLocalAccess, selectStorageProvider } from './app/auth-state.js'
 import { syncConsentVersion } from './shared/sync-contract.js'
@@ -349,30 +356,63 @@ function setInvestmentReturnFields(form) {
 
 function statementReviewView() {
   if (!statementReviewState) return null
-  const review = reviewStatementImport(statementReviewState.inspection, {
-    mapping: statementReviewState.mapping,
+  const active = statementReviewState.files[statementReviewState.activeFile]
+  if (!active) return null
+  const review = reviewStatementBatch(statementReviewState.files, {
     defaultCurrency: state.currency,
     customCategories: state.customCategories,
     existingItems: state.cashFlow.items
   })
-  const rows = review.rows.map((row) => ({
-    ...row,
-    selected: Boolean(row.item) && !row.duplicate && !statementReviewState.excludedRows.has(row.rowNumber)
-  }))
+  const incomingKeys = new Set(review.rows.filter(row => row.item).map(row => row.item.statementImportKey))
+  const previewItems = reconcileOwnTransfers([...state.cashFlow.items.filter(item => !incomingKeys.has(item.statementImportKey)), ...review.rows.filter(row => row.item && !row.duplicate).map(row => row.item)], state.cashFlow.ownStatementAccounts)
+  const previewByKey = new Map(previewItems.map(item => [item.statementImportKey, item]))
+  const rows = review.rows.map(row => {
+    if (row.item) row = { ...row, item: previewByKey.get(row.item.statementImportKey) || row.item }
+    const override = row.item && statementReviewState.categoryOverrides.get(`${row.item.type}:${(row.item.categoryMerchantKey || statementMerchantKey(row.item.description))}`)
+    const category = override && categoryById(override, state.customCategories)
+    if (category && row.item && category.type === row.item.type) row = {
+      ...row,
+      item: { ...row.item, categoryId: category.id, categoryOrigin: 'confirmed' },
+      classification: { categoryId: category.id, confidence: 1, needsReview: false, reason: 'Categoria confirmada por você', origin: 'confirmed' }
+    }
+    return { ...row, selected: Boolean(row.item) && !row.duplicate && !row.internalTransfer && !statementReviewState.excludedRows.has(row.rowNumber) }
+  })
   const selectedCount = rows.filter((row) => row.selected).length
-  const availableSlots = Math.max(100 - state.cashFlow.items.length, 0)
+  const availableSlots = Math.max(cashFlowItemLimit - state.cashFlow.items.length, 0)
   return {
     ...review,
     rows,
-    headers: statementReviewState.inspection.headers,
-    fileName: statementReviewState.fileName,
-    totalRows: statementReviewState.inspection.totalRows,
+    mapping: active.mapping,
+    headers: active.inspection.headers,
+    sourceRows: active.inspection.rows,
+    fileName: statementReviewState.files.length === 1 ? active.fileName : `${statementReviewState.files.length} extratos`,
+    files: statementReviewState.files,
+    activeFile: statementReviewState.activeFile,
+    loading: statementReviewState.loading,
+    expectedFiles: statementReviewState.expectedFiles,
+    totalRows: statementReviewState.files.reduce((total, file) => total + file.inspection.totalRows, 0),
     selectedCount,
     duplicateCount: rows.filter((row) => row.duplicate).length,
+    internalTransferCount: rows.filter(row => row.internalTransfer && !row.duplicate).length,
     invalidCount: rows.filter((row) => row.error).length,
     availableSlots,
-    overLimit: selectedCount > availableSlots
+    newCount: rows.filter(row => row.selected && !row.updateTargetId).length,
+    updateCount: rows.filter(row => row.selected && row.updateTargetId).length,
+    overLimit: rows.filter(row => row.selected && !row.updateTargetId).length > availableSlots
   }
+}
+
+function refreshStatementMapping(control) {
+  if (!statementReviewState) return
+  const form = control.closest('[data-statement-review-form]')
+  if (!form) return
+  const mapping = readStatementMapping(form)
+  const active = statementReviewState.files[statementReviewState.activeFile]
+  if (Object.keys(mapping).every(field => mapping[field] === active.mapping[field])) return
+  active.mapping = changeStatementMapping(active.mapping, control.dataset.statementMapping, control.value)
+  updateStatementReviewDialog(app, statementReviewView())
+  disposeValueLayout()
+  disposeValueLayout = bindFinancialValueLayout(app, { hidden: state.valuesHidden })
 }
 
 function openStatementReviewDialog() {
@@ -594,6 +634,13 @@ document.addEventListener('click', async (event) => {
   }
   if (event.target.closest('[data-close-new-cash-item]')) {
     app.querySelector('[data-new-cash-item-dialog]')?.close()
+    return
+  }
+  if (event.target.closest('[data-reset-statement-mapping]')) {
+    if (!statementReviewState) return
+    const active = statementReviewState.files[statementReviewState.activeFile]
+    active.mapping = { ...active.inspection.suggestedMapping }
+    updateStatementReviewDialog(app, statementReviewView())
     return
   }
   if (event.target.closest('[data-open-budget-import]')) {
@@ -1232,6 +1279,7 @@ function scheduleContributionImpact(input) {
 }
 
 document.addEventListener('input', (event) => {
+  if (event.target.matches('[data-statement-mapping]')) { refreshStatementMapping(event.target); return }
   const impactForm = event.target.closest('[data-expense-impact-form]')
   if (impactForm) {
     expenseImpactView.result = null
@@ -1318,11 +1366,22 @@ document.addEventListener('change', async (event) => {
     render()
     return
   }
-  if (event.target.matches('[data-statement-mapping]')) {
+  if (event.target.matches('[data-statement-active-file]')) {
     if (!statementReviewState) return
-    statementReviewState.mapping[event.target.dataset.statementMapping] = Number(event.target.value)
-    render()
-    openStatementReviewDialog()
+    statementReviewState.activeFile = Number(event.target.value)
+    updateStatementReviewDialog(app, statementReviewView())
+    return
+  }
+  if (event.target.matches('[data-statement-category]')) {
+    const row = statementReviewView()?.rows.find(row => row.rowNumber === Number(event.target.dataset.statementCategory))
+    if (row?.item) {
+      statementReviewState.categoryOverrides.set(`${row.item.type}:${(row.item.categoryMerchantKey || statementMerchantKey(row.item.description))}`, event.target.value)
+      updateStatementReviewDialog(app, statementReviewView())
+    }
+    return
+  }
+  if (event.target.matches('[data-statement-mapping]')) {
+    refreshStatementMapping(event.target)
     return
   }
 
@@ -1332,15 +1391,7 @@ document.addEventListener('change', async (event) => {
     if (event.target.checked) statementReviewState.excludedRows.delete(rowNumber)
     else statementReviewState.excludedRows.add(rowNumber)
     const review = statementReviewView()
-    const count = document.querySelector('[data-statement-selected-count]')
-    const confirm = document.querySelector('[data-statement-confirm]')
-    const limitError = document.querySelector('[data-statement-limit-error]')
-    if (count) count.textContent = String(review.selectedCount)
-    if (confirm) {
-      confirm.textContent = `Importar ${review.selectedCount} ${review.selectedCount === 1 ? 'lançamento' : 'lançamentos'}`
-      confirm.disabled = review.selectedCount === 0 || review.overLimit
-    }
-    if (limitError) limitError.hidden = !review.overLimit
+    updateStatementReviewDialog(app, review)
     return
   }
 
@@ -1389,27 +1440,34 @@ document.addEventListener('change', async (event) => {
   }
 
   if (event.target.matches('[data-statement-file]')) {
-    const file = event.target.files?.[0]
-    if (!file) return
-    if (file.size > 1024 * 1024) {
-      showToast('O arquivo deve ter no máximo 1 MB.')
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+    if (files.length > statementBatchLimit || files.some(file => file.size > 1024 * 1024)) {
+      showToast('Selecione até 12 extratos, com no máximo 1 MB por arquivo.')
       event.target.value = ''
       return
     }
+    const generation = ownedStorage.generation
+    const batch = { files: [], activeFile: 0, loading: true, expectedFiles: files.length, excludedRows: new Set(), categoryOverrides: new Map() }
+    statementReviewState = batch
+    showToast(`Lendo e classificando ${files.length} extratos...`)
     try {
-      const generation = ownedStorage.generation
-      const text = await file.text()
-      if (generation !== ownedStorage.generation) return
-      const inspection = inspectStatementText(text, { maximumRows: 100 })
-      statementReviewState = {
-        fileName: file.name,
-        inspection,
-        mapping: { ...inspection.suggestedMapping },
-        excludedRows: new Set()
+      for (const file of files) {
+        let inspection
+        try {
+          ({ inspection } = await readStatementFile(file, { maximumRows: 2000, analysisOnly: true }))
+          if (inspection.truncatedRows) throw new TypeError('Use extratos com até 2.000 movimentos por arquivo.')
+        } catch (error) { throw new TypeError(`${file.name}: ${error.message}`) }
+        if (generation !== ownedStorage.generation || statementReviewState !== batch) return
+        batch.files.push({ fileName: file.name, inspection, mapping: { ...inspection.suggestedMapping } })
+        if (batch.files.length === 1) { render(); openStatementReviewDialog() }
+        else updateStatementReviewDialog(app, statementReviewView())
       }
-      render()
-      openStatementReviewDialog()
+      batch.loading = false
+      updateStatementReviewDialog(app, statementReviewView())
     } catch (error) {
+      if (statementReviewState !== batch || generation !== ownedStorage.generation) return
+      closeStatementReview()
       showToast(error.message)
       event.target.value = ''
     }
@@ -1431,6 +1489,12 @@ document.addEventListener('change', async (event) => {
 })
 
 document.addEventListener('submit', async (event) => {
+  if (event.target.matches('[data-own-transfers-form]')) {
+    event.preventDefault()
+    try { saveOwnTransferSettings(new FormData(event.target)); render(); showToast('Transferências conciliadas. Orçamento atualizado.') }
+    catch (error) { showFormError(event.target, error.message) }
+    return
+  }
   if (event.target.matches('[data-expense-impact-form]')) {
     event.preventDefault()
     try {
@@ -1814,16 +1878,26 @@ document.addEventListener('submit', async (event) => {
   const statementReviewForm = event.target.closest('[data-statement-review-form]')
   if (statementReviewForm) {
     event.preventDefault()
+    if (!statementReviewState) return
+    if (statementReviewState.loading) return
+    statementReviewState.files[statementReviewState.activeFile].mapping = readStatementMapping(statementReviewForm)
     const review = statementReviewView()
-    if (!review || review.mappingErrors.length > 0 || review.overLimit) return
+    if (!review || review.mappingErrors.length > 0 || review.overLimit || review.selectedCount === 0) {
+      updateStatementReviewDialog(app, review)
+      return
+    }
     const items = review.rows.filter((row) => row.selected).map((row) => row.item)
     try {
-      const importedCount = importCashFlowItems(items)
-      const skippedCount = review.duplicateCount + review.invalidCount
+      const result = upsertStatementItems(items)
+      const skippedCount = review.duplicateCount + review.invalidCount + review.internalTransferCount
       statementReviewState = null
+      resetBudgetEntriesView()
+      budgetEntriesView.period = 'all'
+      budgetEntriesView.recordKind = 'actual'
       render()
-      app.querySelector('[data-open-budget-import]')?.focus({ preventScroll: true })
-      showToast(`${importedCount} lançamentos importados.${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''} Para consultar registros de outros meses, limpe os filtros e selecione Todos os períodos.`)
+      revealInPageTab(app, app.querySelector('.budget-workspace'))
+      app.querySelector('[data-budget-filters] [name="search"]')?.focus({ preventScroll: true })
+      showToast(`${result.added} lançamentos importados. ${result.updated} atualizados.${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''} A lista mostra os realizados de todos os períodos.`)
     } catch (error) {
       showToast(error.message)
     }
@@ -2047,6 +2121,7 @@ document.addEventListener('submit', async (event) => {
 window.addEventListener('popstate', () => { resetExpenseImpact(); render({ focusMain: true, indicateRecalculation: false }) })
 bindMonthlyHints(document)
 bindPageTabs(app)
+bindBudgetOverviewInteractions(app, () => state)
 document.addEventListener('input', event => {
   const group = event.target.closest?.('[data-target-dimension]')
   if (!group) return

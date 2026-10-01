@@ -33,7 +33,7 @@ export function renderExpenseImpactResult() {
   ].map(([label, a, b]) => `<tr><th scope="row">${label}</th><td><span class="money-value">${a}</span></td><td><span class="money-value">${b}</span></td></tr>`).join('')}</tbody></table></div>
   ${result.totalReduction === 0 ? '<p>Esta hipótese não reduz saídas no período. Confira o percentual, o ano inicial e o prazo do lançamento.</p>' : ''}
   ${result.baseline.issues.length ? `<p>A avaliação tem ${result.baseline.issues.length} pendência(s). A comparação não confirma sustentabilidade enquanto as premissas estiverem incompletas.</p>` : ''}
-  ${planningChart({ title: 'Liquidez anual, plano atual e hipótese', rows: chartRows, currency: state.currency, series: [{ key: 'current', label: 'Plano atual', color: '#5c4f46' }, { key: 'simulated', label: 'Hipótese', color: '#2e7550', dash: '6 3' }] })}
+  ${planningChart({ title: 'Liquidez anual, plano atual e hipótese', rows: chartRows, currency: state.currency, series: [{ key: 'current', label: 'Plano atual', color: '#475569' }, { key: 'simulated', label: 'Hipótese', color: '#167454', dash: '6 3' }] })}
   <p>Projeção em poder de compra atual, ${state.currency}, até ${result.targetAge} anos. Insuficiência significa patrimônio financeiro líquido de dívidas ou liquidez negativos no fechamento anual. Não verifica cada mês. Patrimônio positivo não garante liquidez. O resultado depende das premissas cadastradas.</p></div>`
 }
 export function renderExpenseImpact() {

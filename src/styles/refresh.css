@@ -1,11 +1,8 @@
-/* Visual refresh: warm palette, lighter surfaces, icon-first cards.
+/* Visual refresh: cool neutrals, blue accents, consistent component states.
    Loaded last. Only visual overrides, no layout logic that tests depend on. */
 
 body {
-  background:
-    radial-gradient(circle at 8% 0%, rgb(233 162 59 / 12%), transparent 26rem),
-    radial-gradient(circle at 96% 12%, rgb(156 63 34 / 6%), transparent 24rem),
-    var(--color-background);
+  background: var(--color-background);
 }
 
 /* Headings and eyebrows */
@@ -28,7 +25,7 @@ body {
 .main-nav__link:hover,
 .main-nav__link.is-active { color: var(--color-brand); }
 .main-nav__link.is-active .icon { color: var(--color-brand); }
-.brand__name span { color: var(--color-lime); }
+.brand__name span { color: var(--color-brand); }
 
 /* Panels: lighter, one border level */
 .panel {
@@ -85,9 +82,9 @@ body {
   color: var(--color-brand);
 }
 
-.metric-row > div[data-tone="negative"] { border-color: #f3c9d0; }
+.metric-row > div[data-tone="negative"] { border-color: #f0cbd4; }
 .metric-row > div[data-tone="negative"] .metric-glyph { background: #fff; color: var(--color-danger); }
-.metric-row > div[data-tone="positive"] { border-color: #cfe6d7; }
+.metric-row > div[data-tone="positive"] { border-color: #cce6da; }
 .metric-row > div[data-tone="positive"] .metric-glyph { background: #fff; color: var(--color-green); }
 
 /* Retirement strip progress: number first, explanation on demand */
@@ -146,15 +143,15 @@ body {
 .plan-sustainability {
   position: relative;
   padding: 18px 20px 18px 76px;
-  border: 1px solid #cfe6d7;
+  border: 1px solid #cce6da;
   border-inline-start-width: 1px;
   border-radius: 14px;
   background: var(--color-green-soft);
   color: var(--color-ink);
 }
 
-.plan-sustainability--insufficient { border-color: #f3c9d0; background: var(--color-danger-soft); color: var(--color-ink); }
-.plan-sustainability--incomplete { border-color: #f1d9a6; background: var(--color-warning-soft); color: var(--color-ink); }
+.plan-sustainability--insufficient { border-color: #f0cbd4; background: var(--color-danger-soft); color: var(--color-ink); }
+.plan-sustainability--incomplete { border-color: #ead9b0; background: var(--color-warning-soft); color: var(--color-ink); }
 
 .plan-sustainability__icon {
   position: absolute;
@@ -192,8 +189,8 @@ body {
 }
 
 .cockpit-instrument[data-cockpit="coverage"] { border-top-color: var(--color-green); }
-.cockpit-instrument[data-cockpit="budget"] { border-top-color: var(--chart-gold); }
-.cockpit-instrument[data-cockpit="liquidity"] { border-top-color: var(--chart-terracotta); }
+.cockpit-instrument[data-cockpit="budget"] { border-top-color: var(--color-border-strong); }
+.cockpit-instrument[data-cockpit="liquidity"] { border-top-color: var(--color-border-strong); }
 .cockpit-instrument[data-cockpit="wealth"] { border-top-color: var(--chart-blue); }
 
 .cockpit-instrument .cockpit-kicker {
@@ -222,7 +219,7 @@ body {
 }
 
 .cockpit-instrument[data-cockpit="coverage"] .cockpit-icon { background: var(--color-green-soft); color: var(--color-green); }
-.cockpit-instrument[data-cockpit="budget"] .cockpit-icon { background: var(--color-lime-soft); color: var(--color-warning); }
+.cockpit-instrument[data-cockpit="budget"] .cockpit-icon { background: var(--color-surface-2); color: var(--color-ink-soft); }
 .cockpit-instrument[data-cockpit="wealth"] .cockpit-icon { background: var(--color-info-soft); color: var(--color-info); }
 
 .cockpit-status {
@@ -322,11 +319,11 @@ body {
 .planning-chart-legend button[aria-pressed="true"] { border-color: var(--color-border-strong); }
 
 /* Demo banner softer */
-.demo-banner { background: var(--color-lime-soft); border-color: #f1d9a6; }
+.demo-banner { background: var(--color-info-soft); border-color: var(--color-border); color: var(--color-ink-soft); }
 .demo-banner a { color: var(--color-brand); }
 
 /* Links in body text */
-:where(main) a:where(:not([class])) { color: var(--color-brand); text-decoration-color: rgb(156 63 34 / 40%); }
+:where(main) a:where(:not([class])) { color: var(--color-brand); text-decoration-color: rgb(40 85 199 / 40%); }
 :where(main) a:where(:not([class])):hover { color: var(--color-brand-deep); }
 
 /* Icon-only summaries do not use the shared chevron. */
@@ -336,7 +333,7 @@ body {
 
 /* Tiles without an icon keep the value aligned left. */
 .metric-row dt:not(:has(.metric-glyph)) + dd { padding-left: 0; }
-.metric-row > div[data-kind="expense"] .metric-glyph { background: #fbe4d8; color: var(--chart-terracotta); }
+.metric-row > div[data-kind="expense"] .metric-glyph { background: #eef2f6; color: var(--chart-terracotta); }
 .metric-row > div[data-tone="positive"] { background: var(--color-green-soft); }
 .metric-row > div[data-tone="negative"] { background: var(--color-danger-soft); }
 
@@ -359,7 +356,7 @@ body {
   color: var(--color-brand);
   font-style: normal;
 }
-.investment-summary > article:nth-child(2) > .summary-glyph { background: var(--color-lime-soft); color: var(--color-warning); }
+.investment-summary > article:nth-child(2) > .summary-glyph { background: var(--color-brand-soft); color: var(--color-brand); }
 .investment-summary > article:nth-child(3) > .summary-glyph { background: var(--color-green-soft); color: var(--color-green); }
 .investment-summary > article:nth-child(4) > .summary-glyph { background: var(--color-info-soft); color: var(--color-info); }
 
@@ -372,7 +369,7 @@ body {
   height: 38px;
   padding: 0;
   border-radius: 50%;
-  background: #fbe4d8;
+  background: #eef2f6;
   color: var(--chart-terracotta);
 }
 .cash-item__type--income { background: var(--color-green-soft); color: var(--color-green); }
@@ -399,7 +396,7 @@ body {
 .page-tabs--links a[aria-current="page"] {
   background: var(--color-surface);
   color: var(--color-brand);
-  box-shadow: 0 1px 2px rgb(43 33 28 / 8%), 0 0 0 1px var(--color-border);
+  box-shadow: 0 1px 2px rgb(23 36 59 / 8%), 0 0 0 1px var(--color-border);
 }
 
 .back-link { color: var(--color-brand); }
@@ -442,7 +439,7 @@ body {
   .mobile-nav {
     border: 1px solid var(--color-border);
     background: rgb(255 255 255 / 94%);
-    box-shadow: 0 12px 32px rgb(43 33 28 / 14%);
+    box-shadow: 0 12px 32px rgb(23 36 59 / 14%);
   }
   .mobile-nav__link { color: var(--color-ink-muted); font-size: 10px; }
   .mobile-nav__link.is-active { color: var(--color-brand); background: var(--color-brand-soft); }
@@ -461,3 +458,81 @@ body {
 }
 .wealth-native { display: block; color: var(--color-ink-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .wealth-ranking__value .wealth-native { text-align: right; }
+
+/* Shared control states and restrained status surfaces. */
+.button,
+.account-cta,
+.cash-item__edit {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.button--primary:hover,
+.account-cta:hover {
+  border-color: var(--color-brand-deep);
+}
+
+.button--secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-brand);
+}
+
+.button--secondary:hover {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand);
+}
+
+.form-field input:not([type="checkbox"]):not([type="range"]),
+.form-field select {
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
+}
+
+.form-field input::placeholder { color: var(--color-ink-muted); }
+.form-field input:focus-visible,
+.form-field select:focus-visible { border-color: var(--color-brand); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--color-brand); }
+
+.plan-sustainability--incomplete {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  border-inline-start: 3px solid var(--color-warning);
+}
+
+.plan-sustainability--incomplete .plan-sustainability__icon {
+  background: var(--color-warning-soft);
+  box-shadow: none;
+}
+
+.metric-row > div,
+.cockpit-instrument,
+.cash-item__type,
+.summary-glyph { border-radius: var(--radius-md); }
+
+.page-tabs button[aria-selected="true"],
+.page-tabs--links a[aria-current="page"] {
+  background: var(--color-brand-soft);
+  box-shadow: 0 0 0 1px var(--color-border-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .button, .account-cta, .cash-item__edit, .cockpit-link .icon { transition: none; }
+}
+
+.statement-mapping__grid .form-field { align-content: start; }
+.statement-mapping__grid .form-field small {
+  color: var(--color-ink-soft);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.statement-mapping-status {
+  margin: 16px 0 0;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  color: var(--color-info);
+  background: var(--color-info-soft);
+  font-size: 13px;
+}

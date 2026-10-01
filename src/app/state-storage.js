@@ -1,3 +1,5 @@
+import { reconcileOwnTransfers } from '../domain/own-transfers.js'
+import { cashFlowItemLimit } from '../shared/limits.js'
 import { sanitizePaymentMatches } from '../domain/calendar-payments.js'
 import { sanitizeStatementHistory } from '../domain/statement-history.js'
 import { defaultPlan } from '../data/mock-plan.js'
@@ -176,6 +178,14 @@ export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fal
     id: safeId(item.id, `item-${index + 1}`),
     type,
     categoryId: category.id,
+    ...(['automatic', 'confirmed', 'file'].includes(item.categoryOrigin) ? { categoryOrigin: item.categoryOrigin } : {}),
+    ...(typeof item.categoryMerchantKey === 'string' && item.categoryMerchantKey ? { categoryMerchantKey: item.categoryMerchantKey.slice(0, 512) } : {}),
+    ...(typeof item.statementImportKey === 'string' && item.statementImportKey ? { statementImportKey: item.statementImportKey.slice(0, 1024) } : {}),
+    ...(typeof item.statementAccount === 'string' ? { statementAccount: item.statementAccount.slice(0, 128) } : {}),
+    ...(typeof item.statementDescription === 'string' ? { statementDescription: item.statementDescription.slice(0, 1024) } : {}),
+    ...(['own', 'payment'].includes(item.transferDecision) ? { transferDecision: item.transferDecision } : {}),
+    ...(item.statementInternalTransfer === true ? { statementInternalTransfer: true } : {}),
+    ...(typeof item.statementReference === 'string' && item.statementReference ? { statementReference: item.statementReference.slice(0, 256) } : {}),
     description: typeof item.description === 'string' ? item.description.trim().slice(0, 60) : '',
     amount,
     currency: normalizeCurrency(item.currency || fallbackCurrency),
@@ -259,6 +269,7 @@ export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategor
   const cashFlow = { ...defaultCashFlow }
   const analyses = sanitizeStatementHistory(source.statementAnalyses)
   if (analyses.length) cashFlow.statementAnalyses = analyses
+  cashFlow.ownStatementAccounts = [...new Set((Array.isArray(source.ownStatementAccounts) ? source.ownStatementAccounts : []).filter(value => typeof value === 'string' && value && value.length <= 128))].slice(0, 100)
   cashFlow.ledger = sanitizeLedger(source.ledger)
   const paymentMatches = sanitizePaymentMatches(source.paymentMatches)
   if (paymentMatches.length) cashFlow.paymentMatches = paymentMatches
@@ -288,12 +299,12 @@ export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategor
   cashFlow.items = suppliedItems
     .map((item, index) => sanitizeCashFlowItem(item, index, customCategories, currency))
     .filter(Boolean)
-    .slice(0, 100)
-  cashFlow.items = cashFlow.items.filter(item => !item.id.startsWith('ledger:'))
+    .slice(0, cashFlowItemLimit)
+  cashFlow.items = reconcileOwnTransfers(cashFlow.items.filter(item => !item.id.startsWith('ledger:')), cashFlow.ownStatementAccounts)
   for (const movement of cashFlow.ledger.movements) {
     if (!movement.budgetCategoryId) continue
     try {
-      if (cashFlow.items.length >= 100) throw new Error('Limite de lançamentos.')
+      if (cashFlow.items.length >= cashFlowItemLimit) throw new Error('Limite de lançamentos.')
       cashFlow.items.push(linkedBudgetItem(movement, cashFlow.ledger, movement.budgetCategoryId, customCategories))
     } catch { delete movement.budgetCategoryId }
   }

@@ -1,3 +1,4 @@
+import { cashFlowItemLimit } from '../shared/limits.js'
 import { validateMovement } from './accounts.js'
 import { categoryById } from '../data/cash-flow-categories.js'
 
@@ -38,6 +39,6 @@ export function refreshBudgetLinks(cashFlow, ledger, customCategories = []) {
   for (const movement of ledger.movements) {
     if (movement.budgetCategoryId) items.push(linkedBudgetItem(movement, ledger, movement.budgetCategoryId, customCategories))
   }
-  if (items.length > 100) throw new Error('O orçamento comporta até 100 lançamentos. Nenhuma alteração foi aplicada.')
+  if (items.length > cashFlowItemLimit) throw new Error(`O orçamento comporta até ${cashFlowItemLimit} lançamentos. Nenhuma alteração foi aplicada.`)
   return items
 }

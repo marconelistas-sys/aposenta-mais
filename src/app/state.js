@@ -1,3 +1,6 @@
+import { reconcileOwnTransfers } from '../domain/own-transfers.js'
+import { planStatementUpdates } from '../domain/statement-batch.js'
+import { cashFlowItemLimit } from '../shared/limits.js'
 import { defaultPlan } from '../data/mock-plan.js'
 import { sanitizeCurrencyTrends, validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
@@ -176,6 +179,7 @@ export function removeInvestment(id) {
 
 export function updateCashFlow(patch) {
   state.cashFlow = { ...state.cashFlow, ...patch }
+  state.cashFlow.items = reconcileOwnTransfers(state.cashFlow.items, state.cashFlow.ownStatementAccounts)
   state.isDemo = false
   state.lastUpdatedAt = new Date().toISOString()
   saveState()
@@ -204,16 +208,28 @@ export function addCashFlowItem(item) {
 
 export function importCashFlowItems(items) {
   if (!Array.isArray(items) || items.length === 0) throw new TypeError('Nenhum lançamento válido foi encontrado.')
-  const availableSlots = Math.max(100 - state.cashFlow.items.length, 0)
-  if (availableSlots === 0) throw new RangeError('O limite de 100 lançamentos foi atingido.')
+  const availableSlots = Math.max(cashFlowItemLimit - state.cashFlow.items.length, 0)
+  if (items.length > availableSlots) throw new RangeError(`Há espaço para ${availableSlots} lançamentos. Nenhuma linha foi importada.`)
   const nextCashFlow = sanitizeCashFlow({
     ...state.cashFlow,
-    items: [...state.cashFlow.items, ...items.slice(0, availableSlots)]
+    items: [...state.cashFlow.items, ...items]
   }, state.currency, state.customCategories)
   const importedCount = nextCashFlow.items.length - state.cashFlow.items.length
   if (importedCount === 0) throw new TypeError('Nenhum lançamento válido foi encontrado.')
   updateCashFlow(nextCashFlow)
   return importedCount
+}
+
+export function upsertStatementItems(items) {
+  if (!Array.isArray(items) || !items.length) throw new TypeError('Nenhum lançamento selecionado.')
+  const validated = items.map((item, index) => sanitizeCashFlowItem(item, index, state.customCategories, state.currency))
+  if (validated.some(item => !item)) throw new TypeError('Há lançamentos inválidos no lote. Nenhuma alteração foi salva.')
+  const plan = planStatementUpdates(state.cashFlow.items, validated)
+  if (plan.items.length > cashFlowItemLimit) throw new RangeError(`O orçamento aceita até ${cashFlowItemLimit} lançamentos. Nenhuma alteração foi salva.`)
+  const next = { ...state, cashFlow: { ...state.cashFlow, items: reconcileOwnTransfers(plan.items, state.cashFlow.ownStatementAccounts) }, isDemo: false, lastUpdatedAt: new Date().toISOString() }
+  appStorage.setItem(storageKeys.current, JSON.stringify(next))
+  Object.assign(state, next)
+  return { added: plan.added, updated: plan.updated }
 }
 
 export function removeCashFlowItem(id) {
@@ -233,7 +249,9 @@ export function updateCashFlowItem(id, patch) {
     ...current,
     ...patch,
     id: current.id,
-    source: current.source
+    source: current.source,
+    ...(patch.categoryId && patch.categoryId !== current.categoryId ? { categoryOrigin: 'confirmed' } : {}),
+    ...(patch.description && patch.description !== current.description ? { categoryMerchantKey: undefined } : {})
   }
   validateIncomeEnd(candidate)
   if (candidate.recordKind === 'actual' && !candidate.startDate) {
@@ -415,4 +433,20 @@ export function deleteLocalData() {
   const result = removeStoredState(appStorage)
   Object.assign(state, sanitizeStoredState({ plan: { ...defaultPlan }, cashFlow: { ...defaultCashFlow }, isDemo: true }), { dataDeleted: true })
   return result
+}
+
+export function saveOwnTransferSettings(data) {
+  const accounts = data.getAll('ownAccount')
+  const items = state.cashFlow.items.map(item => {
+    const decision = data.get(`decision:${item.id}`)
+    if (decision === null) return item
+    const copy = { ...item }
+    delete copy.transferDecision
+    if (['own', 'payment'].includes(decision)) copy.transferDecision = decision
+    return copy
+  })
+  const cashFlow = sanitizeCashFlow({ ...state.cashFlow, items, ownStatementAccounts: accounts }, state.currency, state.customCategories)
+  const next = { ...state, cashFlow, isDemo: false, lastUpdatedAt: new Date().toISOString() }
+  appStorage.setItem(storageKeys.current, JSON.stringify(next))
+  Object.assign(state, next)
 }

@@ -4,7 +4,7 @@ const finite = Number.isFinite
 
 const segmentColors = {
   available: 'var(--color-green)',
-  restricted: '#23609e',
+  restricted: '#2855c7',
   unknown: 'var(--color-ink-muted)'
 }
 

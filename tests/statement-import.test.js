@@ -98,12 +98,21 @@ test('preserva delimitador dentro de campo entre aspas', () => {
   assert.equal(result.items[0].amount, 25)
 })
 
-test('bloqueia coluna usada para mais de um campo', () => {
-  const inspection = inspectStatementText('data;descricao;valor\n2026-09-04;Teste;10')
-  const review = reviewStatementImport(inspection, {
-    mapping: { date: 0, description: 1, amount: 1 }
-  })
-
-  assert.match(review.mappingErrors[0], /somente uma vez/)
-  assert.equal(review.rows.length, 0)
+test('mapeamento mantém cada campo independente e aceita uma coluna em vários campos', async () => {
+  const { changeStatementMapping } = await import('../src/domain/statement-import.js')
+  const inspection = inspectStatementText('data;descricao;moeda;valor;categoria\n2026-08-03;Loja;CHF;-17.25;groceries')
+  const initial = { date: 0, description: 1, currency: 2, amount: 3, category: 4, type: 3 }
+  const changed = changeStatementMapping(initial, 'currency', 3)
+  assert.equal(changed.amount, 3)
+  assert.equal(changed.type, 3)
+  assert.deepEqual(reviewStatementImport(inspection, { mapping: changed }).mappingErrors, [])
+  assert.match(reviewStatementImport(inspection, { mapping: changed }).errors[0], /coluna Moeda/)
+  const corrected = changeStatementMapping(changed, 'currency', 2)
+  const noType = changeStatementMapping(corrected, 'type', -1)
+  assert.equal(noType.category, 4)
+  assert.equal(noType.amount, 3)
+  const review = reviewStatementImport(inspection, { mapping: noType })
+  assert.equal(review.rows[0].item.currency, 'CHF')
+  assert.equal(review.rows[0].item.amount, 17.25)
+  assert.equal(review.rows[0].item.categoryId, 'groceries')
 })

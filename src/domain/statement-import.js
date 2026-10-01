@@ -1,3 +1,4 @@
+import { createStatementClassifier, statementMerchantKey, isStatementInvestmentMovement } from './statement-classification.js'
 import { standardCashFlowCategories } from '../data/cash-flow-categories.js'
 import { normalizeCurrency, currencies } from '../shared/currencies.js'
 
@@ -7,7 +8,8 @@ const headerAliases = {
   amount: ['valor', 'amount'],
   currency: ['moeda', 'currency'],
   category: ['categoria', 'category'],
-  type: ['tipo', 'type']
+  type: ['tipo', 'type'],
+  reference: ['referencia', 'reference', 'fitid', 'transaction_id']
 }
 
 const requiredFields = ['date', 'description', 'amount']
@@ -92,12 +94,15 @@ function normalizedMapping(candidate, columnCount) {
   }))
 }
 
+export function changeStatementMapping(mapping, field, column) {
+  if (!Object.hasOwn(headerAliases, field)) return { ...mapping }
+  return { ...mapping, [field]: Number(column) }
+}
+
 function mappingErrors(mapping) {
   const errors = []
   const missing = requiredFields.filter((field) => mapping[field] < 0)
-  if (missing.length > 0) errors.push('Mapeie data, descrição e valor para continuar.')
-  const selected = Object.values(mapping).filter((index) => index >= 0)
-  if (new Set(selected).size !== selected.length) errors.push('Cada coluna do arquivo pode ser usada somente uma vez.')
+  if (missing.length > 0) errors.push(`Selecione uma coluna para: ${missing.map(field => ({ date: 'Data', description: 'Descrição', amount: 'Valor' })[field]).join(', ')}.`)
   return errors
 }
 
@@ -121,7 +126,7 @@ export function statementDuplicateKey(item) {
   ].join('|')
 }
 
-function itemFromRow(row, mapping, defaultCurrency, customCategories) {
+function itemFromRow(row, mapping, defaultCurrency, customCategories, classify) {
   const cells = row.cells
   const date = normalizeDate(cells[mapping.date])
   const signedAmount = parseAmount(cells[mapping.amount])
@@ -136,14 +141,25 @@ function itemFromRow(row, mapping, defaultCurrency, customCategories) {
     return { error: `Linha ${row.rowNumber}: data ou valor inválido.` }
   }
 
-  const category = categoryFor(cells[mapping.category], type, customCategories)
-  const description = String(cells[mapping.description] || category.name).trim().slice(0, 60)
+  const provided = String(cells[mapping.category] || '').trim()
+  const descriptionText = String(cells[mapping.description] || '').trim()
+  const explicit = provided ? categoryFor(provided, type, customCategories) : null
+  const explicitMatch = explicit && [explicit.id, explicit.name].some(value => normalizeText(value) === normalizeText(provided))
+  const classification = explicitMatch
+    ? { categoryId: explicit.id, confidence: 1, needsReview: false, reason: 'Categoria informada no arquivo', origin: 'file' }
+    : classify(descriptionText, type)
+  const category = categoryFor(classification.categoryId, type, customCategories)
+  const description = (descriptionText || category.name).slice(0, 60)
   const rawCurrency = String(cells[mapping.currency] || defaultCurrency).trim().toUpperCase()
-  if (!currencies[rawCurrency]) return { error: `Linha ${row.rowNumber}: moeda não suportada.` }
+  if (!currencies[rawCurrency]) return { error: `Linha ${row.rowNumber}: a coluna Moeda contém "${rawCurrency.slice(0, 30)}". Selecione uma coluna com BRL, CHF, EUR ou USD, ou escolha Não usar para usar ${defaultCurrency}.` }
   const currency = normalizeCurrency(rawCurrency)
   const keySource = `${date}|${type}|${signedAmount}|${currency}|${description}|${row.rowNumber}`
   return {
+    classification,
     item: {
+      categoryOrigin: classification.origin === 'file' ? 'file' : 'automatic',
+      categoryMerchantKey: statementMerchantKey(descriptionText),
+      ...(cells[mapping.reference]?.trim() ? { statementReference: cells[mapping.reference].trim().slice(0, 256) } : {}),
       id: `imported-${date}-${hashText(keySource)}`,
       type,
       categoryId: category.id,
@@ -163,6 +179,7 @@ export function inspectStatementText(text, { maximumRows = 100, analysisOnly = f
   if (typeof text !== 'string') throw new TypeError('O conteúdo do extrato precisa ser texto.')
   if (text.length > 1024 * 1024) throw new TypeError('Use um arquivo de até 1 MB.')
   if (/<!DOCTYPE|<!ENTITY/i.test(text)) throw new TypeError('Declarações XML externas não são aceitas.')
+  const sourceAccount = /<OFX[>\s]/i.test(text) ? ['BANKID', 'ACCTID'].map(tag => text.match(new RegExp(`<${tag}[^>]*>\\s*([^<\\r\\n]*)`, 'i'))?.[1]?.trim() || '').join(':').slice(0, 128) : ''
   if (/<OFX[>\s]/i.test(text)) text = ofxToDelimited(text)
   const lines = delimitedRecords(text.replace(/^\uFEFF/, ''))
   if (lines.length < 2) throw new TypeError('O arquivo precisa conter cabeçalho e pelo menos um lançamento.')
@@ -172,6 +189,7 @@ export function inspectStatementText(text, { maximumRows = 100, analysisOnly = f
   const headers = splitDelimitedLine(lines[0], delimiter)
   return {
     headers,
+    sourceAccount,
     delimiter,
     suggestedMapping: columnMap(headers),
     rows: lines.slice(1, limit + 1).map((line, offset) => ({
@@ -202,22 +220,34 @@ export function reviewStatementImport(inspection, {
     return { mapping: safeMapping, mappingErrors: mapErrors, rows: [], errors }
   }
 
+  const classify = createStatementClassifier({ existingItems, customCategories })
   const existingKeys = new Set(existingItems.map(statementDuplicateKey).filter(Boolean))
+  const existingReferences = new Set(existingItems.map(item => item.statementReference).filter(Boolean))
   const reviewedKeys = new Set()
   const rows = inspection.rows.map((row) => {
-    const parsed = itemFromRow(row, safeMapping, defaultCurrency, customCategories)
+    const parsed = itemFromRow(row, safeMapping, defaultCurrency, customCategories, classify)
     if (parsed.error) {
       errors.push(parsed.error)
       return { rowNumber: row.rowNumber, item: null, error: parsed.error, duplicate: false, duplicateSource: null }
     }
-    const duplicateKey = statementDuplicateKey(parsed.item)
-    const duplicateSource = existingKeys.has(duplicateKey)
+    parsed.item.statementAccount = inspection.sourceAccount || ""
+    parsed.item.statementDescription = String(row.cells[safeMapping.description] || "").slice(0, 1024)
+    const internalTransfer = row.internalTransfer === true || isStatementInvestmentMovement(parsed.item.statementDescription)
+    if (internalTransfer) {
+      parsed.item.statementInternalTransfer = true
+      parsed.classification = { categoryId: parsed.item.categoryId, confidence: 1, needsReview: false, origin: 'automatic', reason: 'Aplicação ou resgate de investimento. Não compõe o orçamento.' }
+    }
+    const naturalKey = statementDuplicateKey(parsed.item)
+    const duplicateKey = parsed.item.statementReference ? `reference:${parsed.item.statementReference}` : naturalKey
+    const duplicateSource = (parsed.item.statementReference && existingReferences.has(parsed.item.statementReference)) || existingKeys.has(naturalKey)
       ? 'existing'
       : reviewedKeys.has(duplicateKey) ? 'file' : null
     reviewedKeys.add(duplicateKey)
     return {
       rowNumber: row.rowNumber,
       item: parsed.item,
+      classification: parsed.classification,
+      internalTransfer,
       error: null,
       duplicate: Boolean(duplicateSource),
       duplicateSource
@@ -247,12 +277,12 @@ function ofxToDelimited(text) {
   const field = (source, tag) => source.match(new RegExp(`<${tag}[^>]*>\\s*([^<\\r\\n]*)`, 'i'))?.[1]?.trim() || ''
   const currency = field(text, 'CURDEF')
   if (!['BRL', 'CHF', 'EUR', 'USD'].includes(currency)) throw new TypeError('Moeda OFX ausente ou não suportada.')
-  const rows = ['data;descricao;valor;moeda']
+  const rows = ['data;descricao;valor;moeda;referencia']
   for (const match of text.matchAll(/<STMTTRN>([\s\S]*?)(?:<\/STMTTRN>|(?=<STMTTRN>|<\/BANKTRANLIST>))/gi)) {
     const block = match[1]
     const date = field(block, 'DTPOSTED').slice(0, 8)
     const description = (field(block, 'MEMO') || field(block, 'NAME') || 'Lançamento OFX').replaceAll('&amp;', '&').replaceAll('"', '""')
-    rows.push(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)};"${description}";${field(block, 'TRNAMT')};${currency}`)
+    rows.push(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)};"${description}";${field(block, 'TRNAMT')};${currency};"${field(block, 'FITID').replaceAll('"', '""')}"`)
   }
   if (rows.length === 1) throw new TypeError('Nenhum lançamento bancário encontrado no OFX.')
   return rows.join('\n')

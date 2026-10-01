@@ -1,3 +1,4 @@
+import { cashFlowItemLimit } from '../src/shared/limits.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createExportableState, sanitizeCashFlowItem, sanitizeInvestment } from '../src/app/state-storage.js'
@@ -74,7 +75,7 @@ test('prévia permite localizar titular pelo nome e oculta nomes privados quando
 })
 test('limite de capacidade continua atômico ao completar sem remover registros atuais', () => {
   const current = account(), before = structuredClone(current)
-  current.cashFlow.items = Array.from({ length: 100 }, (_, index) => item(`row${index}`, 'income', 'salary', index + 1, `Fonte ${index}`))
+  current.cashFlow.items = Array.from({ length: cashFlowItemLimit }, (_, index) => item(`row${index}`, 'income', 'salary', index + 1, `Fonte ${index}`))
   const full = structuredClone(current)
   assert.throws(() => mergeFinappImport(current, file(), 'complete'), /limite/)
   assert.deepEqual(current, full)

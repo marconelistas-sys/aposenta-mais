@@ -7,7 +7,7 @@ import { icon } from '../../shared/icons.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { convertCurrency } from '../../shared/exchange-rates.js'
 
-const comparisonColors = ['#2e7550', '#23609e', '#c75a28', '#8e3b6b']
+const comparisonColors = ['#167454', '#2855c7', '#64748b', '#7c69a8']
 
 function planInDashboardCurrency(plan, sourceCurrency) {
   if (sourceCurrency === state.currency) return plan
@@ -80,7 +80,7 @@ export function renderSimulationResult(result, plan = state.plan, currency = sta
         <strong>${money(result.projectedMonthlyIncome)}</strong>
         <small>em valores de hoje</small>
       </div>
-      ${state.valuesHidden ? '' : `<svg class="simulation-ring" viewBox="0 0 120 120" role="img" aria-label="Progresso da simulação: ${formatPercent(incomeProgress)} da renda desejada"><circle cx="60" cy="60" r="50" fill="none" stroke="#efe7dc" stroke-width="12"/><circle cx="60" cy="60" r="50" fill="none" stroke="${result.goalReached ? '#2e7550' : '#c75a28'}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(Math.min(1, Math.max(0, incomeProgress)) * 314.16).toFixed(2)} 314.16" transform="rotate(-90 60 60)"/><text x="60" y="66" text-anchor="middle" font-size="20" font-weight="700" fill="#2b211c">${Math.round(incomeProgress * 100)}%</text></svg>`}
+      ${state.valuesHidden ? '' : `<svg class="simulation-ring" viewBox="0 0 120 120" role="img" aria-label="Progresso da simulação: ${formatPercent(incomeProgress)} da renda desejada"><circle cx="60" cy="60" r="50" fill="none" stroke="#e8edf5" stroke-width="12"/><circle cx="60" cy="60" r="50" fill="none" stroke="${result.goalReached ? '#167454' : '#64748b'}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(Math.min(1, Math.max(0, incomeProgress)) * 314.16).toFixed(2)} 314.16" transform="rotate(-90 60 60)"/><text x="60" y="66" text-anchor="middle" font-size="20" font-weight="700" fill="#17243b">${Math.round(incomeProgress * 100)}%</text></svg>`}
     </div>
     <div class="simulation-result__metrics">
       <div>${icon('pie', 18, 'metric-glyph')}<span>Patrimônio projetado</span><strong>${money(result.projectedAssets)}</strong></div>

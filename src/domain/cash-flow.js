@@ -1,3 +1,4 @@
+import { transferBudgetAmount } from './own-transfers.js'
 import { isRetirementEnd, incomeEndMonth } from './income-end.js'
 import { categoryById } from '../data/cash-flow-categories.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
@@ -125,11 +126,12 @@ export function summarizeCashFlowItems(
     const found = categoryById(item.categoryId, customCategories)
     const category = (item.annualGoalId || item.commitmentId) && (!found || found.type !== 'expense') ? categoryById('other-expense') : found
     if (!category) continue
-    const convertedAmount = convertCurrency(item.amount, item.currency, baseCurrency, exchangeRates)
+    const budgetAmount = transferBudgetAmount(item)
+    const convertedAmount = convertCurrency(budgetAmount, item.currency, baseCurrency, exchangeRates)
     const isActive = isCashFlowItemActive(item, asOfDate, cashFlow.retirementMonth, cashFlow.spouseRetirementMonth)
     const recordKind = recordKindFor(item)
-    const isIncluded = isActive && (includedRecordKind === 'all' || recordKind === includedRecordKind)
-    convertedItems.push({ ...item, recordKind, convertedAmount, category, isActive, isIncluded, linkedRetirementMonth: isRetirementEnd(item.endMode) ? incomeEndMonth(item, cashFlow) : null })
+    const isIncluded = budgetAmount > 0 && isActive && (includedRecordKind === 'all' || recordKind === includedRecordKind)
+    convertedItems.push({ ...item, budgetAmount, recordKind, convertedAmount, category, isActive, isIncluded, linkedRetirementMonth: isRetirementEnd(item.endMode) ? incomeEndMonth(item, cashFlow) : null })
     if (!isIncluded) continue
 
     if (item.type === 'income') {

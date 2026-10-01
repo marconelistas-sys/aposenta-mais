@@ -1,3 +1,4 @@
+import { cashFlowItemLimit } from '../shared/limits.js'
 import { state } from './state.js'
 import { ownedStorage } from './owned-storage.js'
 import { storageKeys, sanitizeCashFlowItem } from './state-storage.js'
@@ -26,7 +27,7 @@ export function deleteStatementAnalysis(id) {
 export function applyStatementRecurrences(analysisId, candidates) {
   const analysis = (state.cashFlow.statementAnalyses || []).find(row => row.id === analysisId)
   if (!analysis || !Array.isArray(candidates) || !candidates.length) throw new Error('Escolha pelo menos uma recorrência do histórico.')
-  if (candidates.length + state.cashFlow.items.length > 100) throw new Error('O orçamento aceita até 100 lançamentos. Nenhuma sugestão foi aplicada.')
+  if (candidates.length + state.cashFlow.items.length > cashFlowItemLimit) throw new Error(`O orçamento aceita até ${cashFlowItemLimit} lançamentos. Nenhuma sugestão foi aplicada.`)
   const indices = new Set()
   const items = candidates.map(candidate => {
     const index = candidate.index

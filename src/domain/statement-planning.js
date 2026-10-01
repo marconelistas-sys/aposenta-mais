@@ -1,3 +1,4 @@
+import { transferBudgetAmount } from './own-transfers.js'
 // Observations describe the supplied complete statement period, never guaranteed future income.
 export function analyzeStatementPlanning(items, { start, end, currency, asOf = new Date().toISOString().slice(0, 10), complete = false } = {}) {
   const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value
@@ -15,12 +16,14 @@ export function analyzeStatementPlanning(items, { start, end, currency, asOf = n
   const byMonth = new Map(months.map(month => [month.month, month]))
   const groups = new Map()
   const excluded = { transfer: 0, currency: 0, outside: 0 }
-  for (const item of items) {
+  for (const original of items) {
+    const item = { ...original, amount: transferBudgetAmount(original) }
+    if (!item.amount) { excluded.transfer++; continue }
     if (item.currency !== currency) { excluded.currency++; continue }
     const month = byMonth.get(item.startDate?.slice(0, 7))
     if (!month) { excluded.outside++; continue }
     const name = String(item.description || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    if (/transferencia entre contas|own account|conta propria|aplicacao|resgate|saldo anterior|internal transfer/.test(name)) { excluded.transfer++; continue }
+    if (!item.transferMatch && !item.transferPending && !item.transferDecision && (item.statementInternalTransfer || /transferencia entre contas|own account|conta propria|aplicacao|resgate|saldo anterior|internal transfer/.test(name))) { excluded.transfer++; continue }
     if (!['income', 'expense'].includes(item.type) || !Number.isFinite(item.amount) || item.amount <= 0) continue
     month[item.type] += item.amount
     const key = `${item.type}:${name.replace(/\d+/g, '').replace(/\s+/g, ' ').trim()}`

@@ -7,8 +7,8 @@ const track = 'M 12 108 A 88 88 0 0 1 188 108'
 const arcLength = Math.PI * 88
 
 function band(fraction) {
-  if (fraction >= 1) return { arc: '#2e7550', chip: 'readiness-card__value--good', status: 'Meta de patrimônio atingida na projeção.' }
-  return { arc: '#23609e', chip: 'readiness-card__value--neutral', status: 'Patrimônio projetado abaixo da meta de renda desejada.' }
+  if (fraction >= 1) return { arc: '#167454', chip: 'readiness-card__value--good', status: 'Meta de patrimônio atingida na projeção.' }
+  return { arc: '#2855c7', chip: 'readiness-card__value--neutral', status: 'Patrimônio projetado abaixo da meta de renda desejada.' }
 }
 
 // Progress can exceed 1 (goal already reached with margin) — the arc caps
@@ -24,7 +24,7 @@ export function readinessGauge({ progress, hidden }) {
     <article class="panel readiness-card" aria-label="Prontidão para a meta de aposentadoria">
       <div class="readiness-card__gauge">
         <svg viewBox="0 0 200 116" role="img" aria-label="Medidor de prontidão: ${escapeHtml(percentLabel)} da meta">
-          <path d="${track}" fill="none" stroke="#efe7dc" stroke-width="16" stroke-linecap="round"/>
+          <path d="${track}" fill="none" stroke="#e8edf5" stroke-width="16" stroke-linecap="round"/>
           <path d="${track}" fill="none" stroke="${arc}" stroke-width="16" stroke-linecap="round" stroke-dasharray="${dash.toFixed(2)} ${arcLength.toFixed(2)}"/>
         </svg>
         <strong class="readiness-card__value ${chip}">${escapeHtml(percentLabel)}</strong>

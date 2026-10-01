@@ -1,7 +1,7 @@
 import { escapeHtml, privateCurrency } from './formatters.js'
 import { moneyWithMonthly, moneyWithMonthlyText } from './monthly-equivalent.js'
 
-export const financialChangeSeries = Object.freeze({ key: 'financialChange', label: 'Variação dos ativos financeiros, após rendimento', color: '#8e3b6b', dash: '5 3' })
+export const financialChangeSeries = Object.freeze({ key: 'financialChange', label: 'Variação dos ativos financeiros, após rendimento', color: '#7c69a8', dash: '5 3' })
 
 // Same annual rows as viability and risk, never an extra income or cash entry.
 export function renderFinancialReconciliation({ rows, currency, hidden = false }) {

@@ -1,3 +1,4 @@
+import { cashFlowItemLimit } from '../shared/limits.js'
 import { sanitizeCashFlowItem, sanitizeInvestment, createExportableState } from '../app/state-storage.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
 import { sanitizeAnnualRows, sanitizeMigration } from './annual-planning.js'
@@ -120,7 +121,7 @@ export function mergeFinappImport(current, file, mode = 'merge') {
   }
   const investments = file.investments.map(item => ({ ...item, amount: Math.round(convertCurrency(item.amount, 'BRL', next.currency, next.exchangeRates) * 100) / 100 }))
   next.plan.investments = merge(next.plan.investments, investments, 30, 'investments')
-  next.cashFlow.items = merge(next.cashFlow.items, file.items, 100, 'items')
+  next.cashFlow.items = merge(next.cashFlow.items, file.items, cashFlowItemLimit, 'items')
   next.cashFlow.annualGoals = merge(next.cashFlow.annualGoals, file.annualGoals || [], 50, 'annualGoals')
   next.cashFlow.nonFinancialAssets = merge(next.cashFlow.nonFinancialAssets, file.nonFinancialAssets || [], 50, 'nonFinancialAssets')
   if (file.migration) {

@@ -16,9 +16,15 @@
     "validate": "npm run check && npm test && npm run build",
     "db:init": "node --env-file-if-exists=.env scripts/local-db.mjs init",
     "db:backup": "node --env-file-if-exists=.env scripts/local-db.mjs backup",
-    "db:migrate:supabase": "node --env-file-if-exists=.env scripts/migrate-supabase.mjs"
+    "db:migrate:supabase": "node --env-file-if-exists=.env scripts/migrate-supabase.mjs",
+    "test:statement-browser": "node scripts/check-statement-browser.mjs",
+    "test:budget-browser": "node scripts/check-budget-overview-browser.mjs",
+    "test:bb-browser": "node scripts/check-bb-browser.mjs"
   },
   "engines": {
     "node": ">=24"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
   }
 }

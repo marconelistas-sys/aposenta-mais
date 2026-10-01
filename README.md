@@ -237,3 +237,131 @@ O cálculo serve para educação e planejamento inicial. Ele não implementa reg
 4. Definir resolução de conflitos antes de uma sincronização automática.
 5. Importar histórico de contribuições e versionar regras do INSS.
 6. Verificar disponibilidade de marca e domínio para Aposenta+.
+
+### Importação de extratos PDF TKB e Banco do Brasil
+
+Orçamento, Contas e Análise de Extratos aceitam o PDF mensal da
+Thurgauer Kantonalbank (TKB) e o modelo de conta corrente do Banco do Brasil,
+além de TXT, CSV e OFX. A identificação do banco usa o conteúdo do PDF. Selecione o arquivo e confira a prévia antes de confirmar.
+A leitura usa PDF.js local no navegador, sem envio do documento a serviços externos.
+Orçamento aceita até 12 extratos por lote, com 1 MB e 2.000 movimentos por arquivo.
+A conciliação em Contas mantém o limite de 1 MB e 100 movimentos. A análise de
+extratos aceita até 2.000 movimentos e mantém a exigência de meses completos.
+
+O leitor usa a data contábil da coluna Datum, a moeda da conta e as colunas
+Belastung e Gutschrift. Ignora saldos, totais, dados de cartão e valores originais
+em outras moedas. Ordens com vários pagamentos entram como um movimento pelo
+total da ordem. Você pode revisar esses movimentos antes de confirmar.
+PDFs digitalizados, protegidos por senha ou de outros modelos não são aceitos.
+
+Para verificar a importação completa no navegador:
+
+```sh
+npm ci
+npx playwright install chromium
+npm run test:statement-browser
+```
+
+O teste inicia um servidor e banco temporários, usa um perfil de navegador novo
+e importa um PDF TKB sintético. Verifica mapeamento de colunas, confirmação, exibição dos realizados,
+persistência, duplicatas, rejeição de PDF inválido e nova tentativa. Também
+simula um servidor sem o tipo MIME de módulos `.mjs`, que causava a falha de
+carregamento do leitor. Não acessa os planos ou bancos usados pelo aplicativo.
+
+### Classificação automática das categorias
+
+Na importação do Orçamento, as descrições completas alimentam um classificador
+bayesiano local, com vocabulário em português, alemão e inglês. Categorias válidas
+informadas no arquivo prevalecem. Correções confirmadas têm preferência para
+novas transações com a mesma descrição e tipo, inclusive categorias personalizadas.
+A aplicação guarda a origem da categoria para não aprender com suas próprias
+previsões automáticas. Nenhuma descrição segue para um serviço de IA.
+
+A prévia prioriza casos ambíguos e permite corrigir a categoria diretamente.
+A correção se aplica às descrições iguais no mesmo arquivo e só vira aprendizado
+quando a importação é confirmada. Colunas reconhecidas ficam numa opção avançada.
+Transferências possíveis, falta de evidência e categorias concorrentes recebem
+um aviso de revisão, sem bloquear a importação. “Confiança alta” é um limiar
+interno de classificação, não uma garantia estatística de acerto.
+
+Método: [Naive Bayes multinomial e limites das estimativas de probabilidade](https://scikit-learn.org/stable/modules/naive_bayes.html).
+
+### Importação de até 12 extratos por lote
+
+Em Orçamento, selecione vários arquivos no mesmo seletor. A leitura classifica
+cada extrato e atualiza a prévia durante o processamento. A confirmação só fica
+disponível após concluir a leitura. A prévia mostra novos lançamentos, atualizações
+e sobreposições entre arquivos. O ajuste de colunas é independente por extrato.
+
+Movimentos previamente importados são atualizados mantendo o identificador,
+a titularidade e as categorias corrigidas por você. A identificação usa a
+referência bancária e a conta no OFX. Sem referência, usa data, tipo, moeda, valor
+e descrição. Pagamentos iguais no mesmo arquivo permanecem distintos por
+ocorrência, enquanto arquivos repetidos não multiplicam os registros. Arquivos
+sem referência precisam manter esses dados para reconhecer uma reimportação.
+
+As atualizações não consomem capacidade adicional. A confirmação valida todas
+as linhas selecionadas e persiste o lote de uma vez. Erros de leitura, excesso
+de capacidade ou falha de armazenamento não salvam parte do lote. A classificação
+não envia arquivos para serviços externos.
+
+### Visão anual e mensal do orçamento
+
+Orçamento abre na aba Visão anual. Selecione o ano e alterne entre os meses
+ou a comparação de cinco anos. Os cartões de Receitas, Despesas e Saldo
+selecionam o indicador exibido. Cada período tem barras de Planejado e Realizado,
+com a mesma escala e valores na moeda atual do aplicativo.
+
+Passe o cursor sobre uma barra para conferir o total e a composição por categoria.
+Selecione uma categoria para consultar os lançamentos. Clique ou use Enter para
+fixar os detalhes, e Escape para fechar. A consulta também funciona por toque.
+No celular, apenas a área do gráfico tem rolagem horizontal.
+
+Os totais seguem as regras do acompanhamento mensal: valores anuais divididos
+por 12, recorrências nos meses de vigência e eventuais no mês informado. Incluem
+provisões anuais, compromissos e consórcios. A tela informa quantos meses têm
+registros realizados e distingue períodos sem registros. Ocultar valores remove
+o gráfico e sua composição da página.
+
+Verificação com navegador, servidor e banco temporários:
+
+```sh
+npm run test:budget-browser
+```
+
+### Detecção automática do PDF Banco do Brasil
+
+O leitor reconhece o modelo “Extrato de Conta Corrente”, com período, agência,
+conta e tabela Dia/Lote/Documento/Histórico/Valor. Importa BRL, lê os sinais
+(+) e (-), recompõe históricos que atravessam linhas e páginas e ignora linhas
+de saldo e o resumo de aplicações. Confere cada saldo diário e o saldo final
+contra os movimentos, em centavos. Extratos incompletos ou incoerentes são rejeitados.
+
+As referências combinam conta, data, lote, documento e ocorrência. Assim,
+prestações iguais com o mesmo número de documento continuam distintas e
+a reimportação atualiza os registros. O seletor de Orçamento permite misturar
+BB e TKB no mesmo lote de até 12 arquivos, sem escolher manualmente o banco.
+
+Aplicações e resgates automáticos BB Rende Fácil ficam identificados na prévia
+e não entram nas receitas e despesas do orçamento ou da análise. Todos os
+movimentos continuam disponíveis na conciliação em Contas. Pix e transferências
+para terceiros continuam na prévia para classificação, pois o histórico não
+permite concluir que se trata de transferência entre contas próprias.
+
+Verificação em navegador e dados temporários:
+
+```sh
+npm run test:bb-browser
+```
+
+O teste usa um PDF BB sintético de duas páginas. Também aceita o caminho de
+um PDF deste modelo como argumento para verificar o documento anexado,
+sem acessar planos ou bancos usados pelo aplicativo.
+
+### Transferências próprias e Wise
+
+Em Orçamento > Transferências, marque os extratos de contas da sua titularidade e clique em Salvar e conciliar. A identificação das contas fica salva para os próximos lotes. A associação considera saída e entrada em contas distintas, intervalo de até cinco dias e valores compatíveis. No câmbio, exige referência explícita compartilhada ou valor recebido identificado com a moeda no histórico. Preserva os valores bancários originais e mostra a taxa efetiva, sem estimar uma cotação para adivinhar pares.
+
+Somente pares únicos são associados. Pagamentos Wise não são excluídos apenas pelo nome. Registros sem evidência suficiente permanecem no orçamento até revisão. Você pode confirmar Transferência entre minhas contas para excluir um movimento pendente, ou escolher Pagamento ou recebimento de terceiros para impedir associações futuras. A contraparte pode chegar em outro lote. Reimportar preserva as decisões, e alterações de valor ou remoção da contraparte recalculam a associação.
+
+Tarifas em lançamentos separados permanecem despesas. Uma tarifa embutida é separada quando o histórico identifica seu valor e a moeda debitada. O orçamento contabiliza somente essa tarifa, mantendo o débito original para conferência bancária. Este fluxo concilia os registros importados do orçamento. A revisão de extratos em Contas continua usando os movimentos do livro de contas, sem criar movimentos ou alterar saldos por inferência.

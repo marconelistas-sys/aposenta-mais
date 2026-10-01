@@ -4,7 +4,7 @@ import { budgetGauge } from '../../shared/budget-gauge.js'
 import { solvencyWealthLabel } from '../../domain/property-solvency.js'
 
 const finite = Number.isFinite
-const colors = { good: '#2e7550', danger: '#b3243b', caution: '#8f5b00', neutral: '#23609e' }
+const colors = { good: '#167454', danger: '#b8324c', caution: '#8f5b00', neutral: '#2855c7' }
 const failed = row => row.liquidAssets < -0.005 || row.netFinancial < -0.005
 
 // Descriptive instruments from the existing projection. No score or probability.
@@ -40,12 +40,12 @@ function sparkline(rows, key, tone, focusRow = rows.at(-1)) {
   const y = value => 74 - (value - low) / range * 60
   const focusIndex = Math.max(0, rows.indexOf(focusRow))
   const points = rows.map((row, index) => `${x(index).toFixed(2)},${y(row[key]).toFixed(2)}`).join(' ')
-  return `<svg class="cockpit-sparkline" viewBox="0 0 240 92" aria-hidden="true" focusable="false"><line x1="12" x2="228" y1="${y(0)}" y2="${y(0)}" stroke="#72655b" stroke-dasharray="3 3"/><polyline points="${points}" fill="none" stroke="${colors[tone]}" stroke-width="3" stroke-linejoin="round"/><circle cx="${x(focusIndex)}" cy="${y(rows[focusIndex][key])}" r="4" fill="${colors[tone]}"/><text x="12" y="89" fill="#5c4f46" font-size="10">${escapeHtml(rows[0].year)}</text><text x="228" y="89" fill="#5c4f46" font-size="10" text-anchor="end">${escapeHtml(rows.at(-1).year)}</text></svg>`
+  return `<svg class="cockpit-sparkline" viewBox="0 0 240 92" aria-hidden="true" focusable="false"><line x1="12" x2="228" y1="${y(0)}" y2="${y(0)}" stroke="#64748b" stroke-dasharray="3 3"/><polyline points="${points}" fill="none" stroke="${colors[tone]}" stroke-width="3" stroke-linejoin="round"/><circle cx="${x(focusIndex)}" cy="${y(rows[focusIndex][key])}" r="4" fill="${colors[tone]}"/><text x="12" y="89" fill="#475569" font-size="10">${escapeHtml(rows[0].year)}</text><text x="228" y="89" fill="#475569" font-size="10" text-anchor="end">${escapeHtml(rows.at(-1).year)}</text></svg>`
 }
 
 function horizonStrip(model) {
   const width = 216 / model.rows.length
-  return `<svg class="cockpit-horizon" viewBox="0 0 240 92" aria-hidden="true" focusable="false">${model.rows.map((row, index) => `<rect x="${12 + index * width}" y="22" width="${Math.max(.25, width * .8)}" height="36" rx="1" fill="${colors[failed(row) ? 'danger' : model.complete ? 'good' : 'caution']}"/>`).join('')}<text x="12" y="80" fill="#5c4f46" font-size="11">${escapeHtml(model.rows[0].year)}</text><text x="228" y="80" text-anchor="end" fill="#5c4f46" font-size="11">${escapeHtml(model.last.year)}</text></svg>`
+  return `<svg class="cockpit-horizon" viewBox="0 0 240 92" aria-hidden="true" focusable="false">${model.rows.map((row, index) => `<rect x="${12 + index * width}" y="22" width="${Math.max(.25, width * .8)}" height="36" rx="1" fill="${colors[failed(row) ? 'danger' : model.complete ? 'good' : 'caution']}"/>`).join('')}<text x="12" y="80" fill="#475569" font-size="11">${escapeHtml(model.rows[0].year)}</text><text x="228" y="80" text-anchor="end" fill="#475569" font-size="11">${escapeHtml(model.last.year)}</text></svg>`
 }
 
 export function renderDashboardCockpit({ result, budget, currency, today = new Date(), hidden = false }) {

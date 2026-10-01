@@ -1,3 +1,4 @@
+import { cashFlowItemLimit } from '../src/shared/limits.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { parseFinappImport, mergeFinappImport } from '../src/domain/finapp-import.js'
@@ -62,9 +63,9 @@ test('rejeita identidade repetida, moeda inválida, realizado e saneamento com p
 })
 test('limite impede descarte silencioso de lançamentos existentes', () => {
   const value = current()
-  value.cashFlow.items = Array.from({ length: 100 }, (_, index) => ({ ...bundle().items[0], id: `existing-${index}` }))
+  value.cashFlow.items = Array.from({ length: cashFlowItemLimit }, (_, index) => ({ ...bundle().items[0], id: `existing-${index}` }))
   assert.throws(() => mergeFinappImport(value, parseFinappImport(JSON.stringify(bundle()))), /limite/)
-  assert.equal(value.cashFlow.items.length, 100)
+  assert.equal(value.cashFlow.items.length, cashFlowItemLimit)
 })
 test('perfil exige sessão e oferece prévia local sem envio ao Supabase', () => {
   const saved = { ...authState }

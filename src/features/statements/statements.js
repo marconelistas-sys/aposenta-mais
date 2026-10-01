@@ -1,14 +1,15 @@
+import { readStatementFile } from '../../domain/statement-file.js'
 import { renderStatementHistory } from './history.js'
 import { state } from '../../app/state.js'
 import { escapeHtml } from '../../shared/formatters.js'
-import { inspectStatementText, reviewStatementImport } from '../../domain/statement-import.js'
+import { reviewStatementImport } from '../../domain/statement-import.js'
 import { analyzeStatementPlanning } from '../../domain/statement-planning.js'
 
 export function renderStatements() {
   return `<section class="panel"><p class="eyebrow">EXTRATOS E APOSENTADORIA</p><h1>Seu plano combina com sua rotina?</h1>
     <p>Compare a sobra mensal observada com o aporte que você planeja. O arquivo é lido neste navegador. O resumo será salvo no histórico, sem alterar seu orçamento.</p>
     <form data-bank-analysis>
-      <label class="form-field">Extrato CSV, TXT ou OFX<input name="statement" type="file" accept=".csv,.txt,.ofx" required></label>
+      <label class="form-field">Extrato CSV, TXT, OFX ou PDF TKB ou Banco do Brasil<input name="statement" type="file" accept=".csv,.txt,.ofx,.pdf" required></label>
       <p>CSV/TXT: colunas data, descricao e valor, com despesas negativas. Use a moeda do plano. Até 1 MB e 2.000 movimentos, sem cortes silenciosos.</p>
       <label class="form-field">Início da cobertura<input name="start" type="date" required></label>
       <label class="form-field">Fim da cobertura<input name="end" type="date" required></label>
@@ -22,7 +23,7 @@ export function renderStatements() {
 export async function readStatementAnalysis(formData, { currency = state.currency } = {}) {
   const file = formData.get('statement')
   if (!file || !file.size || file.size > 1024 * 1024) throw new Error('Selecione um arquivo de até 1 MB.')
-  const inspection = inspectStatementText(await file.text(), { maximumRows: 2000, analysisOnly: true })
+  const { inspection } = await readStatementFile(file, { maximumRows: 2000, analysisOnly: true })
   if (inspection.truncatedRows) throw new Error('Divida o extrato em arquivos com até 2.000 movimentos.')
   const review = reviewStatementImport(inspection, { defaultCurrency: currency })
   if (review.mappingErrors.length || review.errors.length) throw new Error([...review.mappingErrors, ...review.errors].slice(0, 3).join(' '))

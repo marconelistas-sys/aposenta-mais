@@ -1,3 +1,4 @@
+import { cashFlowItemLimit } from '../src/shared/limits.js'
 import { renderMonthTracking } from '../src/features/cash-flow/month-tracking.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -56,7 +57,7 @@ test('list counts results separately from stored capacity and shows amounts per 
   assert.match(html, /3 de 5 lançamentos exibidos/)
   assert.doesNotMatch(html, /data-edit-cash-item="future"/)
   assert.match(html, /Mensal · Detalhes/)
-  assert.match(renderBudgetEntries(), new RegExp(`${state.cashFlow.items.length} de 100 registros no cadastro`))
+  assert.match(renderBudgetEntries(), new RegExp(`${state.cashFlow.items.length} de 10.000 registros no cadastro`))
   assert.match(renderBudgetEntries(), /Registros anuais mostram o valor anual/)
 })
 
@@ -106,10 +107,10 @@ test('empty budget offers creation and capacity limit explains the disabled acti
   assert.match(empty, /Seu orçamento ainda não tem lançamentos/)
   assert.match(empty, /data-new-cash-item/)
   assert.doesNotMatch(empty, /data-reset-budget-filters/)
-  state.cashFlow.items = Array.from({ length: 100 }, (_, index) => ({ ...state.cashFlow.items[0], id: `entry-${index}` }))
+  state.cashFlow.items = Array.from({ length: cashFlowItemLimit }, (_, index) => ({ ...state.cashFlow.items[0], id: `entry-${index}` }))
   const heading = renderBudgetEntries().split('</section>')[0]
   assert.match(heading, /data-new-cash-item disabled/)
-  assert.match(heading, /Limite de 100 registros atingido/)
+  assert.match(heading, /Limite de 10.000 registros atingido/)
 })
 
 test('family summary remains independent of list filters including ownership', () => {

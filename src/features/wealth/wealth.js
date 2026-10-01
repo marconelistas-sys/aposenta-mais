@@ -40,7 +40,7 @@ function largestItems(composition, money) {
 }
 
 // Fixed colour per currency, so BRL and CHF keep the same colour on every screen.
-const currencyColors = { BRL: '#3a9272', CHF: '#c75a28', EUR: '#23609e', USD: '#d9a43a' }
+const currencyColors = { BRL: '#228567', CHF: '#64748b', EUR: '#2855c7', USD: '#aa7a22' }
 
 function nativeLabel(item) {
   if (!item.currency || item.currency === state.currency || !Number.isFinite(item.nativeAmount)) return ''
@@ -51,7 +51,7 @@ function currencyDonut(composition) {
   const rows = wealthByCurrency(composition, state.currency)
   const summary = rows.length > 1 ? `${rows.map(row => `${row.currency} ${percent(row.share)}`).join(' · ')}` : ''
   return categoryDonut({
-    segments: rows.map(row => ({ key: row.currency, color: currencyColors[row.currency] || '#72655b', label: row.currency, value: row.amount, valueLabel: row.currency === state.currency ? privateCurrency(row.amount, false, false, state.currency) : `${privateCurrency(row.nativeAmount, false, false, row.currency)} ≈ ${privateCurrency(row.amount, false, false, state.currency)}` })),
+    segments: rows.map(row => ({ key: row.currency, color: currencyColors[row.currency] || '#64748b', label: row.currency, value: row.amount, valueLabel: row.currency === state.currency ? privateCurrency(row.amount, false, false, state.currency) : `${privateCurrency(row.nativeAmount, false, false, row.currency)} ≈ ${privateCurrency(row.amount, false, false, state.currency)}` })),
     ariaLabel: `Patrimônio por moeda${summary ? `: ${summary}` : ''}`,
     emptyMessage: 'Sem bens cadastrados.'
   })

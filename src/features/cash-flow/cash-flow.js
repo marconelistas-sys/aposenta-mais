@@ -1,3 +1,6 @@
+import { renderOwnTransfers } from './own-transfers.js'
+import { renderBudgetOverview } from './budget-overview.js'
+import { cashFlowItemLimit } from '../../shared/limits.js'
 import { renderMonthTracking } from './month-tracking.js'
 import { renderBudgetPressure } from '../../shared/budget-pressure.js'
 import { householdOwners, householdOwnerField, budgetOwnerView } from '../../shared/household-owner.js'
@@ -98,10 +101,11 @@ function cashFlowItems(result) {
           <span class="cash-item__type cash-item__type--${item.type}" title="${item.type === 'income' ? 'Receita' : 'Despesa'}">${icon(item.type === 'income' ? 'arrowDownLeft' : 'arrowUpRight', 18)}<span class="sr-only">${item.type === 'income' ? 'Receita' : 'Despesa'}</span></span>
           <div class="cash-item__identity">
             <strong>${escapeHtml(item.description || item.category.name)}</strong>
-            <span>${recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']} · ${escapeHtml(item.category.name)}</span>
+            <span>${item.transferMatch || item.transferPending || item.transferDecision === 'own' ? 'Transferência própria' : recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']} · ${escapeHtml(item.category.name)}</span>
             <details class="budget-item-details"><summary>${frequencyLabels[item.frequency]}${item.isActive ? '' : ' · Fora do mês'}${item.frequency === 'occasional' && !item.startDate ? ' · Data pendente' : ''} · Detalhes</summary><p>${periodLabel(item)}${item.source === 'txt' ? ' · Importado de extrato' : ''}</p></details>
           </div>
           <div class="cash-item__amount">
+            ${(item.transferMatch || item.transferPending || item.transferDecision === 'own') ? `<span>${item.budgetAmount ? `Somente tarifa no orçamento: ${privateCurrency(item.budgetAmount, state.valuesHidden, true, item.currency)}` : 'Fora do orçamento'}</span>` : ''}
             <strong class="money-value">${original}${item.frequency === 'annual' ? ' <small>por ano</small>' : ''}</strong>
             ${item.consortiumId && !state.valuesHidden && Number.isFinite(item.consortiumSavings) ? `<span class="consortium-item-split">${privateCurrency(item.consortiumSavings, false, true, item.currency)} vira cota · ${privateCurrency(item.consortiumCosts, false, true, item.currency)} custo</span>` : ''}
             ${item.frequency === 'annual' && !state.valuesHidden ? `<span class="monthly-equivalent money-value">${privateCurrency(item.amount / 12, false, true, item.currency)}/mês</span>` : ''}
@@ -242,22 +246,28 @@ const statementFieldLabels = {
   amount: 'Valor',
   currency: 'Moeda',
   category: 'Categoria',
-  type: 'Tipo'
+  type: 'Tipo',
+  reference: 'Referência bancária'
 }
 
 function statementMappingField(review, field) {
+  const hints = { reference: 'Identificador da transação no banco. Opcional', date: 'Data do lançamento', description: 'Texto da transação', amount: 'Quantia numérica, com sinal para débitos', currency: 'Código da moeda: CHF, BRL, EUR ou USD', category: 'Nome ou código da categoria. Opcional', type: 'Receita ou despesa. Opcional, deduzido pelo sinal do valor' }
+  const column = review.mapping[field]
+  const sample = (review.sourceRows || []).map(row => row.cells[column]).filter(Boolean).slice(0, 2).join(' · ')
   const required = ['date', 'description', 'amount'].includes(field)
   return `
     <label class="form-field">
       <span class="form-field__label">${statementFieldLabels[field]}${required ? ' · obrigatório' : ''}</span>
       <span class="input-shell">
         <select data-statement-mapping="${field}" ${required ? 'required' : ''}>
-          <option value="-1">${required ? 'Selecione uma coluna' : 'Não usar'}</option>
+          <option value="-1" ${column < 0 ? 'selected' : ''}>${required ? 'Selecione uma coluna' : 'Não usar'}</option>
           ${review.headers.map((header, index) => `
             <option value="${index}" ${review.mapping[field] === index ? 'selected' : ''}>${escapeHtml(header || `Coluna ${index + 1}`)}</option>
           `).join('')}
         </select>
       </span>
+      <small>${hints[field]}</small>
+      <small>${column < 0 ? 'Sem coluna selecionada' : escapeHtml(sample || 'Coluna sem valores nas primeiras linhas')}</small>
     </label>
   `
 }
@@ -267,31 +277,49 @@ function statementReviewRow(row) {
     return `
       <li class="statement-review-row is-invalid">
         <input type="checkbox" disabled aria-label="Linha ${row.rowNumber} inválida" />
-        <div><strong>Linha ${row.rowNumber}</strong><span>${escapeHtml(row.error)}</span></div>
+        <div><strong>${row.fileName ? `${escapeHtml(row.fileName)} · ` : ''}Linha ${row.sourceRowNumber ?? row.rowNumber}</strong><span>${escapeHtml(row.error)}</span></div>
         <span class="statement-row-status">Revisar arquivo</span>
       </li>
     `
   }
   const category = categoryById(row.item.categoryId, state.customCategories)
+  const classification = row.classification
+  const label = row.item.transferPending ? 'Transferência própria a conciliar, somente tarifa entra no orçamento' : row.item.transferMatch ? 'Transferência conciliada, somente tarifa entra no orçamento' : row.internalTransfer ? 'Não compõe o orçamento' : classification?.needsReview ? 'Revisar categoria' : classification?.origin === 'confirmed' ? 'Confirmado' : classification?.origin === 'history' ? 'Aprendido com sua revisão' : classification?.origin === 'file' ? 'Do arquivo' : 'Confiança alta'
   const duplicateLabel = row.duplicateSource === 'existing'
     ? 'Já está nos lançamentos'
     : row.duplicateSource === 'file' ? 'Repetido no arquivo' : ''
   return `
     <li class="statement-review-row ${row.duplicate ? 'is-duplicate' : ''}">
-      <input type="checkbox" data-statement-row="${row.rowNumber}" ${row.selected ? 'checked' : ''} ${row.duplicate ? 'disabled' : ''} aria-label="Importar linha ${row.rowNumber}" />
+      <input type="checkbox" data-statement-row="${row.rowNumber}" ${row.selected ? 'checked' : ''} ${row.duplicate || row.internalTransfer ? 'disabled' : ''} aria-label="Importar linha ${row.rowNumber}" />
       <div class="statement-review-row__identity">
         <strong>${escapeHtml(row.item.description)}</strong>
-        <span>${row.item.startDate} · ${escapeHtml(category?.name || 'Outros')} · ${row.item.type === 'income' ? 'Receita' : 'Despesa'}</span>
+        <span>${row.item.startDate}${row.fileName ? ` · ${escapeHtml(row.fileName)}` : ''} · ${row.internalTransfer ? 'Investimento' : row.item.type === 'income' ? 'Receita' : 'Despesa'}</span>
+        <select data-statement-category="${row.rowNumber}" aria-label="Categoria da linha ${row.rowNumber}" ${row.duplicate || row.internalTransfer ? 'disabled' : ''}>
+          ${categoriesForType(row.item.type, state.customCategories).map(option => `<option value="${escapeHtml(option.id)}" ${option.id === category?.id ? 'selected' : ''}>${escapeHtml(option.name)}</option>`).join('')}
+        </select>
+        <small title="${escapeHtml(classification?.reason || '')}">${escapeHtml(label)}</small>
       </div>
       <strong class="money-value">${privateCurrency(row.item.amount, state.valuesHidden, true, row.item.currency)}</strong>
-      <span class="statement-row-status">${duplicateLabel || 'Pronto'}</span>
+      <span class="statement-row-status">${duplicateLabel || (row.item.transferPending ? 'Transferência a conciliar' : row.item.transferMatch ? 'Transferência própria' : row.internalTransfer ? 'Aplicação/resgate' : row.updateTargetId ? 'Atualizar existente' : 'Novo lançamento')}</span>
     </li>
   `
 }
 
-function statementReviewDialog(review) {
+export function statementImportBlockReason(review) {
+  if (review.loading) return `Lendo e classificando extratos: ${review.files.length} de ${review.expectedFiles}.`
+  if (review.mappingErrors.length) return review.mappingErrors.join(' ')
+  if (review.overLimit) return `Você selecionou ${review.newCount ?? review.selectedCount} novos lançamentos, mas há espaço para ${review.availableSlots}. Desmarque ${(review.newCount ?? review.selectedCount) - review.availableSlots} linhas na prévia para importar.`
+  if (review.selectedCount > 0) return ''
+  if (review.internalTransferCount && review.rows.every(row => row.internalTransfer || row.duplicate)) return 'Aplicações e resgates não compõem receitas e despesas. Nenhum lançamento de orçamento para importar.'
+  if (review.invalidCount) return review.rows.find(row => row.error)?.error || review.errors.find(error => error.startsWith('Linha')) || 'Nenhum lançamento válido. Corrija as colunas ou restaure o mapeamento detectado.'
+  if (review.duplicateCount && review.rows.every(row => row.duplicate)) return `Todos os ${review.duplicateCount} lançamentos já constam no orçamento ou se repetem no arquivo. Nenhum lançamento novo para importar.`
+  return 'Nenhum lançamento selecionado. Marque pelo menos uma linha válida na prévia.'
+}
+
+export function statementReviewDialog(review) {
   if (!review) return ''
-  const confirmDisabled = review.mappingErrors.length > 0 || review.selectedCount === 0 || review.overLimit
+  const blockReason = statementImportBlockReason(review)
+  const confirmDisabled = Boolean(blockReason)
   const rowLabel = review.totalRows === 1 ? 'linha encontrada' : 'linhas encontradas'
   const selectedLabel = review.selectedCount === 1 ? 'lançamento' : 'lançamentos'
   return `
@@ -306,33 +334,46 @@ function statementReviewDialog(review) {
           <button class="icon-button" type="button" data-close-statement-review aria-label="Cancelar importação">×</button>
         </div>
 
-        <p class="statement-review-privacy">O arquivo continua neste navegador. Somente as linhas selecionadas serão salvas como lançamentos realizados.</p>
+        <p class="statement-review-privacy">O arquivo continua neste navegador. Somente as linhas selecionadas serão adicionadas ou atualizarão lançamentos já importados.</p>
 
-        <section class="statement-mapping" aria-labelledby="statement-mapping-title">
+        <details class="statement-mapping disclosure" data-statement-mapping-details ${review.mappingErrors.length ? 'open' : ''}>
+          <summary>Ajustar colunas (avançado)</summary>
+          ${review.files?.length > 1 ? `<label class="form-field">Extrato para ajustar<select data-statement-active-file>${review.files.map((file, index) => `<option value="${index}" ${index === review.activeFile ? 'selected' : ''}>${escapeHtml(file.fileName)}</option>`).join('')}</select></label>` : ''}
           <div><p class="eyebrow">COLUNAS</p><h3 id="statement-mapping-title">Confira o mapeamento</h3></div>
+          <p>Selecione a coluna do arquivo para cada campo. Cada seleção altera somente o próprio campo. A prévia acompanha cada alteração.</p>
+          <button class="button button--secondary" type="button" data-reset-statement-mapping>Restaurar mapeamento detectado</button>
           <div class="statement-mapping__grid">
             ${Object.keys(statementFieldLabels).map((field) => statementMappingField(review, field)).join('')}
           </div>
           ${review.mappingErrors.map((error) => `<p class="form-error" role="alert">${escapeHtml(error)}</p>`).join('')}
-        </section>
+          <p class="statement-mapping-status" role="status">${blockReason ? escapeHtml(blockReason) : `Prévia atualizada: ${review.rows.filter(row => row.item).length} lançamentos válidos e ${review.invalidCount} inválidos.`}</p>
+        </details>
 
+        ${review.files?.some(file => file.inspection.format) ? `<p class="statement-review-privacy">Formato detectado: ${[...new Set(review.files.map(file => file.inspection.format === 'bb' ? 'Banco do Brasil (BRL)' : file.inspection.format === 'tkb' ? 'TKB' : 'Texto/OFX'))].join(' · ')}.</p>` : ''}
+        ${review.internalTransferCount ? '<p class="statement-review-privacy">Aplicações e resgates de investimentos ficam fora do orçamento e continuam disponíveis na conciliação em Contas.</p>' : ''}
         <section class="statement-preview" aria-labelledby="statement-preview-title">
           <div class="statement-preview__header">
             <div><p class="eyebrow">PRÉVIA</p><h3 id="statement-preview-title">Escolha o que será importado</h3></div>
             <div class="statement-review-summary">
               <span><strong data-statement-selected-count>${review.selectedCount}</strong> selecionados</span>
+              <span><strong>${review.newCount ?? review.selectedCount}</strong> novos</span>
+              <span><strong>${review.updateCount || 0}</strong> atualizações</span>
               <span><strong>${review.duplicateCount}</strong> duplicados</span>
               <span><strong>${review.invalidCount}</strong> inválidos</span>
+              ${review.internalTransferCount ? `<span><strong>${review.internalTransferCount}</strong> aplicações/resgates</span>` : ''}
             </div>
           </div>
+          <p>${review.rows.filter(row => row.item && !row.duplicate && !row.internalTransfer && !row.classification?.needsReview).length} categorias reconhecidas. ${review.rows.filter(row => row.item && !row.duplicate && !row.internalTransfer && row.classification?.needsReview).length} para revisar. Você pode importar e ajustar depois.</p>
           ${review.mappingErrors.length > 0
             ? '<p class="scenario-empty">Mapeie as três colunas obrigatórias para gerar a prévia.</p>'
-            : `<ul class="statement-review-list">${review.rows.map(statementReviewRow).join('')}</ul>`}
+            : `<ul class="statement-review-list">${[...review.rows].sort((a, b) => Number(Boolean(b.classification?.needsReview && !b.duplicate)) - Number(Boolean(a.classification?.needsReview && !a.duplicate))).map(statementReviewRow).join('')}</ul>`}
         </section>
 
-        ${review.errors.length > 0 ? `<details class="statement-review-errors"><summary>${review.errors.length} avisos da leitura</summary><ul>${review.errors.map((error) => `<li>${escapeHtml(error)}</li>`).join('')}</ul></details>` : ''}
-        <p class="form-error" role="alert" data-statement-limit-error ${review.overLimit ? '' : 'hidden'}>Selecione no máximo ${review.availableSlots} linhas. Seu orçamento aceita até 100 lançamentos.</p>
 
+        ${review.errors.length > 0 ? `<details class="statement-review-errors"><summary>${review.errors.length} avisos da leitura</summary><ul>${review.errors.map((error) => `<li>${escapeHtml(error)}</li>`).join('')}</ul></details>` : ''}
+        <p class="form-error" role="alert" data-statement-limit-error ${review.overLimit ? '' : 'hidden'}>Selecione no máximo ${review.availableSlots} linhas. Seu orçamento aceita até ${cashFlowItemLimit.toLocaleString('pt-BR')} lançamentos.</p>
+
+        <p class="form-error" role="status" data-statement-block-reason ${blockReason ? '' : 'hidden'}>${escapeHtml(blockReason)}</p>
         <div class="statement-review-dialog__actions">
           <button class="button button--secondary" type="button" data-close-statement-review>Cancelar</button>
           <button class="button button--primary" type="submit" data-statement-confirm ${confirmDisabled ? 'disabled' : ''}>Importar ${review.selectedCount} ${selectedLabel}</button>
@@ -340,6 +381,34 @@ function statementReviewDialog(review) {
       </form>
     </dialog>
   `
+}
+
+// Keep the native modal open while recalculating its contents. Replacing the
+// entire app used to reset dialog scrolling and focus after every selection.
+export function readStatementMapping(root) {
+  return Object.fromEntries(Object.keys(statementFieldLabels).map(field => [
+    field, Number(root.querySelector(`[data-statement-mapping="${field}"]`)?.value ?? -1)
+  ]))
+}
+
+export function updateStatementReviewDialog(root, review) {
+  const dialog = root.querySelector('[data-statement-review-dialog]')
+  if (!dialog || !review) return
+  const field = dialog.contains(document.activeElement) ? document.activeElement.dataset.statementMapping : null
+  const activeFileFocused = dialog.contains(document.activeElement) && document.activeElement.matches('[data-statement-active-file]')
+  const checkedRow = dialog.contains(document.activeElement) ? document.activeElement.dataset.statementRow : null
+  const categoryRow = dialog.contains(document.activeElement) ? document.activeElement.dataset.statementCategory : null
+  const mappingOpen = dialog.querySelector('[data-statement-mapping-details]')?.open
+  const scrollTop = dialog.scrollTop
+  const template = document.createElement('template')
+  template.innerHTML = statementReviewDialog(review)
+  dialog.replaceChildren(...template.content.querySelector('dialog').childNodes)
+  dialog.querySelector('[data-statement-mapping-details]').open ||= mappingOpen
+  if (activeFileFocused) dialog.querySelector('[data-statement-active-file]')?.focus({ preventScroll: true })
+  if (checkedRow) dialog.querySelector(`[data-statement-row="${checkedRow}"]`)?.focus({ preventScroll: true })
+  if (categoryRow) dialog.querySelector(`[data-statement-category="${categoryRow}"]`)?.focus({ preventScroll: true })
+  if (field) dialog.querySelector(`[data-statement-mapping="${field}"]`)?.focus({ preventScroll: true })
+  dialog.scrollTop = scrollTop
 }
 
 function retirementScenario(label, contribution, detail, tone, schedules) {
@@ -540,14 +609,14 @@ function budgetImportTools() {
   return `
 
         <details class="panel disclosure statement-import">
-          <summary>Importar extrato CSV, TXT ou OFX</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
-          <p>O arquivo é processado neste navegador. Você revisa as colunas, os lançamentos e as duplicidades antes de confirmar.</p>
+          <summary>Importar até 12 extratos CSV, TXT, OFX ou PDF TKB/BB</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
+          <p>Os arquivos são lidos e classificados neste navegador. A prévia distingue novos lançamentos de atualizações.</p>
           <code>data;descricao;valor;moeda;categoria;tipo</code>
           <label class="statement-file">
-            <span>Selecionar arquivo para revisar</span>
-            <input type="file" accept=".txt,.csv,.ofx,text/plain,text/csv,application/x-ofx" data-statement-file />
+            <span>Selecionar até 12 extratos</span>
+            <input type="file" accept=".txt,.csv,.ofx,.pdf,text/plain,text/csv,application/x-ofx,application/pdf" multiple data-statement-file />
           </label>
-          <small>Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Nenhuma linha é adicionada antes da sua confirmação.</small>
+          <small>PDF: Banco do Brasil em BRL e TKB na moeda da conta são detectados automaticamente. Até 12 arquivos, com 1 MB e 2.000 movimentos por arquivo. Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Nenhuma linha é adicionada antes da sua confirmação.</small>
           <div class="open-finance-roadmap">
             <strong>Open Finance</strong>
             <span>Conexão direta planejada. Ela exigirá consentimento explícito e uma instituição receptora participante.</span>
@@ -597,8 +666,9 @@ export function renderBudgetEntries(statementReview = null) {
   const goals = point.breakdown?.goals.reduce((sum, item) => sum + item.amount, 0) || 0
   const pressure = state.valuesHidden ? '' : `<section class="panel budget-month-pressure"><h2>Pressão no orçamento de ${monthLabel(state.cashFlow.referenceMonth)}</h2>${renderBudgetPressure({ ...point, costs: point.expenses - goals, goals, months: 1 }, state.currency, { monthly: true, limit: 3 })}<a href="/fluxo-caixa" data-route>Ver composição anual e simular efeito futuro</a></section>`
   const options = (values, selected) => Object.entries(values).map(([value, label]) => `<option value="${value}" ${selected === value ? 'selected' : ''}>${label}</option>`).join('')
-  return `<section class="page-heading page-heading--inner budget-heading"><div><p class="eyebrow">ORÇAMENTO</p><h1>Receitas e despesas</h1><p>Consulte seus lançamentos e ajuste o que entra e sai do orçamento familiar.</p><a href="/fluxo-caixa" data-route>Ver fluxo de caixa e projeções ${icon('arrowRight', 16)}</a></div><div class="budget-page-actions"><button class="button button--primary" type="button" data-new-cash-item ${state.cashFlow.items.length >= 100 ? 'disabled' : ''}>${icon('plus', 18)} Adicionar lançamento</button><button class="button button--secondary" type="button" data-open-budget-import>${icon('document', 18)} Importar extrato</button>${state.cashFlow.items.length >= 100 ? '<p class="budget-capacity">Limite de 100 registros atingido. Edite os registros existentes ou exclua os desnecessários.</p>' : ''}</div></section>
+  return `<section class="page-heading page-heading--inner budget-heading"><div><p class="eyebrow">ORÇAMENTO</p><h1>Receitas e despesas</h1><p>Consulte seus lançamentos e ajuste o que entra e sai do orçamento familiar.</p><a href="/fluxo-caixa" data-route>Ver fluxo de caixa e projeções ${icon('arrowRight', 16)}</a></div><div class="budget-page-actions"><button class="button button--primary" type="button" data-new-cash-item ${state.cashFlow.items.length >= cashFlowItemLimit ? 'disabled' : ''}>${icon('plus', 18)} Adicionar lançamento</button><button class="button button--secondary" type="button" data-open-budget-import>${icon('document', 18)} Importar extrato</button>${state.cashFlow.items.length >= cashFlowItemLimit ? '<p class="budget-capacity">Limite de 10.000 registros atingido. Edite os registros existentes ou exclua os desnecessários.</p>' : ''}</div></section>
     ${renderTabbedPanels('orcamento', [
+      { key: 'visao', label: 'Visão anual', html: renderBudgetOverview(state) },
       { key: 'lancamentos', label: 'Lançamentos', html: `<section class="panel budget-workspace" aria-labelledby="cash-items-title">
       <form class="budget-filters" data-budget-filters role="search" aria-label="Filtrar lançamentos">
         <label class="form-field"><span>Mês de referência</span><input type="month" value="${state.cashFlow.referenceMonth}" data-cash-flow-month required /></label>
@@ -611,10 +681,11 @@ export function renderBudgetEntries(statementReview = null) {
       </form>
       <p class="budget-list-hint">Os filtros mudam apenas a lista. Valores por ocorrência, na moeda original. Registros anuais mostram o valor anual. Metas, calendário e consórcios mostram os lançamentos gerados para o mês de referência.</p>
       <div data-budget-results>${renderBudgetEntryResults(result)}</div>
-      <p class="budget-capacity">${state.cashFlow.items.length} de 100 registros no cadastro manual e importado.${state.cashFlow.items.length >= 100 ? ' Limite atingido. Edite um registro existente ou exclua um que não seja mais necessário.' : ''}</p>
+      <p class="budget-capacity">${state.cashFlow.items.length} de ${cashFlowItemLimit.toLocaleString('pt-BR')} registros no cadastro manual e importado.${state.cashFlow.items.length >= cashFlowItemLimit ? ' Limite atingido. Edite um registro existente ou exclua um que não seja mais necessário.' : ''}</p>
     </section>
 ` },
       { key: 'mes', label: 'Pressão e acompanhamento', html: `${pressure}${renderMonthTracking(state, { compact: true })}` },
+      { key: 'transferencias', label: 'Transferências', html: renderOwnTransfers(state) },
       { key: 'importar', label: 'Importar extratos', html: budgetImportTools() }
     ], { label: 'Visões do orçamento' })}
     ${newCashItemDialog()}

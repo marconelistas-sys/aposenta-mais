@@ -62,14 +62,14 @@ function fanChart(result) {
   const rows = annualClosing(base.rows.map((row, index) => ({ ...row, ...simulated.series[index], restrictedFinancial: Math.max(0, row.financialAssets - row.liquidAssets) })))
   const common = { rows, currency: state.currency, hidden: state.valuesHidden, markers: [{ year: result.input.retirementMonth.slice(0, 4), label: 'Aposentadoria' }] }
   return planningChart({ ...common, title: 'Evolução patrimonial em valores reais, saldo no fechamento de cada ano', series: [
-    { key: 'netWorth', label: 'Patrimônio líquido total', color: '#5c4f46', dash: '5 3' },
-    { key: 'financialAssets', label: 'Ativos financeiros', color: '#2e7550' },
-    { key: 'liquidAssets', label: 'Financeiro disponível', color: '#23609e' },
-    { key: 'restrictedFinancial', label: 'Financeiro restrito', color: '#8e3b6b', dash: '2 3' },
+    { key: 'netWorth', label: 'Patrimônio líquido total', color: '#475569', dash: '5 3' },
+    { key: 'financialAssets', label: 'Ativos financeiros', color: '#167454' },
+    { key: 'liquidAssets', label: 'Financeiro disponível', color: '#2855c7' },
+    { key: 'restrictedFinancial', label: 'Financeiro restrito', color: '#7c69a8', dash: '2 3' },
     { key: 'nonLiquidAssets', label: 'Posição vinculada não incluída no financeiro', color: '#8f5b00', dash: '7 3' }
   ] }) + planningChart({ ...common, title: 'Monte Carlo do patrimônio líquido, percentis no fechamento do ano', series: [
-    { key: 'p50', label: 'Mediana P50', color: '#2e7550' },
-    { key: 'netWorth', label: 'Cenário base', color: '#2b211c', dash: '4 3' }
+    { key: 'p50', label: 'Mediana P50', color: '#167454' },
+    { key: 'netWorth', label: 'Cenário base', color: '#17243b', dash: '4 3' }
   ], bands: [
     { low: 'p10', high: 'p90', label: 'Faixa P10 a P90', color: '#cfe0f0' },
     { low: 'p25', high: 'p75', label: 'Faixa P25 a P75', color: '#bfe0cf' }
