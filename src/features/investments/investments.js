@@ -6,27 +6,22 @@ import { diagnosePortfolio } from '../../domain/portfolio-diagnostics.js'
 import { allocationDimensions, defaultRebalanceBand, exposureDistribution, rebalanceAnalysis, regionLabels } from '../../domain/target-allocation.js'
 import { currencies } from '../../shared/currencies.js'
 import { cashFlowTimeline } from '../../domain/cash-flow-timeline.js'
-import { projectRetirementWithSchedules, retirementMonths } from '../../domain/retirement.js'
+import { projectRetirementWithSchedules, retirementMonths, scheduledContributionBalances } from '../../domain/retirement.js'
 import { escapeHtml, formatPercent, percentInputValue, privateCurrency } from '../../shared/formatters.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { icon } from '../../shared/icons.js'
 import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution, isForeignBalance } from '../../domain/investment-currency.js'
+import { budgetReviewLink } from '../../domain/review-targets.js'
 
 // Foreign balances show the native value first and the plan-currency equivalent below.
 function foreignBalance(investment, planValue, nativeValue) {
   if (!isForeignBalance(investment, state.currency)) return privateCurrency(planValue, state.valuesHidden, false, state.currency)
   return `${privateCurrency(nativeValue, state.valuesHidden, false, investmentBalanceCurrency(investment, state.currency))}<small class="investment-converted">≈ ${privateCurrency(planValue, state.valuesHidden, false, state.currency)}</small>`
 }
-import { assetClassColors, categoryDonut } from '../../shared/category-donut.js'
+import { renderAssetAllocation } from '../../shared/asset-allocation.js'
+import { classLabels } from '../../data/asset-classes.js'
+export { classLabels } from '../../data/asset-classes.js'
 
-export const classLabels = {
-  'fixed-income': 'Renda fixa',
-  equity: 'Ações e renda variável',
-  fund: 'Fundos',
-  pension: 'Previdência privada',
-  cash: 'Caixa e liquidez',
-  other: 'Outro'
-}
 
 const returnTypeLabels = {
   default: 'Padrão',
@@ -69,13 +64,6 @@ function portfolioReturn() {
   ), 0) / state.plan.currentAssets
 }
 
-function investmentAllocation(investments, money) {
-  const totals = new Map()
-  for (const investment of investments) totals.set(investment.assetClass, (totals.get(investment.assetClass) || 0) + investment.amount)
-  return [...totals.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([assetClass, amount]) => ({ key: assetClass, color: assetClassColors[assetClass] || assetClassColors.other, label: classLabels[assetClass] || classLabels.other, value: amount, valueLabel: money(amount) }))
-}
 
 function preciseRate(value) {
   return `${(value * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`
@@ -197,6 +185,7 @@ function sourceDetail(investment, realReturn) {
 function investmentList() {
   const years = retirementMonths(state.plan) / 12
   const investments = state.plan.investments || []
+  const scheduled = scheduledContributionBalances(state.plan, schedules(), retirementMonths(state.plan))
   if (investments.length === 0) {
     return `
       <div class="investment-empty">
@@ -212,7 +201,8 @@ function investmentList() {
       const rate = resolveInvestmentRealReturn(investment, state.plan, new Date().getUTCFullYear())
       const months = years * 12
       const factors = investmentAccumulationFactors(investment, state.plan, months)
-      const futureValue = investment.amount * factors.growth + investment.monthlyContribution * factors.contribution
+      const futureValue = investment.amount * factors.growth + investment.monthlyContribution * factors.contribution + (scheduled.find(item => item.investmentId === investment.id)?.assets || 0)
+      const linked = state.cashFlow.items.filter(item => item.pensionInvestmentId === investment.id)
       const usesDefault = investment.returnType === 'default'
       return `
         <article class="investment-card">
@@ -224,10 +214,12 @@ function investmentList() {
             <span class="investment-rate-badge ${usesDefault ? '' : 'is-specific'}">${returnTypeLabels[investment.returnType]}</span>
           </div>
           <dl>
+            <div><dt>Data do saldo</dt><dd>${investment.balanceAsOf ? escapeHtml(investment.balanceAsOf.split('-').reverse().join('/')) : 'Não informada'}${investment.balanceSource === 'statement' ? ' · Atualizado pelo extrato' : ''}</dd></div>
             <div><dt>Saldo atual</dt><dd>${foreignBalance(investment, investment.amount, investmentNativeAmount(investment, state.currency))}</dd></div>
             <div><dt>Liquidez declarada</dt><dd>${liquidityLabels[investment.liquidity] || liquidityLabels.unknown}</dd></div>
             <div><dt>Ano previsto de liberação</dt><dd>${state.valuesHidden ? 'Oculto' : investment.liquidity === 'available' ? 'Já disponível' : state.plan.finappMethod?.releases?.find(row => row.investmentId === investment.id)?.year || 'Não informado'}</dd></div>
             <div><dt>Aporte mensal</dt><dd>${foreignBalance(investment, investment.monthlyContribution, investmentNativeContribution(investment, state.currency))}</dd></div>
+            ${linked.length ? `<div><dt>Contribuições vinculadas no Orçamento</dt><dd>${linked.map(item => `<a href="${escapeHtml(budgetReviewLink(item.id, 'pensionInvestmentId'))}" data-route>${escapeHtml(item.description)}</a>`).join('<br>')}<small>Incluídas na projeção deste fundo. O aporte mensal acima é o aporte adicional da Carteira.</small></dd></div>` : ''}
             <div><dt>Exposição</dt><dd>${escapeHtml(investment.exposureCurrency || state.currency)}${investment.exposureCurrency && investment.exposureCurrency !== state.currency && investmentExposureShare(investment) < 1 ? ` ${preciseRate(investmentExposureShare(investment))}` : ''} · ${regionLabels[investment.region] || regionLabels.domestic}</dd></div>
             <div><dt>Custo anual</dt><dd>${state.valuesHidden ? 'Oculto' : investmentAnnualFee(investment) ? preciseRate(investmentAnnualFee(investment)) : 'Não informado'}</dd></div>
             <div><dt>Retorno usado em ${new Date().getUTCFullYear()}</dt><dd>${state.valuesHidden ? 'Oculto' : `${preciseRate(rate)} real ao ano`}</dd></div>
@@ -292,14 +284,9 @@ export function renderInvestments() {
     <div class="investment-overview">
 
     <section class="panel investment-allocation" aria-label="Alocação da carteira por classe">
-      <div class="panel__header"><div><p class="eyebrow">ONDE ATUAR</p><h2>Alocação por classe</h2></div>${icon('pie', 21, 'panel__header-icon')}</div>
-      <p>Veja em que classes seu patrimônio está concentrado antes de decidir onde rebalancear.</p>
-      ${categoryDonut({
-        segments: investmentAllocation(investments, value => privateCurrency(value, state.valuesHidden, false, state.currency)),
-        ariaLabel: 'Distribuição da carteira por classe de ativo',
-        hidden: state.valuesHidden,
-        emptyMessage: 'Cadastre um investimento para ver a alocação por classe.'
-      })}
+      <div class="panel__header"><div><p class="eyebrow">ONDE ATUAR</p><h2>Distribuição dos investimentos</h2></div>${icon('pie', 21, 'panel__header-icon')}</div>
+      <p>Confira o peso de renda fixa, renda variável, caixa e das demais classes na carteira.</p>
+      ${renderAssetAllocation(state)}
     </section>
     ${renderLiquidity()}
     </div>
@@ -327,8 +314,9 @@ export function renderInvestments() {
           <div class="form-grid form-grid--two">
             <label class="form-field"><span class="form-field__label">Classe</span><span class="input-shell"><select name="assetClass" required>${Object.entries(classLabels).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></span></label>
             <label class="form-field"><span class="form-field__label">Moeda do saldo</span><span class="input-shell"><select name="investmentCurrency" data-investment-currency>${Object.values(currencies).map(currency => `<option value="${currency.code}" ${currency.code === state.currency ? 'selected' : ''}>${currency.code} · ${currency.label}</option>`).join('')}</select></span><small>A moeda em que o saldo está registrado, por exemplo CHF para um fundo de pensão suíço. Os totais são convertidos para ${state.currency}.</small></label>
-            <label class="form-field"><span class="form-field__label">Saldo atual</span><span class="input-shell"><span class="input-prefix" data-investment-currency-prefix>${moneySymbol}</span><input type="number" name="investmentAmount" min="0.01" max="1000000000" step="0.01" value="${firstInvestment ? state.plan.currentAssets : ''}" required /></span></label>
+            <label class="form-field"><span class="form-field__label">Saldo atual</span><span class="input-shell"><span class="input-prefix" data-investment-currency-prefix>${moneySymbol}</span><input type="number" name="investmentAmount" min="0" max="1000000000" step="0.01" value="${firstInvestment ? state.plan.currentAssets : ''}" required /></span></label>
           </div>
+          <label class="form-field"><span class="form-field__label">Data do saldo</span><span class="input-shell"><input type="date" name="investmentBalanceAsOf" value="${new Date().toISOString().slice(0, 10)}" required /></span><small>A importação só atualiza automaticamente saldos com data mais recente que esta.</small></label>
           <label class="form-field"><span class="form-field__label">Liquidez declarada</span><span class="input-shell"><select name="liquidity" data-investment-liquidity><option value="unknown">Não informada</option><option value="available">Disponível para resgate</option><option value="restricted">Restrita ou com prazo</option></select></span><small>Disponível significa resgate em poucos dias, sem perda relevante.</small></label>
           <div class="form-grid form-grid--two">
             <label class="form-field"><span class="form-field__label">Moeda de exposição</span><span class="input-shell"><select name="exposureCurrency">${Object.values(currencies).map(currency => `<option value="${currency.code}" ${currency.code === state.currency ? 'selected' : ''}>${currency.code} · ${currency.label}</option>`).join('')}</select></span><small>A moeda que move o valor do investimento, não a moeda da conta.</small></label>

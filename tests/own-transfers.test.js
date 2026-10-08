@@ -87,3 +87,33 @@ test('referências explícitas desambiguam pagamentos de mesmo valor', () => {
   assert.ok(result.every(row => row.transferMatch))
   assert.equal(result[0].transferMatch.counterpart, rows[3].statementImportKey)
 })
+
+test('lançamento sem palavras de transferência e sem conta identificada pode ser revisado', () => {
+  const original = item('unknown', 'expense', '', 100, 'CHF', 'Movimento bancário 123')
+  const state = { cashFlow: { items: [original], ownStatementAccounts: [] }, valuesHidden: false }
+  const html = renderOwnTransfers(state)
+  assert.match(html, /name="decision:unknown"/)
+  assert.match(html, /Transferência entre minhas contas/)
+  const confirmed = sanitizeCashFlow({ items: [{ ...original, transferDecision: 'own' }] }, 'CHF').items[0]
+  assert.equal(confirmed.amount, 100)
+  assert.equal(transferBudgetAmount(confirmed), 0)
+  assert.equal(mergeStatementItem(confirmed, original).transferDecision, 'own')
+  const reverted = sanitizeCashFlow({ items: [{ ...confirmed, transferDecision: 'payment' }] }, 'CHF').items[0]
+  assert.equal(transferBudgetAmount(reverted), 100)
+})
+
+test('somente realizados editáveis aparecem na revisão, sem exigir descrição específica', () => {
+  const rows = [item('debit', 'expense', '', 100, 'CHF', 'Débito'), item('credit', 'income', '', 100, 'CHF', 'Crédito'), { ...item('planned', 'expense', '', 100, 'CHF', 'Wise'), recordKind: 'planned' }, item('ledger:derived', 'expense', '', 100, 'CHF', 'Wise')]
+  const html = renderOwnTransfers({ cashFlow: { items: rows }, valuesHidden: false })
+  assert.match(html, /decision:debit/)
+  assert.match(html, /decision:credit/)
+  assert.doesNotMatch(html, /decision:planned|decision:ledger/)
+})
+
+test('realizado manual sem chave de importação não aparece como conciliado', () => {
+  const manual = { ...item('manual', 'expense', '', 100, 'CHF', 'Lançamento manual'), imported: false }
+  delete manual.statementImportKey
+  const html = renderOwnTransfers({ cashFlow: { items: [manual] }, valuesHidden: false })
+  assert.match(html, /Sem confirmação de transferência própria/)
+  assert.doesNotMatch(html, /Conciliada automaticamente/)
+})

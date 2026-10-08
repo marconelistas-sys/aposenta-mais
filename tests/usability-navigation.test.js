@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fittedValueFont, bindFinancialValueLayout } from '../src/shared/financial-value-layout.js'
-import { primaryNavigation, additionalNavigation, bindNavigationMenu } from '../src/app/navigation.js'
+import { primaryNavigation, additionalNavigation, groupedNavigation, bindNavigationMenu } from '../src/app/navigation.js'
 import { appLayout } from '../src/app/layout.js'
 import { openLocalPlan, closeLocalPlan } from '../src/app/local-access.js'
 import { state } from '../src/app/state.js'
@@ -77,10 +77,26 @@ test('desktop menu pairs a distinct icon with each existing destination and pres
     const nav = html.split('aria-label="Navegação principal"')[1].split('</nav>')[0]
     assert.equal((nav.match(/<svg /g) || []).length, primaryNavigation.length)
     for (const item of primaryNavigation) assert.ok(nav.includes(`<span>${item.label}</span>`))
-    assert.match(nav, /href="\/fluxo-caixa"[\s\S]*?aria-current="page"/)
+    assert.match(nav, /href="\/fluxo-caixa\?aba=anual"[\s\S]*?aria-current="page"/)
     assert.notEqual(primaryNavigation.find(item => item.href === '/carteira').icon, primaryNavigation.find(item => item.href === '/fluxo-caixa').icon)
     assert.notEqual(icon('bank'), icon('info'))
     assert.notEqual(icon('document'), icon('info'))
+  } finally { closeLocalPlan() }
+})
+
+test('budget and projection open distinct tasks in desktop, full and mobile navigation', () => {
+  openLocalPlan()
+  try {
+    const html = appLayout('', '/orcamento')
+    const mobile = html.split('aria-label="Navegação no celular"')[1].split('</nav>')[0]
+    assert.match(mobile, /href="\/orcamento\?aba=resumo"[\s\S]*?aria-current="page"/)
+    assert.match(mobile, /href="\/fluxo-caixa\?aba=anual"[\s\S]*?<span>Projeção<\/span>/)
+    assert.doesNotMatch(html, /<span>Fluxo de caixa<\/span>/)
+    const groups = groupedNavigation()
+    assert.ok(groups.find(group => group.title === 'Planejar').items.some(item => item.href === '/fluxo-caixa'))
+    const daily = groups.find(group => group.title === 'Dinheiro do dia a dia').items
+    assert.ok(daily.some(item => item.href === '/orcamento'))
+    assert.ok(!daily.some(item => item.href === '/fluxo-caixa'))
   } finally { closeLocalPlan() }
 })
 
@@ -90,7 +106,7 @@ test('full menu makes primary and secondary pages reachable, labels the current 
   try {
     const html = appLayout('', '/extratos')
     const menu = html.split('data-navigation-menu')[1].split('</details>')[0]
-    for (const item of [...primaryNavigation, ...additionalNavigation]) assert.ok(menu.includes(`href="${item.href}" data-route`), item.href)
+    for (const item of [...primaryNavigation, ...additionalNavigation]) assert.ok(menu.includes(`href="${item.href}${item.tab ? `?aba=${item.tab}` : ''}" data-route`), item.href)
     assert.match(menu, /Você está em: <strong>Extratos bancários/)
     assert.match(menu, /href="\/extratos" data-route aria-current="page"/)
     assert.doesNotMatch(menu, /R\$|CHF|\d{4},\d{2}/)

@@ -1,4 +1,5 @@
 import { standardCashFlowCategories } from '../data/cash-flow-categories.js'
+import { createStatementDescriptionMatcher } from './statement-description-matching.js'
 
 // Seed evidence for local multinomial Naive Bayes, with Laplace smoothing.
 // Posteriors rank categories. They are not calibrated real-world accuracy.
@@ -13,13 +14,13 @@ const examples = {
   transport: 'sbb cff ffs transporte bahn zug bus metro uber taxi combustivel gasolina',
   health: 'gymone gym farmacia apotheke klinik hospital medico saude fitness',
   education: 'hotmart curso school escola universidade tuition educacao',
-  insurance: 'seguro insurance versicherung krankenkasse helsana sanitas',
+  insurance: 'seguro seguros insurance versicherung krankenkasse helsana sanitas',
   dining: 'restaurant restaurante rist pulcinella unterhof amigos dining delivery cafe caf cafeteria',
   shopping: 'amazon amz galaxus digitec orell fussli compras shopping',
   subscriptions: 'spotify netflix anthropic claude chatgpt abonnement subscription assinatura prime prim youtube aws sunrise swisscom internet telecom one',
   leisure: 'pathe cinema theater teatro lazer',
   travel: 'mainau schiffsbetriebe hotel booking airbnb flight viagem',
-  taxes: 'serafe imposto impostos tax steuer abgabe',
+  taxes: 'serafe imposto impostos iof tax steuer abgabe',
   debt: 'emprestimo loan kredit mortgage hipoteca',
   consortium: 'consorcio consortium',
   donations: 'doacao donation spende charity'
@@ -32,7 +33,7 @@ export function isStatementInvestmentMovement(description) {
     || /^(?:\d+\s*[-.]?\s*)?(?:aplicacao|aplicacoes|resgate)(?:\s|$)/.test(text)
     || /\b(?:aplicacao|aplicacoes|resgate)\s+(?:automatic[ao]s?|de investimentos?|em investimentos?|de fundos?|de cdb|de rdb)\b/.test(text)
 }
-const noise = new Set('warenbezug und dienstleistungen belastung gutschrift e banking ref nr tkb debit mastercard zahlung dauerauftrag originalbetrag wahrungskurs mitteilung ag gmbh schweiz www com ch'.split(' '))
+const noise = new Set('warenbezug und dienstleistungen belastung gutschrift e banking ref nr tkb debit mastercard zahlung dauerauftrag originalbetrag wahrungskurs mitteilung ag gmbh schweiz www com ch per debitkarte pagamento payment compra purchase kartenzahlung xxxx reference referencia referenz transaction transacao'.split(' '))
 function words(description) {
   return [...new Set((normalize(description).match(/[a-z]{3,}/g) || []).filter(word => !noise.has(word)))].slice(0, 60)
 }
@@ -43,6 +44,14 @@ export function statementMerchantKey(description) {
 export function createStatementClassifier({ existingItems = [], customCategories = [] } = {}) {
   const categories = [...standardCashFlowCategories, ...customCategories]
   const trusted = existingItems.filter(item => !item.transferMatch && !item.transferPending && item.transferDecision !== 'own' && !item.statementInternalTransfer && categories.some(category => category.id === item.categoryId && category.type === item.type) && !item.id?.startsWith('ledger:') && (item.categoryOrigin === 'confirmed' || item.categoryOrigin === 'file' || (!item.imported && item.source !== 'txt' && item.categoryOrigin !== 'automatic')))
+  const history = trusted.map(item => ({ item, key: statementMerchantKey(item.categoryMerchantKey || item.description) }))
+  const exact = new Map()
+  for (const { item, key } of history) {
+    const identity = `${item.type}:${key}`
+    if (!exact.has(identity)) exact.set(identity, [])
+    exact.get(identity).push(item)
+  }
+  const similarDescriptions = createStatementDescriptionMatcher(history)
   const counts = new Map(categories.map(category => [category.id, new Map()]))
   const vocabulary = new Set()
   const add = (id, description, weight) => {
@@ -65,7 +74,7 @@ export function createStatementClassifier({ existingItems = [], customCategories
     const fallback = type === 'income' ? 'other-income' : 'other-expense'
     const candidates = categories.filter(category => category.type === type)
     const merchant = statementMerchantKey(description)
-    const known = merchant ? trusted.filter(item => item.type === type && (item.categoryMerchantKey || statementMerchantKey(item.description)) === merchant) : []
+    const known = merchant ? exact.get(`${type}:${merchant}`) || [] : []
     const votes = new Map()
     for (const item of known) votes.set(item.categoryId, (votes.get(item.categoryId) || 0) + 1)
     const ranking = [...votes].sort((a, b) => b[1] - a[1])
@@ -74,6 +83,18 @@ export function createStatementClassifier({ existingItems = [], customCategories
     }
     if (/\b(wise|transferencia|transfer|uberweisung|aplicacao|resgate)\b/.test(normalize(description))) {
       return { categoryId: fallback, confidence: 0, needsReview: true, reason: 'Possível transferência ou aplicação', origin: 'automatic' }
+    }
+    const similar = known.length ? [] : similarDescriptions(merchant, type)
+    const similarCategories = new Set(similar.map(match => match.item.categoryId))
+    if (similarCategories.size === 1) {
+      const match = similar.reduce((best, candidate) => candidate.similarity > best.similarity ? candidate : best)
+      return { categoryId: match.item.categoryId, confidence: match.similarity, needsReview: false, reason: `Categoria do lançamento semelhante: ${match.item.description}`, origin: 'history', matchedDescription: match.item.description, similarity: match.similarity }
+    }
+    if (similarCategories.size > 1) {
+      return { categoryId: fallback, confidence: 0, needsReview: true, reason: 'Lançamentos semelhantes têm categorias diferentes. Confira a categoria.', origin: 'automatic' }
+    }
+    if (!known.length && type === 'expense' && /\bamazon\s*prime(?:br)?\b/.test(normalize(description))) {
+      return { categoryId: 'subscriptions', confidence: 0.95, needsReview: false, reason: 'Assinatura Amazon Prime reconhecida na descrição', origin: 'automatic' }
     }
     const evidence = words(description).filter(word => vocabulary.has(word))
     if (!evidence.length) return { categoryId: fallback, confidence: 0, needsReview: true, reason: 'Descrição sem evidência suficiente', origin: 'automatic' }

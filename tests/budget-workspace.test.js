@@ -6,7 +6,7 @@ import { budgetEntriesView, filterBudgetEntries, readBudgetFilters, resetBudgetE
 import { budgetOwnerView } from '../src/shared/household-owner.js'
 import { state, resetState } from '../src/app/state.js'
 import { renderBudgetEntries, renderBudgetEntryResults, renderCashFlow, updateBudgetEntryResults } from '../src/features/cash-flow/cash-flow.js'
-import { additionalNavigation } from '../src/app/navigation.js'
+import { primaryNavigation } from '../src/app/navigation.js'
 
 const item = (id, patch = {}) => ({ id, description: 'Salário principal', category: { name: 'Salário' }, type: 'income', amount: 1200, convertedAmount: 1200, currency: 'BRL', recordKind: 'planned', frequency: 'monthly', isActive: true, householdOwner: 'primary', ...patch })
 const items = [item('salary'), item('future', { isActive: false }), item('undated', { frequency: 'occasional' }), item('expense', { description: 'Farmácia', category: { name: 'Saúde' }, type: 'expense', householdOwner: 'spouse', recordKind: 'actual', frequency: 'occasional', startDate: '2026-09-05' }), item('annual', { frequency: 'annual' })]
@@ -40,7 +40,7 @@ test('filters stay in view state only and reset when changing accounts', () => {
 })
 
 test('budget has its own destination, list before modal forms, and cash flow links to it', () => {
-  assert.ok(additionalNavigation.some(x => x.href === '/orcamento'))
+  assert.ok(primaryNavigation.some(x => x.href === '/orcamento'))
   const html = renderBudgetEntries()
   assert.ok(html.indexOf('data-budget-results') < html.indexOf('data-new-cash-item-dialog'))
   assert.match(html, /data-new-cash-item-dialog aria-labelledby="cash-new-title"/)
@@ -48,7 +48,7 @@ test('budget has its own destination, list before modal forms, and cash flow lin
   assert.match(html, /data-statement-file/)
   assert.match(html, /data-open-budget-import/)
   const flow = renderCashFlow()
-  assert.match(flow, /href="\/orcamento"/)
+  assert.match(flow, /href="\/orcamento\?aba=resumo"/)
   assert.doesNotMatch(flow, /data-cash-item-form|data-cash-item-edit-form|data-budget-results/)
 })
 
@@ -122,4 +122,62 @@ test('family summary remains independent of list filters including ownership', (
   const after = renderMonthTracking(state, { compact: true })
   assert.ok(renderBudgetEntries().includes(after))
   assert.equal(after, before)
+})
+
+test('resumo único do orçamento mostra despesas e saldo realizados do mês, com câmbio e sem transferências próprias', () => {
+  state.currency = 'BRL'
+  state.valuesHidden = false
+  state.exchangeRates = { rates: { EUR: 1, BRL: 6, USD: 1.2, CHF: .9 }, date: '2026-09-01' }
+  const actual = (id, type, amount, patch = {}) => ({ id, description: id, type, amount, currency: 'BRL', categoryId: type === 'income' ? 'salary' : 'groceries', recordKind: 'actual', frequency: 'occasional', startDate: '2026-09-05', endDate: '2026-09-05', ...patch })
+  Object.assign(state.cashFlow, { referenceMonth: '2026-09', annualGoals: [], commitments: [], consortia: [], items: [
+    actual('income', 'income', 1000), actual('expense', 'expense', 125),
+    actual('foreign', 'expense', 15, { currency: 'CHF' }),
+    actual('transfer', 'expense', 100000, { transferDecision: 'own' }),
+    actual('planned', 'expense', 9000, { recordKind: 'planned' }),
+    actual('other-month', 'expense', 99, { startDate: '2026-10-05', endDate: '2026-10-05' })
+  ] })
+  const metric = (html, key) => html.match(new RegExp(`data-cash-summary-actual="${key}"[^>]*>[\\s\\S]*?<dd[^>]*>([^<]+)</dd>`))?.[1]
+  let html = renderBudgetEntries()
+  assert.match(metric(html, 'income'), /1.000/)
+  assert.match(metric(html, 'expenses'), /225/)
+  assert.match(metric(html, 'balance'), /775/)
+  state.cashFlow.referenceMonth = '2026-10'
+  html = renderBudgetEntries()
+  assert.equal(metric(html, 'income'), 'Sem registros')
+  assert.match(metric(html, 'expenses'), /99/)
+  assert.match(metric(html, 'balance'), /-.*99/)
+  state.cashFlow.referenceMonth = '2026-11'
+  html = renderBudgetEntries()
+  assert.equal(metric(html, 'income'), 'Sem registros')
+  assert.equal(metric(html, 'expenses'), 'Sem registros')
+  assert.equal(metric(html, 'balance'), 'Sem registros')
+})
+
+test('resumo único do orçamento oculta valores e sinal do saldo realizado no modo privado', () => {
+  state.valuesHidden = true
+  Object.assign(state.cashFlow, { referenceMonth: '2026-09', annualGoals: [], commitments: [], consortia: [], items: [{ id: 'secret', description: 'Compra', categoryId: 'groceries', type: 'expense', amount: 987654.32, currency: 'BRL', frequency: 'occasional', startDate: '2026-09-01', recordKind: 'actual' }] })
+  const html = renderBudgetEntries()
+  const summary = html.match(/<dl class="metric-row cash-month-summary__actual">([\s\S]*?)<\/dl>/)?.[1]
+  assert.match(summary, /Receitas realizadas/)
+  assert.match(summary, /Despesas realizadas/)
+  assert.match(summary, /Saldo realizado/)
+  assert.match(summary, /•••/)
+  assert.match(summary, /data-tone="neutral"/)
+  assert.doesNotMatch(summary, /987|654|negative/)
+})
+
+
+test('resumo sem planejamento não anuncia equilíbrio e projeção não repete acompanhamento', () => {
+  resetState()
+  state.valuesHidden = false
+  Object.assign(state.cashFlow, { referenceMonth: '2026-08', items: [], annualGoals: [], commitments: [], consortia: [] })
+  const budget = renderBudgetEntries()
+  assert.match(budget, /Sem orçamento cadastrado/)
+  assert.doesNotMatch(budget, /Orçamento equilibrado/)
+  assert.equal((budget.match(/class="panel settings-card cash-month-summary"/g) || []).length, 1)
+  assert.equal((budget.match(/aria-label="Acompanhamento do mês"/g) || []).length, 1)
+  assert.equal((budget.match(/data-page-tab="orcamento:/g) || []).length, 4)
+  const projection = renderCashFlow()
+  assert.doesNotMatch(projection, /cash-month-summary|month-tracking|data-cash-summary-actual/)
+  assert.match(projection, /Projeção patrimonial/)
 })

@@ -4,34 +4,31 @@ import { authState } from './auth-state.js'
 import { escapeHtml } from '../shared/formatters.js'
 import { syncState } from './sync-state.js'
 import { isLocalPlanOpen } from './local-access.js'
+import { currencies } from '../shared/currencies.js'
 
 import { primaryNavigation as navigation, additionalNavigation, groupedNavigation } from './navigation.js'
 
-const mobileNavigation = [
-  navigation[0],
-  navigation[2],
-  navigation[3],
-  { href: '/perfil', label: 'Perfil', icon: 'user' }
-]
+const mobileNavigation = ['/', '/carteira', '/orcamento', '/fluxo-caixa'].map(href => navigation.find(item => item.href === href))
+const navigationHref = item => `${item.href}${item.tab ? `?aba=${encodeURIComponent(item.tab)}` : ''}`
 
 function navigationLink(item, pathname, mobile = false) {
   const active = pathname === item.href
   return `
     <a
       class="${mobile ? 'mobile-nav__link' : 'main-nav__link'}${active ? ' is-active' : ''}"
-      href="${item.href}"
+      href="${navigationHref(item)}"
       data-route
       ${active ? 'aria-current="page"' : ''}
     >
       ${icon(item.icon, mobile ? 21 : 18)}
-      <span>${item.label}</span>
+      <span>${mobile ? item.mobileLabel || item.label : item.label}</span>
     </a>
   `
 }
 
 function fullNavigation(pathname) {
   const current = [...navigation, ...additionalNavigation].find(item => item.href === pathname)
-  const group = (title, items) => `<section><h2>${title}</h2>${items.map(item => `<a href="${item.href}" data-route ${item.href === pathname ? 'aria-current="page"' : ''}>${icon(item.icon, 20)}<span>${item.label}</span>${item.href === pathname ? '<small>Atual</small>' : ''}</a>`).join('')}</section>`
+  const group = (title, items) => `<section><h2>${title}</h2>${items.map(item => `<a href="${navigationHref(item)}" data-route ${item.href === pathname ? 'aria-current="page"' : ''}>${icon(item.icon, 20)}<span>${item.label}</span>${item.href === pathname ? '<small>Atual</small>' : ''}</a>`).join('')}</section>`
   return `<details class="navigation-menu" data-navigation-menu><summary aria-label="Menu de navegação">${icon('menu', 22)}<span>Menu</span></summary><nav class="navigation-menu-panel" aria-label="Todas as telas"><p>Você está em: <strong>${current?.label || 'Planejamento'}</strong></p><div class="navigation-menu-groups">${groupedNavigation().map(item => group(item.title, item.items)).join('')}</div></nav></details>`
 }
 
@@ -68,6 +65,12 @@ export function appLayout(content, pathname) {
 
         <div class="header-actions">
           ${fullNavigation(pathname)}
+          <label class="header-currency" title="Moeda dos totais e projeções em todas as telas">
+            <span>Moeda</span>
+            <select data-currency data-global-currency aria-label="Moeda do plano em todas as telas">
+              ${Object.values(currencies).sort((a, b) => a.code.localeCompare(b.code)).map(currency => `<option value="${currency.code}" ${state.currency === currency.code ? 'selected' : ''}>${currency.code}</option>`).join('')}
+            </select>
+          </label>
           <button type="button" class="icon-button" data-close-local aria-label="Fechar plano local" title="Fechar plano local">${icon('lock', 20)}</button>
           <button
             class="icon-button values-toggle"

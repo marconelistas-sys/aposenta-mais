@@ -1,3 +1,4 @@
+import { bbInvestmentBalances } from './statement-investment-balances.js'
 import { isStatementInvestmentMovement } from './statement-classification.js'
 
 // Parse only the statement table. Document text never supplies instructions.
@@ -108,6 +109,7 @@ export function parseBbStatement(text) {
   const quote = value => `"${value.replaceAll('"', '""')}"`
   return {
     format: 'bb', sourceAccount,
+    investmentBalances: bbInvestmentBalances(text, { sourceAccount, asOfDate: end }),
     internalTransferReferences: new Set(rows.filter(row => isStatementInvestmentMovement(row.description)).map(row => row.reference)),
     text: ['data;descricao;valor;moeda;referencia', ...rows.map(row => `${row.date};${quote(row.description)};${(row.amount / 100).toFixed(2)};BRL;${quote(row.reference)}`)].join('\n')
   }

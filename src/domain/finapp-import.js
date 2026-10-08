@@ -2,6 +2,7 @@ import { cashFlowItemLimit } from '../shared/limits.js'
 import { sanitizeCashFlowItem, sanitizeInvestment, createExportableState } from '../app/state-storage.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
 import { sanitizeAnnualRows, sanitizeMigration } from './annual-planning.js'
+import { validatePensionInvestment } from './pension-investment-links.js'
 
 const equal = (left, right) => JSON.stringify(Object.entries(left).sort()) === JSON.stringify(Object.entries(right).sort())
 
@@ -29,6 +30,17 @@ export function parseFinappImport(text) {
     if (!safe || !equal(safe, item)) throw new Error('Investimento inválido.')
     return safe
   })
+  for (const item of items.filter(item => item.pensionInvestmentId)) {
+    if (!investments.some(investment => investment.id === item.pensionInvestmentId && investment.assetClass === 'pension')) throw new Error('Destino da contribuição previdenciária ausente ou inválido no arquivo.')
+    validatePensionInvestment(item, investments)
+  }
+  const investmentReleases = file.investmentReleases ?? []
+  if (!Array.isArray(investmentReleases) || investmentReleases.length > 30) throw new Error('Liberações de investimentos inválidas.')
+  const releaseIds = new Set()
+  for (const release of investmentReleases) {
+    if (!release || releaseIds.has(release.investmentId) || !Number.isInteger(release.year) || release.year < 2000 || release.year > 2199 || !investments.some(item => item.id === release.investmentId && item.liquidity !== 'available')) throw new Error('Ano ou investimento de liberação inválido no arquivo.')
+    releaseIds.add(release.investmentId)
+  }
   if (file.investmentCurrency !== 'BRL') throw new Error('Moeda patrimonial inválida.')
   function annual(key) {
     const rows = file[key] ?? []
@@ -52,7 +64,7 @@ export function parseFinappImport(text) {
   }
   const migration = sanitizeMigration({ source: 'finapp', pending: file.pending, importedAt: file.createdAt })
   if (file.version === 2 && migration.pending.length !== file.pending.length) throw new Error('Pendência inválida.')
-  return { items, investments, annualGoals: annual('annualGoals'), nonFinancialAssets: annual('nonFinancialAssets'), migration, planParameters, scope: file.scope || 'full', pendingCount: file.pending.length }
+  return { items, investments, investmentReleases: investmentReleases.map(({ investmentId, year }) => ({ investmentId, year })), annualGoals: annual('annualGoals'), nonFinancialAssets: annual('nonFinancialAssets'), migration, planParameters, scope: file.scope || 'full', pendingCount: file.pending.length }
 }
 
 const normalizedLabel = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ')
@@ -66,6 +78,11 @@ function sameFinancialRecord(left, right, collection) {
 // plan-currency amount recalculated at each quote. The file only knows BRL values.
 // For those records the fields sent by the file are compared, except the converted amounts.
 function sameImportedRecord(previous, incoming, collection) {
+  if (collection === 'items') {
+    const legacy = { ...previous }
+    for (const field of ['pensionInvestmentId', 'pensionCapitalRelease']) if (!Object.hasOwn(incoming, field)) delete legacy[field]
+    return equal(legacy, incoming)
+  }
   if (collection !== 'investments' || !previous?.currency || !Number.isFinite(previous.nativeAmount)) return equal(previous, incoming)
   const derived = new Set(['amount', 'monthlyContribution'])
   return Object.keys(incoming).every(key => derived.has(key) || JSON.stringify(previous[key] ?? null) === JSON.stringify(incoming[key] ?? null))
@@ -122,6 +139,9 @@ export function mergeFinappImport(current, file, mode = 'merge') {
   const investments = file.investments.map(item => ({ ...item, amount: Math.round(convertCurrency(item.amount, 'BRL', next.currency, next.exchangeRates) * 100) / 100 }))
   next.plan.investments = merge(next.plan.investments, investments, 30, 'investments')
   next.cashFlow.items = merge(next.cashFlow.items, file.items, cashFlowItemLimit, 'items')
+  const releases = next.plan.finappMethod?.releases || []
+  for (const release of file.investmentReleases || []) if (!releases.some(item => item.investmentId === release.investmentId) && !next.plan.finappMethod?.sourceAvailabilityRecoveredIds?.includes(release.investmentId) && next.plan.investments.some(item => item.id === release.investmentId && item.liquidity !== 'available')) releases.push({ ...release })
+  next.plan.finappMethod = { ...next.plan.finappMethod, releases }
   next.cashFlow.annualGoals = merge(next.cashFlow.annualGoals, file.annualGoals || [], 50, 'annualGoals')
   next.cashFlow.nonFinancialAssets = merge(next.cashFlow.nonFinancialAssets, file.nonFinancialAssets || [], 50, 'nonFinancialAssets')
   if (file.migration) {

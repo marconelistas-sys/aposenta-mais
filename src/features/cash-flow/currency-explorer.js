@@ -32,7 +32,7 @@ export function renderCurrencyExplorer() {
   const metrics = [['Receitas mensais', 'monthlyIncome'], ['Despesas mensais', 'monthlyExpenses'], ['Saldo recorrente', 'recurringSurplus'], ['Aporte sustentável', 'sustainableContribution']]
   const points = currencyExplorer.points
   return `
-    <section class="page-heading"><div><p class="eyebrow">CÂMBIO</p><h1>Como o câmbio afeta seu orçamento</h1><p>Simulação para ${escapeHtml(state.cashFlow.referenceMonth)}, em ${state.currency}.</p></div><a href="/fluxo-caixa" data-route>Voltar ao fluxo de caixa</a></section>
+    <section class="page-heading"><div><p class="eyebrow">CÂMBIO</p><h1>Como o câmbio afeta seu orçamento</h1><p>Simulação para ${escapeHtml(state.cashFlow.referenceMonth)}, em ${state.currency}.</p></div><a href="/orcamento?aba=resumo" data-route>Voltar ao orçamento</a></section>
     <section class="panel settings-card">
       <form data-currency-scenario-form class="form-grid form-grid--two">
         <label class="form-field"><span>Moeda estrangeira</span><span class="input-shell"><select name="shockCurrency">${choices.map(code => `<option ${code === currency ? 'selected' : ''}>${code}</option>`).join('')}</select></span></label>

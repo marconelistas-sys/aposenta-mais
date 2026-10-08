@@ -1,3 +1,5 @@
+import { linkActualExpensesToPlans } from './planned-expense-links.js'
+import { linkCreditCardPayments } from './credit-card-payments.js'
 import { transferBudgetAmount } from './own-transfers.js'
 import { isRetirementEnd, incomeEndMonth } from './income-end.js'
 import { categoryById } from '../data/cash-flow-categories.js'
@@ -39,7 +41,9 @@ export function calculateCashFlow(input, requiredMonthlyContribution = 0) {
   }
 
   const pensionContributions = Number.isFinite(input.pensionContributions) ? input.pensionContributions : 0
+  const pensionCapitalContributions = Number.isFinite(input.pensionCapitalContributions) ? input.pensionCapitalContributions : pensionContributions
   if (pensionContributions < 0) throw new RangeError('A contribuição previdenciária não pode ser negativa.')
+  if (pensionCapitalContributions < 0 || pensionCapitalContributions > pensionContributions) throw new RangeError('A contribuição que forma capital deve estar entre zero e a contribuição previdenciária total.')
   const monthlyAnnualProvision = input.annualExpenses / 12
   const recurringOutflows = input.essentialExpenses + input.variableExpenses +
     input.debtPayments + pensionContributions + monthlyAnnualProvision
@@ -59,7 +63,8 @@ export function calculateCashFlow(input, requiredMonthlyContribution = 0) {
     reserveMonthlyAllocation,
     sustainableContribution,
     pensionContributions,
-    totalRetirementContributionCapacity: pensionContributions + sustainableContribution,
+    pensionCapitalContributions,
+    totalRetirementContributionCapacity: pensionCapitalContributions + sustainableContribution,
     savingsRate: input.recurringIncome > 0 ? Math.max(recurringSurplus, 0) / input.recurringIncome : 0,
     commitmentRate: input.recurringIncome > 0 ? recurringOutflows / input.recurringIncome : 0,
     requiredMonthlyContribution,
@@ -113,6 +118,7 @@ export function summarizeCashFlowItems(
     annualExpenses: 0,
     occasionalExpenses: 0,
     pensionContributions: 0,
+    pensionCapitalContributions: 0,
     currentEmergencyReserve: cashFlow.currentEmergencyReserve,
     emergencyReserveTarget: cashFlow.emergencyReserveTarget,
     reserveBuildMonths: cashFlow.reserveBuildMonths
@@ -121,7 +127,7 @@ export function summarizeCashFlowItems(
 
   // A commitment is a payable in this month, including one-off goals.
   const commitmentItems = commitmentEvents(cashFlow.commitments, dateKey(asOfDate).slice(0, 7), cashFlow.commitmentSchedules).map(item => ({ ...item, frequency: 'monthly', endDate: item.startDate }))
-  for (const item of [...(cashFlow.items || []), ...annualGoalEvents(cashFlow.annualGoals, dateKey(asOfDate).slice(0, 7)), ...commitmentItems, ...consortiumEvents(cashFlow.consortia, dateKey(asOfDate).slice(0, 7), cashFlow.consortiumEvents)]) {
+  for (const item of [...linkCreditCardPayments(cashFlow.items || []), ...annualGoalEvents(cashFlow.annualGoals, dateKey(asOfDate).slice(0, 7)), ...commitmentItems, ...consortiumEvents(cashFlow.consortia, dateKey(asOfDate).slice(0, 7), cashFlow.consortiumEvents)]) {
     // Provisions and calendar commitments keep counting when their category was removed or is not an expense.
     const found = categoryById(item.categoryId, customCategories)
     const category = (item.annualGoalId || item.commitmentId) && (!found || found.type !== 'expense') ? categoryById('other-expense') : found
@@ -148,13 +154,16 @@ export function summarizeCashFlowItems(
       summary.annualExpenses += convertedAmount
     } else {
       if (category.budgetGroup === 'debt') summary.debtPayments += convertedAmount
-      else if (category.budgetGroup === 'pension') summary.pensionContributions += convertedAmount
+      else if (category.budgetGroup === 'pension') {
+        summary.pensionContributions += convertedAmount
+        if (item.pensionCapitalRelease !== false) summary.pensionCapitalContributions += convertedAmount
+      }
       else if (category.budgetGroup === 'essential') summary.essentialExpenses += convertedAmount
       else summary.variableExpenses += convertedAmount
     }
   }
 
-  return { summary, convertedItems }
+  return { summary, convertedItems: linkActualExpensesToPlans(convertedItems) }
 }
 
 export function retirementContributionSchedules(cashFlow, baseCurrency, exchangeRates, customCategories = []) {
@@ -162,11 +171,13 @@ export function retirementContributionSchedules(cashFlow, baseCurrency, exchange
     const category = categoryById(item.categoryId, customCategories)
     if (recordKindFor(item) !== 'planned') return []
     if (item.frequency === 'monthly' && item.type === 'expense' && category?.budgetGroup === 'pension') {
+      if (item.pensionCapitalRelease === false) return []
       return [{
         amount: convertCurrency(item.amount, item.currency, baseCurrency, exchangeRates),
         startDate: item.startDate,
         endDate: item.endDate,
-        label: item.description || category.name
+        label: item.description || category.name,
+        ...(item.pensionInvestmentId ? { investmentId: item.pensionInvestmentId } : {})
       }]
     }
     // One-off liquidity shocks (buying a house, tuition, a sabbatical) shift the

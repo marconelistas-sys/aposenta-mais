@@ -1,3 +1,4 @@
+import { withRequestProgress } from './request-progress.js'
 export const authState = {
   configured: null,
   provider: null,
@@ -11,15 +12,17 @@ export const authState = {
 }
 
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
-  const response = await fetch(path, {
-    method,
-    credentials: 'same-origin',
-    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers },
-    body: body ? JSON.stringify(body) : undefined
-  })
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(payload.error || 'Não foi possível concluir a operação.')
-  return payload
+  return withRequestProgress(async () => {
+    const response = await fetch(path, {
+      method,
+      credentials: 'same-origin',
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers },
+      body: body ? JSON.stringify(body) : undefined
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.error || 'Não foi possível concluir a operação.')
+    return payload
+  }, method === 'GET' ? 'Verificando acesso...' : 'Processando solicitação...')
 }
 
 export async function loadAuthState() {

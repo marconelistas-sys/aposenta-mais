@@ -18,11 +18,14 @@ test('abas renderizam todos os painéis e escondem os inativos', () => {
   assert.equal(activePageTab('teste', tabs), 'a')
 })
 
-test('orçamento separa lançamentos, pressão e importação em abas', () => {
+test('orçamento abre resumo único e preserva importação como ferramenta', () => {
   resetState()
   delete pageTabState.orcamento
   const html = renderBudgetEntries()
   assert.match(html, /data-page-tab="orcamento:lancamentos"/)
-  assert.match(html, /data-page-tab-panel="orcamento:importar" hidden/)
+  assert.match(html, /data-page-tab-panel="orcamento:resumo" >/ )
+  assert.equal((html.match(/data-page-tab="orcamento:/g) || []).length, 4)
+  assert.match(html, /data-budget-tool="importar"/)
+  assert.doesNotMatch(html, /data-page-tab="orcamento:mes"|data-page-tab="orcamento:importar"/)
   assert.match(html, /data-budget-results/)
 })

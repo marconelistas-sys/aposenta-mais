@@ -21,7 +21,7 @@ export function pdfTextLines(items) {
 
 export async function readStatementFile(file, options = {}) {
   if (!file || !file.size || file.size > 1024 * 1024) throw new TypeError('Selecione um arquivo de até 1 MB.')
-  let text, sourceAccount, format, internalTransferReferences
+  let text, sourceAccount, format, internalTransferReferences, creditCardBill, investmentBalances
   if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
     let pdfjs
     try {
@@ -46,10 +46,12 @@ export async function readStatementFile(file, options = {}) {
       text = parsed.text
       sourceAccount = parsed.sourceAccount
       format = parsed.format
+      creditCardBill = parsed.creditCardBill
+      investmentBalances = parsed.investmentBalances
       internalTransferReferences = parsed.internalTransferReferences
     } catch (error) {
       if (error instanceof TypeError) throw error
-      throw new TypeError('Não foi possível ler o PDF. Use um extrato TKB ou Banco do Brasil sem senha, com texto selecionável.')
+      throw new TypeError('Não foi possível ler o PDF. Use um extrato TKB, Banco do Brasil, Yuh ou uma fatura Ourocard sem senha, com texto selecionável.')
     } finally {
       await task?.destroy()
     }
@@ -59,6 +61,8 @@ export async function readStatementFile(file, options = {}) {
   const inspection = inspectStatementText(text, options)
   if (sourceAccount) inspection.sourceAccount = sourceAccount
   if (format) inspection.format = format
+  if (creditCardBill) inspection.creditCardBill = creditCardBill
+  if (investmentBalances) inspection.investmentBalances = investmentBalances
   if (internalTransferReferences?.size) {
     for (const row of inspection.rows) row.internalTransfer = internalTransferReferences.has(row.cells[inspection.suggestedMapping.reference])
   }

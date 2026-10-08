@@ -28,7 +28,7 @@ export function collectAnnualBudget(breakdown, budget, { pensionMode, costMultip
     const amount = item.convertedAmount / (item.frequency === 'annual' ? 12 : 1)
     const originalAmount = item.amount / (item.frequency === 'annual' ? 12 : 1)
     const pension = item.type === 'expense' && item.frequency === 'monthly' && item.category.budgetGroup === 'pension'
-    if (pension) addAnnualBreakdown(breakdown, 'pension', entry, amount, originalAmount)
+    if (pension && item.pensionCapitalRelease !== false) addAnnualBreakdown(breakdown, 'pension', entry, amount, originalAmount)
     if (pension && pensionMode === 'external') continue
     const group = item.type === 'income' ? 'income' : item.annualGoalId ? 'goals' : 'costs'
     const scale = group === 'costs' ? costMultiplier : 1

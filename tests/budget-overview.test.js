@@ -60,14 +60,20 @@ test('includes annual goals, calendar and custom categories without mutating fin
 
 test('default view and annual comparison expose accessible bars and differentiate missing records', () => {
   const html = renderBudgetOverview(fixture())
-  assert.equal((html.match(/data-budget-bar="/g) || []).length, 24)
+  assert.equal((html.match(/data-budget-bar="/g) || []).length, 48)
   assert.match(html, /data-budget-overview-metric="expenses" aria-pressed="true"/)
+  assert.match(html, /Receitas e despesas em 2026/)
+  assert.match(html, /data-budget-bar-metric="income"/)
+  assert.match(html, /data-budget-bar-metric="expenses"/)
   assert.match(html, /Sem registros/)
   assert.match(html, /Realizado em 1 de 12 meses/)
   budgetOverviewView.period = 'years'
-  assert.equal((renderBudgetOverview(fixture()).match(/data-budget-bar="/g) || []).length, 10)
+  assert.equal((renderBudgetOverview(fixture()).match(/data-budget-bar="/g) || []).length, 20)
   budgetOverviewView.metric = 'balance'
-  assert.match(renderBudgetOverview(fixture()), /Saldo por ano/)
+  const balance = renderBudgetOverview(fixture())
+  assert.match(balance, /Saldo por ano/)
+  assert.equal((balance.match(/data-budget-bar="/g) || []).length, 10)
+  assert.doesNotMatch(balance, /data-budget-bar-metric="income"/)
 })
 
 test('hidden mode removes amounts, bar heights and composition from the document', () => {
@@ -83,7 +89,7 @@ test('year selector includes imported historical records and resets when changin
   budgetOverviewView.year = 2020
   budgetOverviewView.metric = 'balance'
   resetBudgetOverview()
-  assert.deepEqual(budgetOverviewView, { year: null, period: 'months', metric: 'expenses' })
+  assert.deepEqual(budgetOverviewView, { year: null, period: 'months', metric: 'expenses', income: true, planned: true, actual: true })
   assert.throws(() => buildBudgetYear(state, 0), /Ano/)
 })
 
@@ -114,7 +120,53 @@ test('scale stays above visible planned and actual peaks across magnitudes', () 
     const state = fixture()
     state.cashFlow.items = [item('planned', { amount: amount / 2 }), item('actual', { amount, recordKind: 'actual', frequency: 'occasional', startDate: '2026-08-03' })]
     const html = renderBudgetOverview(state)
-    const height = Number(html.match(/data-budget-bar="2026-08:actual"[^>]*height:([\d.]+)px/)[1])
+    const height = Number(html.match(/data-budget-bar="2026-08:actual:expenses" data-budget-bar-metric="expenses"[^>]*height:([\d.]+)px/)[1])
     assert.ok(height > 210 && height < 248, `peak ${amount}, height ${height}`)
   }
+})
+
+
+test('receipt and record-kind filters affect all bars without changing the underlying totals', () => {
+  const state = fixture()
+  const before = buildBudgetYear(state, 2026)
+  for (const income of [true, false]) for (const planned of [true, false]) for (const actual of [true, false]) {
+    Object.assign(budgetOverviewView, { income, planned, actual })
+    const html = renderBudgetOverview(state)
+    const count = 12 * (income ? 2 : 1) * (Number(planned) + Number(actual))
+    const identifiers = [...html.matchAll(/data-budget-bar="([^"]+)"/g)].map(match => match[1])
+    assert.equal(identifiers.length, count)
+    assert.equal(new Set(identifiers).size, count, 'each bar identifies one distinct period, kind and metric')
+    assert.equal(html.includes('budget-bar--planned budget-bar--expenses'), planned)
+    assert.equal(html.includes('budget-bar--actual budget-bar--expenses'), actual)
+    assert.equal(html.includes('budget-bar--planned budget-bar--income'), income && planned)
+    assert.equal(html.includes('budget-bar--actual budget-bar--income'), income && actual)
+    assert.doesNotMatch(html, /NaN|Infinity/)
+    if (!planned && !actual) assert.match(html, /Selecione Realizado ou Planejado/)
+    assert.deepEqual(buildBudgetYear(state, 2026), before)
+  }
+})
+
+test('planned and actual records remain separate even when their amounts match', () => {
+  const state = fixture()
+  state.cashFlow.items = [
+    item('planned-income', { type: 'income', categoryId: 'salary', amount: 2000 }),
+    item('actual-income', { type: 'income', categoryId: 'salary', amount: 2000, recordKind: 'actual', frequency: 'occasional', startDate: '2026-08-01' }),
+    item('planned-expense', { amount: 200 }),
+    item('actual-expense', { amount: 250, recordKind: 'actual', frequency: 'occasional', startDate: '2026-08-01' })
+  ]
+  const month = buildBudgetYear(state, 2026).months[7]
+  assert.equal(month.planned.income, 2000)
+  assert.equal(month.actual.income, 2000)
+  assert.equal(month.planned.expenses, 200)
+  assert.equal(month.actual.expenses, 250)
+  assert.deepEqual(month.entries.planned.map(entry => entry.id), ['planned-income', 'planned-expense'])
+  assert.deepEqual(month.entries.actual.map(entry => entry.id), ['actual-income', 'actual-expense'])
+})
+
+test('balance scale ignores a negative hidden series', () => {
+  Object.assign(budgetOverviewView, { metric: 'balance', planned: true, actual: false })
+  const html = renderBudgetOverview(fixture())
+  assert.equal((html.match(/data-budget-bar="/g) || []).length, 12)
+  assert.doesNotMatch(html, /budget-bar--actual/)
+  assert.match(html, /class="is-zero" style="top:248px"/)
 })

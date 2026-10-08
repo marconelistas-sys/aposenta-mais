@@ -79,10 +79,18 @@ test('gráfico anual marca o ano da primeira insuficiência e não marca nada qu
     insolvent.plan.investments[0].amount = 10000
     Object.assign(state, insolvent)
     timelineView.period = 'target'
-    assert.match(renderCashFlowTimeline(), /Insolvência/)
+    const restricted = renderCashFlowTimeline()
+    assert.match(restricted, /Falta de liquidez/)
+    assert.doesNotMatch(restricted, /Insolvência/)
+    assert.match(restricted, /Quando todos os investimentos estão disponíveis, os dois saldos coincidem/)
+
+    insolvent.plan.investments[0].liquidity = 'available'
+    insolvent.plan.investments[0].amount = 100
+    Object.assign(state, insolvent)
+    assert.match(renderCashFlowTimeline(), /Insuficiência financeira/)
 
     Object.assign(state, fixture(year))
-    assert.doesNotMatch(renderCashFlowTimeline(), /Insolvência/)
+    assert.doesNotMatch(renderCashFlowTimeline(), /Falta de liquidez|Insuficiência financeira/)
   } finally { Object.assign(state, before); Object.assign(timelineView, view) }
 })
 test('retorno anual aritmético recebe fração inicial e piso, sem conversão lognormal mensal', () => {

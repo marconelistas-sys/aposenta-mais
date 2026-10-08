@@ -45,7 +45,7 @@ test('seleção da moeda da visão geral converte o plano e preserva lançamento
   assert.equal(state.cashFlow.items[0].amount, originalItemAmount)
   assert.equal(state.cashFlow.items[0].currency, originalItemCurrency)
   assert.match(renderPlan(), /CHF/)
-  assert.match(renderCashFlow(), /consolida o orçamento em CHF/)
+  assert.match(renderCashFlow(), /Projeção patrimonial/)
 })
 
 test('moeda acompanha a cópia financeira remota', () => {

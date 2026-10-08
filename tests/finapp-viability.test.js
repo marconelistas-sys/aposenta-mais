@@ -7,6 +7,8 @@ import { renderViability } from '../src/features/plan/viability.js'
 import { renderPostRetirement } from '../src/features/plan/post-retirement.js'
 import { projectPostRetirement, sanitizeDecumulation } from '../src/domain/post-retirement.js'
 import { privateCurrency } from '../src/shared/formatters.js'
+import { investmentReviewLink, budgetReviewLink } from '../src/domain/review-targets.js'
+import { cashFlowDetailPanels } from '../src/shared/cash-flow-detail.js'
 
 const yearly = (extra = {}) => ({ year: '2026', income: 100, costs: 50, goals: 10, pensionCredits: 20, releases: 0, pensionRestricted: 20, assets: 0, liabilities: 0, ...extra })
 function kernel(years, extra = {}) { return annualFinappRecurrence({ openingFinancial: 1000, openingLiquid: 600, annualReturn: 0.1, openingYearPeriod: 1, years, ...extra }) }
@@ -225,5 +227,37 @@ test('vida financeira mostra o mesmo orçamento, saldo acumulado e horizonte da 
     state.plan.retirementMonth = state.cashFlow.retirementMonth = null
     assert.match(renderPostRetirement(), /Confirme o mês da aposentadoria/)
     assert.doesNotMatch(renderPostRetirement(), /Cobertura anual suficiente/)
+  } finally { Object.assign(state, before) }
+})
+
+test('liberações permitem conferir os cadastros de investimento e contribuição, sem expor origens na privacidade', () => {
+  const before = structuredClone(state)
+  try {
+    const value = fixture()
+    const year = new Date().getUTCFullYear()
+    value.plan.horizonReferenceMonth = `${year}-01`
+    value.plan.retirementMonth = value.cashFlow.retirementMonth = `${year + 1}-01`
+    value.plan.investments.push({ id: 'finapp:initial_assets:3', name: 'Previdência original', amount: 1000, liquidity: 'restricted', returnType: 'real', returnValue: 0 })
+    value.plan.finappMethod.releases = [{ investmentId: 'finapp:initial_assets:3', year: year + 1 }]
+    value.cashFlow.items = [{ id: 'finapp:pension_contributions:7', description: 'Contribuição futura', type: 'expense', categoryId: 'private-pension', amount: 10, currency: 'BRL', frequency: 'monthly', startDate: `${year}-01-01`, endDate: `${year + 1}-12-31`, source: 'manual', recordKind: 'planned' }]
+    Object.assign(state, value, { valuesHidden: false })
+    const snapshot = structuredClone(state)
+    const result = finappViability(state, state.plan.finappMethod, new Date(), { includeBreakdown: true })
+    const release = result.rows.find(row => Number(row.year) === year + 1)
+    assert.equal(release.releases, 1240)
+    const html = renderPostRetirement()
+    assert.ok(html.includes(`data-release-sources-year="${year + 1}"`))
+    const investmentLink = investmentReviewLink('finapp:initial_assets:3', 'investmentReleaseYear').replaceAll('&', '&amp;')
+    const contributionLink = budgetReviewLink('finapp:pension_contributions:7', 'endDate').replaceAll('&', '&amp;')
+    assert.ok(html.includes(investmentLink))
+    assert.ok(html.includes(contributionLink))
+    const details = cashFlowDetailPanels([release], state.plan, state.currency)[0].html
+    assert.ok(details.includes(investmentLink))
+    assert.ok(details.includes(contributionLink))
+    assert.deepEqual(state, snapshot)
+    state.valuesHidden = true
+    const hidden = renderPostRetirement()
+    assert.doesNotMatch(hidden, /data-release-sources-year|Previdência original|Contribuição futura/)
+    assert.equal(cashFlowDetailPanels([release], state.plan, state.currency, true).length, 0)
   } finally { Object.assign(state, before) }
 })

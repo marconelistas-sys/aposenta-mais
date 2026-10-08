@@ -19,7 +19,12 @@
     "db:migrate:supabase": "node --env-file-if-exists=.env scripts/migrate-supabase.mjs",
     "test:statement-browser": "node scripts/check-statement-browser.mjs",
     "test:budget-browser": "node scripts/check-budget-overview-browser.mjs",
-    "test:bb-browser": "node scripts/check-bb-browser.mjs"
+    "test:loading-browser": "node scripts/check-request-progress-browser.mjs",
+    "test:investment-statement-browser": "node scripts/check-investment-statement-browser.mjs",
+    "test:bb-browser": "node scripts/check-bb-browser.mjs",
+    "test:ourocard-browser": "node scripts/check-ourocard-browser.mjs",
+    "test:allocation-browser": "node scripts/check-allocation-browser.mjs",
+    "test:pension-browser": "node scripts/check-pension-links-browser.mjs"
   },
   "engines": {
     "node": ">=24"

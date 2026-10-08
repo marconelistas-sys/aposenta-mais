@@ -1,6 +1,4 @@
-import { summarizeCashFlowItems } from './cash-flow.js'
-import { prepareCommitmentSchedules } from './financial-calendar.js'
-import { prepareConsortiumEvents } from './consortium.js'
+import { buildBudgetMonths } from './monthly-budget.js'
 
 function emptyPeriod(key) {
   return { key, planned: { income: 0, expenses: 0, balance: 0, count: 0 }, actual: { income: 0, expenses: 0, balance: 0, count: 0 }, entries: { planned: [], actual: [] }, actualMonths: 0 }
@@ -20,30 +18,7 @@ export function budgetOverviewYears(state) {
 
 export function buildBudgetYear(state, year) {
   if (!Number.isInteger(year) || year < 1900 || year > 2200) throw new RangeError('Ano do orçamento inválido.')
-  const cashFlow = {
-    ...state.cashFlow,
-    retirementMonth: state.cashFlow.retirementMonth || state.plan?.retirementMonth,
-    spouseRetirementMonth: state.plan?.spouseEnabled ? state.plan.spouseRetirementMonth : null,
-    commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments),
-    consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia)
-  }
-  const months = Array.from({ length: 12 }, (_, index) => {
-    const month = `${year}-${String(index + 1).padStart(2, '0')}`
-    const period = emptyPeriod(month)
-    const { convertedItems } = summarizeCashFlowItems(cashFlow, state.currency, state.exchangeRates, state.customCategories, new Date(`${month}-15T12:00:00Z`), 'all')
-    for (const item of convertedItems) {
-      if (!item.isIncluded || (item.frequency === 'occasional' && !item.startDate)) continue
-      const kind = item.recordKind
-      const amount = item.convertedAmount / (item.frequency === 'annual' ? 12 : 1)
-      const entry = { id: item.id, month, description: item.transferMatch || item.transferPending || item.transferDecision === 'own' ? `Tarifa: ${item.description || item.category.name}` : item.description || item.category.name, category: item.category.name, categoryId: item.category.id, type: item.type, amount, originalAmount: item.budgetAmount ?? item.amount, currency: item.currency, frequency: item.frequency, date: item.startDate }
-      period.entries[kind].push(entry)
-      period[kind][item.type === 'income' ? 'income' : 'expenses'] += amount
-      period[kind].count++
-    }
-    for (const kind of ['planned', 'actual']) period[kind].balance = period[kind].income - period[kind].expenses
-    period.actualMonths = period.actual.count ? 1 : 0
-    return period
-  })
+  const months = buildBudgetMonths(state, Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, '0')}`))
   const annual = emptyPeriod(String(year))
   for (const month of months) {
     annual.actualMonths += month.actualMonths
@@ -67,4 +42,27 @@ export function budgetBarBreakdown(period, kind, metric) {
     group.entries.push({ ...entry, amount })
   }
   return [...grouped.values()].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+}
+
+export function budgetExpenseCategories(period) {
+  const groups = new Map()
+  const totals = { planned: 0, actual: 0, plannedCount: 0, actualCount: 0 }
+  for (const kind of ['planned', 'actual']) {
+    for (const entry of period.entries[kind]) {
+      if (entry.type !== 'expense') continue
+      if (!groups.has(entry.categoryId)) groups.set(entry.categoryId, { categoryId: entry.categoryId, category: entry.category, planned: 0, actual: 0, entries: { planned: [], actual: [] } })
+      const group = groups.get(entry.categoryId)
+      group[kind] += entry.amount
+      group.entries[kind].push(entry)
+      totals[kind] += entry.amount
+      totals[`${kind}Count`]++
+    }
+  }
+  const categories = [...groups.values()].map(group => ({
+    ...group,
+    difference: group.entries.actual.length ? group.actual - group.planned : null,
+    differencePercent: group.entries.actual.length && group.planned > 0 ? (group.actual - group.planned) / group.planned : null,
+    unplanned: group.entries.actual.length > 0 && group.entries.planned.length === 0
+  }))
+  return { categories, totals, actualMonths: new Set(period.entries.actual.filter(entry => entry.type === 'expense').map(entry => entry.month)).size }
 }

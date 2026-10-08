@@ -1,3 +1,4 @@
+import { linkCreditCardPayments } from './credit-card-payments.js'
 import { transferBudgetAmount } from './own-transfers.js'
 // Observations describe the supplied complete statement period, never guaranteed future income.
 export function analyzeStatementPlanning(items, { start, end, currency, asOf = new Date().toISOString().slice(0, 10), complete = false } = {}) {
@@ -16,7 +17,7 @@ export function analyzeStatementPlanning(items, { start, end, currency, asOf = n
   const byMonth = new Map(months.map(month => [month.month, month]))
   const groups = new Map()
   const excluded = { transfer: 0, currency: 0, outside: 0 }
-  for (const original of items) {
+  for (const original of linkCreditCardPayments(items)) {
     const item = { ...original, amount: transferBudgetAmount(original) }
     if (!item.amount) { excluded.transfer++; continue }
     if (item.currency !== currency) { excluded.currency++; continue }

@@ -21,7 +21,7 @@ export function renderPlan() {
       <div>
         <p class="eyebrow">MEU PLANO</p>
         <h1>Transforme sua meta em um plano mensal.</h1>
-        <p>Ajuste seu aporte e acompanhe o efeito na projeção.</p>
+        <p>Defina o aporte mensal do plano. O valor é salvo automaticamente e atualiza a projeção de renda na Visão geral.</p>
       </div>
       <a class="button button--primary" href="/simulacoes" data-route>
         Nova simulação ${icon('arrowRight', 18)}
@@ -57,7 +57,7 @@ export function renderPlan() {
             ${money(state.plan.monthlyContribution)}
           </output>
         </div>
-        <label class="range-control-label" for="monthly-contribution">Aporte mensal</label>
+        <label class="range-control-label" for="monthly-contribution">Aporte mensal do plano</label>
         <div class="range-label" aria-hidden="true">
           <span>${formatCurrency(500, false, state.currency)}</span>
           <span>${formatCurrency(4000, false, state.currency)}</span>
@@ -71,14 +71,31 @@ export function renderPlan() {
           step="50"
           value="${state.plan.monthlyContribution}"
           data-plan-contribution
+          aria-describedby="plan-contribution-help"
           style="--range-progress: ${((state.plan.monthlyContribution - 500) / 3500) * 100}%"
         />
+        <p id="plan-contribution-help" class="term-hint">Este valor representa novos investimentos mensais até a aposentadoria. Alterar o controle salva o aporte no plano${state.plan.investments.length ? ' e redistribui os aportes da Carteira na proporção atual. Se todos estiverem zerados, o valor vai para o primeiro investimento' : ''}. Não registra uma receita, despesa ou transferência realizada.</p>
         <div class="contribution-recommendation">
           ${icon('sparkles', 18)}
-          <p>Para atingir a meta, o aporte mensal estimado é <strong>${formatCurrency(result.requiredMonthlyContribution, false, state.currency)}</strong>. Hoje, sua carteira usa <strong>${formatCurrency(state.plan.monthlyContribution, false, state.currency)}</strong>, além de <strong>${formatCurrency(result.currentScheduledMonthlyContribution, false, state.currency)}</strong> em previdência programada.</p>
+          <p>Para atingir a meta, o aporte mensal estimado é <strong>${formatCurrency(result.requiredMonthlyContribution, false, state.currency)}</strong>. O aporte fixo cadastrado é <strong>${formatCurrency(state.plan.monthlyContribution, false, state.currency)}</strong>, além de <strong>${formatCurrency(result.currentScheduledMonthlyContribution, false, state.currency)}</strong> em contribuições e eventos programados neste mês.</p>
         </div>
         <p class="contribution-impact" data-contribution-impact aria-live="polite">Arraste o controle para ver o efeito na sua renda projetada.</p>
       </article>
+    </section>
+
+    <section class="panel settings-card" aria-labelledby="contribution-scope-title">
+      <h2 id="contribution-scope-title">Onde este aporte entra na projeção</h2>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Efeito do aporte em cada tela">
+        <table><thead><tr><th scope="col">Tela ou indicador</th><th scope="col">Como interpreta o aporte</th></tr></thead><tbody>
+          <tr><th scope="row">Meu plano e renda na Visão geral</th><td>Usam o aporte fixo até a aposentadoria, junto do patrimônio, dos rendimentos e dos eventos programados. A renda estimada soma os benefícios previstos à retirada calculada sobre o patrimônio projetado.</td></tr>
+          <tr><th scope="row">Simulações</th><td>Novas simulações começam com o aporte do plano. Você pode testar outro valor. Cenários já salvos mantêm seus próprios valores.</td></tr>
+          <tr><th scope="row">Carteira</th><td>O controle altera o total dos aportes cadastrados por investimento. Esses valores são planos de investimento, não pagamentos confirmados.</td></tr>
+          <tr><th scope="row">Receitas e despesas</th><td>O controle não cria lançamentos nem altera receitas, despesas ou saldo. Cadastre o orçamento nesta tela para avaliar quanto você pode investir.</td></tr>
+          <tr><th scope="row">Avaliação anual, Projeção patrimonial, Riscos e Após a aposentadoria</th><td>Projetam o patrimônio a partir do orçamento cadastrado. O saldo de receitas menos despesas e metas aumenta ou reduz o patrimônio. O aporte fixo desta tela não é somado novamente.</td></tr>
+        </tbody></table>
+      </div>
+      <p>A projeção com aporte fixo pressupõe que você consegue investir esse valor todos os meses. Ela não reduz o aporte automaticamente quando falta dinheiro no orçamento. A comparação “Limitado ao orçamento”, na Visão geral, calcula esse limite separadamente.</p>
+      <p><a href="/orcamento?aba=resumo" data-route>Planejar meu mês</a> · <a href="/viabilidade" data-route>Conferir a avaliação anual</a></p>
     </section>
 
     <section class="plan-details-grid">

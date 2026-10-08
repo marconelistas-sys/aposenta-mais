@@ -1,3 +1,5 @@
+import { sanitizeCreditCardBill } from '../domain/credit-card-payments.js'
+import { transactionTime } from '../shared/transaction-date.js'
 import { reconcileOwnTransfers } from '../domain/own-transfers.js'
 import { cashFlowItemLimit } from '../shared/limits.js'
 import { sanitizePaymentMatches } from '../domain/calendar-payments.js'
@@ -19,6 +21,7 @@ import { sanitizeFinappMethod } from '../domain/finapp-viability.js'
 import { sanitizeTargetAllocation } from '../domain/target-allocation.js'
 import { currencies } from '../shared/currencies.js'
 import { syncPlanInvestments } from '../domain/investment-currency.js'
+import { recoverFinappSourceRelationships } from '../domain/pension-investment-links.js'
 
 export const stateVersion = 10
 export const storageKeys = Object.freeze({
@@ -101,7 +104,7 @@ export function sanitizeInvestment(investment, index = 0) {
   const suppliedReturn = investment.returnValue ?? legacyReturn
   const returnValue = returnType === 'default' ? null : Number(suppliedReturn)
   const indexAnnualRate = returnType === 'cdi' ? Number(investment.indexAnnualRate) : null
-  if (!name || !validNumber(amount, [0.01, 1000000000]) || !validNumber(monthlyContribution, [0, 10000000])) return null
+  if (!name || !validNumber(amount, [0, 1000000000]) || !validNumber(monthlyContribution, [0, 10000000])) return null
   if (['real', 'nominal', 'ipca'].includes(returnType) && !validNumber(returnValue, [-0.99, 1])) return null
   if (returnType === 'cdi' && (!validNumber(returnValue, [0, 3]) || !validNumber(indexAnnualRate, [0, 1]))) return null
   const annualFee = Number(investment.annualFee || 0)
@@ -114,13 +117,17 @@ export function sanitizeInvestment(investment, index = 0) {
     liquidity: ['available', 'restricted'].includes(investment.liquidity) ? investment.liquidity : 'unknown',
     amount,
     monthlyContribution,
+    ...(['manual', 'statement'].includes(investment.balanceSource) ? { balanceSource: investment.balanceSource } : {}),
+    ...(safeDate(investment.balanceAsOf) ? { balanceAsOf: safeDate(investment.balanceAsOf) } : {}),
+    ...(typeof investment.statementAccount === 'string' && investment.statementAccount ? { statementAccount: investment.statementAccount.slice(0, 128) } : {}),
+    ...(typeof investment.statementInvestmentName === 'string' ? { statementInvestmentName: investment.statementInvestmentName.slice(0, 120) } : {}),
     returnType,
     returnValue,
     indexAnnualRate,
     ...(annualRealReturns.length ? { annualRealReturns } : {}),
     ...(validNumber(annualFee, [0.0001, 0.1]) ? { annualFee } : {}),
     ...(currencies[investment.currency] ? { currency: investment.currency } : {}),
-    ...(currencies[investment.currency] && validNumber(Number(investment.nativeAmount), [0.01, 1000000000]) ? { nativeAmount: Number(investment.nativeAmount) } : {}),
+    ...(currencies[investment.currency] && validNumber(Number(investment.nativeAmount), [0, 1000000000]) ? { nativeAmount: Number(investment.nativeAmount) } : {}),
     ...(currencies[investment.currency] && validNumber(Number(investment.nativeMonthlyContribution), [0, 10000000]) ? { nativeMonthlyContribution: Number(investment.nativeMonthlyContribution) } : {}),
     ...(currencies[investment.exposureCurrency] ? { exposureCurrency: investment.exposureCurrency } : {}),
     ...(currencies[investment.exposureCurrency] && validNumber(Number(investment.exposureShare), [0, 0.9999]) ? { exposureShare: Number(investment.exposureShare) } : {}),
@@ -164,6 +171,7 @@ export function sanitizeCustomCategories(candidate) {
 
 export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fallbackCurrency = 'BRL') {
   if (!item || typeof item !== 'object') return null
+  const creditCardBill = sanitizeCreditCardBill(item.creditCardBill)
   const type = ['income', 'expense'].includes(item.type) ? item.type : null
   const category = categoryById(item.categoryId, customCategories)
   const amount = Number(item.amount)
@@ -178,6 +186,9 @@ export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fal
     id: safeId(item.id, `item-${index + 1}`),
     type,
     categoryId: category.id,
+    ...(creditCardBill ? { creditCardBill } : {}),
+    ...(category.budgetGroup === 'pension' && type === 'expense' && recordKind === 'planned' && item.frequency === 'monthly' && typeof item.pensionCapitalRelease === 'boolean' ? { pensionCapitalRelease: item.pensionCapitalRelease } : {}),
+    ...(category.budgetGroup === 'pension' && type === 'expense' && recordKind === 'planned' && item.frequency === 'monthly' && Object.hasOwn(item, 'pensionInvestmentId') ? { pensionInvestmentId: item.pensionInvestmentId === null || item.pensionInvestmentId === '' ? null : safeId(item.pensionInvestmentId, null) } : {}),
     ...(['automatic', 'confirmed', 'file'].includes(item.categoryOrigin) ? { categoryOrigin: item.categoryOrigin } : {}),
     ...(typeof item.categoryMerchantKey === 'string' && item.categoryMerchantKey ? { categoryMerchantKey: item.categoryMerchantKey.slice(0, 512) } : {}),
     ...(typeof item.statementImportKey === 'string' && item.statementImportKey ? { statementImportKey: item.statementImportKey.slice(0, 1024) } : {}),
@@ -193,6 +204,7 @@ export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fal
       ? 'occasional'
       : ['monthly', 'annual', 'occasional'].includes(item.frequency) ? item.frequency : 'monthly',
     startDate,
+    ...(transactionTime(item.transactionTime) ? { transactionTime: transactionTime(item.transactionTime) } : {}),
     endDate,
     endMode: type === 'income' && recordKind === 'planned' && ['monthly', 'annual'].includes(item.frequency) && ['retirement', 'spouse-retirement'].includes(item.endMode) ? item.endMode : endDate ? 'date' : 'none',
     source,
@@ -316,7 +328,7 @@ function sanitizeScenario(scenario, customCategories, exchangeRates = bundledExc
   const name = typeof scenario.name === 'string' ? scenario.name.trim().slice(0, 40) : ''
   if (!name) return null
 
-  return {
+  const result = {
     id: typeof scenario.id === 'string' ? scenario.id.slice(0, 80) : '',
     name,
     createdAt: typeof scenario.createdAt === 'string' ? scenario.createdAt : null,
@@ -326,6 +338,8 @@ function sanitizeScenario(scenario, customCategories, exchangeRates = bundledExc
       ? sanitizeCashFlow({ ...scenario.cashFlow, spouseRetirementMonth: scenario.plan?.spouseEnabled ? scenario.plan.spouseRetirementMonth : null, retirementMonth: scenario.cashFlow.retirementMonth || scenario.plan?.retirementMonth }, scenario.currency, customCategories)
       : null
   }
+  if (result.cashFlow) recoverFinappSourceRelationships(result.plan, result.cashFlow)
+  return result
 }
 
 export function sanitizeStoredState(candidate) {
@@ -340,6 +354,8 @@ export function sanitizeStoredState(candidate) {
     ? { ...source.plan, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }
     : { ...defaultPlan, retirementMonth: source.cashFlow?.retirementMonth })
   Object.assign(plan, syncPlanInvestments(plan, currency, exchangeRates, { inferLegacy: true }))
+  const cashFlow = sanitizeCashFlow({ ...source.cashFlow, spouseRetirementMonth: source.plan?.spouseEnabled ? source.plan.spouseRetirementMonth : null, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }, currency, customCategories)
+  recoverFinappSourceRelationships(plan, cashFlow)
 
   return {
     version: stateVersion,
@@ -354,7 +370,7 @@ export function sanitizeStoredState(candidate) {
     exchangeRates,
     customCategories,
     plan,
-    cashFlow: sanitizeCashFlow({ ...source.cashFlow, spouseRetirementMonth: source.plan?.spouseEnabled ? source.plan.spouseRetirementMonth : null, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }, currency, customCategories),
+    cashFlow,
     scenarios
   }
 }

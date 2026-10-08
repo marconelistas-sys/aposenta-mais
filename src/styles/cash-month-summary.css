@@ -1,0 +1,63 @@
+/* Reference month: income minus expenses equals the available budget balance. */
+.cash-month-summary .cash-summary-equation,
+.cash-month-summary .cash-month-summary__actual {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin-block: 14px;
+}
+.cash-month-summary .metric-row > div { position: relative; align-content: start; }
+.cash-month-summary .metric-row dd { padding-left: 0; font-size: clamp(18px, 2vw, 26px); overflow-wrap: anywhere; }
+.cash-summary-equation > div + div::before {
+  content: '−';
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  text-align: center;
+  color: var(--color-ink-soft);
+  font-size: 20px;
+  font-weight: 700;
+}
+.cash-summary-equation > div:last-child::before { content: '='; }
+.cash-summary-caption { color: var(--color-ink-soft); font-size: .9rem; line-height: 1.5; margin-block: .6rem; }
+.cash-summary-status { font-size: .85rem; line-height: 1.5; margin-block: .3rem 0; }
+.cash-summary-registered { border-top: 1px solid var(--color-border); padding-top: 1rem; margin-top: 1.25rem; }
+.cash-summary-registered h3 { font-size: 1.05rem; margin: 0; }
+.cash-summary-pension { margin: 1.25rem 0 .25rem; }
+.cash-summary-pension > div { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem 1rem; padding: .75rem 1rem; border: 1px solid var(--color-border); border-radius: 10px; }
+.cash-summary-pension dt { display: flex; align-items: center; gap: .5rem; font-size: .9rem; color: var(--color-ink-soft); }
+.cash-summary-pension dd { margin: 0; font-size: 1rem; }
+.month-tracking-header + .month-tracking-grid { margin-top: .85rem; }
+.month-tracking > .month-tracking-grid + .month-tracking-purpose { font-size: .9rem; margin-block: .75rem; }
+@media (max-width: 700px) {
+  .cash-month-summary .cash-summary-equation,
+  .cash-month-summary .cash-month-summary__actual { grid-template-columns: minmax(0, 1fr); gap: .6rem; }
+  .cash-month-summary .metric-row > div { padding: .8rem 1rem; }
+  .cash-month-summary .metric-row dt { font-size: .85rem; }
+  .cash-summary-equation > div + div { margin-top: 18px; }
+  .cash-summary-equation > div + div::before { left: calc(50% - 10px); top: -16px; }
+  .cash-summary-pension > div { align-items: start; }
+}
+
+.budget-summary-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.budget-summary-layout > .month-tracking { margin: 0; }
+.budget-summary-layout .month-tracking-grid { grid-template-columns: minmax(0, 1fr); }
+.budget-summary-layout .cash-summary-equation,
+.budget-summary-layout .cash-month-summary__actual { grid-template-columns: minmax(0, 1fr); gap: .6rem; }
+.budget-summary-layout .cash-summary-equation > div + div { margin-top: 18px; }
+.budget-summary-layout .cash-summary-equation > div + div::before { left: calc(50% - 10px); top: -16px; }
+@media (max-width: 1000px) {
+  .budget-summary-layout { grid-template-columns: minmax(0, 1fr); }
+  .budget-summary-layout > .month-tracking { order: -1; }
+}
+.budget-summary-layout .metric-row > div { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.budget-summary-layout .metric-row dd { font-size: 20px; }
+.budget-summary-layout .metric-row .cash-summary-status { grid-column: 1 / -1; }
+.budget-month-pressure .pressure-rank-heading { grid-template-columns: minmax(0, 1fr) auto; }
+.budget-month-pressure .pressure-rank-heading > div { min-width: 0; }
+.budget-month-pressure .pressure-rank-heading > .money-value { grid-column: 2; }
+@media (max-width: 600px) {
+  .budget-month-pressure .pressure-rank-heading { grid-template-columns: minmax(0, 1fr); }
+  .budget-month-pressure .pressure-rank-heading > .money-value { grid-column: 1; text-align: left; }
+}

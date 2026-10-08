@@ -1,3 +1,4 @@
+import { withRequestProgress } from './request-progress.js'
 import { createExportableState } from './state-storage.js'
 import { financialPayload, syncConsentVersion } from '../shared/sync-contract.js'
 import { authState } from './auth-state.js'
@@ -16,16 +17,18 @@ async function request(path, { method = 'GET', body } = {}) {
   if (!ownedStorage.owner) throw new Error('Entre na conta e reabra seu plano antes de sincronizar.')
   const generation = ownedStorage.generation
   const provider = authState.storageProvider
-  const response = await fetch(path, {
-    method,
-    credentials: 'same-origin',
-    headers: { ...(provider ? { 'X-Storage-Provider': provider } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}), ...(ownedStorage.owner ? { 'X-Plan-Owner': ownedStorage.owner } : {}) },
-    body: body ? JSON.stringify(body) : undefined
-  })
-  const payload = await response.json().catch(() => ({}))
-  if (generation !== ownedStorage.generation || provider !== authState.storageProvider) throw new Error('A sessão mudou. Reabra o plano antes de sincronizar.')
-  if (!response.ok) throw new Error(payload.error || 'Não foi possível acessar a cópia salva da conta.')
-  return payload
+  return withRequestProgress(async () => {
+    const response = await fetch(path, {
+      method,
+      credentials: 'same-origin',
+      headers: { ...(provider ? { 'X-Storage-Provider': provider } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}), ...(ownedStorage.owner ? { 'X-Plan-Owner': ownedStorage.owner } : {}) },
+      body: body ? JSON.stringify(body) : undefined
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (generation !== ownedStorage.generation || provider !== authState.storageProvider) throw new Error('A sessão mudou. Reabra o plano antes de sincronizar.')
+    if (!response.ok) throw new Error(payload.error || 'Não foi possível acessar a cópia salva da conta.')
+    return payload
+  }, method === 'GET' ? 'Carregando dados...' : method === 'DELETE' ? 'Excluindo cópia salva...' : 'Salvando dados...')
 }
 
 export function resetSyncState() {

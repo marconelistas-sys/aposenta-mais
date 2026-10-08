@@ -121,14 +121,14 @@ test('a carteira exibe a alocação por classe de ativo e a oculta na privacidad
   upsertInvestment({ id: 'sem-info', name: 'Fundo legado', assetClass: 'fund', amount: 1000, monthlyContribution: 0, liquidity: 'unknown', annualRealReturn: null })
 
   const html = renderInvestments()
-  assert.match(html, /category-donut-face/)
-  assert.match(html, /Caixa e liquidez — .* · 60%/)
-  assert.match(html, /Outro — .* · 30%/)
-  assert.match(html, /Fundos — .* · 10%/)
+  assert.match(html, /asset-allocation-chart/)
+  assert.match(html, /Ver investimentos em Caixa e liquidez: 60%/)
+  assert.match(html, /Ver investimentos em Outro: 30%/)
+  assert.match(html, /Ver investimentos em Fundos: 10%/)
 
   state.valuesHidden = true
   const hiddenHtml = renderInvestments()
-  assert.doesNotMatch(hiddenHtml, /category-donut-face|60%|30%|10%/)
+  assert.doesNotMatch(hiddenHtml, /asset-allocation-chart|60%|30%|10%/)
   state.valuesHidden = false
 })
 

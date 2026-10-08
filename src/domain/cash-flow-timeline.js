@@ -41,6 +41,6 @@ export function cashFlowTimeline(state, startMonth, months, { includeBreakdown =
     collectAnnualBudget(breakdown, result, { pensionMode: externalPension ? 'external' : 'cash-funded', costMultiplier: 1, retirement: cashFlow.retirementMonth })
     const pensionInExpenses = externalPension ? 0 : result.pensionContributions
     const expenses = result.monthlyExpenses - result.pensionContributions + pensionInExpenses
-    return { month: date.toISOString().slice(0, 7), income: result.monthlyIncome, expenses, pension: result.pensionContributions, pensionInExpenses, balance: result.monthlyIncome - expenses, ...(breakdown ? { breakdown: finishAnnualBreakdown(breakdown) } : {}) }
+    return { month: date.toISOString().slice(0, 7), income: result.monthlyIncome, expenses, pension: result.pensionCapitalContributions, pensionInExpenses, balance: result.monthlyIncome - expenses, ...(breakdown ? { breakdown: finishAnnualBreakdown(breakdown) } : {}) }
   })
 }

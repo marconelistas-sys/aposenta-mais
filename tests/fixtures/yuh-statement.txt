@@ -1,0 +1,416 @@
+Dein Kontoauszug                                                                                                     Herrn Cliente Exemplo
+Kontoauszug vom 01.09.2026 bis 30.09.2026                                                                            Rua Exemplo 1
+Dokument erstellt am 01.10.2026
+                                                                                                                     0000 Cidade
+
+
+
+                                                                                                                     Yuh account
+Anfangssaldo                                        224.30 CHF
+                                                                                                                     IBAN                        CH00 0000 0000 0000 0000 0
+Endsaldo                                            805.41 CHF
+                                                                                                                     Kunde                                                  0000000
+Saldo Sparkonto                                       0.00 CHF
+                                                                                                                     SWIFT                                        SWQBCHZZ XXX
+
+
+
+
+    Endsaldo aufgeteilt auf alle Währungen
+     Schweizer Franken                                             Euro
+     805.41 CHF                                                    0.00 EUR
+
+
+
+
+                 Die vorliegende Benachrichtigung sowie die Transaktionen unterliegen unseren Allgemeinen Geschäftsbedingungen für Yuh-Konten und allen sonstigen Bedingungen, die zwischen
+                 dir und Yuh Ltd und/oder Swissquote Bank Ltd bezüglich deines Yuh-Kontos gelten.
+
+                 Bescheid ohne Unterschrift. Die Yuh-Banking-Services werden von Swissquote Bank Ltd bereitgestellt, einer der Eidgenössischen Finanzmarktaufsicht (FINMA) unterliegenden Bank.
+                 Swissquote Bank Ltd, Chemin de la Crétaux 33, CH-1196 | Gland
+
+
+
+© 2022 Yuh Ltd                                                                                                                                                                      Seite 1 / 7
+             Herrn Cliente Exemplo                                                                                                       Dokument erstellt am 01.10.2026
+             IBAN : CH00 0000 0000 0000 0000 0                                                                                                          Vom 01.09.2026 bis 30.09.2026
+
+
+
+
+Kontoauszug in CHF
+Saldo per 01.09.2026                                  224.30 CHF
+
+Total Belastung                                       418.89 CHF
+Total Gutschrift                                    1'000.00 CHF
+Saldo per 30.09.2026                                  805.41 CHF
+
+
+DATUM         INFORMATION                                               REFERENZ           BELASTUNG                GUTSCHRIFT                VALUTA-DATUM                       SALDO (CHF)
+
+01.09.2026 Anfangsbestand                                                                                                                                                              224.30
+
+
+
+07.09.2026 Automatisierter Währungstausch                             1169665268           37.53                                                 09.09.2026                             186.77
+           CHF - EUR
+           1 CHF = 1.05249 EUR
+
+07.09.2026 Automatisierter Währungstausch                              1169883726          34.84                                                 09.09.2026                             151.93
+           CHF - EUR
+           1 CHF = 1.05339 EUR
+
+08.09.2026 Automatisierter Währungstausch                              1170421576          9.98                                                  10.09.2026                             141.95
+           CHF - EUR
+           1 CHF = 1.0521 EUR
+
+08.09.2026 Automatisierter Währungstausch                              1170431563          14.26                                                 10.09.2026                             127.69
+           CHF - EUR
+           1 CHF = 1.05189 EUR
+
+08.09.2026 Automatisierter Währungstausch                              1170534520          13.08                                                 10.09.2026                              114.61
+           CHF - EUR
+           1 CHF = 1.05199 EUR
+
+08.09.2026 Automatisierter Währungstausch                              1170546930          24.73                                                 10.09.2026                              89.88
+           CHF - EUR
+           1 CHF = 1.05135 EUR
+
+09.09.2026 Automatisierter Währungstausch                              1171060870          21.85                                                 11.09.2026                              68.03
+           CHF - EUR
+           1 CHF = 1.05263 EUR
+
+09.09.2026 Automatisierter Währungstausch                              1171158942          2.85                                                  11.09.2026                              65.18
+           CHF - EUR
+           1 CHF = 1.05263 EUR
+
+11.09.2026    Automatisierter Währungstausch                           1172379336          2.29                                                  15.09.2026                              62.89
+              CHF - EUR
+              1 CHF = 1.04803 EUR
+
+11.09.2026    Automatisierter Währungstausch                           1172487957          30.62                                                 15.09.2026                              32.27
+              CHF - EUR
+              1 CHF = 1.04833 EUR
+
+14.09.2026 Automatisierter Währungstausch                              1173549516          21.98                                                 16.09.2026                              10.29
+           CHF - EUR
+           1 CHF = 1.04641 EUR
+
+14.09.2026 Automatisierter Währungstausch                              1173632499          6.59                                                  16.09.2026                               3.70
+           CHF - EUR
+           1 CHF = 1.04704 EUR
+
+
+
+
+                   Die vorliegende Benachrichtigung sowie die Transaktionen unterliegen unseren Allgemeinen Geschäftsbedingungen für Yuh-Konten und allen sonstigen Bedingungen, die zwischen
+                   dir und Yuh Ltd und/oder Swissquote Bank Ltd bezüglich deines Yuh-Kontos gelten.
+
+                   Bescheid ohne Unterschrift. Die Yuh-Banking-Services werden von Swissquote Bank Ltd bereitgestellt, einer der Eidgenössischen Finanzmarktaufsicht (FINMA) unterliegenden Bank.
+                   Swissquote Bank Ltd, Chemin de la Crétaux 33, CH-1196 | Gland
+
+
+
+Die Bankdienstleistungen für Yuh werden von Swissquote Bank AG erbracht, einer Bank,                                                                                                  Seite 2 / 7
+die von der Eidgenössischen Finanzmarktaufsicht (FINMA) reguliert wird.
+Swissquote Bank AG, chemin de la Crétaux 33, CH-1196 Gland | Customer Care: +41 44 825 87 89
+             Herrn Cliente Exemplo                                                                                                    Dokument erstellt am 01.10.2026
+             IBAN : CH00 0000 0000 0000 0000 0                                                                                                       Vom 01.09.2026 bis 30.09.2026
+
+
+
+
+DATUM        INFORMATION                                             REFERENZ           BELASTUNG                GUTSCHRIFT                VALUTA-DATUM                       SALDO (CHF)
+
+25.09.2026 Zahlung von                                              1181089900                                   1'000.00                     25.09.2026                          1'003.70
+           Cliente Exemplo
+           Rua Exemplo, 1
+           0000 Cidade
+           CH
+           CH0000000000000000000
+28.09.2026 Automatisierter Währungstausch                          1182493009           198.29                                                30.09.2026                             805.41
+           CHF - EUR
+           1 CHF = 1.04841 EUR
+
+30.09.2026 Schlussbilanz                                                                                                                                                            805.41
+
+
+
+
+                Die vorliegende Benachrichtigung sowie die Transaktionen unterliegen unseren Allgemeinen Geschäftsbedingungen für Yuh-Konten und allen sonstigen Bedingungen, die zwischen
+                dir und Yuh Ltd und/oder Swissquote Bank Ltd bezüglich deines Yuh-Kontos gelten.
+
+                Bescheid ohne Unterschrift. Die Yuh-Banking-Services werden von Swissquote Bank Ltd bereitgestellt, einer der Eidgenössischen Finanzmarktaufsicht (FINMA) unterliegenden Bank.
+                Swissquote Bank Ltd, Chemin de la Crétaux 33, CH-1196 | Gland
+
+
+
+Die Bankdienstleistungen für Yuh werden von Swissquote Bank AG erbracht, einer Bank,                                                                                               Seite 3 / 7
+die von der Eidgenössischen Finanzmarktaufsicht (FINMA) reguliert wird.
+Swissquote Bank AG, chemin de la Crétaux 33, CH-1196 Gland | Customer Care: +41 44 825 87 89
+             Herrn Cliente Exemplo                                                                                                       Dokument erstellt am 01.10.2026
+             IBAN : CH00 0000 0000 0000 0000 0                                                                                                          Vom 01.09.2026 bis 30.09.2026
+
+
+
+
+Kontoauszug in EUR
+Saldo per 01.09.2026                                     0.00 EUR
+
+Total Belastung                                       439.75 EUR
+Total Gutschrift                                      439.75 EUR
+Saldo per 30.09.2026                                     0.00 EUR
+
+
+DATUM         INFORMATION                                               REFERENZ           BELASTUNG                GUTSCHRIFT                VALUTA-DATUM                       SALDO (EUR)
+
+01.09.2026 Anfangsbestand                                                                                                                                                                 0.00
+
+
+
+07.09.2026 Zahlung per Debitkarte                                     1169305246           28.50                                                 06.09.2026                             -28.50
+           xxxx 4275 -
+           Michael Stemke
+           Hauptstr. 77
+           78244 Gottmadingen
+07.09.2026 Zahlung per Debitkarte                                      1169307025          7.70                                                  06.09.2026                             -36.20
+           xxxx 4275 -
+           Michael Stemke
+           Hauptstr. 77
+           78244 Gottmadingen
+07.09.2026 Zahlung per Debitkarte                                      1169307037          3.30                                                  06.09.2026                             -39.50
+           xxxx 4275 -
+           Michael Stemke
+           Hauptstr. 77
+           78244 Gottmadingen
+07.09.2026 Zahlung per Debitkarte                                      1169883531          7.70                                                  07.09.2026                             -47.20
+           xxxx 4275 -
+           Michael Stemke
+           Hauptstr. 77
+           78244 Gottmadingen
+07.09.2026 Zahlung per Debitkarte                                      1169883542          29.00                                                 07.09.2026                             -76.20
+           xxxx 4275 -
+           Michael Stemke
+           Hauptstr. 77
+           78244 Gottmadingen
+07.09.2026 Automatisierter Währungstausch                             1169665268                                    39.50                        09.09.2026                             -36.70
+           CHF - EUR
+           1 EUR = 0.95013 CHF
+
+07.09.2026 Automatisierter Währungstausch                              1169883726                                   36.70                        09.09.2026                               0.00
+           CHF - EUR
+           1 EUR = 0.94932 CHF
+
+08.09.2026 Zahlung per Debitkarte                                     1170420005           10.50                                                 08.09.2026                             -10.50
+           xxxx 4275 -
+           SumUp *Marr co srls
+           Via Nazionale 48
+           07021 Arzachena
+08.09.2026 Zahlung per Debitkarte                                      1170427997          15.00                                                 08.09.2026                             -25.50
+           xxxx 4275 -
+           CAFFE' DELLA PIAZZA
+           VIA REGINA ELENA 1
+           07030 SANT' ANTONIO
+08.09.2026 Zahlung per Debitkarte                                      1170533759          13.76                                                 08.09.2026                             -39.26
+           xxxx 4275 -
+           SUPERCONCAS SUPERMERCA
+           CORSO EUROPA 114
+           07039 VALLEDORIA
+
+
+
+
+                   Die vorliegende Benachrichtigung sowie die Transaktionen unterliegen unseren Allgemeinen Geschäftsbedingungen für Yuh-Konten und allen sonstigen Bedingungen, die zwischen
+                   dir und Yuh Ltd und/oder Swissquote Bank Ltd bezüglich deines Yuh-Kontos gelten.
+
+                   Bescheid ohne Unterschrift. Die Yuh-Banking-Services werden von Swissquote Bank Ltd bereitgestellt, einer der Eidgenössischen Finanzmarktaufsicht (FINMA) unterliegenden Bank.
+                   Swissquote Bank Ltd, Chemin de la Crétaux 33, CH-1196 | Gland
+
+
+
+Die Bankdienstleistungen für Yuh werden von Swissquote Bank AG erbracht, einer Bank,                                                                                                  Seite 4 / 7
+die von der Eidgenössischen Finanzmarktaufsicht (FINMA) reguliert wird.
+Swissquote Bank AG, chemin de la Crétaux 33, CH-1196 Gland | Customer Care: +41 44 825 87 89
+             Herrn Cliente Exemplo                                                                                                    Dokument erstellt am 01.10.2026
+             IBAN : CH00 0000 0000 0000 0000 0                                                                                                       Vom 01.09.2026 bis 30.09.2026
+
+
+
+
+DATUM        INFORMATION                                             REFERENZ           BELASTUNG                GUTSCHRIFT                VALUTA-DATUM                       SALDO (EUR)
+
+08.09.2026 Zahlung per Debitkarte                                   1170546013          26.00                                                 08.09.2026                             -65.26
+           xxxx 4275 -
+           PIAZZA HOTELS & RESID.
+           VIA SAN PIETRO A MARE
+           07039 VALLEDORIA
+08.09.2026 Automatisierter Währungstausch                           1170421576                                   10.50                        10.09.2026                             -54.76
+           CHF - EUR
+           1 EUR = 0.95048 CHF
+
+08.09.2026 Automatisierter Währungstausch                           1170431563                                   15.00                        10.09.2026                             -39.76
+           CHF - EUR
+           1 EUR = 0.95067 CHF
+
+08.09.2026 Automatisierter Währungstausch                           1170534520                                   13.76                        10.09.2026                             -26.00
+           CHF - EUR
+           1 EUR = 0.95058 CHF
+
+08.09.2026 Automatisierter Währungstausch                           1170546930                                   26.00                        10.09.2026                               0.00
+           CHF - EUR
+           1 EUR = 0.95115 CHF
+
+09.09.2026 Zahlung per Debitkarte                                   1171059400          23.00                                                 09.09.2026                             -23.00
+           xxxx 4275 -
+           FOFO
+           VIA LUNGOMARE ANGLONA 1
+           07031 CASTELSARDO
+09.09.2026 Zahlung per Debitkarte                                    1171158777         3.00                                                  09.09.2026                             -26.00
+           xxxx 4275 -
+           PARCOMETRO N30
+           P DELLA PACE VIA ASFODEL
+           07041 ALGHERO
+09.09.2026 Automatisierter Währungstausch                           1171060870                                   23.00                        11.09.2026                              -3.00
+           CHF - EUR
+           1 EUR = 0.95 CHF
+
+09.09.2026 Automatisierter Währungstausch                           1171158942                                   3.00                         11.09.2026                               0.00
+           CHF - EUR
+           1 EUR = 0.95 CHF
+
+10.09.2026 Zahlung per Debitkarte                                   1171833526          1.00                                                  10.09.2026                               -1.00
+           xxxx 5733 -
+           COSTA PARADISO
+           SPIAGGIA COSTA PARADISO
+           07038 TRINITA' D'AG
+11.09.2026   Zahlung per Debitkarte                                 1172378616          1.40                                                  11.09.2026                              -2.40
+             xxxx 5733 -
+             .8 G.M.
+             STRADA STATALE 131 KM 1
+             07010 GIAVE
+11.09.2026   Zahlung per Debitkarte                                 1172487264          32.10                                                 11.09.2026                             -34.50
+             xxxx 5733 -
+             LIS Pay presso OGGIAN
+             CORSO EUROPA
+             07039 VALLEDORIA
+11.09.2026   Automatisierter Währungstausch                         1172379336                                   2.40                         15.09.2026                             -32.10
+             CHF - EUR
+             1 EUR = 0.95417 CHF
+
+11.09.2026   Automatisierter Währungstausch                         1172487957                                   32.10                        15.09.2026                               0.00
+             CHF - EUR
+             1 EUR = 0.95389 CHF
+
+
+
+
+                Die vorliegende Benachrichtigung sowie die Transaktionen unterliegen unseren Allgemeinen Geschäftsbedingungen für Yuh-Konten und allen sonstigen Bedingungen, die zwischen
+                dir und Yuh Ltd und/oder Swissquote Bank Ltd bezüglich deines Yuh-Kontos gelten.
+
+                Bescheid ohne Unterschrift. Die Yuh-Banking-Services werden von Swissquote Bank Ltd bereitgestellt, einer der Eidgenössischen Finanzmarktaufsicht (FINMA) unterliegenden Bank.
+                Swissquote Bank Ltd, Chemin de la Crétaux 33, CH-1196 | Gland
+
+
+
+Die Bankdienstleistungen für Yuh werden von Swissquote Bank AG erbracht, einer Bank,                                                                                               Seite 5 / 7
+die von der Eidgenössischen Finanzmarktaufsicht (FINMA) reguliert wird.
+Swissquote Bank AG, chemin de la Crétaux 33, CH-1196 Gland | Customer Care: +41 44 825 87 89
+             Herrn Cliente Exemplo                                                                                                    Dokument erstellt am 01.10.2026
+             IBAN : CH00 0000 0000 0000 0000 0                                                                                                       Vom 01.09.2026 bis 30.09.2026
+
+
+
+
+DATUM        INFORMATION                                             REFERENZ           BELASTUNG                GUTSCHRIFT                VALUTA-DATUM                       SALDO (EUR)
+
+14.09.2026 Zahlung per Debitkarte                                   1172977552          16.00                                                 12.09.2026                             -16.00
+           xxxx 4275 -
+           PIAZZA HOTELS & RESID.
+           VIA SAN PIETRO A MARE
+           07039 VALLEDORIA
+14.09.2026 Zahlung per Debitkarte                                   1173324999          7.00                                                  13.09.2026                             -23.00
+           xxxx 4275 -
+           LA GELATERIA 104
+           CORSO EUROPA 104
+           07039 VALLEDORIA
+14.09.2026 Zahlung per Debitkarte                                   1173631930          6.90                                                  14.09.2026                             -29.90
+           xxxx 4275 -
+           KARA CAFE'
+           C O AEROP.COSTA SMERALDA
+           07026 OLBIA
+14.09.2026 Automatisierter Währungstausch                           1173549516                                   23.00                        16.09.2026                              -6.90
+           CHF - EUR
+           1 EUR = 0.95565 CHF
+
+14.09.2026 Automatisierter Währungstausch                           1173632499                                   6.90                         16.09.2026                               0.00
+           CHF - EUR
+           1 EUR = 0.95507 CHF
+
+28.09.2026 Zahlung per Debitkarte                                   1181544039          110.89                                                26.09.2026                            -110.89
+           xxxx 4275 -
+           Edeka Baur Gailingen
+           Auf der Hoehe 4
+           78262 Gailingen
+28.09.2026 Zahlung per Debitkarte                                   1181607502          5.90                                                  26.09.2026                             -116.79
+           xxxx 4275 -
+           DM DROGERIE SAGT DANKE
+           Im Rheinauer 4
+           78262 Gailingen am
+28.09.2026 Zahlung per Debitkarte                                   1181638692          19.40                                                 26.09.2026                            -136.19
+           xxxx 4275 -
+           Michael Stemke
+           Hauptstr 77
+           78244 Gottmadingen
+28.09.2026 Zahlung per Debitkarte                                   1182049772          22.90                                                 27.09.2026                            -159.09
+           xxxx 4275 -
+           DM DROGERIE SAGT DANKE
+           Im Rheinauer 4
+           78262 Gailingen am
+28.09.2026 Zahlung per Debitkarte                                   1182078394          28.10                                                 27.09.2026                             -187.19
+           xxxx 4275 -
+           Michael Stemke
+           Hauptstr 77
+           78244 Gottmadingen
+28.09.2026 Zahlung per Debitkarte                                   1182080113          20.70                                                 27.09.2026                           -207.89
+           xxxx 5733 -
+           Michael Stemke
+           Hauptstr 77
+           78244 Gottmadingen
+28.09.2026 Automatisierter Währungstausch                          1182493009                                    207.89                       30.09.2026                               0.00
+           CHF - EUR
+           1 EUR = 0.95382 CHF
+
+30.09.2026 Schlussbilanz                                                                                                                                                               0.00
+
+
+
+
+                Die vorliegende Benachrichtigung sowie die Transaktionen unterliegen unseren Allgemeinen Geschäftsbedingungen für Yuh-Konten und allen sonstigen Bedingungen, die zwischen
+                dir und Yuh Ltd und/oder Swissquote Bank Ltd bezüglich deines Yuh-Kontos gelten.
+
+                Bescheid ohne Unterschrift. Die Yuh-Banking-Services werden von Swissquote Bank Ltd bereitgestellt, einer der Eidgenössischen Finanzmarktaufsicht (FINMA) unterliegenden Bank.
+                Swissquote Bank Ltd, Chemin de la Crétaux 33, CH-1196 | Gland
+
+
+
+Die Bankdienstleistungen für Yuh werden von Swissquote Bank AG erbracht, einer Bank,                                                                                               Seite 6 / 7
+die von der Eidgenössischen Finanzmarktaufsicht (FINMA) reguliert wird.
+Swissquote Bank AG, chemin de la Crétaux 33, CH-1196 Gland | Customer Care: +41 44 825 87 89
+             Herrn Cliente Exemplo                                                                                                    Dokument erstellt am 01.10.2026
+             IBAN : CH00 0000 0000 0000 0000 0                                                                                                       Vom 01.09.2026 bis 30.09.2026
+
+
+
+
+                Die vorliegende Benachrichtigung sowie die Transaktionen unterliegen unseren Allgemeinen Geschäftsbedingungen für Yuh-Konten und allen sonstigen Bedingungen, die zwischen
+                dir und Yuh Ltd und/oder Swissquote Bank Ltd bezüglich deines Yuh-Kontos gelten.
+
+                Bescheid ohne Unterschrift. Die Yuh-Banking-Services werden von Swissquote Bank Ltd bereitgestellt, einer der Eidgenössischen Finanzmarktaufsicht (FINMA) unterliegenden Bank.
+                Swissquote Bank Ltd, Chemin de la Crétaux 33, CH-1196 | Gland
+
+
+
+Die Bankdienstleistungen für Yuh werden von Swissquote Bank AG erbracht, einer Bank,                                                                                               Seite 7 / 7
+die von der Eidgenössischen Finanzmarktaufsicht (FINMA) reguliert wird.
+Swissquote Bank AG, chemin de la Crétaux 33, CH-1196 Gland | Customer Care: +41 44 825 87 89
+

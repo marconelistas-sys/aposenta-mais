@@ -1,9 +1,11 @@
 import { resetBudgetOverview } from './budget-overview.js'
+import { resetBudgetCategories } from './budget-categories.js'
 import { budgetOwnerView, filterByHouseholdOwner } from '../../shared/household-owner.js'
 
 export const budgetEntriesView = { search: '', period: 'active', type: 'all', recordKind: 'all' }
 export function resetBudgetEntriesView() {
   resetBudgetOverview()
+  resetBudgetCategories()
   Object.assign(budgetEntriesView, { search: '', period: 'active', type: 'all', recordKind: 'all' })
   budgetOwnerView.selected = 'all'
 }

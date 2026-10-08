@@ -25,9 +25,11 @@ export function bbFixturePages() {
     [[8, '31/01/2026'], ...history('S A L D O'), ...value('0,00', '+')], [[8, 'Total Aplicações Financeiras'], [130, '0,00']]]
   return [first, second]
 }
-export function syntheticBbText() { return bbFixturePages().map(page => page.map(line).join('\n')).join('\n\f\n') }
-export function syntheticBbPdf() {
-  const pages = bbFixturePages()
+export function bbInvestmentFixturePages() {
+  return [...bbFixturePages(), [...heading.slice(0, 3), [[8, 'Aplicações Financeiras']], [[8, 'BB RENDE FACIL'], [110, '2.500,00']], [[8, 'RF LP High'], [110, '16.000,00']], [[8, 'BB CDB DI *'], [110, '28.000,00']]]]
+}
+export function syntheticBbText(pages = bbFixturePages()) { return pages.map(page => page.map(line).join('\n')).join('\n\f\n') }
+export function syntheticBbPdf(pages = bbFixturePages()) {
   const escape = text => text.replace(/[\\()]/g, '\\$&')
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', `<< /Type /Pages /Kids [${pages.map((_, index) => `${3 + index * 3} 0 R`).join(' ')}] /Count ${pages.length} >>`]
   pages.forEach((rows, index) => {

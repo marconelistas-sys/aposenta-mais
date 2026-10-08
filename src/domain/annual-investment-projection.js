@@ -16,7 +16,7 @@ export function projectAnnualInvestments(rows, model, annualReturns = null) {
   const source = plan.investments.length ? plan.investments : [{ amount: plan.currentAssets, liquidity: 'unknown', returnType: 'default' }]
   const buckets = source.map(item => {
     validateAnnualRealReturns(item.annualRealReturns)
-    return { investment: item, balance: item.amount, liquid: item.liquidity === 'available', releaseYear: releaseYears.get(item.id), id: `opening:${item.id}`, name: item.name || 'Patrimônio', pension: item.assetClass === 'pension' }
+    return { investment: item, balance: item.amount, openingPrincipal: item.amount, contributionPrincipal: 0, contributionSources: new Map(), liquid: item.liquidity === 'available', releaseYear: releaseYears.get(item.id), id: `opening:${item.id}`, name: item.name || 'Patrimônio', pension: item.assetClass === 'pension' }
   })
   const cash = { id: 'projected-cash', name: 'Caixa acumulado do planejamento', balance: 0, liquid: true }
   buckets.push(cash)
@@ -41,14 +41,20 @@ export function projectAnnualInvestments(rows, model, annualReturns = null) {
       if (bucket.liquid) liquidReturn += growth
     }
     for (const flow of row.pensionFlows || []) {
-      let bucket = buckets.find(item => item.id === flow.id)
-      if (!bucket) { bucket = { id: flow.id, name: flow.name, balance: 0, liquid: false, pension: true, releaseYear: flow.releaseYear }; buckets.push(bucket) }
+      let bucket = buckets.find(item => item.id === (flow.investmentId ? `opening:${flow.investmentId}` : flow.id))
+      if (flow.investmentId && (!bucket || !bucket.pension)) throw new TypeError('Investimento de destino da contribuição previdenciária não encontrado.')
+      if (!bucket) { bucket = { id: flow.id, name: flow.name, balance: 0, openingPrincipal: 0, contributionPrincipal: 0, contributionSources: new Map(), liquid: false, pension: true, releaseYear: flow.releaseYear }; buckets.push(bucket) }
       bucket.balance += flow.amount
+      bucket.contributionPrincipal += flow.amount
+      if (flow.itemId && flow.amount > 0) {
+        const previous = bucket.contributionSources.get(flow.itemId)
+        bucket.contributionSources.set(flow.itemId, { id: flow.itemId, name: flow.name, amount: (previous?.amount || 0) + flow.amount })
+      }
     }
     for (const bucket of buckets) if (!bucket.liquid && bucket.releaseYear === year) {
       bucket.liquid = true
       released += bucket.balance
-      releasedItems.push({ id: bucket.id, name: bucket.name, category: 'Liberação de saldo restrito', source: 'Patrimônio', currency: model.currency, frequency: 'Liberação anual', amount: bucket.balance, originalAmount: bucket.balance, months: 1 })
+      releasedItems.push({ id: bucket.id, name: bucket.name, category: 'Liberação de saldo restrito', source: 'Patrimônio', currency: model.currency, frequency: 'Liberação anual', amount: bucket.balance, originalAmount: bucket.balance, months: 1, openingPrincipal: bucket.openingPrincipal, contributionPrincipal: bucket.contributionPrincipal, accumulatedReturn: bucket.balance - bucket.openingPrincipal - bucket.contributionPrincipal, contributionSources: [...bucket.contributionSources.values()].map(item => ({ ...item })) })
     }
     const freeCashFlow = row.income - row.costs - row.goals
     let withdrawalTax = 0
@@ -59,7 +65,11 @@ export function projectAnnualInvestments(rows, model, annualReturns = null) {
       const surplus = freeCashFlow - repayment
       const planned = buckets.reduce((sum, bucket) => sum + (bucket.investment?.monthlyContribution || 0) * 12, 0)
       const invested = Math.min(surplus, planned)
-      for (const bucket of buckets) if (bucket.investment?.monthlyContribution > 0) bucket.balance += invested * bucket.investment.monthlyContribution * 12 / planned
+      for (const bucket of buckets) if (bucket.investment?.monthlyContribution > 0) {
+        const amount = invested * bucket.investment.monthlyContribution * 12 / planned
+        bucket.balance += amount
+        bucket.contributionPrincipal += amount
+      }
       cash.balance += surplus - invested
     }
     else {

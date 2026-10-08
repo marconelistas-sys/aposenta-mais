@@ -6,6 +6,18 @@ export function guideBudgetForm(form, customCategories = []) {
   if (!form) return
   const field = name => form.elements.namedItem(name)
   const category = categoryById(field('categoryId')?.value, customCategories)
+  const eligiblePension = category?.budgetGroup === 'pension' && field('recordKind')?.value !== 'actual' && field('frequency')?.value === 'monthly'
+  const pensionCapital = field('pensionCapitalRelease')
+  if (pensionCapital) {
+    pensionCapital.disabled = !eligiblePension
+    pensionCapital.closest('[data-pension-capital-field]').hidden = !eligiblePension
+  }
+  const pensionTarget = field('pensionInvestmentId')
+  if (pensionTarget) {
+    const eligible = eligiblePension && pensionCapital?.value !== 'no'
+    pensionTarget.disabled = !eligible
+    pensionTarget.closest('[data-pension-investment-field]').hidden = !eligible
+  }
   const rules = budgetFieldRules({ frequency: field('frequency')?.value, endMode: field('endMode')?.value, type: category?.type, recordKind: field('recordKind')?.value })
   const allowSpouse = rules.allowRetirement && field('householdOwner')?.value === 'spouse'
   const spouseOption = field('endMode')?.querySelector('[value="spouse-retirement"]')

@@ -111,6 +111,7 @@ export function renderDashboard() {
         <p>${state.isDemo ? 'Faça uma simulação gratuita e ajuste o orçamento sem criar conta.' : 'Confira se os recursos sustentam sua família até a data-alvo.'}</p>
       </div>
       <div class="dashboard-tools">
+        <a class="button button--primary" href="/orcamento?aba=resumo" data-route data-monthly-planning-shortcut>Planejar meu mês ${icon('arrowRight', 17)}</a>
         ${currencySelector()}
         <div class="last-update">
           <span class="status-dot" aria-hidden="true"></span>
@@ -121,6 +122,7 @@ export function renderDashboard() {
 
     <section class="panel retirement-income-strip" aria-labelledby="retirement-income-title">
       <div class="retirement-income-strip__heading"><div><p class="eyebrow">RENDA NA APOSENTADORIA</p><h2 id="retirement-income-title">${state.valuesHidden ? 'Valores ocultos' : result.goalReached ? 'A projeção alcança a renda desejada' : 'A projeção ainda não alcança a renda desejada'}</h2></div><a class="button button--secondary" href="/plano" data-route>Ajustar meta e aporte</a></div>
+      <p class="annual-chart-basis">Esta renda usa o aporte mensal fixo de Meu plano até a aposentadoria. A avaliação anual abaixo usa o saldo do orçamento e pode apresentar outro resultado. <a href="/plano" data-route>Entender o efeito do aporte</a>.</p>
       <dl class="metric-row">
         <div><dt>${icon('target', 18, 'metric-glyph')}Renda desejada</dt><dd class="money-value">${money(state.plan.targetMonthlyIncome)}<small>/mês</small></dd></div>
         <div><dt>${icon('trendUp', 18, 'metric-glyph')}Renda projetada aos ${state.plan.retirementAge} anos</dt><dd class="money-value">${money(result.projectedMonthlyIncome)}<small>/mês</small></dd></div>
@@ -155,7 +157,7 @@ export function renderDashboard() {
           <strong class="money-value" aria-label="${privacyLabel(budgetBalance)}">${money(budgetBalance)}</strong>
           <span>Saldo mensal do orçamento</span>
         </div>
-        <a href="/orcamento" data-route aria-label="Ver receitas e despesas">${icon('chevronRight', 19)}</a>
+        <a href="/orcamento?aba=resumo" data-route aria-label="Ver receitas e despesas">${icon('chevronRight', 19)}</a>
       </article>
       <article class="metric-card">
         <div class="metric-card__icon metric-card__icon--blue">${icon('trendUp', 21)}</div>
@@ -184,8 +186,8 @@ export function renderDashboard() {
     <details class="panel settings-card"><summary>Revisar passo a passo e cadastros</summary><section aria-labelledby="start-guide"><h2 id="start-guide">Comece aqui</h2>
       <a class="button button--primary" href="/construir/objetivo" data-route>Continuar plano passo a passo</a>
       <p>${state.isDemo ? 'Os valores de demonstração são exemplos. Revise cada etapa com seus dados.' : 'Revise estas três etapas sempre que sua situação mudar.'}</p>
-      <ol><li><a href="/simulacoes" data-route>Defina sua aposentadoria</a>: confira as idades e a renda desejada.</li><li><a href="/orcamento" data-route>Organize seu orçamento</a>: cadastre receitas, despesas e seus prazos.</li><li><a href="/carteira" data-route>Revise seu patrimônio</a>: informe investimentos, aportes e rendimentos.</li></ol>
-      <p>Carteira reúne investimentos. Fluxo de caixa reúne o orçamento. <a href="/contas" data-route>Contas e movimentos</a> acompanha saldos manuais sem somá-los automaticamente ao patrimônio.</p>
+      <ol><li><a href="/simulacoes" data-route>Defina sua aposentadoria</a>: confira as idades e a renda desejada.</li><li><a href="/orcamento?aba=resumo" data-route>Organize seu orçamento</a>: cadastre receitas, despesas e seus prazos.</li><li><a href="/carteira" data-route>Revise seu patrimônio</a>: informe investimentos, aportes e rendimentos.</li></ol>
+      <p>Carteira reúne investimentos. Orçamento organiza receitas e despesas do mês. Projeção patrimonial mostra o impacto futuro das decisões. <a href="/contas" data-route>Contas e movimentos</a> acompanha saldos manuais sem somá-los automaticamente ao patrimônio.</p>
       <div class="wizard-actions"><a class="button button--secondary" href="/calendario" data-route>Vencimentos, dívidas e metas</a><a class="button button--secondary" href="/apos-aposentadoria" data-route>Projetar vida após aposentadoria</a></div>
       <div class="wizard-actions"><a class="button button--secondary" href="/consorcios" data-route>Consórcios e posição vinculada</a><a class="button button--secondary" href="/riscos" data-route>Patrimônio líquido, Monte Carlo e matriz de risco</a></div>
       <div class="wizard-actions"><a class="button button--secondary" href="/patrimonio" data-route>Ver patrimônio consolidado (contas, imóveis e dívidas)</a></div>

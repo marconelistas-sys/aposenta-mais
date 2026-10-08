@@ -50,7 +50,8 @@ try {
     const { updateCashFlow } = await import('/src/app/state.js')
     updateCashFlow({ ledger: { accounts: [{ id: 'bb-test', name: 'BB Exemplo', currency: 'BRL', openingBalance: 0, openingDate: '2025-12-01' }], movements: [] } })
   })
-  await page.locator('a[href="/orcamento"]').filter({ visible: true }).first().click()
+  await page.locator('a[href="/orcamento?aba=resumo"]').filter({ visible: true }).first().click()
+  await page.locator('[data-open-budget-import]').click()
   await page.evaluate(() => { window.bbTestMessages = []; new MutationObserver(() => { const message = document.querySelector('.toast-region')?.textContent; if (message) window.bbTestMessages.push(message) }).observe(document.querySelector('.toast-region'), { childList: true, subtree: true }) })
   const bbUpload = { name: 'automatic-detection.pdf', mimeType: 'application/pdf', buffer: payload }
   const upload = async files => {
@@ -76,7 +77,8 @@ try {
   const originalIds = await page.locator('.cash-item [data-edit-cash-item]').evaluateAll(elements => elements.map(element => element.dataset.editCashItem).sort())
   await page.reload()
   await page.locator('[data-open-local]').click()
-  await page.locator('a[href="/orcamento"]').filter({ visible: true }).first().click()
+  await page.locator('a[href="/orcamento?aba=resumo"]').filter({ visible: true }).first().click()
+  await page.locator('[data-open-budget-import]').click()
   await upload({ ...bbUpload, name: 'different-name.pdf' })
   assert.match(await page.locator('.statement-review-summary').innerText(), new RegExp(`${expected.budget} atualizações`))
   await page.locator('[data-statement-confirm]').click()

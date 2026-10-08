@@ -19,11 +19,20 @@
     <link rel="stylesheet" href="/src/styles/data-overview.css" />
     <link rel="stylesheet" href="/src/styles/refresh.css" />
     <link rel="stylesheet" href="/src/styles/budget-overview.css" />
+    <link rel="stylesheet" href="/src/styles/asset-allocation.css" />
+    <link rel="stylesheet" href="/src/styles/cash-month-summary.css" />
     <title>Aposenta+ | Seu futuro, com clareza</title>
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
     <div id="app"></div>
+    <div class="request-progress-bar" data-request-progress-bar hidden aria-hidden="true"></div>
+    <div class="request-progress" role="status" aria-live="polite" aria-atomic="true">
+      <div class="request-progress__content" data-request-progress hidden>
+        <span class="request-progress__spinner" aria-hidden="true"></span>
+        <span data-request-progress-message></span>
+      </div>
+    </div>
     <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

@@ -9,7 +9,7 @@ export function renderStatements() {
   return `<section class="panel"><p class="eyebrow">EXTRATOS E APOSENTADORIA</p><h1>Seu plano combina com sua rotina?</h1>
     <p>Compare a sobra mensal observada com o aporte que você planeja. O arquivo é lido neste navegador. O resumo será salvo no histórico, sem alterar seu orçamento.</p>
     <form data-bank-analysis>
-      <label class="form-field">Extrato CSV, TXT, OFX ou PDF TKB ou Banco do Brasil<input name="statement" type="file" accept=".csv,.txt,.ofx,.pdf" required></label>
+      <label class="form-field">Extrato CSV, TXT, OFX ou PDF TKB, Banco do Brasil ou Yuh<input name="statement" type="file" accept=".csv,.txt,.ofx,.pdf" required></label>
       <p>CSV/TXT: colunas data, descricao e valor, com despesas negativas. Use a moeda do plano. Até 1 MB e 2.000 movimentos, sem cortes silenciosos.</p>
       <label class="form-field">Início da cobertura<input name="start" type="date" required></label>
       <label class="form-field">Fim da cobertura<input name="end" type="date" required></label>

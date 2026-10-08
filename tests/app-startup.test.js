@@ -17,11 +17,13 @@ test('startup opens the welcome page and can reopen the dashboard', async t => {
     addEventListener() {}, removeEventListener() {}, scrollTo() {},
     requestAnimationFrame: callback => setImmediate(callback),
     cancelAnimationFrame: clearImmediate,
-    history: { pushState(_state, _title, path) { window.location.pathname = path } }
+    setTimeout, clearTimeout,
+    history: { pushState(_state, _title, path) { const url = new URL(path, 'http://localhost/'); Object.assign(window.location, { pathname: url.pathname, search: url.search, hash: url.hash }) } }
   }
   const document = {
     defaultView: window,
-    body: { classList: { toggle() {} } },
+    body: { classList: { toggle() {} }, appendChild() {} },
+    createElement: () => ({ setAttribute() {}, classList: { add() {}, remove() {} } }),
     querySelector: selector => selector === '#app' ? app : selector === '#toast-region' ? toast : null,
     querySelectorAll: () => [],
     addEventListener(type, callback) {
@@ -50,7 +52,9 @@ test('startup opens the welcome page and can reopen the dashboard', async t => {
   }
 
   await import('../src/main.js')
-  await new Promise(resolve => setImmediate(resolve))
+  for (let attempt = 0; attempt < 100 && !app.innerHTML.includes('id="welcome-title"'); attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 1))
+  }
   assert.ok(requests.includes('/api/auth/status'))
   assert.match(app.innerHTML, /id="welcome-title"/)
   assert.doesNotMatch(app.innerHTML, /Verificando a sessão/)
@@ -67,8 +71,16 @@ test('startup opens the welcome page and can reopen the dashboard', async t => {
   for (const kind of ['actual', 'planned']) {
     const review = { dataset: { reviewMonthRecords: kind }, closest: selector => selector === '[data-review-month-records]' ? review : null }
     for (const callback of listeners.get('click')) await callback({ target: review, preventDefault() {} })
-    assert.equal(window.location.pathname, '/orcamento')
+    assert.equal(window.location.pathname.split('?')[0], '/orcamento')
     assert.match(app.innerHTML, new RegExp(`<option value="${kind}" selected>`))
   }
   assert.deepEqual(state, before)
+  state.currency = 'BRL'
+  Object.assign(state.cashFlow, { referenceMonth: '2026-08', currentEmergencyReserve: 0, emergencyReserveTarget: 0, reserveBuildMonths: 12, annualGoals: [], commitments: [], consortia: [], items: [
+    { id: 'selected-salary', description: 'Salário agosto', categoryId: 'salary', type: 'income', amount: 5000, currency: 'BRL', frequency: 'monthly', recordKind: 'planned', startDate: '2026-08-01', endDate: '2026-08-31' },
+    { id: 'current-salary', description: 'Salário outubro', categoryId: 'salary', type: 'income', amount: 3000, currency: 'BRL', frequency: 'monthly', recordKind: 'planned', startDate: '2026-10-01', endDate: '2026-10-31' }
+  ] })
+  const apply = { closest: selector => selector === '[data-apply-sustainable-contribution]' ? apply : null }
+  for (const callback of listeners.get('click')) await callback({ target: apply, preventDefault() {} })
+  assert.equal(state.plan.monthlyContribution, 5000, 'Aporte aplicado precisa usar o mês exibido, agosto')
 })

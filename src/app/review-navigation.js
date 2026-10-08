@@ -3,7 +3,7 @@ import { revealInPageTab } from '../shared/page-tabs.js'
 // Review links only open local editors or focus existing fields. They never save data.
 const fields = {
   '/carteira': ['investmentName', 'liquidity', 'investmentReleaseYear', 'investmentAmount'],
-  '/orcamento': ['startDate', 'endDate', 'endMode', 'categoryId', 'description'],
+  '/orcamento': ['startDate', 'endDate', 'endMode', 'categoryId', 'description', 'pensionInvestmentId', 'pensionCapitalRelease'],
   '/viabilidade': ['openingConfirmed', 'pensionConfirmed', 'pensionMode', 'taxRegime'],
   '/construir/objetivo': ['retirementMonth'],
   '/plano': ['targetAge', 'spouseRetirementMonth', 'spouseExpectedMonthlyBenefit']

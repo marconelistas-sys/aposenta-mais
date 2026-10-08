@@ -12,11 +12,13 @@ import { categoryById } from '../data/cash-flow-categories.js'
 import { openSalaryItems, salaryEndMessage } from './cash-flow-checks.js'
 import { addConsortiumParts, createAnnualBreakdown, collectAnnualBudget, addAnnualBreakdown, finishAnnualBreakdown } from './annual-cash-flow-breakdown.js'
 import { migrationStatus } from './migration-review.js'
+import { validatePensionInvestment } from './pension-investment-links.js'
 
 const taxRegimes = new Set(['none', 'regressive', 'progressive', 'manual'])
 
 export function sanitizeFinappMethod(raw) {
-  return { chfBrlRate: Number.isFinite(raw?.chfBrlRate) && raw.chfBrlRate > 0 && raw.chfBrlRate < 1000000 ? raw.chfBrlRate : null, openingYearPeriod: Number.isFinite(raw?.openingYearPeriod) && raw.openingYearPeriod > 0 && raw.openingYearPeriod <= 1 ? raw.openingYearPeriod : 1, pensionMode: raw?.pensionMode === 'cash-funded' ? 'cash-funded' : 'external', openingConfirmed: raw?.openingConfirmed === true, pensionConfirmed: raw?.pensionConfirmed === true, releases: (Array.isArray(raw?.releases) ? raw.releases : []).slice(0, 30).filter(row => row && /^[\w:-]{1,80}$/.test(row.investmentId) && Number.isInteger(row.year) && row.year >= 2000 && row.year <= 2199).map(row => ({ investmentId: row.investmentId, year: row.year })), taxRegime: taxRegimes.has(raw?.taxRegime) ? raw.taxRegime : 'none', manualTaxRate: Number.isFinite(raw?.manualTaxRate) && raw.manualTaxRate >= 0 && raw.manualTaxRate <= 1 ? raw.manualTaxRate : 0 }
+  const recovered = [...new Set((Array.isArray(raw?.sourceAvailabilityRecoveredIds) ? raw.sourceAvailabilityRecoveredIds : []).filter(id => typeof id === 'string' && /^[\w:-]{1,80}$/.test(id)))].slice(0, 30)
+  return { ...(recovered.length ? { sourceAvailabilityRecoveredIds: recovered } : {}), chfBrlRate: Number.isFinite(raw?.chfBrlRate) && raw.chfBrlRate > 0 && raw.chfBrlRate < 1000000 ? raw.chfBrlRate : null, openingYearPeriod: Number.isFinite(raw?.openingYearPeriod) && raw.openingYearPeriod > 0 && raw.openingYearPeriod <= 1 ? raw.openingYearPeriod : 1, pensionMode: raw?.pensionMode === 'cash-funded' ? 'cash-funded' : 'external', openingConfirmed: raw?.openingConfirmed === true, pensionConfirmed: raw?.pensionConfirmed === true, releases: (Array.isArray(raw?.releases) ? raw.releases : []).slice(0, 30).filter(row => row && /^[\w:-]{1,80}$/.test(row.investmentId) && Number.isInteger(row.year) && row.year >= 2000 && row.year <= 2199).map(row => ({ investmentId: row.investmentId, year: row.year })), taxRegime: taxRegimes.has(raw?.taxRegime) ? raw.taxRegime : 'none', manualTaxRate: Number.isFinite(raw?.manualTaxRate) && raw.manualTaxRate >= 0 && raw.manualTaxRate <= 1 ? raw.manualTaxRate : 0 }
 }
 // Same annual recurrence as finapp run_projection. Negative financial/liquid
 // balances are diagnostic deficits, not an authorization to borrow.
@@ -82,9 +84,12 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   for (const item of state.plan.investments.filter(item => item.liquidity !== 'available' && item.amount > 0 && !releaseMap.has(item.id))) notice(`${item.name}: saldo restrito sem ano de liberação. Não será usado para pagar despesas.`, investmentReviewLink(item.id, 'investmentReleaseYear'), 'Informar ano de liberação')
   if (cohorts.some(row => row.year < startYear)) throw new Error('Liberação anterior ao ano-base: atualize a liquidez e o saldo atual na Carteira.')
   const pensionItems = state.cashFlow.items.filter(item => item.type === 'expense' && item.frequency === 'monthly' && categoryById(item.categoryId, state.customCategories)?.budgetGroup === 'pension' && item.recordKind !== 'actual' && item.source !== 'txt')
+  for (const item of pensionItems) validatePensionInvestment(item, state.plan.investments, state.customCategories)
+  for (const investment of state.plan.investments.filter(investment => investment.monthlyContribution > 0 && pensionItems.some(item => item.pensionInvestmentId === investment.id))) issue(`${investment.name}: há aporte mensal na Carteira e contribuição previdenciária vinculada no Orçamento. Confira se são aportes distintos para evitar duplicidade.`, investmentReviewLink(investment.id, 'investmentName'), 'Conferir aportes deste investimento')
   if (pensionItems.length && !settings.pensionConfirmed) confirm('pensionConfirmed', 'Confirme a origem das contribuições: crédito externo ao caixa ou transferência financiada pelo orçamento.')
-  const pensions = pensionItems.map(item => ({ balance: 0, year: item.endDate ? Number(item.endDate.slice(0, 4)) : null, pension: true, item, id: `pension:${item.id}`, name: item.description || 'Previdência' }))
-  for (const row of pensions.filter(row => row.item.amount > 0 && !row.year)) notice(`${reviewItemName(row.item)}: previdência sem ano final. As contribuições permanecem restritas durante todo o horizonte.`, budgetReviewLink(row.item.id, 'endDate'), 'Informar término das contribuições')
+  const pensions = pensionItems.filter(item => item.pensionCapitalRelease !== false).map(item => ({ balance: 0, year: item.endDate ? Number(item.endDate.slice(0, 4)) : null, pension: true, item, id: `pension:${item.id}`, name: item.description || 'Previdência' }))
+  for (const item of pensionItems.filter(item => item.pensionCapitalRelease === false)) notice(`${reviewItemName(item)}: somente benefício mensal, sem acumular ou liberar capital. As parcelas do benefício precisam estar cadastradas como receita de aposentadoria, com valor e data de início.`, budgetReviewLink(item.id, 'pensionCapitalRelease'), 'Conferir tratamento desta previdência')
+  for (const row of pensions.filter(row => row.item.amount > 0 && !row.year && !row.item.pensionInvestmentId)) notice(`${reviewItemName(row.item)}: previdência sem ano final. As contribuições permanecem restritas durante todo o horizonte.`, budgetReviewLink(row.item.id, 'endDate'), 'Informar término das contribuições')
   const debtSchedules = prepareCommitmentSchedules(state.cashFlow.commitments)
   const consortia = sanitizeConsortia(state.cashFlow.consortia)
   for (const item of consortia) validateConsortiumAsOf(item, today.toISOString().slice(0, 7))
@@ -96,7 +101,7 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   const rows = []
   for (let year = startYear; year <= horizon.endYear; year++) {
     const breakdown = includeBreakdown ? createAnnualBreakdown() : null
-    let income = 0, costs = 0, goals = 0, pensionCredits = 0
+    let income = 0, costs = 0, goals = 0, pensionCredits = 0, pensionContributions = 0
     const contributions = new Map()
     for (let month = 1; month <= 12; month++) {
       const key = `${year}-${String(month).padStart(2, '0')}`
@@ -106,7 +111,8 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
       goals += budget.convertedItems.filter(item => item.isIncluded && item.annualGoalId).reduce((sum, item) => sum + item.convertedAmount, 0)
       for (const item of budget.convertedItems.filter(item => item.isIncluded && item.type === 'income' && item.categoryId === 'investment-income' && item.convertedAmount > 0)) investmentIncomeIds.add(item.id)
       costs += budget.monthlyExpenses - budget.pensionContributions
-      pensionCredits += budget.pensionContributions
+      pensionCredits += budget.pensionCapitalContributions
+      pensionContributions += budget.pensionContributions
       for (const pension of pensions) {
         const value = calculateMultiCurrencyCashFlow({ ...cashFlow, items: [pension.item], commitments: [], annualGoals: [], ledger: { accounts: [], movements: [] } }, state.currency, state.exchangeRates, 0, state.customCategories, new Date(`${key}-15T00:00:00Z`)).pensionContributions
         contributions.set(pension, (contributions.get(pension) || 0) + value)
@@ -122,7 +128,7 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
     // Goals are already in costs from the monthly budget. Separate their annual
     // provision in the presentation, without subtracting it twice.
     costs = Math.max(0, costs - goals)
-    if (settings.pensionMode === 'cash-funded') costs += pensionCredits
+    if (settings.pensionMode === 'cash-funded') costs += pensionContributions
     costs *= costMultiplier
     const liabilityComponents = [...debtSchedules.values()].map(schedule => {
       const debt = state.cashFlow.commitments.find(item => debtSchedules.get(item.id) === schedule)
@@ -137,7 +143,7 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
         ...consortiumRows.map(({ item, rows }) => ({ id: `consortium:${item.id}`, name: item.name, kind: 'consortium', amount: convert(rows.find(row => row.month === `${year}-12`)?.restrictedEquity || 0, item.currency) }))
       ]
     } : null
-    const pensionFlows = pensions.map(pension => ({ id: pension.id, name: pension.name, amount: contributions.get(pension) || 0, releaseYear: pension.year }))
+    const pensionFlows = pensions.map(pension => ({ id: pension.id, itemId: pension.item.id, investmentId: pension.item.pensionInvestmentId || null, name: pension.name, amount: contributions.get(pension) || 0, releaseYear: pension.year }))
     rows.push({ year: String(year), income, costs, goals, pensionCredits, pensionFlows, assets, liabilities, ...propertyValues(state.cashFlow, `${year}-12`, state.currency, state.exchangeRates), ...(breakdown ? { breakdown: finishAnnualBreakdown(breakdown), wealthBreakdown } : {}) })
   }
   const openingFinancial = state.plan.investments.length ? state.plan.investments.reduce((sum, row) => sum + row.amount, 0) : state.plan.currentAssets

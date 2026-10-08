@@ -1,6 +1,17 @@
+import { previewInvestmentBalances } from './domain/statement-investment-balances.js'
+import { linkCreditCardPayments } from './domain/credit-card-payments.js'
+import { normalizePlanningHref } from './app/planning-routes.js'
+import { bindBudgetExpensePies, updateBudgetExpensePieDetail, renderBudgetExpensePies } from './shared/budget-expense-pies.js'
+import { bindAssetAllocation } from './shared/asset-allocation.js'
+import { renderMonthlyBudgetComposition } from './features/cash-flow/monthly-budget-detail.js'
+import { bindSelectOptions, enhanceSelectOptions } from './shared/select-options.js'
+import { createPageLoader } from './app/page-loading.js'
+import { saveBudgetCategory } from './app/budget-category-edit.js'
+import { bindRequestProgress, withRequestProgress } from './app/request-progress.js'
 import { reconcileOwnTransfers } from './domain/own-transfers.js'
 import { saveOwnTransferSettings } from './app/state.js'
-import { bindBudgetOverviewInteractions } from './features/cash-flow/budget-overview.js'
+import { bindBudgetOverviewInteractions, budgetOverviewView } from './features/cash-flow/budget-overview.js'
+import { bindBudgetCategoriesInteractions, budgetCategoriesView, budgetCategoryPieData } from './features/cash-flow/budget-categories.js'
 import { reviewStatementBatch, statementBatchLimit } from './domain/statement-batch.js'
 import { statementMerchantKey } from './domain/statement-classification.js'
 import { cashFlowItemLimit } from './shared/limits.js'
@@ -141,11 +152,23 @@ import { compareStatementPeriods } from './domain/statement-history.js'
 import { budgetOwnerView } from './shared/household-owner.js'
 import { renderStatements, readStatementAnalysis } from './features/statements/statements.js'
 import { bindMonthlyHints, updateMonthlyHint } from './app/monthly-hint.js'
-import { bindPageTabs, revealInPageTab } from './shared/page-tabs.js'
+import { bindPageTabs, revealInPageTab, selectPageTab } from './shared/page-tabs.js'
 import { classVolatility } from './domain/risk-plan.js'
 import { correlationPresets, defaultClassCorrelations } from './domain/class-correlation.js'
 
 bindMoneyInputs(document)
+bindSelectOptions(document)
+bindAssetAllocation(document)
+const expensePieContexts = new WeakMap()
+bindBudgetExpensePies(document, section => {
+  if (state.valuesHidden || !app.contains(section)) return
+  let context = expensePieContexts.get(section)
+  if (!context) {
+    context = budgetCategoryPieData(state)
+    expensePieContexts.set(section, context)
+  }
+  updateBudgetExpensePieDetail(section, renderBudgetExpensePies(context.categories, state, context.periodLabel, context))
+})
 const app = document.querySelector('#app')
 bindNavigationMenu(app)
 bindWealthCallouts(app)
@@ -230,9 +253,13 @@ function restoreSimulationForm(values) {
 }
 
 function render({ focusMain = false, resetSimulation = false, indicateRecalculation = true } = {}) {
+  const openTools = [...app.querySelectorAll('[data-budget-tool][open]')].map(node => node.dataset.budgetTool)
+  const projectionFlowOpen = app.querySelector('[data-projection-flow-details]')?.open
   disposeValueLayout()
   if (!sessionReady) { app.innerHTML = '<main class="page-shell"><p role="status">Verificando a sessão antes de abrir seus dados…</p></main>'; return }
   if (indicateRecalculation) flashRecalculation()
+  const normalizedLocation = window.location.href ? normalizePlanningHref(window.location.href) : null
+  if (normalizedLocation && normalizedLocation !== window.location.href && normalizedLocation !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState({}, '', normalizedLocation)
   const pathname = currentPath()
   const simulationValues = pathname === '/simulacoes' && !resetSimulation ? captureSimulationForm() : null
   const selectedRenderer = pathname === '/inicio' || !canRenderFinancialPage(pathname) ? renderWelcome : pathname.startsWith('/construir/') ? () => renderGuidedPlan(pathname.split('/')[2]) : routes[pathname] || renderDashboard
@@ -240,6 +267,11 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
     ? renderDeletedState
     : selectedRenderer
   app.innerHTML = appLayout(pageRenderer() + (isLocalPlanOpen() && !isPublicPage(pathname) && !state.dataDeleted ? renderExpenseImpact() : ''), pathname)
+  for (const key of openTools) {
+    const tool = app.querySelector(`[data-budget-tool="${key}"]`)
+    if (tool) tool.open = true
+  }
+  if (projectionFlowOpen && app.querySelector('[data-projection-flow-details]')) app.querySelector('[data-projection-flow-details]').open = true
   bindPlanningChartInteractions(app)
   bindPaymentDialog(app)
   enhanceMoneyInputs(app, { hidden: state.valuesHidden })
@@ -248,6 +280,7 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
   guideCommitmentForm(document.querySelector('[data-commitment-form]'))
   guideConsortiumForm(document.querySelector('[data-consortium-form]'))
   guideMovementForm(document.querySelector('[data-movement-form]'), state.cashFlow.ledger.accounts)
+  enhanceSelectOptions(app)
   document.body.classList.toggle('values-hidden', state.valuesHidden)
   disposeValueLayout = bindFinancialValueLayout(app, { hidden: state.valuesHidden })
 
@@ -271,13 +304,18 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
 const trackedProductImpressions = new Set()
 let lastReviewLocation = null
 
-function navigate(href) {
+const loadPage = createPageLoader(render)
+
+async function navigate(href) {
+  href = normalizePlanningHref(href)
   resetExpenseImpact()
   if (href !== '/simulacoes') clearScenarioEditor()
   if (currentPath() !== href) window.history.pushState({}, '', href)
   lastReviewLocation = null
   window.scrollTo({ top: 0, behavior: 'instant' })
-  render({ focusMain: true, indicateRecalculation: false })
+  try {
+    await loadPage({ focusMain: true, indicateRecalculation: false })
+  } catch (error) { showToast(error.message) }
 }
 
 let toastTimer
@@ -377,6 +415,18 @@ function statementReviewView() {
     }
     return { ...row, selected: Boolean(row.item) && !row.duplicate && !row.internalTransfer && !statementReviewState.excludedRows.has(row.rowNumber) }
   })
+  const selectedItems = rows.filter(row => row.selected).map(row => row.item)
+  const selectedKeys = new Set(selectedItems.map(item => item.statementImportKey))
+  const cardPreview = linkCreditCardPayments([...state.cashFlow.items.filter(item => !selectedKeys.has(item.statementImportKey)), ...selectedItems])
+  const cardByKey = new Map(cardPreview.map(item => [item.statementImportKey, item]))
+  for (const row of rows) {
+    if (!row.item) continue
+    const linked = cardByKey.get(row.item.statementImportKey)
+    row.item = { ...row.item, creditCardPaymentLink: linked?.creditCardPaymentLink, creditCardPaymentStatus: linked?.creditCardPaymentStatus }
+  }
+  const balancePreview = previewInvestmentBalances(statementReviewState.files.flatMap(file => file.inspection.investmentBalances || []), state.plan.investments || [], { currency: state.currency, exchangeRates: state.exchangeRates, allowUndated: true })
+  const investmentBalanceRows = balancePreview.rows.map(row => ({ ...row, selected: row.status === 'update' && (row.previousDate ? !statementReviewState.excludedInvestmentBalances?.has(row.key) : statementReviewState.initialInvestmentBalances?.has(row.key) === true) }))
+  const investmentBalances = investmentBalanceRows.filter(row => row.selected)
   const selectedCount = rows.filter((row) => row.selected).length
   const availableSlots = Math.max(cashFlowItemLimit - state.cashFlow.items.length, 0)
   return {
@@ -392,6 +442,9 @@ function statementReviewView() {
     expectedFiles: statementReviewState.expectedFiles,
     totalRows: statementReviewState.files.reduce((total, file) => total + file.inspection.totalRows, 0),
     selectedCount,
+    investmentBalanceRows,
+    investmentBalances,
+    investmentUpdateCount: investmentBalances.length,
     duplicateCount: rows.filter((row) => row.duplicate).length,
     internalTransferCount: rows.filter(row => row.internalTransfer && !row.duplicate).length,
     invalidCount: rows.filter((row) => row.error).length,
@@ -451,7 +504,10 @@ function cashItemInputFromForm(form) {
     startDate: form.elements.namedItem('startDate').value,
     endDate: form.elements.namedItem('endMode').value === 'date' ? form.elements.namedItem('endDate').value : null,
     endMode: form.elements.namedItem('endMode').value,
-    recordKind
+    recordKind,
+    ...(form.elements.namedItem('pensionCapitalRelease') ? { pensionCapitalRelease: form.elements.namedItem('pensionCapitalRelease').disabled ? undefined : form.elements.namedItem('pensionCapitalRelease').value !== 'no' } : {}),
+    ...(form.elements.namedItem('pensionInvestmentId') ? { pensionInvestmentId: form.elements.namedItem('pensionInvestmentId').disabled ? null : form.elements.namedItem('pensionInvestmentId').value || null } : {}),
+    ...(form.elements.namedItem('transferDecision') ? { transferDecision: recordKind === 'actual' && ['own', 'payment'].includes(form.elements.namedItem('transferDecision').value) ? form.elements.namedItem('transferDecision').value : undefined } : {})
   }
 }
 
@@ -463,6 +519,8 @@ function syncCashItemRecordFields(form) {
   if (isActual) frequency.value = 'occasional'
   frequency.disabled = isActual
   startDate.required = isActual
+  const transferDecision = form.elements.namedItem('transferDecision')
+  if (transferDecision) transferDecision.disabled = !isActual
 }
 
 function openCashItemDialog(id) {
@@ -470,12 +528,16 @@ function openCashItemDialog(id) {
   const dialog = document.querySelector('[data-cash-item-dialog]')
   const form = dialog?.querySelector('[data-cash-item-edit-form]')
   if (!item || !dialog || !form) throw new TypeError('Lançamento não encontrado.')
+  delete dialog.dataset.budgetEntryId
   form.elements.namedItem('itemId').value = item.id
-  for (const field of ['categoryId', 'description', 'amount', 'currency', 'frequency', 'startDate', 'endDate', 'endMode', 'recordKind', 'householdOwner']) {
+  for (const field of ['categoryId', 'description', 'amount', 'currency', 'frequency', 'startDate', 'endDate', 'endMode', 'recordKind', 'householdOwner', 'pensionInvestmentId']) {
     const input = form.elements.namedItem(field)
     if (input) setFormFieldValue(input, item[field] ?? (field === 'householdOwner' ? 'unspecified' : ''))
   }
+  const pensionCapital = form.elements.namedItem('pensionCapitalRelease')
+  if (pensionCapital) pensionCapital.value = item.pensionCapitalRelease === false ? 'no' : 'yes'
   const imported = item.source === 'txt'
+  form.elements.namedItem('transferDecision').value = item.transferDecision || 'auto'
   form.elements.namedItem('recordKind').disabled = imported
   form.querySelector('[data-cash-edit-source]').textContent = imported
     ? 'Item importado. A origem e a classificação como realizado são preservadas.'
@@ -499,6 +561,7 @@ function openAnnualGoalDialog(id) {
   const dialog = document.querySelector('[data-annual-goal-dialog]')
   const form = dialog?.querySelector('[data-annual-planning="annualGoals"]')
   if (!row || !dialog || !form) throw new TypeError('Provisão anual não encontrada.')
+  delete dialog.dataset.budgetEntryId
   form.reset()
   for (const [key, value] of Object.entries(row)) {
     const field = form.elements.namedItem(key)
@@ -522,10 +585,29 @@ function refreshBudgetResults() {
   updateBudgetEntryResults(app)
 }
 
+function finishCategoryEntrySave(message, context) {
+  render()
+  const links = [...app.querySelectorAll('[data-edit-budget-category]')].filter(node => !node.closest('[data-page-tab-panel]')?.hidden)
+  const matches = node => node.dataset.editBudgetCategory === context.source && node.dataset.categoryItemId === context.id
+  const target = links.find(node => matches(node) && node.dataset.categoryEntryMonth === context.month) || links.find(matches)
+  if (target) {
+    if (target.closest('details')) target.closest('details').open = true
+    target.focus({ preventScroll: true })
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  } else app.querySelector('[data-reference-month-navigation] [data-cash-flow-month]')?.focus({ preventScroll: true })
+  showToast(message)
+}
+
+function categoryEntryContext(form) {
+  const dialog = form.closest('dialog')
+  return dialog?.dataset.budgetEntryId ? { source: dialog.dataset.budgetEntrySource, id: dialog.dataset.budgetEntryId, month: dialog.dataset.budgetEntryMonth } : null
+}
+
 function finishBudgetSave(message, id = null) {
   render()
   const edit = id ? [...app.querySelectorAll('[data-edit-cash-item]')].find(button => button.dataset.editCashItem === id) : null
   const target = edit || app.querySelector('[data-new-cash-item]:not(:disabled)') || app.querySelector('[data-budget-filters] [name="search"]')
+  if (target) revealInPageTab(app, target)
   target?.focus({ preventScroll: true })
   showToast(`${message}${id && !edit ? ' Para localizar o registro, limpe os filtros e selecione Todos os períodos.' : ''}`)
 }
@@ -557,15 +639,43 @@ function exportData() {
   }
 }
 
+function updateBudgetReferenceMonth(month, focusSelector = '[data-reference-month-navigation] [data-cash-flow-month]') {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || month < '1900-01' || month > '2200-12') throw new RangeError('Selecione um mês entre 1900 e 2200.')
+  setCashFlowReferenceMonth(month)
+  budgetOverviewView.year = null
+  budgetCategoriesView.year = null
+  if (budgetCategoriesView.month !== 'all') budgetCategoriesView.month = null
+  render()
+  const control = app.querySelector(focusSelector)
+  const target = control && !control.disabled ? control : app.querySelector('[data-reference-month-navigation] [data-cash-flow-month]')
+  target?.focus({ preventScroll: true })
+  showToast('Mês de comparação atualizado.')
+}
+
 document.addEventListener('click', async (event) => {
   if (!sessionReady) { event.preventDefault(); return }
+  const monthStep = event.target.closest('[data-budget-month-step]')
+  if (monthStep) {
+    const step = Number(monthStep.dataset.budgetMonthStep)
+    if (![-1, 1].includes(step)) return
+    try {
+      const date = new Date(`${state.cashFlow.referenceMonth}-01T00:00:00Z`)
+      date.setUTCMonth(date.getUTCMonth() + step)
+      const month = date.toISOString().slice(0, 7)
+      if (month < '1900-01' || month > '2200-12') return
+      updateBudgetReferenceMonth(month, `[data-budget-month-step="${step}"]`)
+    } catch (error) {
+      showToast(error.message)
+    }
+    return
+  }
   const reviewMonth = event.target.closest('[data-review-month-records]')
   if (reviewMonth) {
     const kind = reviewMonth.dataset.reviewMonthRecords
     if (!['actual', 'planned'].includes(kind)) return
     resetBudgetEntriesView()
     budgetEntriesView.recordKind = kind
-    navigate('/orcamento')
+    await navigate('/orcamento?aba=lancamentos')
     app.querySelector('[data-budget-filters] [name="recordKind"]')?.focus({ preventScroll: true })
     return
   }
@@ -618,9 +728,80 @@ document.addEventListener('click', async (event) => {
     } catch (error) { showToast(error.message) }
     return
   }
+  if (event.target.closest('[data-new-expense-category]')) {
+    const dialog = app.querySelector('[data-new-expense-category-dialog]')
+    const form = dialog.querySelector('form')
+    form.reset()
+    form.querySelector('[data-form-error]')?.remove()
+    dialog.showModal()
+    form.elements.namedItem('categoryName').focus()
+    return
+  }
+  if (event.target.closest('[data-close-expense-category]')) {
+    app.querySelector('[data-new-expense-category-dialog]')?.close()
+    return
+  }
+
+  if (event.target.closest('[data-show-budget-expense-pies]')) {
+    budgetCategoriesView.year = null
+    budgetCategoriesView.month = null
+    render()
+    selectPageTab(app, 'orcamento', 'categorias', { focus: false })
+    const heading = app.querySelector('#budget-expense-pies-title') || app.querySelector('[data-budget-categories] h2')
+    heading?.setAttribute('tabindex', '-1')
+    heading?.focus({ preventScroll: true })
+    heading?.scrollIntoView({ block: 'start' })
+    return
+  }
+
+  const monthlyBudgetButton = event.target.closest('[data-monthly-budget-detail]')
+  if (monthlyBudgetButton) {
+    if (state.valuesHidden) return
+    const dialog = app.querySelector('[data-monthly-budget-dialog]')
+    if (!dialog) return
+    try {
+      dialog.querySelector('[data-monthly-budget-content]').innerHTML = renderMonthlyBudgetComposition(state, monthlyBudgetButton.dataset.monthlyBudgetDetail, timelineView.period)
+      dialog.showModal()
+    } catch (error) { showToast(error.message) }
+    return
+  }
+  if (event.target.closest('[data-close-monthly-budget]')) {
+    app.querySelector('[data-monthly-budget-dialog]')?.close()
+    return
+  }
+
+  const planCategoryButton = event.target.closest('[data-plan-budget-category]')
+  if (planCategoryButton) {
+    const category = categoryById(planCategoryButton.dataset.planBudgetCategory, state.customCategories)
+    const month = planCategoryButton.dataset.planBudgetMonth
+    const dialog = app.querySelector('[data-new-cash-item-dialog]')
+    if (!category || category.type !== 'expense' || !dialog || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return
+    if (state.cashFlow.items.length >= cashFlowItemLimit) { showToast('Limite de lançamentos atingido.'); return }
+    const form = dialog.querySelector('[data-cash-item-form]')
+    form.reset()
+    form.querySelector('[data-form-error]')?.remove()
+    form.elements.namedItem('categoryId').value = category.id
+    form.elements.namedItem('description').value = category.name
+    form.elements.namedItem('recordKind').value = 'planned'
+    form.elements.namedItem('frequency').value = 'occasional'
+    form.elements.namedItem('currency').value = state.currency
+    form.elements.namedItem('startDate').value = `${month}-01`
+    form.elements.namedItem('endMode').value = 'none'
+    dialog.dataset.plannedCategory = category.id
+    guideBudgetForm(form, state.customCategories)
+    dialog.showModal()
+    form.elements.namedItem('amount').focus()
+    return
+  }
+
   if (event.target.closest('[data-new-cash-item]')) {
     const dialog = app.querySelector('[data-new-cash-item-dialog]')
     if (dialog) {
+      if (dialog.dataset.plannedCategory) {
+        dialog.querySelector('form').reset()
+        delete dialog.dataset.plannedCategory
+        guideBudgetForm(dialog.querySelector('form'), state.customCategories)
+      }
       if (budgetEntriesView.recordKind === 'actual') {
         const form = dialog.querySelector('[data-cash-item-form]')
         form.elements.namedItem('recordKind').value = 'actual'
@@ -643,7 +824,14 @@ document.addEventListener('click', async (event) => {
     updateStatementReviewDialog(app, statementReviewView())
     return
   }
+  if (event.target.closest('[data-open-budget-transfers]')) {
+    const tool = app.querySelector('[data-budget-tool="transferencias"]')
+    if (tool) { tool.open = true; tool.querySelector('summary')?.focus(); tool.scrollIntoView({ block: 'start' }) }
+    return
+  }
   if (event.target.closest('[data-open-budget-import]')) {
+    const tool = app.querySelector('[data-budget-tool="importar"]')
+    if (tool) tool.open = true
     const section = app.querySelector('.statement-import')
     revealInPageTab(app, section)
     if (section) { section.open = true; section.querySelector('summary')?.focus(); section.scrollIntoView({ block: 'start' }) }
@@ -801,14 +989,14 @@ document.addEventListener('click', async (event) => {
     if (guided && (state.isDemo || state.dataDeleted) && !window.confirm('Começar sem valores de demonstração? Receitas, despesas, patrimônio e aportes de exemplo serão substituídos por zero. Revise as premissas no primeiro passo.')) return
     if (guided) beginGuidedPlan()
     openLocalPlan()
-    navigate(guided ? '/construir/objetivo' : '/')
+    await navigate(guided ? '/construir/objetivo' : '/')
     return
   }
   if (event.target.closest('[data-close-local]')) {
     cancelRisk(true)
     closeLocalPlan()
     try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
-    navigate('/inicio')
+    await navigate('/inicio')
     return
   }
   if (event.target.closest('[data-load-currency-history]')) {
@@ -858,7 +1046,7 @@ document.addEventListener('click', async (event) => {
   const routeLink = event.target.closest('[data-route]')
   if (routeLink) {
     event.preventDefault()
-    navigate(routeLink.getAttribute('href'))
+    await navigate(routeLink.getAttribute('href'))
     return
   }
 
@@ -876,7 +1064,7 @@ document.addEventListener('click', async (event) => {
       closeLocalPlan()
       try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
       resetSyncState()
-      navigate('/inicio')
+      await navigate('/inicio')
       showToast('Sessão encerrada. Plano local fechado, sem apagar os dados.')
     } catch (error) {
       showToast(error.message)
@@ -939,7 +1127,8 @@ document.addEventListener('click', async (event) => {
       state.currency,
       state.exchangeRates,
       retirement.requiredMonthlyContribution,
-      state.customCategories
+      state.customCategories,
+      new Date(`${state.cashFlow.referenceMonth}-15T12:00:00Z`)
     )
     updatePlan({ monthlyContribution: cashFlow.sustainableContribution })
     render()
@@ -981,7 +1170,7 @@ document.addEventListener('click', async (event) => {
   const nextInvestmentStep = event.target.closest('[data-next-investment-step]')
   if (nextInvestmentStep) {
     const form = nextInvestmentStep.closest('[data-investment-form]')
-    const requiredNames = ['investmentName', 'assetClass', 'investmentAmount', 'investmentContribution', 'investmentReleaseYear']
+    const requiredNames = ['investmentName', 'assetClass', 'investmentAmount', 'investmentContribution', 'investmentReleaseYear', 'investmentBalanceAsOf']
     const valid = requiredNames.every((name) => form.elements.namedItem(name).reportValidity())
     if (valid) {
       showInvestmentStep(form, 2)
@@ -1005,6 +1194,7 @@ document.addEventListener('click', async (event) => {
     if (!investment || !form) return
     form.elements.namedItem('investmentId').value = investment.id
     form.elements.namedItem('investmentName').value = investment.name
+    form.elements.namedItem('investmentBalanceAsOf').value = investment.balanceAsOf || ''
     form.elements.namedItem('assetClass').value = investment.assetClass
     form.elements.namedItem('liquidity').value = investment.liquidity || 'unknown'
     form.elements.namedItem('investmentCurrency').value = investmentBalanceCurrency(investment, state.currency)
@@ -1118,7 +1308,7 @@ document.addEventListener('click', async (event) => {
       projectRetirementWithSchedules(plan, simulationSchedules(plan))
       if (scenarioEditor.scenario) replaceFinancialData({ ...state, currency: simulationContext().currency, cashFlow: simulationCashFlow(plan), plan })
       else updatePlan(plan)
-      navigate('/')
+      await navigate('/')
       showToast('Simulação aplicada ao plano principal.')
     } catch (error) {
       showToast(error.message)
@@ -1159,11 +1349,39 @@ document.addEventListener('click', async (event) => {
     if (!window.confirm('Carregar este cenário como plano principal e substituir os dados atuais?')) return
     try {
       loadScenario(loadScenarioButton.dataset.loadScenario)
-      navigate('/')
+      await navigate('/')
       showToast('Cenário carregado como plano principal.')
     } catch (error) {
       showToast(error.message)
     }
+    return
+  }
+
+  const categoryEditButton = event.target.closest('[data-edit-budget-category]')
+  if (categoryEditButton) {
+    if (state.valuesHidden) return
+    try {
+      const source = categoryEditButton.dataset.editBudgetCategory, id = categoryEditButton.dataset.categoryItemId
+      if (source === 'commitments' || source === 'consortium' || id.startsWith('ledger:')) {
+        await navigate(source === 'commitments' ? '/calendario' : source === 'consortium' ? '/consorcios' : '/contas')
+        const attribute = source === 'commitments' ? 'data-commitment-edit' : source === 'consortium' ? 'data-consortium-edit' : 'data-movement-edit'
+        const sourceId = id.startsWith('ledger:') ? id.slice(7) : id
+        const button = [...app.querySelectorAll(`[${attribute}]`)].find(node => node.getAttribute(attribute) === sourceId)
+        if (!button) throw new Error('Lançamento não encontrado no cadastro de origem.')
+        button.click()
+      } else {
+        if (source === 'annualGoals') openAnnualGoalDialog(id)
+        else openCashItemDialog(id)
+        const dialog = app.querySelector(source === 'annualGoals' ? '[data-annual-goal-dialog]' : '[data-cash-item-dialog]')
+        dialog.dataset.budgetEntrySource = source
+        dialog.dataset.budgetEntryId = id
+        dialog.dataset.budgetEntryMonth = categoryEditButton.dataset.categoryEntryMonth
+      }
+    } catch (error) { showToast(error.message) }
+    return
+  }
+  if (event.target.closest('[data-close-budget-category-dialog]')) {
+    app.querySelector('[data-budget-category-dialog]')?.close()
     return
   }
 
@@ -1385,6 +1603,19 @@ document.addEventListener('change', async (event) => {
     return
   }
 
+  if (event.target.matches('[data-statement-investment-balance]')) {
+    if (!statementReviewState) return
+    const key = event.target.dataset.statementInvestmentBalance
+    if (event.target.checked) {
+      statementReviewState.excludedInvestmentBalances.delete(key)
+      statementReviewState.initialInvestmentBalances.add(key)
+    } else {
+      statementReviewState.excludedInvestmentBalances.add(key)
+      statementReviewState.initialInvestmentBalances.delete(key)
+    }
+    updateStatementReviewDialog(app, statementReviewView())
+    return
+  }
   if (event.target.matches('[data-statement-row]')) {
     if (!statementReviewState) return
     const rowNumber = Number(event.target.dataset.statementRow)
@@ -1422,6 +1653,17 @@ document.addEventListener('change', async (event) => {
     return
   }
 
+  if (event.target.matches('[data-budget-pension-mode]')) {
+    if (state.valuesHidden || !['external', 'cash-funded'].includes(event.target.value)) return
+    updatePlan({ finappMethod: { ...state.plan.finappMethod, pensionMode: event.target.value } })
+    render()
+    const control = app.querySelector('[data-budget-pension-mode]')
+    control.closest('details').open = true
+    control.focus({ preventScroll: true })
+    showToast('Tratamento da previdência atualizado.')
+    return
+  }
+
   if (event.target.matches('select[name="recordKind"]')) {
     syncCashItemRecordFields(event.target.closest('form'))
     return
@@ -1429,10 +1671,13 @@ document.addEventListener('change', async (event) => {
 
   if (event.target.matches('[data-cash-flow-month]')) {
     try {
-      setCashFlowReferenceMonth(event.target.value)
-      render()
-      app.querySelector('[data-cash-flow-month]')?.focus({ preventScroll: true })
-      showToast('Mês de comparação atualizado.')
+      if (event.target.closest('[data-reference-month-navigation]')) updateBudgetReferenceMonth(event.target.value)
+      else {
+        setCashFlowReferenceMonth(event.target.value)
+        render()
+        app.querySelector('[data-cash-flow-month]')?.focus({ preventScroll: true })
+        showToast('Mês de comparação atualizado.')
+      }
     } catch (error) {
       showToast(error.message)
     }
@@ -1448,7 +1693,7 @@ document.addEventListener('change', async (event) => {
       return
     }
     const generation = ownedStorage.generation
-    const batch = { files: [], activeFile: 0, loading: true, expectedFiles: files.length, excludedRows: new Set(), categoryOverrides: new Map() }
+    const batch = { files: [], activeFile: 0, loading: true, expectedFiles: files.length, excludedRows: new Set(), excludedInvestmentBalances: new Set(), initialInvestmentBalances: new Set(), categoryOverrides: new Map() }
     statementReviewState = batch
     showToast(`Lendo e classificando ${files.length} extratos...`)
     try {
@@ -1476,9 +1721,11 @@ document.addEventListener('change', async (event) => {
 
   if (event.target.matches('[data-currency]')) {
     const previousCurrency = state.currency
+    const globalSelector = event.target.matches('[data-global-currency]')
     setCurrency(event.target.value)
     render()
-    showToast(`Visão geral alterada de ${previousCurrency} para ${state.currency}. Valores do plano foram convertidos pela cotação exibida.`)
+    app.querySelector(globalSelector ? '[data-global-currency]' : '.currency-selector [data-currency]')?.focus({ preventScroll: true })
+    showToast(`Moeda do plano alterada de ${previousCurrency} para ${state.currency} em todas as telas. Valores convertidos pelas cotações do plano.`)
     return
   }
 
@@ -1671,7 +1918,12 @@ document.addEventListener('submit', async (event) => {
   const annualForm = event.target.closest('[data-annual-planning]')
   if (annualForm) {
     event.preventDefault()
-    try { saveAnnualPlanning(readMoneyFormData(annualForm)); render(); showToast('Planejamento anual salvo.') } catch (error) { showFormError(annualForm, error.message) }
+    try {
+      const context = categoryEntryContext(annualForm)
+      saveAnnualPlanning(readMoneyFormData(annualForm))
+      if (context) finishCategoryEntrySave('Provisão atualizada.', context)
+      else { render(); showToast('Planejamento anual salvo.') }
+    } catch (error) { showFormError(annualForm, error.message) }
     return
   }
   const finappForm = event.target.closest('[data-finapp-import]')
@@ -1689,8 +1941,10 @@ document.addEventListener('submit', async (event) => {
       if (!file || file.size > 2000000) throw new Error('Selecione o JSON de importação, até 2 MB.')
       const fileText = await file.text()
       const parsed = parseFinappImport(fileText)
-      const response = await fetch('/api/auth/status', { credentials: 'same-origin', cache: 'no-store' })
-      const session = await response.json()
+      const { response, session } = await withRequestProgress(async () => {
+        const response = await fetch('/api/auth/status', { credentials: 'same-origin', cache: 'no-store' })
+        return { response, session: await response.json() }
+      }, 'Verificando acesso...')
       if (!response.ok || !session.authenticated || session.user?.id !== owner || !sameContext()) throw new Error('A sessão ou os dados mudaram. Reabra o Perfil e tente novamente.')
       const mode = finappForm.elements.namedItem('mode').value
       const result = mergeFinappImport(state, parsed, mode)
@@ -1802,8 +2056,8 @@ document.addEventListener('submit', async (event) => {
     if (!guidedForm.reportValidity()) return
     const data = readMoneyFormData(guidedForm)
     try {
-      if (guidedForm.matches('[data-guided-goal]')) { saveGuidedGoal(data); navigate('/construir/orcamento') }
-      else if (guidedForm.matches('[data-guided-assets]')) { saveGuidedAssets(data); navigate('/construir/revisao') }
+      if (guidedForm.matches('[data-guided-goal]')) { saveGuidedGoal(data); await navigate('/construir/orcamento') }
+      else if (guidedForm.matches('[data-guided-assets]')) { saveGuidedAssets(data); await navigate('/construir/revisao') }
       else {
         saveGuidedBudget(data)
         render()
@@ -1882,13 +2136,13 @@ document.addEventListener('submit', async (event) => {
     if (statementReviewState.loading) return
     statementReviewState.files[statementReviewState.activeFile].mapping = readStatementMapping(statementReviewForm)
     const review = statementReviewView()
-    if (!review || review.mappingErrors.length > 0 || review.overLimit || review.selectedCount === 0) {
+    if (!review || review.mappingErrors.length > 0 || review.overLimit || (review.selectedCount === 0 && !review.investmentUpdateCount)) {
       updateStatementReviewDialog(app, review)
       return
     }
     const items = review.rows.filter((row) => row.selected).map((row) => row.item)
     try {
-      const result = upsertStatementItems(items)
+      const result = upsertStatementItems(items, { investmentBalances: review.investmentBalances, allowUndatedBalances: true })
       const skippedCount = review.duplicateCount + review.invalidCount + review.internalTransferCount
       statementReviewState = null
       resetBudgetEntriesView()
@@ -1897,7 +2151,7 @@ document.addEventListener('submit', async (event) => {
       render()
       revealInPageTab(app, app.querySelector('.budget-workspace'))
       app.querySelector('[data-budget-filters] [name="search"]')?.focus({ preventScroll: true })
-      showToast(`${result.added} lançamentos importados. ${result.updated} atualizados.${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''} A lista mostra os realizados de todos os períodos.`)
+      showToast(`${result.added} lançamentos importados. ${result.updated} atualizados.${result.investmentUpdated ? ` ${result.investmentUpdated} saldos de aplicações atualizados.` : ''}${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''} A lista mostra os realizados de todos os períodos.`)
     } catch (error) {
       showToast(error.message)
     }
@@ -1933,6 +2187,7 @@ document.addEventListener('submit', async (event) => {
       const saved = upsertInvestment({
         id: data.get('investmentId') || undefined,
         name: data.get('investmentName'),
+        balanceAsOf: data.get('investmentBalanceAsOf'),
         assetClass: data.get('assetClass'),
         liquidity: data.get('liquidity'),
         amount: parseNumber(data.get('investmentAmount')),
@@ -1982,6 +2237,28 @@ document.addEventListener('submit', async (event) => {
     return
   }
 
+  const categoryEditForm = event.target.closest('[data-budget-category-edit-form]')
+  if (categoryEditForm) {
+    event.preventDefault()
+    try {
+      const data = new FormData(categoryEditForm)
+      const source = data.get('source'), id = data.get('itemId'), month = data.get('month')
+      saveBudgetCategory(source, id, data.get('categoryId'))
+      recordDataOperation('correction')
+      render()
+      const links = [...app.querySelectorAll('[data-edit-budget-category]')].filter(node => !node.closest('[data-page-tab-panel]')?.hidden)
+      const match = node => node.dataset.editBudgetCategory === source && node.dataset.categoryItemId === id
+      const target = links.find(node => match(node) && node.dataset.categoryEntryMonth === month) || links.find(match)
+      if (target) {
+        target.closest('.budget-category-details').open = true
+        target.focus({ preventScroll: true })
+        target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+      } else app.querySelector('[data-budget-category-control="sort"]')?.focus({ preventScroll: true })
+      showToast('Categoria atualizada. Os totais foram recalculados.')
+    } catch (error) { showFormError(categoryEditForm, error.message) }
+    return
+  }
+
   const cashItemEditForm = event.target.closest('[data-cash-item-edit-form]')
   if (cashItemEditForm) {
     event.preventDefault()
@@ -1989,7 +2266,9 @@ document.addEventListener('submit', async (event) => {
       const id = cashItemEditForm.elements.namedItem('itemId').value
       updateCashFlowItem(id, cashItemInputFromForm(cashItemEditForm))
       recordDataOperation('correction')
-      finishBudgetSave('Lançamento atualizado.', id)
+      const context = categoryEntryContext(cashItemEditForm)
+      if (context) finishCategoryEntrySave('Lançamento atualizado. Os totais foram recalculados.', context)
+      else finishBudgetSave('Lançamento atualizado.', id)
     } catch (error) {
       showFormError(cashItemEditForm, error.message)
     }
@@ -2000,8 +2279,18 @@ document.addEventListener('submit', async (event) => {
   if (cashItemForm) {
     event.preventDefault()
     try {
+      const fromCategory = cashItemForm.closest('[data-new-cash-item-dialog]')?.dataset.plannedCategory
       addCashFlowItem(cashItemInputFromForm(cashItemForm))
-      finishBudgetSave('Lançamento adicionado.', state.cashFlow.items.at(-1)?.id)
+      const id = state.cashFlow.items.at(-1)?.id
+      if (fromCategory) {
+        render()
+        const entry = [...app.querySelectorAll('[data-edit-budget-category="item"]')].filter(node => !node.closest('[data-page-tab-panel]')?.hidden).find(button => button.dataset.categoryItemId === id)
+        if (entry) {
+          entry.closest('details').open = true
+          entry.focus({ preventScroll: true })
+        } else app.querySelector('[data-reference-month-navigation] [data-cash-flow-month]')?.focus({ preventScroll: true })
+        showToast('Despesa planejada adicionada.')
+      } else finishBudgetSave('Lançamento adicionado.', id)
     } catch (error) {
       showFormError(cashItemForm, error.message)
     }
@@ -2012,12 +2301,14 @@ document.addEventListener('submit', async (event) => {
   if (categoryForm) {
     event.preventDefault()
     const data = new FormData(categoryForm)
+    const expenseDialog = categoryForm.closest('[data-new-expense-category-dialog]')
     try {
-      addCustomCategory(data.get('categoryName'), data.get('categoryType'))
+      addCustomCategory(data.get('categoryName'), expenseDialog ? 'expense' : data.get('categoryType'))
       render()
+      if (expenseDialog) app.querySelector('[data-new-expense-category]')?.focus({ preventScroll: true })
       showToast('Categoria criada.')
     } catch (error) {
-      showToast(error.message)
+      showFormError(categoryForm, error.message)
     }
     return
   }
@@ -2055,7 +2346,7 @@ document.addEventListener('submit', async (event) => {
         try { localStorage.setItem(localLockKey, String(Date.now())) } catch {}
         closeLocalPlan()
         await loadSyncState()
-        navigate('/inicio')
+        await navigate('/inicio')
         showToast('Login realizado.')
         return
       }
@@ -2079,7 +2370,7 @@ document.addEventListener('submit', async (event) => {
         Object.assign(authState, { authenticated: false, user: null })
         switchSessionPlan()
         closeLocalPlan()
-        navigate('/entrar')
+        await navigate('/entrar')
         showToast(result.message)
         return
       }
@@ -2118,10 +2409,14 @@ document.addEventListener('submit', async (event) => {
   }
 })
 
-window.addEventListener('popstate', () => { resetExpenseImpact(); render({ focusMain: true, indicateRecalculation: false }) })
+window.addEventListener('popstate', () => {
+  resetExpenseImpact()
+  loadPage({ focusMain: true, indicateRecalculation: false }).catch(error => showToast(error.message))
+})
 bindMonthlyHints(document)
 bindPageTabs(app)
-bindBudgetOverviewInteractions(app, () => state)
+bindBudgetOverviewInteractions(app, () => state, updateBudgetReferenceMonth)
+bindBudgetCategoriesInteractions(app, () => state, updateBudgetReferenceMonth)
 document.addEventListener('input', event => {
   const group = event.target.closest?.('[data-target-dimension]')
   if (!group) return
@@ -2159,7 +2454,7 @@ window.addEventListener('storage', async event => {
     await loadAuthState()
     switchSessionPlan()
     sessionReady = true
-    render()
+    await loadPage()
   }
 })
 
@@ -2170,12 +2465,14 @@ document.addEventListener('cancel', (event) => {
   showToast('Importação cancelada. Nenhum lançamento foi adicionado.')
 }, true)
 
+bindRequestProgress(document)
+
 let sessionReady = false
 render({ indicateRecalculation: false })
 loadAuthState().then(async () => {
   switchSessionPlan()
   sessionReady = true
-  render({ indicateRecalculation: false })
+  await loadPage({ indicateRecalculation: false })
   // Public quotes must not block opening the local plan when the network is slow.
   loadExchangeRates().then(() => { if (['/', '/inicio', '/cambio'].includes(currentPath())) render({ indicateRecalculation: false }) })
   if (authState.authenticated) {

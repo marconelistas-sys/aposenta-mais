@@ -1,8 +1,10 @@
+import { transactionTime } from '../shared/transaction-date.js'
 import { createStatementClassifier, statementMerchantKey, isStatementInvestmentMovement } from './statement-classification.js'
 import { standardCashFlowCategories } from '../data/cash-flow-categories.js'
 import { normalizeCurrency, currencies } from '../shared/currencies.js'
 
 const headerAliases = {
+  time: ['hora', 'horario', 'time', 'transaction_time'],
   date: ['data', 'date'],
   description: ['descricao', 'description', 'historico', 'memo'],
   amount: ['valor', 'amount'],
@@ -168,6 +170,7 @@ function itemFromRow(row, mapping, defaultCurrency, customCategories, classify) 
       currency,
       frequency: 'occasional',
       startDate: date,
+      ...(transactionTime(cells[mapping.time]) ? { transactionTime: transactionTime(cells[mapping.time]) } : {}),
       endDate: date,
       recordKind: 'actual',
       imported: true
@@ -224,13 +227,14 @@ export function reviewStatementImport(inspection, {
   const existingKeys = new Set(existingItems.map(statementDuplicateKey).filter(Boolean))
   const existingReferences = new Set(existingItems.map(item => item.statementReference).filter(Boolean))
   const reviewedKeys = new Set()
-  const rows = inspection.rows.map((row) => {
+  const rows = inspection.rows.map((row, index) => {
     const parsed = itemFromRow(row, safeMapping, defaultCurrency, customCategories, classify)
     if (parsed.error) {
       errors.push(parsed.error)
       return { rowNumber: row.rowNumber, item: null, error: parsed.error, duplicate: false, duplicateSource: null }
     }
     parsed.item.statementAccount = inspection.sourceAccount || ""
+    if (inspection.creditCardBill) parsed.item.creditCardBill = { ...inspection.creditCardBill, entryIndex: index + 1 }
     parsed.item.statementDescription = String(row.cells[safeMapping.description] || "").slice(0, 1024)
     const internalTransfer = row.internalTransfer === true || isStatementInvestmentMovement(parsed.item.statementDescription)
     if (internalTransfer) {
@@ -277,12 +281,14 @@ function ofxToDelimited(text) {
   const field = (source, tag) => source.match(new RegExp(`<${tag}[^>]*>\\s*([^<\\r\\n]*)`, 'i'))?.[1]?.trim() || ''
   const currency = field(text, 'CURDEF')
   if (!['BRL', 'CHF', 'EUR', 'USD'].includes(currency)) throw new TypeError('Moeda OFX ausente ou não suportada.')
-  const rows = ['data;descricao;valor;moeda;referencia']
+  const rows = ['data;descricao;valor;moeda;referencia;hora']
   for (const match of text.matchAll(/<STMTTRN>([\s\S]*?)(?:<\/STMTTRN>|(?=<STMTTRN>|<\/BANKTRANLIST>))/gi)) {
     const block = match[1]
-    const date = field(block, 'DTPOSTED').slice(0, 8)
+    const posted = field(block, 'DTPOSTED')
+    const date = posted.slice(0, 8)
+    const time = /^\d{14}/.test(posted) ? transactionTime(`${posted.slice(8, 10)}:${posted.slice(10, 12)}:${posted.slice(12, 14)}`) || '' : ''
     const description = (field(block, 'MEMO') || field(block, 'NAME') || 'Lançamento OFX').replaceAll('&amp;', '&').replaceAll('"', '""')
-    rows.push(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)};"${description}";${field(block, 'TRNAMT')};${currency};"${field(block, 'FITID').replaceAll('"', '""')}"`)
+    rows.push(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)};"${description}";${field(block, 'TRNAMT')};${currency};"${field(block, 'FITID').replaceAll('"', '""')}";${time}`)
   }
   if (rows.length === 1) throw new TypeError('Nenhum lançamento bancário encontrado no OFX.')
   return rows.join('\n')

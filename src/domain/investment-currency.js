@@ -61,7 +61,7 @@ export function syncInvestmentCurrencies(investments, planCurrency, rates, { inf
       exposureCurrency: currencies[investment.exposureCurrency] ? investment.exposureCurrency : currency,
       nativeAmount,
       nativeMonthlyContribution,
-      amount: Math.max(0.01, round2(convertCurrency(nativeAmount, currency, planCurrency, rates))),
+      amount: Math.max(0, round2(convertCurrency(nativeAmount, currency, planCurrency, rates))),
       monthlyContribution: round2(convertCurrency(nativeMonthlyContribution, currency, planCurrency, rates))
     }
   })

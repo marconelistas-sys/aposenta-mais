@@ -1,3 +1,4 @@
+import { previewInvestmentBalances } from '../domain/statement-investment-balances.js'
 import { reconcileOwnTransfers } from '../domain/own-transfers.js'
 import { planStatementUpdates } from '../domain/statement-batch.js'
 import { cashFlowItemLimit } from '../shared/limits.js'
@@ -20,6 +21,7 @@ import { currencies, normalizeCurrency } from '../shared/currencies.js'
 import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution, investmentTotals, syncInvestmentCurrencies, syncPlanInvestments, round2 } from '../domain/investment-currency.js'
 import { ownedStorage } from './owned-storage.js'
 import { validateTargetAllocation } from '../domain/target-allocation.js'
+import { validatePensionInvestment } from '../domain/pension-investment-links.js'
 
 const unavailableStorage = {
   getItem: () => null,
@@ -145,6 +147,10 @@ export function upsertInvestment(candidate) {
   const next = [...current]
   // A foreign balance currency means amount and contribution were typed in that currency.
   const foreign = currencies[candidate.currency] && candidate.currency !== state.currency
+  const balanceAsOf = candidate.balanceAsOf || new Date().toISOString().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(balanceAsOf) || !Number.isFinite(Date.parse(balanceAsOf)) || new Date(balanceAsOf).toISOString().slice(0, 10) !== balanceAsOf) throw new TypeError('Informe uma data válida para o saldo.')
+  const previousRecord = { ...(existingIndex >= 0 ? current[existingIndex] : {}) }
+  candidate = { ...(previousRecord.statementAccount ? { statementAccount: previousRecord.statementAccount, statementInvestmentName: previousRecord.statementInvestmentName } : {}), ...candidate, balanceAsOf, balanceSource: 'manual' }
   const record = foreign
     ? { ...candidate, id, nativeAmount: round2(Number(candidate.amount)), nativeMonthlyContribution: round2(Number(candidate.monthlyContribution) || 0), amount: convertCurrency(Number(candidate.amount) || 0, candidate.currency, state.currency, state.exchangeRates), monthlyContribution: convertCurrency(Number(candidate.monthlyContribution) || 0, candidate.currency, state.currency, state.exchangeRates) }
     : { ...candidate, id }
@@ -153,6 +159,7 @@ export function upsertInvestment(candidate) {
   const investments = syncInvestmentCurrencies(sanitizeInvestments(next), state.currency, state.exchangeRates)
   const saved = investments.find((investment) => investment.id === id)
   if (!saved) throw new TypeError('Revise os dados do investimento.')
+  if (saved.assetClass !== 'pension' && state.cashFlow.items.some(item => item.pensionInvestmentId === id)) throw new TypeError('Desvincule as contribuições previdenciárias antes de mudar a classe deste investimento.')
   const method = state.plan.finappMethod || {}
   const releases = (method.releases || []).filter(row => row.investmentId !== id || !Object.hasOwn(candidate, 'releaseYear') && saved.liquidity !== 'available')
   if (Object.hasOwn(candidate, 'releaseYear') && releaseYear !== null) releases.push({ investmentId: id, year: releaseYear })
@@ -165,6 +172,7 @@ export function upsertInvestment(candidate) {
 }
 
 export function removeInvestment(id) {
+  if (state.cashFlow.items.some(item => item.pensionInvestmentId === id)) throw new TypeError('Desvincule as contribuições previdenciárias deste investimento antes de removê-lo.')
   const investments = (state.plan.investments || []).filter((investment) => investment.id !== id)
   if (investments.length === (state.plan.investments || []).length) {
     throw new TypeError('Investimento não encontrado.')
@@ -186,6 +194,7 @@ export function updateCashFlow(patch) {
 }
 
 export function addCashFlowItem(item) {
+  validatePensionInvestment(item, state.plan.investments, state.customCategories)
   validateIncomeEnd(item)
   if (item.recordKind === 'actual' && !item.startDate) {
     throw new TypeError('Informe a data do lançamento realizado.')
@@ -220,16 +229,20 @@ export function importCashFlowItems(items) {
   return importedCount
 }
 
-export function upsertStatementItems(items) {
-  if (!Array.isArray(items) || !items.length) throw new TypeError('Nenhum lançamento selecionado.')
+export function upsertStatementItems(items, { investmentBalances = [], allowUndatedBalances = false } = {}) {
+  if (!Array.isArray(items) || (!items.length && !investmentBalances.length)) throw new TypeError('Nenhum lançamento selecionado.')
   const validated = items.map((item, index) => sanitizeCashFlowItem(item, index, state.customCategories, state.currency))
   if (validated.some(item => !item)) throw new TypeError('Há lançamentos inválidos no lote. Nenhuma alteração foi salva.')
   const plan = planStatementUpdates(state.cashFlow.items, validated)
   if (plan.items.length > cashFlowItemLimit) throw new RangeError(`O orçamento aceita até ${cashFlowItemLimit} lançamentos. Nenhuma alteração foi salva.`)
-  const next = { ...state, cashFlow: { ...state.cashFlow, items: reconcileOwnTransfers(plan.items, state.cashFlow.ownStatementAccounts) }, isDemo: false, lastUpdatedAt: new Date().toISOString() }
+  const balances = previewInvestmentBalances(investmentBalances, state.plan.investments || [], { currency: state.currency, exchangeRates: state.exchangeRates, allowUndated: allowUndatedBalances })
+  const investments = sanitizeInvestments(balances.investments)
+  if (balances.updates.length && investments.length !== balances.investments.length) throw new TypeError('Saldo de investimento inválido. Nenhuma alteração foi salva.')
+  const nextPlan = balances.updates.length ? { ...state.plan, investments, ...investmentTotals(investments) } : state.plan
+  const next = { ...state, plan: nextPlan, cashFlow: { ...state.cashFlow, items: reconcileOwnTransfers(plan.items, state.cashFlow.ownStatementAccounts) }, isDemo: false, lastUpdatedAt: new Date().toISOString() }
   appStorage.setItem(storageKeys.current, JSON.stringify(next))
   Object.assign(state, next)
-  return { added: plan.added, updated: plan.updated }
+  return { added: plan.added, updated: plan.updated, ...(balances.updates.length ? { investmentUpdated: balances.updates.length } : {}) }
 }
 
 export function removeCashFlowItem(id) {
@@ -254,6 +267,7 @@ export function updateCashFlowItem(id, patch) {
     ...(patch.description && patch.description !== current.description ? { categoryMerchantKey: undefined } : {})
   }
   validateIncomeEnd(candidate)
+  validatePensionInvestment(candidate, state.plan.investments, state.customCategories)
   if (candidate.recordKind === 'actual' && !candidate.startDate) {
     throw new TypeError('Informe a data do lançamento realizado.')
   }

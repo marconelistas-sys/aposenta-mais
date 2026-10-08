@@ -2,13 +2,12 @@ export const primaryNavigation = [
   { href: '/', label: 'Visão geral', icon: 'home' },
   { href: '/plano', label: 'Meu plano', icon: 'target' },
   { href: '/carteira', label: 'Carteira', icon: 'wallet' },
-  { href: '/fluxo-caixa', label: 'Fluxo de caixa', icon: 'transfer' },
+  { href: '/orcamento', label: 'Orçamento', mobileLabel: 'Orçamento', icon: 'calendar', tab: 'resumo' },
+  { href: '/fluxo-caixa', label: 'Projeção patrimonial', mobileLabel: 'Projeção', icon: 'trendUp', tab: 'anual' },
   { href: '/simulacoes', label: 'Simulações', icon: 'calculator' },
-  { href: '/conteudos', label: 'Conteúdos', icon: 'book' },
   { href: '/patrimonio', label: 'Patrimônio', icon: 'building' }
 ]
 export const additionalNavigation = [
-  { href: '/orcamento', label: 'Orçamento', icon: 'wallet' },
   { href: '/contas', label: 'Contas e movimentos', icon: 'bank' },
   { href: '/extratos', label: 'Extratos bancários', icon: 'document' },
   { href: '/calendario', label: 'Calendário e dívidas', icon: 'calendar' },
@@ -24,11 +23,11 @@ export const additionalNavigation = [
 
 // The full menu groups every screen by the task the person wants to do.
 export const navigationGroups = [
-  { title: 'Planejar', hrefs: ['/', '/plano', '/simulacoes', '/viabilidade', '/apos-aposentadoria'] },
+  { title: 'Planejar', hrefs: ['/', '/plano', '/fluxo-caixa', '/simulacoes', '/viabilidade', '/apos-aposentadoria'] },
   { title: 'Patrimônio e investimentos', hrefs: ['/carteira', '/patrimonio', '/consorcios', '/cambio'] },
-  { title: 'Dinheiro do dia a dia', hrefs: ['/fluxo-caixa', '/orcamento', '/contas', '/extratos', '/calendario'] },
+  { title: 'Dinheiro do dia a dia', hrefs: ['/orcamento', '/contas', '/extratos', '/calendario'] },
   { title: 'Riscos', hrefs: ['/riscos', '/riscos-mensais'] },
-  { title: 'Conta e aprendizado', hrefs: ['/conteudos', '/perfil', '/privacidade'] }
+  { title: 'Conta e privacidade', hrefs: ['/perfil', '/privacidade'] }
 ]
 
 export function groupedNavigation() {

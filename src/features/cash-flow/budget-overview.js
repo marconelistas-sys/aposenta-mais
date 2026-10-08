@@ -2,8 +2,8 @@ import { buildBudgetYear, budgetBarBreakdown, budgetOverviewYears } from '../../
 import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
 
 let cachedData = null
-export const budgetOverviewView = { year: null, period: 'months', metric: 'expenses' }
-export function resetBudgetOverview() { cachedData = null; Object.assign(budgetOverviewView, { year: null, period: 'months', metric: 'expenses' }) }
+export const budgetOverviewView = { year: null, period: 'months', metric: 'expenses', income: true, planned: true, actual: true }
+export function resetBudgetOverview() { cachedData = null; Object.assign(budgetOverviewView, { year: null, period: 'months', metric: 'expenses', income: true, planned: true, actual: true }) }
 const titles = { income: 'Receitas', expenses: 'Despesas', balance: 'Saldo' }
 const kinds = { planned: 'Planejado', actual: 'Realizado' }
 const monthName = key => new Intl.DateTimeFormat('pt-BR', { month: 'short', timeZone: 'UTC' }).format(new Date(`${key}-15T12:00:00Z`)).replace('.', '')
@@ -30,10 +30,19 @@ function niceMaximum(value) {
   return Math.ceil(padded / step) * step
 }
 
+function visibleSeries() {
+  const metrics = budgetOverviewView.metric === 'balance' ? ['balance'] : budgetOverviewView.income ? ['income', 'expenses'] : ['expenses']
+  return metrics.flatMap(metric => ['planned', 'actual']
+    .filter(kind => budgetOverviewView[kind])
+    .map(kind => ({ metric, kind })))
+}
+
 function chart(periods, state) {
-  const metric = budgetOverviewView.metric
-  const max = niceMaximum(Math.max(...periods.flatMap(period => ['planned', 'actual'].map(kind => Math.abs(period[kind][metric])))))
-  const negative = metric === 'balance' && periods.some(period => period.planned.balance < 0 || period.actual.balance < 0)
+  const series = visibleSeries()
+  const comparison = budgetOverviewView.metric !== 'balance'
+  if (!series.length) return '<p class="budget-chart-empty" role="status">Selecione Realizado ou Planejado para exibir o gráfico.</p>'
+  const max = niceMaximum(Math.max(...periods.flatMap(period => series.map(({ metric, kind }) => Math.abs(period[kind][metric])))))
+  const negative = !comparison && periods.some(period => series.some(({ kind }) => period[kind].balance < 0))
   const minimum = negative ? -max : 0
   const height = 248
   const y = value => (max - value) / (max - minimum) * height
@@ -42,38 +51,42 @@ function chart(periods, state) {
   const number = value => new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
   const axis = ticks.map(value => `<span style="top:${y(value)}px">${escapeHtml(number(value))}</span>`).join('')
   const columns = periods.map(period => {
-    const bars = ['planned', 'actual'].map(kind => {
+    const bars = series.map(({ metric, kind }, index) => {
       const value = period[kind][metric]
       const exists = metric === 'balance' ? period[kind].count > 0 : period.entries[kind].some(entry => entry.type === (metric === 'income' ? 'income' : 'expense'))
       const top = value >= 0 ? y(value) : zero
       const size = Math.max(Math.abs(y(value) - zero), 3)
       const label = `${periodName(period.key)}, ${kinds[kind]}, ${titles[metric]}: ${exists ? money(value, state) : 'Sem registros'}`
-      return `<button type="button" class="budget-bar budget-bar--${kind} ${exists ? '' : 'budget-bar--empty'}" data-budget-bar="${escapeHtml(period.key)}:${kind}" aria-label="${escapeHtml(label)}" aria-expanded="false" aria-controls="budget-bar-detail" style="top:${Math.min(top, height - 3)}px;height:${size}px"><span class="sr-only">${escapeHtml(label)}</span></button>`
+      return `<button type="button" class="budget-bar budget-bar--${kind} budget-bar--${metric} ${exists ? '' : 'budget-bar--empty'}" data-budget-bar="${escapeHtml(period.key)}:${kind}:${metric}" data-budget-bar-metric="${metric}" aria-label="${escapeHtml(label)}" aria-expanded="false" aria-controls="budget-bar-detail" style="top:${Math.min(top, height - 3)}px;height:${size}px${comparison ? `;left:${5 + index * 90 / series.length}%;width:${70 / series.length}%` : ''}"><span class="sr-only">${escapeHtml(label)}</span></button>`
     }).join('')
-    return `<div class="budget-chart-column"><div class="budget-chart-pair">${bars}</div><span class="budget-chart-label">${period.key.length === 4 ? period.key : monthName(period.key)}</span></div>`
+    const selected = period.key === state.cashFlow.referenceMonth
+    return `<div class="budget-chart-column ${selected ? 'budget-chart-column--selected' : ''}" ${selected ? 'aria-current="date"' : ''}><div class="budget-chart-pair">${bars}</div><span class="budget-chart-label">${period.key.length === 4 ? period.key : monthName(period.key)}${selected ? '<span class="sr-only">, mês selecionado</span>' : ''}</span></div>`
   }).join('')
-  return `<div class="budget-chart-grid"><div class="budget-chart-axis" aria-hidden="true">${axis}</div><div class="budget-chart-scroll"><div class="budget-chart-periods" style="--budget-columns:${periods.length}"><div class="budget-chart-lines" aria-hidden="true">${ticks.map(value => `<i class="${value === 0 ? 'is-zero' : ''}" style="top:${y(value)}px"></i>`).join('')}</div>${columns}</div></div></div>`
+  return `<div class="budget-chart-grid"><div class="budget-chart-axis" aria-hidden="true">${axis}</div><div class="budget-chart-scroll"><div class="budget-chart-periods ${comparison ? 'budget-chart-periods--comparison' : ''}" style="--budget-columns:${periods.length}"><div class="budget-chart-lines" aria-hidden="true">${ticks.map(value => `<i class="${value === 0 ? 'is-zero' : ''}" style="top:${y(value)}px"></i>`).join('')}</div>${columns}</div></div></div>`
 }
 
 export function renderBudgetOverview(state) {
   const year = budgetOverviewView.year ?? (Number(state.cashFlow.referenceMonth?.slice(0, 4)) || 2026)
   const years = [...new Set([...budgetOverviewYears(state), year])].sort((a, b) => a - b)
   const controls = `<div class="budget-overview-controls"><label>${budgetOverviewView.period === 'years' ? 'Ano central' : 'Ano'}<select data-budget-overview-year>${years.map(value => `<option value="${value}" ${value === year ? 'selected' : ''}>${value}</option>`).join('')}</select></label><div class="budget-view-switch" role="group" aria-label="Período do gráfico"><button type="button" data-budget-overview-period="months" aria-pressed="${budgetOverviewView.period === 'months'}">Meses</button><button type="button" data-budget-overview-period="years" aria-pressed="${budgetOverviewView.period === 'years'}">Anos</button></div></div>`
-  const header = `<header class="budget-overview-heading"><div><p class="eyebrow">PLANEJADO E REALIZADO</p><h2>Seu orçamento, ${budgetOverviewView.period === 'years' ? 'ano a ano' : 'mês a mês'}</h2><p>Compare os valores e veja o que compõe cada barra.</p></div>${controls}</header>`
+  const header = `<header class="budget-overview-heading"><div><p class="eyebrow">PLANEJADO E REALIZADO</p><h2>Seu orçamento, ${budgetOverviewView.period === 'years' ? 'ano a ano' : 'mês a mês'}</h2><p>Compare os valores e veja o que compõe cada barra. O gráfico mostra ${budgetOverviewView.period === 'years' ? 'os anos ao redor do' : 'o ano do'} mês selecionado.</p></div>${controls}</header>`
   if (state.valuesHidden) return `<section class="budget-overview" data-budget-overview>${header}<div class="panel budget-overview-hidden"><h3>Valores ocultos</h3><p>Exiba os valores para consultar o gráfico e sua composição.</p></div></section>`
   const { selected, periods } = overviewData(state)
-  const cards = Object.entries(titles).map(([key, title]) => `<button type="button" class="budget-overview-card" data-budget-overview-metric="${key}" aria-pressed="${budgetOverviewView.metric === key}"><span>${title} <small>${year}</small></span><dl><div><dt>Planejado</dt><dd>${selected.annual.planned.count ? money(selected.annual.planned[key], state) : 'Sem registros'}</dd></div><div><dt>Realizado</dt><dd>${selected.annual.actual.count ? money(selected.annual.actual[key], state) : 'Sem registros'}</dd></div></dl></button>`).join('')
-  return `<section class="budget-overview" data-budget-overview>${header}<div class="budget-overview-cards" aria-label="Totais do ano. Selecione o indicador do gráfico">${cards}</div><section class="panel budget-overview-chart" aria-labelledby="budget-chart-title"><div class="budget-chart-heading"><div><h3 id="budget-chart-title">${titles[budgetOverviewView.metric]} ${budgetOverviewView.period === 'years' ? 'por ano' : `em ${year}`}</h3><p>${escapeHtml(state.currency)} · ${budgetOverviewView.period === 'years' ? 'Totais de cada ano' : 'Valores mensais'}</p></div><div class="budget-chart-legend"><span><i class="is-planned"></i>Planejado</span><span><i class="is-actual"></i>Realizado</span></div></div>${chart(periods, state)}<div class="budget-chart-footer"><span>Passe o cursor sobre uma barra ou selecione para ver os detalhes.</span><span>Realizado em ${selected.annual.actualMonths} de 12 meses de ${year}.</span></div></section><details class="budget-overview-method"><summary>Como os valores são calculados</summary><p>O planejado segue a vigência dos lançamentos, das provisões anuais, do calendário e dos consórcios. Valores anuais são distribuídos por 12. Eventuais entram no mês informado. O realizado considera os registros cadastrados e importados, inclusive os vinculados em Contas. Meses sem registros não indicam ausência de gastos. Todos os valores usam a moeda e as taxas de câmbio atuais do aplicativo. O saldo é receitas menos despesas.</p></details><aside id="budget-bar-detail" class="budget-bar-detail" data-budget-bar-detail hidden role="region" aria-label="Composição da barra"></aside></section>`
+  const comparison = budgetOverviewView.metric !== 'balance'
+  const chartTitle = comparison ? (budgetOverviewView.income ? 'Receitas e despesas' : 'Despesas') : 'Saldo'
+  const filters = `<fieldset class="budget-chart-filters"><legend>Exibir no gráfico</legend>${[['income', 'Receita'], ['actual', 'Realizado'], ['planned', 'Planejado']].filter(([key]) => comparison || key !== 'income').map(([key, label]) => `<label><input type="checkbox" data-budget-chart-filter="${key}" ${budgetOverviewView[key] ? 'checked' : ''}>${label}</label>`).join('')}</fieldset>`
+  const legend = visibleSeries().map(({ metric, kind }) => `<span><i class="is-${kind} is-${metric}"></i>${titles[metric]} · ${kinds[kind]}</span>`).join('')
+  const cards = Object.entries(titles).map(([key, title]) => `<button type="button" class="budget-overview-card" data-budget-overview-metric="${key}" aria-pressed="${key === 'balance' ? !comparison : key === 'income' ? comparison && (budgetOverviewView.income) : comparison}"><span>${title} <small>${year}</small></span><dl><div><dt>Planejado</dt><dd>${selected.annual.planned.count ? money(selected.annual.planned[key], state) : 'Sem registros'}</dd></div><div><dt>Realizado</dt><dd>${selected.annual.actual.count ? money(selected.annual.actual[key], state) : 'Sem registros'}</dd></div></dl></button>`).join('')
+  return `<section class="budget-overview" data-budget-overview>${header}<div class="budget-overview-cards" aria-label="Totais do ano. Receitas e despesas abrem a comparação. Saldo abre sua própria visão">${cards}</div><section class="panel budget-overview-chart" aria-labelledby="budget-chart-title"><div class="budget-chart-heading"><div><h3 id="budget-chart-title">${chartTitle} ${budgetOverviewView.period === 'years' ? 'por ano' : `em ${year}`}</h3><p>${escapeHtml(state.currency)} · ${budgetOverviewView.period === 'years' ? 'Totais de cada ano' : 'Valores mensais'}</p></div><div class="budget-chart-legend">${legend}</div></div>${filters}${chart(periods, state)}<div class="budget-chart-footer"><span>Passe o cursor sobre uma barra ou selecione para ver os detalhes.</span><span>Realizado em ${selected.annual.actualMonths} de 12 meses de ${year}.</span></div></section><details class="budget-overview-method"><summary>Como os valores são calculados</summary><p>O planejado segue a vigência dos lançamentos, das provisões anuais, do calendário e dos consórcios. Valores anuais são distribuídos por 12. Eventuais entram no mês informado. O realizado considera os registros cadastrados e importados, inclusive os vinculados em Contas. Meses sem registros não indicam ausência de gastos. Todos os valores usam a moeda e as taxas de câmbio atuais do aplicativo. O saldo é receitas menos despesas.</p></details><aside id="budget-bar-detail" class="budget-bar-detail" data-budget-bar-detail hidden role="region" aria-label="Composição da barra"></aside></section>`
 }
 
-function detail(period, kind, state) {
-  const metric = budgetOverviewView.metric
+function detail(period, kind, metric, state) {
   const groups = budgetBarBreakdown(period, kind, metric)
   const rows = groups.map(group => `<details class="budget-detail-category"><summary><span>${escapeHtml(group.category)}</span><strong>${money(group.amount, state)}</strong></summary><ul>${group.entries.map(entry => `<li><span>${escapeHtml(entry.description)}<small>${escapeHtml(period.key.length === 4 ? `${monthName(entry.month)} · ` : '')}${entry.frequency === 'annual' ? 'Proporção mensal do valor anual' : entry.currency !== state.currency ? `Convertido de ${escapeHtml(entry.currency)}` : entry.type === 'income' ? 'Receita' : 'Despesa'}</small></span><strong>${money(entry.amount, state)}</strong></li>`).join('')}</ul></details>`).join('')
   return `<div class="budget-detail-heading"><div><small>${kinds[kind]} · ${titles[metric]}</small><h4>${escapeHtml(periodName(period.key))}</h4></div><button type="button" data-close-budget-detail aria-label="Fechar composição">×</button></div><strong class="budget-detail-total">${money(period[kind][metric], state)}</strong>${groups.length ? `<div class="budget-detail-categories">${rows}</div><p class="budget-detail-hint">Selecione uma categoria para ver os lançamentos.${metric === 'balance' ? ' Despesas aparecem com sinal negativo.' : ''}</p>` : '<p>Sem registros para este indicador e período.</p>'}`
 }
 
-export function bindBudgetOverviewInteractions(root, getState) {
+export function bindBudgetOverviewInteractions(root, getState, onReferenceMonthChange) {
   let activeBar = null, closeTimer = null, suppressFocus = false, pinned = false
   const close = () => {
     clearTimeout(closeTimer)
@@ -93,7 +106,7 @@ export function bindBudgetOverviewInteractions(root, getState) {
     close()
     const container = root.querySelector('[data-budget-overview]')
     if (!container) return
-    const attribute = ['data-budget-overview-year', 'data-budget-overview-period', 'data-budget-overview-metric'].find(name => control.hasAttribute(name))
+    const attribute = ['data-budget-overview-year', 'data-budget-overview-period', 'data-budget-overview-metric', 'data-budget-chart-filter'].find(name => control.hasAttribute(name))
     const value = control.getAttribute(attribute)
     container.outerHTML = renderBudgetOverview(getState())
     root.querySelector(attribute === 'data-budget-overview-year' ? `[${attribute}]` : `[${attribute}="${value}"]`)?.focus({ preventScroll: true })
@@ -105,13 +118,13 @@ export function bindBudgetOverviewInteractions(root, getState) {
     if (!panel) return
     if (activeBar === bar && !panel.hidden) { pinned ||= pin; return }
     pinned = pin
-    const [key, kind] = bar.dataset.budgetBar.split(':')
+    const [key, kind, metric] = bar.dataset.budgetBar.split(':')
     const period = overviewData(getState()).periods.find(period => period.key === key)
     if (!period) return
     activeBar?.setAttribute('aria-expanded', 'false')
     activeBar = bar
     bar.setAttribute('aria-expanded', 'true')
-    panel.innerHTML = detail(period, kind, getState())
+    panel.innerHTML = detail(period, kind, metric, getState())
     panel.hidden = false
     const rect = bar.getBoundingClientRect()
     const width = Math.min(360, window.innerWidth - 24)
@@ -122,10 +135,20 @@ export function bindBudgetOverviewInteractions(root, getState) {
     panel.style.top = `${Math.max(12, Math.min(rect.top - panelHeight - 10, window.innerHeight - panelHeight - 12))}px`
   }
   root.addEventListener('change', event => {
+    const filter = event.target.closest('[data-budget-chart-filter]')
+    if (filter) {
+      budgetOverviewView[filter.dataset.budgetChartFilter] = filter.checked
+      refresh(filter)
+      return
+    }
     const control = event.target.closest('[data-budget-overview-year]')
     if (!control) return
     const year = Number(control.value)
     if (!Number.isInteger(year) || year < 1900 || year > 2200) return
+    if (onReferenceMonthChange) {
+      onReferenceMonthChange(`${year}-${getState().cashFlow.referenceMonth.slice(5, 7)}`, '[data-budget-overview-year]')
+      return
+    }
     budgetOverviewView.year = year
     refresh(control)
   })

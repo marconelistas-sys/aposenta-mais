@@ -95,6 +95,36 @@ function validateSchedules(schedules) {
   }
 }
 
+function scheduledBuckets(input, schedules) {
+  const groups = new Map()
+  for (const schedule of schedules) {
+    const id = schedule.investmentId || null
+    const investment = id ? input.investments?.find(item => item.id === id && item.assetClass === 'pension') : null
+    if (id && !investment) throw new TypeError('Investimento de destino da contribuição previdenciária não encontrado.')
+    if (!groups.has(id)) groups.set(id, { investmentId: id, investment, schedules: [], assets: 0, principal: 0 })
+    groups.get(id).schedules.push(schedule)
+  }
+  return [...groups.values()]
+}
+
+function accrueScheduledBuckets(buckets, input, referenceMonth) {
+  const year = Math.floor(referenceMonth / 12)
+  for (const bucket of buckets) {
+    const rate = monthlyRate(bucket.investment ? resolveInvestmentRealReturn(bucket.investment, input, year) : input.annualRealReturn)
+    const amount = scheduledAmountForMonth(bucket.schedules, referenceMonth)
+    bucket.assets = bucket.assets * (1 + rate) + amount
+    bucket.principal += amount
+  }
+}
+
+export function scheduledContributionBalances(input, schedules, months, asOfDate = new Date()) {
+  validateSchedules(schedules)
+  const buckets = scheduledBuckets(input, schedules)
+  const start = monthKey(asOfDate)
+  for (let month = 0; month < months; month++) accrueScheduledBuckets(buckets, input, start + month)
+  return buckets.map(({ investmentId, assets, principal }) => ({ investmentId, assets, principal }))
+}
+
 function monthlyRate(annualRealReturn) {
   return Math.expm1(Math.log1p(annualRealReturn) / 12)
 }
@@ -266,14 +296,9 @@ export function projectRetirementWithSchedules(input, schedules = [], asOfDate =
   validateSchedules(schedules)
   const base = projectRetirement(input, asOfDate)
   const startMonth = monthKey(asOfDate)
-  let scheduledContributionFutureValue = 0
-  let scheduledContributionTotal = 0
-
-  for (let month = 0; month < base.months; month += 1) {
-    const scheduled = scheduledAmountForMonth(schedules, startMonth + month)
-    scheduledContributionFutureValue = scheduledContributionFutureValue * (1 + base.monthlyRate) + scheduled
-    scheduledContributionTotal += scheduled
-  }
+  const scheduledBalances = scheduledContributionBalances(input, schedules, base.months, asOfDate)
+  const scheduledContributionFutureValue = scheduledBalances.reduce((sum, item) => sum + item.assets, 0)
+  const scheduledContributionTotal = scheduledBalances.reduce((sum, item) => sum + item.principal, 0)
 
   const contributionFactor = blendedContributionFactor(input, base.months, asOfDate)
   const futureBaseContributions = input.monthlyContribution * contributionFactor
@@ -334,7 +359,6 @@ export function projectAssetSeriesWithSchedules(input, schedules = [], requested
   validateInvestments(input)
   validateSchedules(schedules)
   const monthsTotal = Math.min(retirementMonths(input, asOfDate), Math.max(0, Math.round((requestedYears ?? 100) * 12)))
-  const defaultMonthlyRate = monthlyRate(input.annualRealReturn)
   const startMonth = monthKey(asOfDate)
   const buckets = investmentBuckets(input).map((investment) => ({
     investment: investment.investment,
@@ -347,7 +371,7 @@ export function projectAssetSeriesWithSchedules(input, schedules = [], requested
     assets: 0,
     rate: monthlyRate(investment.annualRealReturn)
   }))
-  let contributionAssets = 0
+  const scheduled = scheduledBuckets(input, schedules)
   let assets = currentAssets(input)
   let contributedCapital = assets
   let scheduledContributionTotal = 0
@@ -361,18 +385,18 @@ export function projectAssetSeriesWithSchedules(input, schedules = [], requested
   }]
 
   for (let month = 0; month < monthsTotal; month += 1) {
-    const scheduled = scheduledAmountForMonth(schedules, startMonth + month)
+    const scheduledAmount = scheduledAmountForMonth(schedules, startMonth + month)
     const year = Math.floor((startMonth + month) / 12)
     for (const bucket of buckets) bucket.assets *= 1 + monthlyRate(resolveInvestmentRealReturn(bucket.investment, input, year))
     for (const bucket of contributionBuckets) {
       bucket.assets = bucket.assets * (1 + monthlyRate(resolveInvestmentRealReturn(bucket.investment, input, year))) + bucket.monthlyContribution
     }
-    contributionAssets = contributionAssets * (1 + defaultMonthlyRate) + scheduled
+    accrueScheduledBuckets(scheduled, input, startMonth + month)
     assets = buckets.reduce((total, bucket) => total + bucket.assets, 0)
       + contributionBuckets.reduce((total, bucket) => total + bucket.assets, 0)
-      + contributionAssets
-    contributedCapital += input.monthlyContribution + scheduled
-    scheduledContributionTotal += scheduled
+      + scheduled.reduce((sum, bucket) => sum + bucket.assets, 0)
+    contributedCapital += input.monthlyContribution + scheduledAmount
+    scheduledContributionTotal += scheduledAmount
     if ((month + 1) % 12 === 0 || month + 1 === monthsTotal) {
       const year = (month + 1) / 12
       series.push({

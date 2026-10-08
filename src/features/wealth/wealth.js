@@ -2,10 +2,11 @@ import { state } from '../../app/state.js'
 import { wealthByCurrency, wealthComposition } from '../../domain/wealth-composition.js'
 import { escapeHtml, formatMonth, privateCurrency } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
-import { assetClassColors, categoryDonut } from '../../shared/category-donut.js'
+import { categoryDonut } from '../../shared/category-donut.js'
 import { renderAnnualPlanning } from '../plan/annual-planning.js'
 import { renderPropertyFilter } from '../../shared/property-solvency.js'
-import { classLabels } from '../investments/investments.js'
+import { classLabels } from '../../data/asset-classes.js'
+import { renderAssetAllocation } from '../../shared/asset-allocation.js'
 
 const percent = value => `${(value * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 
@@ -57,15 +58,6 @@ function currencyDonut(composition) {
   })
 }
 
-function investmentClassDonut(composition, money) {
-  const totals = new Map()
-  for (const item of composition.items.filter(item => item.kind === 'Investimento')) totals.set(item.assetClass, (totals.get(item.assetClass) || 0) + item.amount)
-  return categoryDonut({
-    segments: [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([key, value]) => ({ key, color: assetClassColors[key] || assetClassColors.other, label: classLabels[key] || classLabels.other, value, valueLabel: money(value) })),
-    ariaLabel: 'Investimentos por classe',
-    emptyMessage: 'Cadastre investimentos na Carteira para ver as classes.'
-  })
-}
 
 export function renderWealth() {
   const hidden = state.valuesHidden
@@ -96,16 +88,17 @@ export function renderWealth() {
       ${hidden ? '<p>Gráfico oculto enquanto os valores estão escondidos.</p>' : compositionBar(composition, money)}
     </section>
 
+    <section class="panel wealth-panel wealth-allocation-panel" aria-labelledby="wealth-classes-title">
+      <p class="eyebrow">CARTEIRA</p><h2 id="wealth-classes-title">Distribuição dos investimentos</h2>
+      ${renderAssetAllocation(state)}
+      <a href="/carteira" data-route>Ver diagnóstico e alocação-alvo ${icon('arrowRight', 16)}</a>
+    </section>
     <div class="wealth-grid">
       <section class="panel wealth-panel" aria-labelledby="wealth-liquidity-title">
         <p class="eyebrow">QUANDO VIRA DINHEIRO</p><h2 id="wealth-liquidity-title">Dinheiro disponível com as liberações</h2>
         ${hidden ? '<p>Valores ocultos.</p>' : liquiditySteps(composition, money)}
       </section>
-      <section class="panel wealth-panel" aria-labelledby="wealth-classes-title">
-        <p class="eyebrow">CARTEIRA</p><h2 id="wealth-classes-title">Investimentos por classe</h2>
-        ${hidden ? '<p>Indicador oculto.</p>' : investmentClassDonut(composition, money)}
-        <a href="/carteira" data-route>Ver diagnóstico e alocação-alvo ${icon('arrowRight', 16)}</a>
-      </section>
+
       <section class="panel wealth-panel" aria-labelledby="wealth-currency-title">
         <p class="eyebrow">MOEDAS</p><h2 id="wealth-currency-title">Em que moeda está guardado</h2>
         ${hidden ? '<p>Indicador oculto.</p>' : currencyDonut(composition)}
