@@ -84,6 +84,29 @@ export function sanitizeCurrencyTrends(source, codes = ['BRL', 'EUR', 'USD', 'CH
   return Object.keys(rates).length ? { base: source.base, rates } : null
 }
 
+// Expected annual inflation of each currency, used to deflate nominal returns of
+// balances held in that currency. { base, rates: { CHF: 0.01 } }. The entry for
+// the plan currency is kept but unused: the plan inflation applies to it.
+export function sanitizeInflationByCurrency(source, codes = ['BRL', 'EUR', 'USD', 'CHF']) {
+  if (!source || typeof source !== 'object' || !codes.includes(source.base)) return null
+  const rates = {}
+  for (const code of codes) {
+    const value = source.rates?.[code]
+    if (typeof value === 'number' && Number.isFinite(value) && value >= -0.2 && value <= 0.2) rates[code] = value
+  }
+  return Object.keys(rates).length ? { base: source.base, rates } : null
+}
+
+// Saved inflation of the balance currency, or null when the balance is in the
+// plan currency or no rate was informed. Without it the plan inflation applies.
+export function balanceCurrencyInflation(investment, plan) {
+  const source = plan?.inflationByCurrency
+  const code = investment?.currency
+  if (!source || !code || code === source.base) return null
+  const rate = source.rates?.[code]
+  return typeof rate === 'number' && Number.isFinite(rate) ? rate : null
+}
+
 export function resolveGrossInvestmentRealReturn(investment, plan) {
   const defaultReturn = Number(plan?.annualRealReturn)
   const inflation = Number.isFinite(plan?.annualInflation) ? plan.annualInflation : 0
@@ -95,7 +118,7 @@ export function resolveGrossInvestmentRealReturn(investment, plan) {
 
   if (returnType === 'default') return defaultReturn
   if (returnType === 'real' || returnType === 'ipca') return returnValue
-  if (returnType === 'nominal') return nominalToRealReturn(returnValue, inflation)
+  if (returnType === 'nominal') return nominalToRealReturn(returnValue, balanceCurrencyInflation(investment, plan) ?? inflation)
   const cdiRate = Number(investment?.indexAnnualRate)
   return nominalToRealReturn(cdiRate * returnValue, inflation)
 }

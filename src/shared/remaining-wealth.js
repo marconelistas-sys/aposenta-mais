@@ -1,4 +1,4 @@
-import { escapeHtml, privateCurrency } from './formatters.js'
+import { escapeHtml, privateProjectedCurrency } from './formatters.js'
 
 // Derive from the displayed row, after its price conversion. Do not reapply inflation.
 export function remainingWealth(row) {
@@ -78,7 +78,7 @@ export function remainingWealthPeaks(rows, endYear = null) {
 export function renderRemainingWealth(row, currency, peaks = remainingWealthPeaks([row])) {
   const wealth = remainingWealth(row)
   if (!wealth) return ''
-  const money = value => privateCurrency(value, false, true, currency)
+  const money = value => privateProjectedCurrency(value, false, currency)
   const horizon = peaks.complete ? `até a idade-alvo (${escapeHtml(peaks.endYear)})` : 'no período projetado disponível'
   const bar = (key, label) => {
     const value = wealth[key], peak = peaks[key]

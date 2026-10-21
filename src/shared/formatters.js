@@ -36,6 +36,28 @@ export function privateCurrency(value, valuesHidden, precise = false, currency =
   return valuesHidden ? `${currencySymbol(currency)} •••••` : formatCurrency(value, precise, currency)
 }
 
+// Projections of a year or more show whole units only. Display only: the value is never rounded for
+// calculation, storage or export. Amounts that round to zero show "R$ 0", without a minus sign.
+const projectedFormatters = new Map()
+
+export function formatProjectedCurrency(value, currency = 'BRL') {
+  const code = normalizeCurrency(currency)
+  if (!projectedFormatters.has(code)) {
+    projectedFormatters.set(code, new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: code,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+      signDisplay: 'negative'
+    }))
+  }
+  return projectedFormatters.get(code).format(Number.isFinite(value) && Math.abs(value) < 0.5 ? 0 : value)
+}
+
+export function privateProjectedCurrency(value, valuesHidden, currency = 'BRL') {
+  return valuesHidden ? `${currencySymbol(currency)} •••••` : formatProjectedCurrency(value, currency)
+}
+
 export function parseNumber(value) {
   const parsed = Number(String(value).replace(',', '.'))
   return Number.isFinite(parsed) ? parsed : 0

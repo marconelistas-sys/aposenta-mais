@@ -1,7 +1,7 @@
 import { renderProjectionChecks } from '../../shared/projection-checks.js'
 import { state, updatePlan } from '../../app/state.js'
 import { finappViability, sanitizeFinappMethod } from '../../domain/finapp-viability.js'
-import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
+import { escapeHtml, privateProjectedCurrency } from '../../shared/formatters.js'
 import { renderCashFlowLineChart } from '../../shared/cash-flow-line-chart.js'
 import { renderFinancialReconciliation } from '../../shared/financial-reconciliation.js'
 import { renderProjectionTabs } from './projection-tabs.js'
@@ -38,7 +38,7 @@ export function renderViabilityPremises({ open = false } = {}) {
 export function renderViability({ postRetirementOnly = false } = {}) {
   const flowKeys = new Set(['income', 'costs', 'goals', 'freeCashFlow', 'pensionCredits', 'withdrawalTax'])
   const settings = sanitizeFinappMethod(state.plan.finappMethod)
-  const money = value => privateCurrency(value, state.valuesHidden, true, state.currency)
+  const money = value => privateProjectedCurrency(value, state.valuesHidden, state.currency)
   let result, error
   try { result = finappViability(state, settings, new Date(), { includeBreakdown: !state.valuesHidden }) } catch (failure) { error = failure.message }
   const title = `<section class="page-heading"><div><h1>${postRetirementOnly ? 'Vida financeira após a aposentadoria' : 'O orçamento sustenta a aposentadoria?'}</h1><p>Projeta orçamento e patrimônio até a idade-alvo, incluindo o período anterior à aposentadoria.</p></div><a href="/plano" data-route>Revisar idades e aposentadoria</a></section>${renderProjectionTabs(postRetirementOnly ? '/apos-aposentadoria' : '/viabilidade')}`

@@ -32,7 +32,7 @@ test('instruments derive the minimum year and coverage without treating budget d
   assert.equal(model.budgetTone, 'caution')
   assert.deepEqual(result, before)
   assert.match(card(render(), 'liquidity'), /Em dezembro de 2027/)
-  assert.match(card(render(), 'liquidity'), /R\$\s*200,00/)
+  assert.match(card(render(), 'liquidity'), /R\$\s*200(?![,\d])/)
   assert.match(card(render(), 'budget'), /Déficit planejado/)
 })
 
@@ -78,7 +78,7 @@ test('property exclusion changes the wealth instrument while preserving liquidit
   assert.equal(card(included, 'liquidity'), card(excluded, 'liquidity'))
   assert.match(card(excluded, 'wealth'), /Patrimônio abaixo das dívidas/)
   assert.match(card(excluded, 'wealth'), /Patrimônio considerado, sem imóveis/)
-  assert.match(card(excluded, 'wealth'), /-R\$\s*3\.500,00/)
+  assert.match(card(excluded, 'wealth'), /-R\$\s*3\.500(?![,\d])/)
   assert.match(card(excluded, 'wealth'), /Todas as dívidas descontadas/)
 })
 
@@ -103,7 +103,7 @@ test('privacy omits all values, proportions, critical years, states and trajecto
 
 test('missing projection keeps the current budget and neutral placeholders without inventing a horizon', () => {
   const html = renderDashboardCockpit({ budget, currency: 'BRL', today })
-  assert.match(card(html, 'budget'), /-R\$\s*1\.000,00/)
+  assert.match(card(html, 'budget'), /-R\$\s*1\.000(?![,\d])/)
   assert.match(card(html, 'coverage'), /Avaliação indisponível/)
   assert.match(card(html, 'coverage'), /Não calculada/)
   assert.doesNotMatch(html, /NaN|Infinity|undefined/)
@@ -128,4 +128,49 @@ test('live dashboard uses the annual engine, keeps property controls visible and
     state.valuesHidden = true
     assert.doesNotMatch(renderDashboard(), /data-dashboard-cockpit|cockpit-sparkline|data-cockpit=/)
   } finally { Object.assign(state, before) }
+})
+
+test('coverage horizon is one continuous bar from the first to the last year without failure', () => {
+  const html = card(render(), 'coverage')
+  const svg = html.match(/<svg class="cockpit-horizon"[\s\S]*?<\/svg>/)[0]
+  assert.equal((svg.match(/data-horizon-segment="covered"/g) || []).length, 1)
+  assert.doesNotMatch(svg, /data-horizon-segment="failure"|data-horizon-marker/)
+  assert.equal((svg.match(/<rect /g) || []).length, 1)
+  assert.match(svg, /width="216\.00"/)
+  assert.match(svg, /fill="#167454"/)
+  assert.match(svg, />2026<\/text>[\s\S]*>2028<\/text>/)
+  assert.match(svg, /aria-hidden="true" focusable="false"/)
+  assert.match(html, /A barra vai de 2026 a 2028\. Ela mostra anos, não uma chance de sucesso\./)
+  assert.doesNotMatch(html, /Cada faixa/)
+})
+
+test('coverage horizon changes colour at the first failed year and labels it beside the marker', () => {
+  const result = projection(); result.viable = false
+  result.rows[1].liquidAssets = -300
+  const html = card(render(result), 'coverage')
+  const svg = html.match(/<svg class="cockpit-horizon"[\s\S]*?<\/svg>/)[0]
+  assert.equal((svg.match(/<rect /g) || []).length, 2)
+  assert.match(svg, /data-horizon-segment="covered" x="12\.00" y="26" width="72\.00"/)
+  assert.match(svg, /data-horizon-segment="failure" x="84\.00" y="26" width="144\.00" height="28" fill="#b8324c"/)
+  assert.match(svg, /<g data-horizon-marker="2027"><line x1="84\.00"[\s\S]*?>2027<\/text><\/g>/)
+  // Text alternative: the failure year appears as text outside the decorative SVG.
+  const text = html.replace(/<svg[\s\S]*?<\/svg>/g, '')
+  assert.match(text, /<p class="cockpit-value">2027<\/p>/)
+  assert.match(text, /Insuficiência calculada/)
+  assert.match(text, /muda de cor a partir de 2027, o primeiro ano com insuficiência/)
+})
+
+test('coverage horizon keeps the caution colour for assumptions under review and edge markers stay inside the card', () => {
+  const review = projection(); review.viable = false; review.issues = ['Confirme os saldos']
+  const reviewSvg = card(render(review), 'coverage').match(/<svg class="cockpit-horizon"[\s\S]*?<\/svg>/)[0]
+  assert.match(reviewSvg, /data-horizon-segment="covered"[^>]*fill="#8f5b00"/)
+  const first = projection(); first.viable = false; first.rows[0].liquidAssets = -1
+  const firstSvg = card(render(first), 'coverage').match(/<svg class="cockpit-horizon"[\s\S]*?<\/svg>/)[0]
+  assert.doesNotMatch(firstSvg, /data-horizon-segment="covered"/)
+  assert.match(firstSvg, /<text x="12\.00" y="14" text-anchor="start"[^>]*>2026<\/text>/)
+  const rows = Array.from({ length: 30 }, (_, index) => ({ year: String(2026 + index), liquidAssets: index === 29 ? -1 : 100, netFinancial: 100, solvencyNetWorth: 100 }))
+  const late = card(render({ rows, issues: [], viable: false }), 'coverage')
+  assert.equal((late.match(/<rect /g) || []).length, 2)
+  assert.match(late, /<text x="228\.00" y="14" text-anchor="end"[^>]*>2055<\/text>/)
+  assert.match(late, /29 de 30 fechamentos sem insuficiência/)
 })

@@ -19,15 +19,33 @@ test('segments are drawn with a small gap and listed in the legend with their la
   assert.match(html, /Outras categorias — R\$ 100,00 · 10%/)
 })
 
-test('a single segment fills the whole circle without a gap', () => {
-  const html = categoryDonut({ segments: [{ key: 'fixed-income', label: 'Renda fixa', value: 1000, valueLabel: 'R$ 1.000,00' }] })
-  assert.equal((html.match(/category-donut-segment/g) || []).length, 1)
-  assert.match(html, /stroke-dasharray="100.000 100"/)
+test('a single positive segment is shown as text with label, value and 100%, without a ring', () => {
+  const html = categoryDonut({ segments: [{ key: 'fixed-income', label: 'Renda fixa', value: 1000, valueLabel: 'R$ 1.000,00' }], ariaLabel: 'Distribuição por classe' })
+  assert.doesNotMatch(html, /<svg|category-donut-segment|stroke-dasharray|category-donut-legend/)
+  assert.match(html, /data-category-single/)
+  assert.match(html, /<strong class="category-donut-single__share">100%<\/strong> em Renda fixa/)
+  assert.match(html, /<span class="category-donut-single__value">R\$ 1\.000,00<\/span>/)
+  // The colour dot is decorative; the class name and share are readable text.
+  assert.match(html, /<span class="category-donut-dot" style="background:[^"]+" aria-hidden="true"><\/span>/)
+  const plain = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  assert.equal(plain, '100% em Renda fixa R$ 1.000,00')
+})
+
+test('zero, negative or non-finite companions do not turn a single class back into a ring', () => {
+  const html = categoryDonut({ segments: [
+    { key: 'cash', label: 'Caixa', value: 500, valueLabel: 'R$ 500,00' },
+    { key: 'equity', label: 'Ações', value: 0, valueLabel: 'R$ 0,00' },
+    { key: 'fund', label: 'Fundos', value: -20, valueLabel: '-R$ 20,00' },
+    { key: 'pension', label: 'Previdência', value: NaN, valueLabel: 'NaN' }
+  ] })
+  assert.match(html, /100%<\/strong> em Caixa/)
+  assert.doesNotMatch(html, /<svg|Ações|Fundos|Previdência/)
 })
 
 test('the "other" bucket always uses the muted color regardless of its position', () => {
-  const html = categoryDonut({ segments: [{ key: 'other', label: 'Outras categorias', value: 100, valueLabel: 'R$ 100,00' }] })
-  assert.match(html, /stroke="var\(--color-ink-muted\)"/)
+  const html = categoryDonut({ segments: [{ key: 'other', label: 'Outras categorias', value: 100, valueLabel: 'R$ 100,00' }, { key: 'moradia', label: 'Moradia', value: 50, valueLabel: 'R$ 50,00' }] })
+  assert.match(html, /<circle class="category-donut-segment"[^>]*stroke="var\(--color-ink-muted\)"[^>]*stroke-dasharray="66\.067 100"/)
+  assert.match(html, /<circle class="category-donut-segment"[^>]*stroke="var\(--chart-terracotta\)"/)
 })
 
 test('non-finite, negative or all-zero segments never draw a circle', () => {

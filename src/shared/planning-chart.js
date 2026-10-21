@@ -1,4 +1,4 @@
-import { escapeHtml, formatCompactCurrency, privateCurrency } from './formatters.js'
+import { escapeHtml, formatCompactCurrency, privateProjectedCurrency } from './formatters.js'
 import { cashFlowDetailIndex, renderCashFlowDetailNavigation } from './cash-flow-detail.js'
 import { moneyWithMonthly, moneyWithMonthlyText } from './monthly-equivalent.js'
 
@@ -39,7 +39,7 @@ export function planningChart({ title, rows, series, bands = [], currency, hidde
   const min = Math.floor(low / interval) * interval, max = Math.ceil(high / interval) * interval
   const x = index => plot.left + (index + 0.5) * (plot.right - plot.left) / rows.length
   const y = value => plot.bottom - (value - min) / (max - min) * (plot.bottom - plot.top)
-  const money = value => finite(value) ? privateCurrency(value, false, true, currency) : 'Não informado'
+  const money = value => finite(value) ? privateProjectedCurrency(value, false, currency) : 'Não informado'
   const paths = key => {
     const segments = [[]]
     rows.forEach((row, index) => {

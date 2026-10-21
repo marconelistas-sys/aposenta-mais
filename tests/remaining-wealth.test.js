@@ -50,7 +50,7 @@ test('callouts follow the displayed nominal year and do not invent unavailable c
   assert.equal(remainingWealthComposition(partial, 'unknown'), null)
   const html = renderRemainingWealth(row, 'EUR')
   assert.match(html, /nominais do ano selecionado/)
-  assert.match(html, /2\.420,00/)
+  assert.match(html, /2\.420(?![,\d])/)
   assert.doesNotMatch(html, /R\$/)
   assert.doesNotMatch(renderRemainingWealth(partial, 'BRL'), /Saldo financeiro restrito/)
 })
@@ -84,9 +84,9 @@ test('remaining wealth separates net financial assets, gross assets and availabl
   })
   const html = renderRemainingWealth(rows[1], 'BRL')
   assert.match(html, /Falta de liquidez projetada/)
-  assert.match(html, /R\$\s*400,00/)
-  assert.match(html, /-R\$\s*600,00/)
-  assert.match(html, /R\$\s*2\.200,00/)
+  assert.match(html, /R\$\s*400(?![,\d])/)
+  assert.match(html, /-R\$\s*600(?![,\d])/)
+  assert.match(html, /R\$\s*2\.200(?![,\d])/)
   assert.deepEqual(rows, before)
 })
 
@@ -101,8 +101,8 @@ test('annual chart preserves signed balances and the composition measures each b
   const html = renderComparison({ rows, plan, currency: 'BRL', title: 'Fluxo', baseYear: 2030, selectedYear: 2031 })
   const wealthChart = html.split('<section class="cash-flow-wealth-chart annual-chart-section"')[1].split('</section>')[0]
   assert.equal((wealthChart.match(/<rect[^>]+rx="1"/g) || []).length, 0)
-  assert.match(wealthChart, /2031 · Financeiro líquido de dívidas, sem bens: -R\$\s*600,00/)
-  assert.match(wealthChart, /2031 · Patrimônio bruto, com imóveis: R\$\s*2\.200,00/)
+  assert.match(wealthChart, /2031 · Financeiro líquido de dívidas, sem bens: -R\$\s*600(?![,\d])/)
+  assert.match(wealthChart, /2031 · Patrimônio bruto, com imóveis: R\$\s*2\.200(?![,\d])/)
   assert.match(wealthChart, /data-chart-selected-index="1"/)
 })
 
@@ -113,8 +113,8 @@ test('gross assets include excluded property while the solvency series still res
   assert.deepEqual(included.map(remainingWealth), excluded.map(remainingWealth))
   assert.equal(included[0].solvencyNetWorth - excluded[0].solvencyNetWorth, 2000)
   const html = renderComparison({ rows: excluded, plan, cashFlow: { includeRealEstateInSolvency: false }, currency: 'BRL', title: 'Fluxo', baseYear: 2030 })
-  assert.match(html, /2030 · Patrimônio considerado, sem imóveis: -R\$\s*200,00/)
-  assert.match(html, /2030 · Patrimônio bruto, com imóveis: R\$\s*2\.600,00/)
+  assert.match(html, /2030 · Patrimônio considerado, sem imóveis: -R\$\s*200(?![,\d])/)
+  assert.match(html, /2030 · Patrimônio bruto, com imóveis: R\$\s*2\.600(?![,\d])/)
 })
 
 test('nominal values derive both balances after a single price conversion', () => {
@@ -126,8 +126,8 @@ test('nominal values derive both balances after a single price conversion', () =
   try {
     cashFlowChartView.basis = 'nominal'
     const html = renderComparison({ rows, plan, currency: 'BRL', title: 'Fluxo', baseYear: 2030 })
-    assert.match(html, /2031 · Patrimônio bruto, com imóveis: R\$\s*2\.420,00/)
-    assert.match(html, /2031 · Financeiro líquido de dívidas, sem bens: -R\$\s*660,00/)
+    assert.match(html, /2031 · Patrimônio bruto, com imóveis: R\$\s*2\.420(?![,\d])/)
+    assert.match(html, /2031 · Financeiro líquido de dívidas, sem bens: -R\$\s*660(?![,\d])/)
   } finally { cashFlowChartView.basis = before }
 })
 
@@ -152,7 +152,7 @@ test('moving between years fills each meter relative to its own fixed maximum th
   for (const [index, expected] of [[0, ['0.0000', '100.0000', '100.0000', '66.6667']], [1, ['0.0000', '100.0000', '60.0000', '100.0000']], [2, ['0.0000', '100.0000', '80.0000', '50.0000']]]) {
     assert.deepEqual([...details[index].html.matchAll(/role="meter"[^>]*aria-valuenow="([\d.]+)"/g)].map(match => match[1]), expected)
     assert.ok(details[index].html.indexOf('remaining-wealth') < details[index].html.indexOf('budget-comparison'))
-    assert.match(details[index].html, /Máximo: <strong class="money-value">R\$\s*1\.000,00<\/strong> em 2030/)
+    assert.match(details[index].html, /Máximo: <strong class="money-value">R\$\s*1\.000(?![,\d])<\/strong> em 2030/)
   }
   assert.deepEqual(rows, before)
 })
@@ -181,7 +181,7 @@ test('peak selection follows the displayed price basis and negative amounts leav
   assert.equal(peaks.financialNet.value, 1045)
   const negative = renderRemainingWealth(nominal[2], 'BRL', peaks)
   assert.match(negative, /0% do máximo, saldo negativo/)
-  assert.match(negative, /-R\$\s*121,00/)
+  assert.match(negative, /-R\$\s*121(?![,\d])/)
   assert.equal((negative.match(/aria-valuenow="0.0000"/g) || []).length, 2)
   assert.doesNotMatch(negative, /NaN|Infinity/)
 })

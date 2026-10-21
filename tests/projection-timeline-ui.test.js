@@ -6,7 +6,7 @@ import { renderCashFlowTimeline, timelineView } from '../src/features/cash-flow/
 import { cashFlowChartView } from '../src/shared/cash-flow-line-chart.js'
 import { finappViability } from '../src/domain/finapp-viability.js'
 import { annualRowsInPriceBasis } from '../src/domain/inflation-display.js'
-import { privateCurrency } from '../src/shared/formatters.js'
+import { privateProjectedCurrency } from '../src/shared/formatters.js'
 
 function projectionFixture() {
   const year = new Date().getUTCFullYear()
@@ -61,8 +61,8 @@ test('base nominal usa os mesmos saldos anuais da viabilidade, sem mudar as prem
   const annual = finappViability(state)
   const rows = annualRowsInPriceBasis(annual.rows, { basis: 'nominal', annualInflation: state.plan.annualInflation, baseYear: new Date().getUTCFullYear() })
   const html = renderCashFlowTimeline({ part: 'annual' })
-  assert.ok(html.includes(privateCurrency(rows.at(-1).financialAssets, false, true, state.currency)))
-  assert.ok(html.includes(privateCurrency(rows.at(-1).liquidAssets, false, true, state.currency)))
+  assert.ok(html.includes(privateProjectedCurrency(rows.at(-1).financialAssets, false, state.currency)))
+  assert.ok(html.includes(privateProjectedCurrency(rows.at(-1).liquidAssets, false, state.currency)))
   assert.deepEqual(state, before)
 }))
 

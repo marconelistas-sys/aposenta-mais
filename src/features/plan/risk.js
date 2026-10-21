@@ -5,7 +5,7 @@ import { planningChart } from '../../shared/planning-chart.js'
 import { renderHorizonForm } from './horizon.js'
 import { sanitizeRiskSettings, validateRiskSettings } from '../../domain/risk-plan.js'
 import { ownedStorage } from '../../app/owned-storage.js'
-import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
+import { escapeHtml, privateProjectedCurrency } from '../../shared/formatters.js'
 import { renderAnnualRisk } from './annual-risk.js'
 import { readVolatilityFields, renderVolatilityFields } from './volatility-fields.js'
 
@@ -77,7 +77,7 @@ function fanChart(result) {
 }
 
 function resultMarkup(result) {
-  const money = value => privateCurrency(value, state.valuesHidden, true, state.currency)
+  const money = value => privateProjectedCurrency(value, state.valuesHidden, state.currency)
   const { input, base, simulated, matrix, matrixError } = result
   const last = base.rows.at(-1)
   const initialNet = input.initial.financialAssets + input.initial.nonLiquidAssets - input.initial.liabilities

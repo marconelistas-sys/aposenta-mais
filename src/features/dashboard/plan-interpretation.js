@@ -1,12 +1,12 @@
 import { solvencyWealthLabel } from '../../domain/property-solvency.js'
-import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
+import { escapeHtml, privateProjectedCurrency } from '../../shared/formatters.js'
 import { moneyWithMonthly, moneyWithMonthlyText } from '../../shared/monthly-equivalent.js'
 
 export function renderPlanInterpretation(result, { currency, hidden = false } = {}) {
   if (hidden) return ''
   const first = result.rows[0], last = result.rows.at(-1)
   if (!first || !last) return ''
-  const money = value => Number.isFinite(value) ? privateCurrency(value, false, true, currency) : 'Não informado'
+  const money = value => Number.isFinite(value) ? privateProjectedCurrency(value, false, currency) : 'Não informado'
   const retirementYear = result.retirement?.slice(0, 4)
   const retirement = result.rows.find(row => row.year === retirementYear)
   const alreadyRetired = retirementYear && retirementYear < first.year

@@ -1,5 +1,16 @@
 # Backlog inicial
 
+## Próximos itens após a Sprint 43
+
+- A1. Painéis de ano das projeções sem centavos (Visão geral, Projeção patrimonial, Viabilidade). frontend-developer. RICE 5,4. Primeira história da próxima sprint.
+- A2. Base de `inflationByCurrency` e `currencyTrends` alinhada à moeda do estado na carga e na importação. software-developer. RICE 3,2. Prioridade baixa.
+
+Escopo e critérios em [Resultado da Sprint 43](sprint-43-projecao-coerente.md#resultado-da-sprint).
+
+## Entrega: Sprint 43, projeção coerente e legível
+
+Viabilidade e risco anual passam a aplicar a tendência cambial, retorno nominal em moeda estrangeira usa a inflação dessa moeda, projeções sem centavos, cobertura até a data-alvo em barra única e distribuição de uma classe em texto. 989 testes aprovados. Inspeção em navegador pendente. [Histórias, decisões e resultado](sprint-43-projecao-coerente.md).
+
 ## Entrega: Sprint 42, moeda de ponta a ponta
 
 Time com usabilidade, planejamento financeiro e staff developer. Exposição cambial segue a moeda do saldo, viabilidade converte saldos e despesas em CHF com a mesma taxa, cenários e reimportação do FinApp respeitam saldos em moeda própria, sincronização ignora cotações, Patrimônio mostra valor nativo e distribuição por moeda, equivalentes mensais completados e build sem exclusão. 741 testes aprovados. Inspeção em navegador feita. [Escopo, decisões e próximo sprint](sprint-42-moeda-ponta-a-ponta.md).

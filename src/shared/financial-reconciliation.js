@@ -1,4 +1,4 @@
-import { escapeHtml, privateCurrency } from './formatters.js'
+import { escapeHtml, privateProjectedCurrency } from './formatters.js'
 import { moneyWithMonthly, moneyWithMonthlyText } from './monthly-equivalent.js'
 
 export const financialChangeSeries = Object.freeze({ key: 'financialChange', label: 'Variação dos ativos financeiros, após rendimento', color: '#7c69a8', dash: '5 3' })
@@ -7,7 +7,7 @@ export const financialChangeSeries = Object.freeze({ key: 'financialChange', lab
 export function renderFinancialReconciliation({ rows, currency, hidden = false }) {
   if (hidden) return '<p>Conciliação patrimonial: valores ocultos.</p>'
   if (!rows.length) return ''
-  const money = value => privateCurrency(value, false, true, currency)
+  const money = value => privateProjectedCurrency(value, false, currency)
   const first = rows[0]
   const columns = [
     ['previousFinancial', 'Financeiro inicial'], ['freeCashFlow', 'Saldo do orçamento, antes do retorno'],
@@ -17,6 +17,7 @@ export function renderFinancialReconciliation({ rows, currency, hidden = false }
   ]
   return `<section class="financial-reconciliation"><h3>Do caixa ao patrimônio financeiro</h3><p>Auditoria em valores reais. Não muda com o seletor do gráfico.</p>
     <p>Financeiro final = financeiro inicial + resultado do retorno real + saldo do orçamento + créditos previdenciários. O rendimento já está no patrimônio. Não deve ser somado novamente às receitas.</p>
+    <p class="term-hint" data-rounding-note>Valores arredondados para a unidade, sem centavos. A soma das parcelas pode diferir do total em até duas unidades.</p>
     <p>Em ${escapeHtml(first.year)}, o saldo do orçamento é ${moneyWithMonthlyText(money, first.freeCashFlow, first.months)}, o resultado do retorno é ${money(first.financialReturn)} e os créditos previdenciários são ${money(first.pensionCredits)}. A variação financeira é ${money(first.financialChange)}.</p>
     <p>Um saldo do orçamento negativo não significa queda de igual valor no patrimônio: o retorno pode compensá-lo. A linha de variação mostra o efeito conjunto, não dinheiro recebido na conta. Valorização não realizada e rendimentos restritos não são caixa disponível. Liberações apenas mudam a liquidez, sem aumentar o patrimônio.</p>
     <details class="disclosure"><summary>Conferir rendimentos e variação ano a ano</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Conciliação de rendimentos e patrimônio"><table><thead><tr><th scope="col">Ano</th>${columns.map(([, label]) => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr><th scope="row">${escapeHtml(row.year)}</th>${columns.map(([key]) => `<td>${key === 'freeCashFlow' || key === 'pensionCredits' ? moneyWithMonthly(money, row[key], row.months) : money(row[key])}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>

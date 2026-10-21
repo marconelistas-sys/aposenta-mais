@@ -1,4 +1,4 @@
-import { escapeHtml, privateCurrency } from './formatters.js'
+import { escapeHtml, privateProjectedCurrency } from './formatters.js'
 import { solvencyWealthLabel, solvencyMilestones } from '../domain/property-solvency.js'
 
 export function renderPropertyFilter(cashFlow, hidden = false) {
@@ -13,7 +13,7 @@ export function renderSolvencyAssessment(rows, currency, { hidden = false } = {}
   if (hidden || !rows.length || !Number.isFinite(rows.at(-1).solvencyNetWorth)) return ''
   const last = rows.at(-1)
   const failure = rows.find(row => row.solvencyNetWorth < -0.005)
-  const money = value => privateCurrency(value, false, true, currency)
+  const money = value => privateProjectedCurrency(value, false, currency)
   return `<section class="property-solvency-assessment" aria-label="Solvência patrimonial com o filtro escolhido" data-property-assessment="${failure ? 'insufficient' : 'covered'}"><h3>${failure ? `Primeira insuficiência do patrimônio considerado em ${escapeHtml(failure.year)}` : 'Patrimônio considerado cobre as dívidas nos fechamentos anuais'}</h3><p>${escapeHtml(solvencyWealthLabel(last))} em dezembro de ${escapeHtml(last.year)}: ${money(last.solvencyNetWorth)}. ${last.liquidAssets < -0.005 ? 'Mesmo com bens, há falta de liquidez na data-alvo.' : 'A cobertura dos pagamentos depende da liquidez, avaliada separadamente.'}</p><details class="disclosure"><summary>Comparar com e sem imóveis na data-alvo</summary><dl><div><dt>Total cadastrado, líquido de dívidas</dt><dd>${money(last.netWorth)}</dd></div><div><dt>Imóveis excluídos pelo filtro e pela seleção individual</dt><dd>${money(last.excludedRealEstateAssets)}</dd></div><div><dt>Patrimônio considerado</dt><dd>${money(last.solvencyNetWorth)}</dd></div><div><dt>Patrimônio sem nenhum imóvel, líquido de dívidas</dt><dd>${money(last.netWorthWithoutRealEstate)}</dd></div></dl><p>Patrimônio considerado = total cadastrado menos imóveis excluídos. Todas as dívidas continuam descontadas. Veículos, outros bens e direitos de consórcio permanecem no total. O filtro não inclui imóveis cadastrados como investimentos. Não há venda automática, custos de venda ou entrada de caixa.</p></details></section>`
 }
 

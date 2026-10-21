@@ -3,7 +3,7 @@ import { state } from '../../app/state.js'
 import { finappViability } from '../../domain/finapp-viability.js'
 import { planningChart } from '../../shared/planning-chart.js'
 import { renderCashFlowLineChart } from '../../shared/cash-flow-line-chart.js'
-import { escapeHtml, privateCurrency } from '../../shared/formatters.js'
+import { escapeHtml, privateProjectedCurrency } from '../../shared/formatters.js'
 import { renderFinancialReconciliation } from '../../shared/financial-reconciliation.js'
 import { renderPlanInterpretation } from './plan-interpretation.js'
 import { renderPropertyFilter, renderSolvencyAssessment } from '../../shared/property-solvency.js'
@@ -22,7 +22,7 @@ export function renderPlanningOverview(options = {}) {
   const last = result.rows.at(-1)
   const assessment = result.firstFailure ? 'insufficient' : result.viable && !result.issues.length ? 'sustainable' : 'incomplete'
   const status = assessment === 'insufficient' ? 'Recursos insuficientes para sustentar o plano familiar' : assessment === 'sustainable' ? 'Plano familiar sustentável nas premissas informadas' : 'Avaliação incompleta da sustentabilidade familiar'
-  const money = value => privateCurrency(value, false, true, state.currency)
+  const money = value => privateProjectedCurrency(value, false, state.currency)
   const summary = `<div class="plan-sustainability plan-sustainability--${assessment}" data-plan-sustainability="${assessment}"><span class="plan-sustainability__icon">${icon(assessment === 'sustainable' ? 'check' : assessment === 'insufficient' ? 'alertTriangle' : 'help', 22)}</span><p class="eyebrow">SUSTENTABILIDADE FAMILIAR ATÉ DEZEMBRO DE ${last.year}</p><h2>${status}</h2><p>${result.firstFailure ? `Primeiro fechamento com insuficiência financeira ou de liquidez: ${result.firstFailure.year}. Patrimônio total positivo não garante recursos disponíveis para pagar despesas.` : assessment === 'sustainable' ? 'Os recursos cobrem o orçamento familiar em todos os fechamentos anuais calculados até a data-alvo.' : 'Confira os dados e confirme as premissas indicadas abaixo para concluir se os recursos cobrem o orçamento familiar até a data-alvo.'}</p>${compact ? '' : `<dl><div><dt>Patrimônio total líquido de dívidas na data-alvo</dt><dd>${money(last.netWorth)}</dd></div><div><dt>Liquidez na data-alvo</dt><dd>${money(last.liquidAssets)}</dd></div></dl>`}${renderProjectionChecks(result)}<p>Projeção anual nas premissas informadas. Confira também a <a href="/riscos-mensais" data-route>liquidez dentro de cada ano</a>.</p></div>`
   const common = { rows: result.rows.map(row => ({ ...row, outflows: row.costs + row.goals })), currency: state.currency, markers: result.retirement ? [{ year: result.retirement.slice(0, 4), label: 'Aposentadoria' }] : [] }
   const wealth = compact ? planningChart({ ...common, title: 'Patrimônio ao fim de cada ano', annualReadout: true, interpolation: 'linear', readoutCaption: `${state.currency} · Poder de compra de ${result.rows[0].year} · Saldo no fim do ano`, series: [

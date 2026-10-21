@@ -37,6 +37,6 @@ test('comparação anual mostra o mensal do ano parcial', () => {
 
 test('barras de receitas e despesas mostram mensal nos totais e nos lançamentos', () => {
   const html = plain(renderIncomeCostBars(row, 'BRL'))
-  assert.match(html, /R\$ 5\.000,00\/mês/)
-  assert.match(html, /R\$ 2\.000,00\/mês/)
+  assert.match(html, /R\$ 5\.000(?![,\d])\/mês/)
+  assert.match(html, /R\$ 2\.000(?![,\d])\/mês/)
 })

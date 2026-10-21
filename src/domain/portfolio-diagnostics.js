@@ -3,7 +3,8 @@
  * Não é recomendação de investimento. Os limites estão em
  * docs/finance/diagnostico-carteira.md.
  */
-import { investmentAnnualFee, resolveInvestmentRealReturn } from './investment-returns.js'
+import { balanceCurrencyInflation, investmentAnnualFee, resolveInvestmentRealReturn } from './investment-returns.js'
+import { fieldReviewLink } from './review-targets.js'
 import { currentByDimension, rebalanceAnalysis } from './target-allocation.js'
 
 export const diagnosticThresholds = Object.freeze({
@@ -81,7 +82,7 @@ export function diagnosePortfolio(plan, { monthlyExpenses = 0, yearsToRetirement
   const t = diagnosticThresholds
   const metrics = portfolioMetrics(plan, { monthlyExpenses, year })
   const findings = []
-  const add = (id, level, title, detail, action) => findings.push({ id, level, title, detail, action })
+  const add = (id, level, title, detail, action, link = null) => findings.push({ id, level, title, detail, action, ...(link ? { href: link.href, linkLabel: link.label } : {}) })
 
   if (metrics.count === 0) {
     add('no-investments', 'info', 'Carteira ainda não detalhada', 'Sem investimentos cadastrados, o diagnóstico usa só o patrimônio total e não avalia concentração, liquidez ou custos.', 'Cadastre cada investimento com classe, liquidez e custo anual.')
@@ -154,6 +155,13 @@ export function diagnosePortfolio(plan, { monthlyExpenses = 0, yearsToRetirement
     const mismatched = plan.investments.filter(item => item.currency && item.currency !== baseCurrency && item.exposureCurrency === baseCurrency)
     if (mismatched.length) {
       add('balance-exposure', 'info', 'Saldo em moeda estrangeira com exposição na moeda do plano', `${mismatched.map(item => `${item.name} (saldo em ${item.currency})`).join(', ')} ${mismatched.length === 1 ? 'está marcado' : 'estão marcados'} como exposição a ${baseCurrency}. O câmbio e a distribuição por moeda não consideram ${mismatched.length === 1 ? 'esse saldo' : 'esses saldos'} na moeda estrangeira.`, 'Confira a moeda de exposição no cadastro. Normalmente é a mesma do saldo.')
+    }
+
+    // Nominal returns in a foreign balance currency fall back to the plan inflation (decisions 4 and 5).
+    const nominalForeign = plan.investments.filter(item => item.returnType === 'nominal' && item.currency && item.currency !== baseCurrency && balanceCurrencyInflation(item, plan) === null)
+    if (nominalForeign.length) {
+      const codes = [...new Set(nominalForeign.map(item => item.currency))]
+      add('foreign-inflation', 'info', 'Retorno nominal em moeda estrangeira descontado pela inflação do plano', `${nominalForeign.map(item => `${item.name} (retorno nominal em ${item.currency})`).join(', ')} ${nominalForeign.length === 1 ? 'usa' : 'usam'} a inflação de ${baseCurrency} para chegar ao retorno real. Sem a inflação de ${codes.join(' e ')}, o retorno real pode ficar distorcido.`, `Informe a inflação anual esperada de ${codes.join(' e ')} em Câmbio na projeção. O aplicativo não sugere esse valor.`, { href: fieldReviewLink('/carteira', `inflation:${codes[0]}`), label: `Informar inflação de ${codes[0]}` })
     }
 
     const releaseIds = new Set((plan.finappMethod?.releases || []).map(row => row.investmentId))

@@ -1,9 +1,9 @@
-import { escapeHtml, privateCurrency } from './formatters.js'
+import { escapeHtml, privateProjectedCurrency } from './formatters.js'
 import { solvencyWealthLabel } from '../domain/property-solvency.js'
 import { moneyWithMonthly, moneyWithMonthlyText } from './monthly-equivalent.js'
 
 export function renderCashFlowResult(row, currency, { final = false } = {}) {
-  const money = value => privateCurrency(value, false, true, currency)
+  const money = value => privateProjectedCurrency(value, false, currency)
   const hasReturn = Number.isFinite(row.financialReturn)
   const result = hasReturn ? row.financialChange : row.freeCashFlow
   const nominal = row.priceBasis === 'nominal'

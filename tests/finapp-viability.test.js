@@ -6,7 +6,7 @@ import { state } from '../src/app/state.js'
 import { renderViability } from '../src/features/plan/viability.js'
 import { renderPostRetirement } from '../src/features/plan/post-retirement.js'
 import { projectPostRetirement, sanitizeDecumulation } from '../src/domain/post-retirement.js'
-import { privateCurrency } from '../src/shared/formatters.js'
+import { privateProjectedCurrency } from '../src/shared/formatters.js'
 import { investmentReviewLink, budgetReviewLink } from '../src/domain/review-targets.js'
 import { cashFlowDetailPanels } from '../src/shared/cash-flow-detail.js'
 
@@ -217,13 +217,13 @@ test('vida financeira mostra o mesmo orçamento, saldo acumulado e horizonte da 
     const phase = html.split('aria-label="Orçamento anual após aposentadoria"')[1].split('</table>')[0]
     assert.doesNotMatch(phase, new RegExp(`scope="row">${year}</th>`))
     assert.match(phase, new RegExp(`scope="row">${year + 2}</th>`))
-    assert.ok(phase.includes(privateCurrency(300, false, true, state.currency)))
-    assert.ok(html.includes(`Patrimônio financeiro na abertura do primeiro ano mostrado: ${privateCurrency(result.rows[1].previousFinancial, false, true, state.currency)}`))
+    assert.ok(phase.includes(privateProjectedCurrency(300, false, state.currency)))
+    assert.ok(html.includes(`Patrimônio financeiro na abertura do primeiro ano mostrado: ${privateProjectedCurrency(result.rows[1].previousFinancial, false, state.currency)}`))
     assert.doesNotMatch(html, /data-decumulation-form/)
     state.valuesHidden = true
     const hidden = renderPostRetirement()
     assert.doesNotMatch(hidden, /<svg|data-viability/)
-    assert.ok(!hidden.includes(privateCurrency(300, false, true, state.currency)))
+    assert.ok(!hidden.includes(privateProjectedCurrency(300, false, state.currency)))
     state.plan.retirementMonth = state.cashFlow.retirementMonth = null
     assert.match(renderPostRetirement(), /Confirme o mês da aposentadoria/)
     assert.doesNotMatch(renderPostRetirement(), /Cobertura anual suficiente/)

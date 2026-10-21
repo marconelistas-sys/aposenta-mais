@@ -22,15 +22,15 @@ test('marcos distinguem saldos cadastrados, abertura do ano de aposentadoria e f
   assert.match(html, /Abertura de 2027, antes dos movimentos do ano/)
   assert.match(html, /Não representa o saldo no mês exato/)
   assert.match(html, /Dezembro de 2028/)
-  assert.match(html, /R\$\s*9\.500,00/)
-  assert.match(html, /Patrimônio total líquido de dívidas: R\$\s*18\.500,00/)
+  assert.match(html, /R\$\s*9\.500(?![,\d])/)
+  assert.match(html, /Patrimônio total líquido de dívidas: R\$\s*18\.500(?![,\d])/)
   assert.deepEqual(value, before)
 })
 
 test('orçamento negativo coberto por patrimônio não vira insuficiência e ações têm limite de três', () => {
   const html = renderPlanInterpretation(fixture(), { currency: 'BRL' })
   assert.match(html, /déficit do orçamento é coberto na projeção/)
-  assert.match(html, /R\$\s*7\.500,00 de liquidez/)
+  assert.match(html, /R\$\s*7\.500(?![,\d]) de liquidez/)
   assert.doesNotMatch(html, /Falta dinheiro disponível/)
   const actions = html.split('class="plan-next-actions"')[1]
   assert.ok((actions.match(/<li>/g) || []).length <= 3)
@@ -43,7 +43,7 @@ test('primeira falta de liquidez prevalece mesmo com patrimônio positivo e pend
   value.firstFailure = { ...value.rows[1], liquidAssets: -500 }
   value.issues = ['Saldo de abertura']
   const html = renderPlanInterpretation(value, { currency: 'BRL' })
-  assert.match(html, /Em 2027, a liquidez projetada é -R\$\s*500,00/)
+  assert.match(html, /Em 2027, a liquidez projetada é -R\$\s*500(?![,\d])/)
   assert.match(html, /Falta dinheiro disponível/)
   assert.doesNotMatch(html, /déficit do orçamento é coberto/)
   const actions = html.split('class="plan-next-actions"')[1]

@@ -1,10 +1,10 @@
 import { investmentReviewLink, budgetReviewLink } from '../domain/review-targets.js'
-import { escapeHtml, privateCurrency } from './formatters.js'
+import { escapeHtml, privateProjectedCurrency } from './formatters.js'
 
 export function renderReleaseSource(item) {
   const id = typeof item.id === 'string' ? item.id : ''
   if (id.startsWith('opening:') && id.length > 8) {
-    const money = value => privateCurrency(value, false, true, item.currency)
+    const money = value => privateProjectedCurrency(value, false, item.currency)
     const composition = [item.openingPrincipal, item.contributionPrincipal, item.accumulatedReturn].every(Number.isFinite) ? `<p>Composição na base real da projeção: saldo inicial ${money(item.openingPrincipal)}, aportes ${money(item.contributionPrincipal)} e rendimentos ${money(item.accumulatedReturn)}.</p>` : ''
     const sources = item.contributionSources?.length ? `<p>Contribuições incluídas neste investimento:</p><ul>${item.contributionSources.map(source => `<li><a href="${escapeHtml(budgetReviewLink(source.id, 'pensionInvestmentId'))}" data-route>${escapeHtml(source.name)}</a>: ${money(source.amount)} em aportes.</li>`).join('')}</ul>` : ''
     return `<a href="${escapeHtml(investmentReviewLink(id.slice(8), 'investmentReleaseYear'))}" data-route>Conferir investimento na Carteira</a>${composition}${sources}`
@@ -14,7 +14,7 @@ export function renderReleaseSource(item) {
 }
 
 export function renderReleaseAmount(row, currency, hidden = false) {
-  const money = value => privateCurrency(value, hidden, true, currency)
+  const money = value => privateProjectedCurrency(value, hidden, currency)
   const amount = money(row.releases || 0)
   const items = row.breakdown?.releases || []
   if (hidden || !items.length) return amount

@@ -59,7 +59,7 @@ test('price changes retain the selected year, convert once and expose the nomina
   const nominal = render({ basis: 'nominal', wealth: 'comparison', flow: 'financial' })
   assert.equal((nominal.match(/data-chart-selected-index="1"/g) || []).length, 2)
   assert.match(nominal, /CHF · Valores nominais de cada ano/)
-  assert.match(nominal, /2031 · Financeiro líquido de dívidas, sem bens: CHF\s*770,00/)
+  assert.match(nominal, /2031 · Financeiro líquido de dívidas, sem bens: CHF\s*770(?![,\d])/)
   assert.match(nominal, /Rendimento nominal implícito/)
   const hidden = render({}, { ...options, hidden: true })
   assert.doesNotMatch(hidden, /2030|CHF|<svg|<table|<select/)

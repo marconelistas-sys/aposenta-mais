@@ -62,7 +62,7 @@ test('excluding property does not remove its debt and can reveal negative select
   const html = renderSolvencyAssessment([row], 'BRL')
   assert.match(html, /data-property-assessment="insufficient"/)
   assert.match(html, /Todas as dívidas continuam descontadas/)
-  assert.match(html, /9\.800,00/)
+  assert.match(html, /9\.800(?![,\d])/)
 })
 
 test('nominal conversion keeps selected wealth reconciled and original real rows intact', () => {
@@ -124,12 +124,12 @@ test('chart exposes chosen wealth, milestone navigation and a classification pat
   const rows = exampleRows(), source = plan()
   const html = renderCashFlowLineChart({ rows, plan: source.plan, cashFlow: { ...source.cashFlow, includeRealEstateInSolvency: false }, currency: 'BRL', title: 'Fluxo', baseYear: 2026 })
   assert.match(html, /data-property-solvency\s+\/>/)
-  assert.match(html, /2026 · Patrimônio considerado, sem imóveis: -R\$\s*200,00/)
+  assert.match(html, /2026 · Patrimônio considerado, sem imóveis: -R\$\s*200(?![,\d])/)
   assert.match(html, /data-solvency-year="2026"/)
   assert.match(html, /Primeiro déficit do orçamento/)
   assert.match(html, /bem\(ns\) sem tipo informado/)
   const hidden = renderCashFlowLineChart({ rows, plan: source.plan, cashFlow: source.cashFlow, currency: 'BRL', title: 'Fluxo', hidden: true })
-  assert.doesNotMatch(hidden, /<svg|data-property|data-solvency|200,00/)
+  assert.doesNotMatch(hidden, /<svg|data-property|data-solvency|200/)
   assert.equal(renderPropertyFilter(source.cashFlow, true), '')
 })
 

@@ -1,7 +1,7 @@
 import { state } from '../../app/state.js'
 import { renderLiquidity, liquidityLabels } from './liquidity.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
-import { resolveInvestmentRealReturn, resolveGrossInvestmentRealReturn, investmentAccumulationFactors, investmentAnnualFee, investmentExposureShare } from '../../domain/investment-returns.js'
+import { balanceCurrencyInflation, resolveInvestmentRealReturn, resolveGrossInvestmentRealReturn, investmentAccumulationFactors, investmentAnnualFee, investmentExposureShare } from '../../domain/investment-returns.js'
 import { diagnosePortfolio } from '../../domain/portfolio-diagnostics.js'
 import { allocationDimensions, defaultRebalanceBand, exposureDistribution, rebalanceAnalysis, regionLabels } from '../../domain/target-allocation.js'
 import { currencies } from '../../shared/currencies.js'
@@ -71,13 +71,17 @@ function preciseRate(value) {
 
 function currencyTrendsPanel() {
   const trends = state.plan.currencyTrends
+  const inflation = state.plan.inflationByCurrency
   const codes = Object.keys(currencies).filter(code => code !== state.currency)
+  const inflationValue = code => inflation?.base === state.currency && Number.isFinite(inflation.rates?.[code]) ? Math.round(inflation.rates[code] * 1000) / 10 : ''
   const exposed = (state.plan.investments || []).filter(item => item.exposureCurrency && item.exposureCurrency !== state.currency)
   return `<form class="panel currency-trends" data-currency-trends-form>
     <div class="investment-assumptions__intro"><p class="eyebrow">CÂMBIO NA PROJEÇÃO</p><h2>Tendência cambial real, opcional</h2><p>Variação real ao ano de cada moeda contra ${state.currency}. Positivo significa que a moeda estrangeira ganha poder de compra. Aplica-se só à parcela exposta dos investimentos. ${exposed.length ? `${exposed.length} ${exposed.length === 1 ? 'investimento tem' : 'investimentos têm'} exposição externa.` : 'Nenhum investimento tem exposição externa cadastrada.'}</p></div>
     <div class="currency-trends__fields">${codes.map(code => `<label class="form-field"><span class="form-field__label">${code} · ${currencies[code].label}</span><span class="input-shell"><input type="number" name="trend:${code}" min="-20" max="20" step="0.1" value="${trends?.rates?.[code] ? Math.round(trends.rates[code] * 1000) / 10 : ''}" placeholder="0" /><span class="input-suffix">% a.a.</span></span></label>`).join('')}</div>
-    <div class="investment-form__actions"><button class="button button--secondary" type="submit">Salvar tendência</button></div>
-    <p class="result-disclaimer">Hipótese de planejamento, não previsão de câmbio. Trocar a moeda do plano apaga as tendências, porque elas deixam de fazer sentido. Retornos informados por ano não recebem o ajuste.</p>
+    <p class="form-context">Inflação anual esperada de cada moeda, opcional. Vale só para investimentos com saldo nessa moeda e retorno nominal: o retorno real passa a ser (1 + nominal) ÷ (1 + inflação da moeda) − 1. Vazio usa a inflação do plano. O aplicativo não sugere esse valor.</p>
+    <div class="currency-trends__fields">${codes.map(code => `<label class="form-field"><span class="form-field__label">${code} · Inflação anual esperada</span><span class="input-shell"><input type="number" name="inflation:${code}" min="-20" max="20" step="0.1" value="${inflationValue(code)}" placeholder="Do plano" /><span class="input-suffix">% a.a.</span></span></label>`).join('')}</div>
+    <div class="investment-form__actions"><button class="button button--secondary" type="submit">Salvar premissas de câmbio</button></div>
+    <p class="result-disclaimer">Hipótese de planejamento, não previsão de câmbio. Trocar a moeda do plano apaga as tendências, porque elas deixam de fazer sentido. As inflações por moeda ficam guardadas. Retornos informados por ano não recebem o ajuste.</p>
   </form>`
 }
 
@@ -110,7 +114,7 @@ function portfolioDiagnostics() {
         <div>
           <h3>${escapeHtml(item.title)}</h3>
           ${state.valuesHidden ? '<p>Detalhes ocultos enquanto os valores estão escondidos.</p>' : `<p>${escapeHtml(item.detail)}</p>`}
-          ${item.action ? `<p class="portfolio-finding__action"><strong>O que fazer:</strong> ${escapeHtml(item.action)}</p>` : ''}
+          ${item.action ? `<p class="portfolio-finding__action"><strong>O que fazer:</strong> ${escapeHtml(item.action)}${item.href ? ` <a href="${escapeHtml(item.href)}" data-route>${escapeHtml(item.linkLabel)}</a>` : ''}</p>` : ''}
         </div>
       </li>`).join('')}
     </ul>
@@ -172,7 +176,11 @@ function signedMoney(value) {
 
 function sourceDetail(investment, realReturn) {
   if (investment.returnType === 'nominal') {
-    return `${formatPercent(investment.returnValue)} nominal resulta em ${formatPercent(realReturn)} real`
+    if (!isForeignBalance(investment, state.currency)) return `${formatPercent(investment.returnValue)} nominal resulta em ${formatPercent(realReturn)} real`
+    const code = investmentBalanceCurrency(investment, state.currency)
+    const inflation = balanceCurrencyInflation(investment, state.plan)
+    const used = inflation === null ? `com a inflação do plano de ${formatPercent(state.plan.annualInflation || 0)}` : `com inflação ${code} de ${formatPercent(inflation)}`
+    return `${formatPercent(investment.returnValue)} nominal em ${code}, ${used}, resulta em ${formatPercent(realReturn)} real`
   }
   if (investment.returnType === 'cdi') {
     return `${formatPercent(investment.returnValue)} do CDI de ${formatPercent(investment.indexAnnualRate)} resulta em ${formatPercent(realReturn)} real`

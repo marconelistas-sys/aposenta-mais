@@ -22,6 +22,12 @@ export function categoryDonut({ segments, ariaLabel, hidden = false, emptyMessag
   const total = values.reduce((sum, segment) => sum + segment.value, 0)
   if (values.length === 0 || total <= 0) return `<p class="category-donut-empty">${escapeHtml(emptyMessage)}</p>`
 
+  // A ring of a single colour says nothing a sentence cannot say better: show the share as text.
+  if (values.length === 1) {
+    const [segment] = values
+    return `<div class="category-donut category-donut--single" data-category-single><p class="category-donut-single"><span class="category-donut-dot" style="background:${segmentColor(segment, 0)}" aria-hidden="true"></span><span><strong class="category-donut-single__share">100%</strong> em ${escapeHtml(segment.label)}</span>${segment.valueLabel ? `<span class="category-donut-single__value">${escapeHtml(segment.valueLabel)}</span>` : ''}</p></div>`
+  }
+
   // Pequeno espaço entre segmentos (equivalente a ~2px sobre pathLength=100), como
   // recomendado para separar visualmente fatias adjacentes sem depender só da cor.
   const gap = values.length > 1 ? 0.6 : 0

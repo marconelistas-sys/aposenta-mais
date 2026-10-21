@@ -5,7 +5,7 @@ import { cashFlowItemLimit } from '../shared/limits.js'
 import { sanitizePaymentMatches } from '../domain/calendar-payments.js'
 import { sanitizeStatementHistory } from '../domain/statement-history.js'
 import { defaultPlan } from '../data/mock-plan.js'
-import { sanitizeCurrencyTrends, validateAnnualRealReturns } from '../domain/investment-returns.js'
+import { sanitizeCurrencyTrends, sanitizeInflationByCurrency, validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import { normalizeCurrency } from '../shared/currencies.js'
 import { bundledExchangeRates, sanitizeExchangeRates } from '../shared/exchange-rates.js'
@@ -247,6 +247,7 @@ export function sanitizePlan(candidate = {}) {
   plan.riskSettings = sanitizeRiskSettings(source.riskSettings)
   plan.targetAllocation = sanitizeTargetAllocation(source.targetAllocation)
   plan.currencyTrends = sanitizeCurrencyTrends(source.currencyTrends)
+  plan.inflationByCurrency = sanitizeInflationByCurrency(source.inflationByCurrency)
   plan.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
   plan.spouseEnabled = source.spouseEnabled === true
   plan.spouseRetirementMonth = typeof source.spouseRetirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.spouseRetirementMonth) ? source.spouseRetirementMonth : null

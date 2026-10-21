@@ -80,6 +80,7 @@ import {
   upsertInvestment,
   setTargetAllocation,
   setCurrencyTrends,
+  setInflationByCurrency,
   setMigrationResolved
 } from './app/state.js'
 import {
@@ -2110,9 +2111,14 @@ document.addEventListener('submit', async (event) => {
   const currencyTrendsForm = event.target.closest('[data-currency-trends-form]')
   if (currencyTrendsForm) {
     event.preventDefault()
-    const rates = {}
-    for (const [name, value] of new FormData(currencyTrendsForm).entries()) if (name.startsWith('trend:') && value !== '') rates[name.slice(6)] = parseNumber(value) / 100
+    const rates = {}, inflation = {}
+    for (const [name, value] of new FormData(currencyTrendsForm).entries()) {
+      if (name.startsWith('trend:') && value !== '') rates[name.slice(6)] = parseNumber(value) / 100
+      if (name.startsWith('inflation:') && value !== '') inflation[name.slice(10)] = parseNumber(value) / 100
+    }
     if (Object.values(rates).some(value => !Number.isFinite(value) || value < -0.2 || value > 0.2)) { showToast('Informe tendências entre −20% e 20% ao ano.'); return }
+    if (Object.values(inflation).some(value => !Number.isFinite(value) || value < -0.2 || value > 0.2)) { showToast('Informe inflações entre −20% e 20% ao ano.'); return }
+    setInflationByCurrency(inflation)
     setCurrencyTrends(rates)
     render()
     showToast(state.plan.currencyTrends ? 'Tendência cambial aplicada à projeção.' : 'Projeção sem tendência cambial.')

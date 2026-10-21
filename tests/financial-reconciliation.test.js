@@ -94,8 +94,8 @@ test('realizados, TXT, eventuais sem data e receitas fora do horizonte não gera
 test('conciliação mostra retorno, variação e identidade sem vazar valores ocultos', () => {
   const rows = run([row()]), before = structuredClone(rows)
   const html = renderFinancialReconciliation({ rows, currency: 'BRL' })
-  assert.match(html, /5\.000,00/)
-  assert.match(html, /97\.000,00/)
+  assert.match(html, /5\.000(?![,\d])/)
+  assert.match(html, /97\.000(?![,\d])/)
   assert.match(html, /Valorização não realizada/)
   assert.match(html, /taxas individuais da Carteira e os ajustes por ano/)
   assert.match(html, /capitaliza o déficit/)
@@ -120,7 +120,7 @@ test('dashboard, viabilidade, pós-aposentadoria e fluxo usam a mesma conciliaç
       assert.match(html, /Resultado do retorno real/)
       state.valuesHidden = true
       const hidden = render()
-      assert.doesNotMatch(hidden, /<svg|5\.000,00|Conciliação de rendimentos e patrimônio/)
+      assert.doesNotMatch(hidden, /<svg|5\.000|Conciliação de rendimentos e patrimônio/)
       state.valuesHidden = false
     }
     timelineView.period = '12'

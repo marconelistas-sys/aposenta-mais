@@ -3,7 +3,7 @@ import { reconcileOwnTransfers } from '../domain/own-transfers.js'
 import { planStatementUpdates } from '../domain/statement-batch.js'
 import { cashFlowItemLimit } from '../shared/limits.js'
 import { defaultPlan } from '../data/mock-plan.js'
-import { sanitizeCurrencyTrends, validateAnnualRealReturns } from '../domain/investment-returns.js'
+import { sanitizeCurrencyTrends, sanitizeInflationByCurrency, validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import {
   loadStoredState,
@@ -127,6 +127,12 @@ export function setMigrationResolved(table, id, resolved = true) {
 
 export function setCurrencyTrends(rates) {
   updatePlan({ currencyTrends: sanitizeCurrencyTrends({ base: state.currency, rates }) })
+}
+
+// The form lists only foreign currencies. A saved rate for the plan currency stays stored, unused.
+export function setInflationByCurrency(rates) {
+  const kept = state.plan.inflationByCurrency?.rates?.[state.currency]
+  updatePlan({ inflationByCurrency: sanitizeInflationByCurrency({ base: state.currency, rates: { ...rates, ...(kept === undefined ? {} : { [state.currency]: kept }) } }) })
 }
 
 export function setTargetAllocation(candidate) {
@@ -364,6 +370,8 @@ export function setCurrency(currency) {
   }
   // Trends are relative to the previous plan currency and would change meaning.
   state.plan.currencyTrends = null
+  // Inflation by currency keeps its meaning: only the currency it no longer applies to changes.
+  if (state.plan.inflationByCurrency) state.plan.inflationByCurrency = { ...state.plan.inflationByCurrency, base: nextCurrency }
   state.currency = nextCurrency
   state.lastUpdatedAt = new Date().toISOString()
   saveState()

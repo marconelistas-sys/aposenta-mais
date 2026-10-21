@@ -1,5 +1,5 @@
 import { budgetPressure } from '../domain/budget-pressure.js'
-import { escapeHtml, privateCurrency } from './formatters.js'
+import { escapeHtml, privateProjectedCurrency } from './formatters.js'
 import { moneyWithMonthly, moneyWithMonthlyText } from './monthly-equivalent.js'
 
 function sortedItems(list) {
@@ -27,7 +27,7 @@ function bar(key, label, total, entries, maxValue, year, money, months) {
 export function renderIncomeCostBars(row, currency) {
   const model = budgetPressure(row)
   if (!model.reconciled) return ''
-  const money = value => privateCurrency(value, false, true, currency)
+  const money = value => privateProjectedCurrency(value, false, currency)
   const incomeItems = sortedItems(row.breakdown?.income)
   const costItems = sortedItems(model.entries)
   const maxValue = Math.max(model.income, model.outflows)
