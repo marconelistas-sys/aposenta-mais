@@ -194,6 +194,7 @@ export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fal
     ...(typeof item.statementImportKey === 'string' && item.statementImportKey ? { statementImportKey: item.statementImportKey.slice(0, 1024) } : {}),
     ...(typeof item.statementAccount === 'string' ? { statementAccount: item.statementAccount.slice(0, 128) } : {}),
     ...(typeof item.statementDescription === 'string' ? { statementDescription: item.statementDescription.slice(0, 1024) } : {}),
+    ...(typeof item.ignoreCreditCardPayment === 'boolean' ? { ignoreCreditCardPayment: item.ignoreCreditCardPayment } : {}),
     ...(['own', 'payment'].includes(item.transferDecision) ? { transferDecision: item.transferDecision } : {}),
     ...(item.statementInternalTransfer === true ? { statementInternalTransfer: true } : {}),
     ...(typeof item.statementReference === 'string' && item.statementReference ? { statementReference: item.statementReference.slice(0, 256) } : {}),

@@ -26,6 +26,7 @@ export function mergeStatementItem(previous, incoming) {
     ...incoming,
     id: previous.id,
     ...(previous.statementInternalTransfer ? { statementInternalTransfer: true } : {}),
+    ...(typeof previous.ignoreCreditCardPayment === 'boolean' ? { ignoreCreditCardPayment: previous.ignoreCreditCardPayment } : {}),
     ...(previous.transferDecision ? { transferDecision: previous.transferDecision } : {}),
     ...(previous.householdOwner ? { householdOwner: previous.householdOwner } : {}),
     ...(keepCategory ? { categoryId: previous.categoryId, categoryOrigin: 'confirmed' } : {})

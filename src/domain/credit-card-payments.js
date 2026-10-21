@@ -12,6 +12,13 @@ export function isCreditCardPayment(item) {
   return item.type === 'expense' && item.recordKind === 'actual' && validDate(item.startDate) && !/\b(tarifa|taxa|juros|multa|encargo|iof|anuidade)\b/.test(text) && /\b(?:pag(?:amento|to)|pgto)\b.{0,45}\b(?:cartao|fatura|ourocard|visa|mastercard)\b/.test(text)
 }
 
+export function ignoresCreditCardPayment(item) {
+  if (item.type !== 'expense' || item.recordKind !== 'actual') return false
+  return typeof item.ignoreCreditCardPayment === 'boolean'
+    ? item.ignoreCreditCardPayment
+    : isCreditCardPayment(item) || Boolean(item.creditCardPaymentLink)
+}
+
 export function linkCreditCardPayments(items) {
   const groups = new Map()
   for (const item of items) {

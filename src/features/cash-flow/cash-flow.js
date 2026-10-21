@@ -1,3 +1,4 @@
+import { isCreditCardPayment, ignoresCreditCardPayment } from '../../domain/credit-card-payments.js'
 import { renderStatementInvestmentReview } from '../../shared/statement-investment-review.js'
 import { transactionDateLabel } from '../../shared/transaction-date.js'
 import { buildMonthlyBudget } from '../../domain/monthly-budget.js'
@@ -109,7 +110,7 @@ function cashFlowItems(result) {
             <strong>${escapeHtml(item.description || item.category.name)}</strong>
             ${transactionDate ? `<span class="budget-item-date" data-budget-item-date>${escapeHtml(transactionDate)}</span>` : ''}
             <span>${item.transferMatch || item.transferPending || item.transferDecision === 'own' ? 'Transferência entre minhas contas' : recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']}${item.transferMatch || item.transferPending || item.transferDecision === 'own' ? '' : ` · ${escapeHtml(item.category.name)}`}</span>
-            ${item.creditCardPaymentLink ? `<span data-credit-card-payment>Pagamento do cartão final ${escapeHtml(item.creditCardPaymentLink.cardLast4)} · Fatura detalhada importada · Fora do orçamento</span>` : item.creditCardPaymentStatus ? '<span data-credit-card-payment>Sem correspondência única com uma fatura completa. Pagamento incluído no orçamento.</span>' : ''}
+            ${item.type === 'expense' && item.recordKind === 'actual' && state.cashFlow.items.some(row => row.id === item.id) ? `<label data-credit-card-payment><input type="checkbox" data-ignore-credit-card-payment="${escapeHtml(item.id)}" ${ignoresCreditCardPayment(item) ? 'checked' : ''} /> Ignorar pagamento de cartão nas despesas</label>${isCreditCardPayment(item) ? `<span>Pagamento de cartão detectado pela descrição. ${ignoresCreditCardPayment(item) ? 'Fora do orçamento.' : 'Incluído no orçamento.'}</span>` : ''}` : ''}
             ${pensionOutsideBudget(state, item) ? '<span data-payroll-pension>Desconto em folha / aporte externo · Fora do orçamento</span>' : ''}
             ${item.plannedExpenseLink ? `<span data-planned-expense-link="${escapeHtml(item.plannedExpenseLink.id)}">Vinculado automaticamente ao planejado: ${escapeHtml(item.plannedExpenseLink.description)}</span>` : item.plannedExpenseLinkStatus === 'ambiguous' ? '<span>Mais de um planejamento compatível, sem vínculo automático</span>' : ''}
             <details class="budget-item-details"><summary>${frequencyLabels[item.frequency]}${item.isActive ? '' : ' · Fora do mês'}${item.frequency === 'occasional' && !item.startDate ? ' · Data pendente' : ''} · Detalhes</summary><p>${periodLabel(item)}${item.source === 'txt' ? ' · Importado de extrato' : ''}</p></details>
@@ -348,7 +349,7 @@ function statementReviewRow(row) {
           ${categoriesForType(row.item.type, state.customCategories).map(option => `<option value="${escapeHtml(option.id)}" ${option.id === category?.id ? 'selected' : ''}>${escapeHtml(option.name)}</option>`).join('')}
         </select>
         <small title="${escapeHtml(classification?.reason || '')}">${escapeHtml(label)}</small>
-        ${row.item.creditCardPaymentLink ? '<small data-credit-card-payment>Fatura detalhada importada. Pagamento mantido para conferência, fora do orçamento.</small>' : row.item.creditCardPaymentStatus ? '<small data-credit-card-payment>Sem correspondência única com uma fatura completa. Pagamento incluído no orçamento.</small>' : ''}
+        ${ignoresCreditCardPayment(row.item) ? '<small data-credit-card-payment>Pagamento de cartão detectado. Será ignorado nas despesas. Você pode alterar essa opção após importar.</small>' : ''}
         ${classification?.matchedDescription ? `<small data-statement-similar-description>Categoria do lançamento semelhante: ${escapeHtml(classification.matchedDescription)}</small>` : ''}
       </div>
       <strong class="money-value">${privateCurrency(row.item.amount, state.valuesHidden, true, row.item.currency)}</strong>

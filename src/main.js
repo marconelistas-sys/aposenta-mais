@@ -1522,6 +1522,15 @@ document.addEventListener('input', (event) => {
 })
 
 document.addEventListener('change', async (event) => {
+  if (event.target.matches('[data-ignore-credit-card-payment]')) {
+    const id = event.target.dataset.ignoreCreditCardPayment
+    try { updateCashFlowItem(id, { ignoreCreditCardPayment: event.target.checked }) }
+    catch (error) { showToast(error.message); return }
+    render()
+    Array.from(app.querySelectorAll('[data-ignore-credit-card-payment]')).find(control => control.dataset.ignoreCreditCardPayment === id)?.focus({ preventScroll: true })
+    return
+  }
+
   if (event.target.matches('[data-payment-filter]')) {
     paymentView.filter = event.target.value
     render()

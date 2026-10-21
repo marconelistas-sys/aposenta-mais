@@ -50,9 +50,9 @@ test('preserva seis prestações iguais e atualiza reimportação sem duplicar o
 test('análise conserva movimentos legítimos iguais e exclui aplicações e resgates', () => {
   const review = reviewStatementImport(fixture().inspection)
   const result = analyzeStatementPlanning(review.rows.map(row => row.item), { currency: 'BRL', start: '2026-01-01', end: '2026-02-28', asOf: '2026-10-01', complete: true })
-  assert.equal(result.excluded.transfer, 4)
+  assert.equal(result.excluded.transfer, 5)
   assert.equal(result.months[0].income, 10000)
-  assert.equal(result.months[0].expense, 4703.24)
+  assert.equal(result.months[0].expense, 4203.24)
 })
 
 test('valida saldos em centavos e rejeita extratos incompletos ou incoerentes', () => {

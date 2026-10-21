@@ -3,10 +3,12 @@ import assert from 'node:assert/strict'
 import { syntheticOurocardText } from '../scripts/fixtures/ourocard-pdf.mjs'
 import { parsePdfStatement } from '../src/domain/pdf-statement.js'
 import { inspectStatementText, reviewStatementImport } from '../src/domain/statement-import.js'
-import { reviewStatementBatch, planStatementUpdates } from '../src/domain/statement-batch.js'
+import { reviewStatementBatch, planStatementUpdates, mergeStatementItem } from '../src/domain/statement-batch.js'
 import { sanitizeCashFlow } from '../src/app/state-storage.js'
 import { linkCreditCardPayments, isCreditCardPayment } from '../src/domain/credit-card-payments.js'
 import { buildMonthlyBudget } from '../src/domain/monthly-budget.js'
+import { renderBudgetEntryResults } from '../src/features/cash-flow/cash-flow.js'
+import { state } from '../src/app/state.js'
 import { defaultCashFlow } from '../src/data/mock-cash-flow.js'
 
 function bill() {
@@ -27,7 +29,7 @@ test('full bill excludes the bank settlement from budget, keeps the record and w
   assert.equal(link([payment(), ...detail]).creditCardPaymentStatus, 'linked')
   assert.equal(month(items).actual.expenses, month(detail).actual.expenses)
   assert.equal(month(items).actual.income, month(detail).actual.income)
-  assert.equal(month([payment()]).actual.expenses, 1610.31)
+  assert.equal(month([payment()]).actual.expenses, 0)
   assert.equal(link(items).amount, 1610.31)
   assert.deepEqual(items, original)
 })
@@ -47,7 +49,7 @@ test('missing, deselected or edited bill detail restores inclusion and ignores s
   const detail = bill()
   for (const incomplete of [detail.slice(1), detail.map((item, index) => index ? item : { ...item, amount: item.amount + 1 }), detail.map((item, index) => index ? item : { ...item, creditCardBill: { ...item.creditCardBill, entryIndex: 99 } })]) {
     assert.equal(link([...incomplete, payment()]).creditCardPaymentStatus, 'unmatched')
-    assert.equal(month([...incomplete, payment()]).actual.expenses, month(incomplete).actual.expenses + 1610.31)
+    assert.equal(month([...incomplete, payment()]).actual.expenses, month(incomplete).actual.expenses)
   }
   const matched = link([...detail, payment()])
   assert.equal(link([matched]).creditCardPaymentLink, undefined)
@@ -66,4 +68,39 @@ test('ambiguous bills or duplicate bank settlements never trigger an automatic e
   assert.equal(link([...detail, ...another, payment({ description: 'Pagamento fatura cartão' })]).creditCardPaymentStatus, 'ambiguous')
   assert.equal(link([...detail, ...another, payment()]).creditCardPaymentStatus, 'linked')
   assert.equal(link([...detail, payment(), payment({ id: 'other-bank-payment' })]).creditCardPaymentStatus, 'ambiguous')
+})
+
+
+test('description detection excludes existing payments without a bill and respects explicit choices', () => {
+  for (const description of ['Pagto cartāo crédito', 'PAGTO CARTAO CREDITO', 'Pgto. fatura', 'Pagamento cartão de crédito']) {
+    assert.equal(month([payment({ description })]).actual.expenses, 0)
+    assert.equal(month([payment({ description, ignoreCreditCardPayment: false })]).actual.expenses, 1610.31)
+  }
+  for (const description of ['Compra cartão crédito', 'Juros pagamento cartão', 'Tarifa pagamento cartão']) {
+    assert.equal(month([payment({ description })]).actual.expenses, 1610.31)
+  }
+  assert.equal(month([...bill(), payment({ ignoreCreditCardPayment: false })]).actual.expenses, month(bill()).actual.expenses + 1610.31)
+  assert.equal(month([payment({ description: 'Quitação', ignoreCreditCardPayment: true })]).actual.expenses, 0)
+})
+
+test('manual inclusion and exclusion survive storage and statement merge', () => {
+  for (const ignoreCreditCardPayment of [true, false]) {
+    const item = payment({ ignoreCreditCardPayment })
+    const restored = sanitizeCashFlow(JSON.parse(JSON.stringify({ items: [item] })), 'BRL').items[0]
+    assert.equal(restored.ignoreCreditCardPayment, ignoreCreditCardPayment)
+    assert.equal(mergeStatementItem(restored, payment()).ignoreCreditCardPayment, ignoreCreditCardPayment)
+  }
+})
+
+test('budget list checks detected payments and reflects manual inclusion', () => {
+  const previous = state.cashFlow.items
+  try {
+    for (const patch of [{}, { ignoreCreditCardPayment: false }]) {
+      const item = payment(patch)
+      state.cashFlow.items = [item]
+      const html = renderBudgetEntryResults({ convertedItems: [{ ...item, isActive: true, convertedAmount: item.amount, category: { name: 'Outras despesas' } }] })
+      assert.match(html, /Ignorar pagamento de cartão nas despesas/)
+      assert.equal(/data-ignore-credit-card-payment="bank-payment" checked/.test(html), patch.ignoreCreditCardPayment !== false)
+    }
+  } finally { state.cashFlow.items = previous }
 })
