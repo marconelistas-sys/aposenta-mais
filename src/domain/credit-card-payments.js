@@ -16,12 +16,50 @@ export function ignoresCreditCardPayment(item) {
   if (item.type !== 'expense' || item.recordKind !== 'actual') return false
   return typeof item.ignoreCreditCardPayment === 'boolean'
     ? item.ignoreCreditCardPayment
-    : isCreditCardPayment(item) || Boolean(item.creditCardPaymentLink)
+    : Boolean(item.creditCardPaymentDuplicateOf) || Boolean(item.creditCardPaymentLink && item.creditCardPaymentLink.remainingAmount === 0)
+}
+
+// A description identifies a candidate, never evidence that its purchases exist.
+// Derived reconciliation fields are rebuilt from the entire current collection.
+export function creditCardPaymentBudgetAmount(item) {
+  if (ignoresCreditCardPayment(item)) return 0
+  if (item.ignoreCreditCardPayment === false) return item.amount
+  return item.creditCardPaymentLink?.remainingAmount ?? item.amount
+}
+
+function paymentIdentity(item) {
+  // Equal amounts/descriptions alone can be distinct real payments. Require the
+  // importer's stable transaction identity, including account and occurrence.
+  const identity = item.statementAccount && item.statementReference
+    ? ['reference', item.statementAccount, item.statementReference]
+    : item.statementImportKey ? ['import', item.statementAccount || '', item.statementImportKey] : null
+  return identity ? JSON.stringify([...identity, item.startDate, item.transactionTime || '', item.currency, cents(item.amount)]) : null
 }
 
 export function linkCreditCardPayments(items) {
+  const result = items.map(item => {
+    const { creditCardPaymentLink, creditCardPaymentStatus, creditCardPaymentDuplicateOf, ...clean } = item
+    return clean
+  })
+  const payments = result.filter(item => isCreditCardPayment(item) && !item.creditCardBill)
+  const identities = new Map()
+  for (const item of payments) {
+    const identity = paymentIdentity(item)
+    if (!identity) continue
+    if (!identities.has(identity)) identities.set(identity, [])
+    identities.get(identity).push(item)
+  }
+  for (const [identity, copies] of identities) {
+    // Keep a stored manual choice authoritative even if an older duplicate has
+    // no choice. Stable IDs make the result independent of collection order.
+    copies.sort((a, b) => Number(typeof b.ignoreCreditCardPayment === 'boolean') - Number(typeof a.ignoreCreditCardPayment === 'boolean') || String(a.id || '').localeCompare(String(b.id || '')))
+    for (const copy of copies.slice(1)) {
+      copy.creditCardPaymentStatus = 'duplicate'
+      copy.creditCardPaymentDuplicateOf = copies[0].id || identity
+    }
+  }
   const groups = new Map()
-  for (const item of items) {
+  for (const item of result) {
     const bill = sanitizeCreditCardBill(item.creditCardBill)
     if (!bill || item.recordKind !== 'actual' || item.currency !== 'BRL' || item.statementAccount !== `BB:Ourocard:${bill.cardLast4}` || !item.statementReference?.startsWith(`Ourocard:${bill.closingDate}:`)) continue
     const id = `Ourocard:${bill.cardLast4}:${bill.closingDate}`
@@ -31,20 +69,37 @@ export function linkCreditCardPayments(items) {
     group.indices.set(bill.entryIndex, item.statementReference)
     group.net += (item.type === 'expense' ? 1 : -1) * cents(item.amount)
   }
-  const bills = [...groups.values()].filter(group => !group.invalid && group.net === cents(group.total) && group.indices.size === group.entryCount && new Set(group.indices.values()).size === group.entryCount)
+  const bills = [...groups.values()]
+  for (const bill of bills) {
+    // Do not treat malformed or legacy rows of this same bill as missing rows:
+    // they still enter the budget, so a residual would count them twice.
+    const members = result.filter(item => item.recordKind === 'actual' && (
+      (item.statementAccount === `BB:Ourocard:${bill.cardLast4}` && item.statementReference?.startsWith(`Ourocard:${bill.closingDate}:`)) ||
+      (item.creditCardBill?.cardLast4 === bill.cardLast4 && item.creditCardBill?.closingDate === bill.closingDate)
+    ))
+    bill.invalid ||= members.some(item => {
+      const metadata = sanitizeCreditCardBill(item.creditCardBill)
+      return !metadata || metadata.cardLast4 !== bill.cardLast4 || metadata.closingDate !== bill.closingDate || item.statementAccount !== `BB:Ourocard:${bill.cardLast4}` || !item.statementReference?.startsWith(`Ourocard:${bill.closingDate}:`) || item.currency !== 'BRL' || !['expense', 'income'].includes(item.type) || !Number.isFinite(item.amount) || item.amount <= 0 || !validDate(item.startDate)
+    })
+    bill.complete = bill.indices.size === bill.entryCount
+    bill.invalid ||= new Set(bill.indices.values()).size !== bill.indices.size || !Number.isSafeInteger(bill.net) || (bill.complete && bill.net !== cents(bill.total))
+  }
   const options = new Map()
-  for (const item of items) {
-    if (!isCreditCardPayment(item) || item.creditCardBill) continue
+  for (const item of payments) {
+    if (item.creditCardPaymentDuplicateOf) continue
     const last4 = normalized(`${item.statementDescription || ''} ${item.description || ''}`).match(/\b(?:final|terminado em|cartao|visa|mastercard)\s*(?:credito\s*)?(?:[*x-]+\s*)?(\d{4})\b/)?.[1]
     options.set(item, bills.filter(bill => item.currency === 'BRL' && (!last4 || last4 === bill.cardLast4) && cents(item.amount) === cents(bill.total) && Math.abs(Date.parse(item.startDate) - Date.parse(bill.dueDate)) <= 7 * 86400000))
   }
-  return items.map(item => {
-    const { creditCardPaymentLink, creditCardPaymentStatus, ...clean } = item
+  return result.map(item => {
     const candidates = options.get(item)
-    if (!candidates) return clean
-    if (candidates.length !== 1) return { ...clean, creditCardPaymentStatus: candidates.length ? 'ambiguous' : 'unmatched' }
+    if (!candidates) return item
+    if (candidates.length !== 1) return { ...item, creditCardPaymentStatus: candidates.length ? 'ambiguous' : 'unmatched' }
     const bill = candidates[0]
-    if ([...options.values()].filter(list => list.includes(bill)).length !== 1) return { ...clean, creditCardPaymentStatus: 'ambiguous' }
-    return { ...clean, creditCardPaymentStatus: 'linked', creditCardPaymentLink: { billId: bill.id, cardLast4: bill.cardLast4, dueDate: bill.dueDate, total: bill.total } }
+    if ([...options.values()].filter(list => list.includes(bill)).length !== 1) return { ...item, creditCardPaymentStatus: 'ambiguous' }
+    if (bill.invalid) return { ...item, creditCardPaymentStatus: 'inconsistent' }
+    // Partial imports already contribute their purchases and refunds. Include
+    // only the uncovered balance at the payment date, without editing records.
+    const remainingAmount = Math.max(0, cents(item.amount) - bill.net) / 100
+    return { ...item, creditCardPaymentStatus: bill.complete ? 'linked' : 'partial', creditCardPaymentLink: { billId: bill.id, cardLast4: bill.cardLast4, dueDate: bill.dueDate, total: bill.total, remainingAmount } }
   })
 }

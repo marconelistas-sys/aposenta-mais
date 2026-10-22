@@ -1,4 +1,4 @@
-import { ignoresCreditCardPayment } from './credit-card-payments.js'
+import { ignoresCreditCardPayment, creditCardPaymentBudgetAmount } from './credit-card-payments.js'
 import { isStatementInvestmentMovement } from './statement-classification.js'
 
 // Statement amounts remain intact. Only the identified fee enters the budget.
@@ -72,5 +72,5 @@ export function transferBudgetAmount(item) {
   if (ignoresCreditCardPayment(item)) return 0
   if (item.statementInternalTransfer || ((item.imported || item.source === 'txt' || item.statementImportKey) && isStatementInvestmentMovement(item.statementDescription || item.description))) return 0
   if (item.transferMatch || item.transferPending || item.transferDecision === 'own') return item.type === 'expense' ? (item.transferMatch?.fee || feeCents(item) / 100) : 0
-  return item.amount
+  return creditCardPaymentBudgetAmount(item)
 }
