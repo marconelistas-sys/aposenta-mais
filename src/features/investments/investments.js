@@ -1,4 +1,5 @@
 import { state } from '../../app/state.js'
+import { renderPensionImport } from './pension-import.js'
 import { renderLiquidity, liquidityLabels } from './liquidity.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { balanceCurrencyInflation, resolveInvestmentRealReturn, resolveGrossInvestmentRealReturn, investmentAccumulationFactors, investmentAnnualFee, investmentExposureShare } from '../../domain/investment-returns.js'
@@ -300,6 +301,8 @@ export function renderInvestments() {
     </div>
 
     ${targetAllocationPanel()}
+
+    ${renderPensionImport(state)}
 
     ${firstInvestment ? '' : portfolioSection(investments)}
 

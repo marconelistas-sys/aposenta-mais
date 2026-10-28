@@ -1,4 +1,6 @@
 import { previewInvestmentBalances } from './domain/statement-investment-balances.js'
+import { bindPensionImport } from './features/investments/pension-import.js'
+import { importPensionBalance } from './app/state.js'
 import { linkCreditCardPayments } from './domain/credit-card-payments.js'
 import { normalizePlanningHref } from './app/planning-routes.js'
 import { bindBudgetExpensePies, updateBudgetExpensePieDetail, renderBudgetExpensePies } from './shared/budget-expense-pies.js'
@@ -160,6 +162,11 @@ import { correlationPresets, defaultClassCorrelations } from './domain/class-cor
 bindMoneyInputs(document)
 bindSelectOptions(document)
 bindAssetAllocation(document)
+bindPensionImport(document, {
+  getState: () => state,
+  save: importPensionBalance,
+  onSaved: () => { recordDataOperation('correction'); render(); showToast('Saldo de previdência atualizado no patrimônio.') }
+})
 const expensePieContexts = new WeakMap()
 bindBudgetExpensePies(document, section => {
   if (state.valuesHidden || !app.contains(section)) return

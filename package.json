@@ -24,7 +24,8 @@
     "test:bb-browser": "node scripts/check-bb-browser.mjs",
     "test:ourocard-browser": "node scripts/check-ourocard-browser.mjs",
     "test:allocation-browser": "node scripts/check-allocation-browser.mjs",
-    "test:pension-browser": "node scripts/check-pension-links-browser.mjs"
+    "test:pension-browser": "node scripts/check-pension-links-browser.mjs",
+    "test:pension-import-browser": "node scripts/check-pension-import-browser.mjs"
   },
   "engines": {
     "node": ">=24"

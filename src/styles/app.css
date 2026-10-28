@@ -1252,6 +1252,15 @@ summary:focus-visible,
   grid-template-columns: 1fr 1fr;
 }
 
+.pension-import { margin-bottom: 24px; }
+.pension-import form { display: grid; gap: 18px; margin-top: 18px; }
+.pension-import .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pension-import [data-pension-import-preview]:not(:empty) { padding: 16px; border: 1px solid var(--color-border); border-radius: 8px; }
+.pension-import button { justify-self: start; }
+@media (max-width: 600px) {
+  .pension-import .form-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 .form-field {
   display: grid;
   gap: 6px;

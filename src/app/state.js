@@ -1,4 +1,5 @@
 import { previewInvestmentBalances } from '../domain/statement-investment-balances.js'
+import { applyPensionBalance } from '../domain/pension-balance-import.js'
 import { reconcileOwnTransfers } from '../domain/own-transfers.js'
 import { planStatementUpdates } from '../domain/statement-batch.js'
 import { cashFlowItemLimit } from '../shared/limits.js'
@@ -189,6 +190,11 @@ export function removeInvestment(id) {
     currentAssets: investments.reduce((total, investment) => total + investment.amount, 0),
     monthlyContribution: investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
   })
+}
+
+export function importPensionBalance(snapshot, investmentId) {
+  const plan = applyPensionBalance(state.plan, snapshot, investmentId, state.currency, state.exchangeRates)
+  updatePlan(plan)
 }
 
 export function updateCashFlow(patch) {

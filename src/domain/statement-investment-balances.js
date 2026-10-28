@@ -38,8 +38,9 @@ export function previewInvestmentBalances(snapshots, investments, { currency, ex
     unique.set(investmentBalanceKey(row), row)
   }
   const rows = [...unique.values()].map(snapshot => {
-    const eligible = investments.filter(item => investmentBalanceCurrency(item, currency) === snapshot.currency && (!item.statementAccount || item.statementAccount === snapshot.sourceAccount))
-    const exact = eligible.filter(item => (normalize(item.name) === normalize(snapshot.name) || (item.statementAccount === snapshot.sourceAccount && normalize(item.statementInvestmentName) === normalize(snapshot.name))))
+    const pension = snapshot.sourceAccount.startsWith('bvk:')
+    const eligible = investments.filter(item => (!pension || item.assetClass === 'pension') && investmentBalanceCurrency(item, currency) === snapshot.currency && (!item.statementAccount || item.statementAccount === snapshot.sourceAccount))
+    const exact = eligible.filter(item => (normalize(item.name) === normalize(snapshot.name) || (pension && normalize(item.name).split(' ').includes('bvk')) || (item.statementAccount === snapshot.sourceAccount && normalize(item.statementInvestmentName) === normalize(snapshot.name))))
     const matcher = exact.length ? null : createStatementDescriptionMatcher(eligible.map(item => ({ item: { ...item, type: 'investment' }, key: normalize(item.name) })))
     const matches = exact.length ? exact : (matcher(normalize(snapshot.name), 'investment') || []).map(match => match.item)
     const investment = matches.length === 1 ? matches[0] : null

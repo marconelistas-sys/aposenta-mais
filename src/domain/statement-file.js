@@ -1,5 +1,6 @@
 import { inspectStatementText } from './statement-import.js'
 import { parsePdfStatement } from './pdf-statement.js'
+import { isPensionStatement, parsePensionBalance } from './pension-balance-import.js'
 
 // Retain coordinates so the debit and credit columns remain distinct.
 export function pdfTextLines(items) {
@@ -22,41 +23,27 @@ export function pdfTextLines(items) {
 export async function readStatementFile(file, options = {}) {
   if (!file || !file.size || file.size > 1024 * 1024) throw new TypeError('Selecione um arquivo de até 1 MB.')
   let text, sourceAccount, format, internalTransferReferences, creditCardBill, investmentBalances
+  const pdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf'
+  const rawText = pdf ? await readPdfText(file) : await file.text()
+  if (isPensionStatement(rawText)) {
+    const snapshot = parsePensionBalance(rawText)
+    return { text: rawText, inspection: {
+      format: 'bvk', sourceAccount: snapshot.sourceAccount,
+      headers: ['Data', 'Descrição', 'Valor'], delimiter: ';',
+      suggestedMapping: { date: 0, description: 1, amount: 2 },
+      rows: [], totalRows: 0, truncatedRows: 0, investmentBalances: [snapshot]
+    } }
+  }
   if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
-    let pdfjs
-    try {
-      // .js works with existing servers that don't register the .mjs MIME type.
-      pdfjs = await import('../../public/vendor/pdfjs/pdf.min.js')
-    } catch (cause) {
-      throw new TypeError('Não foi possível carregar o leitor de PDF. Atualize a página e selecione o arquivo novamente.', { cause })
-    }
-    pdfjs.GlobalWorkerOptions.workerSrc = new URL('../../public/vendor/pdfjs/pdf.worker.min.js', import.meta.url).href
-    let task
-    try {
-      task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, useSystemFonts: true })
-      const pdf = await task.promise
-      if (pdf.numPages > 50) throw new TypeError('Use um PDF com até 50 páginas.')
-      const pages = []
-      for (let index = 1; index <= pdf.numPages; index++) {
-        const page = await pdf.getPage(index)
-        pages.push(pdfTextLines((await page.getTextContent()).items))
-      }
-      const pdfText = pages.join('\n\f\n')
-      const parsed = parsePdfStatement(pdfText)
-      text = parsed.text
-      sourceAccount = parsed.sourceAccount
-      format = parsed.format
-      creditCardBill = parsed.creditCardBill
-      investmentBalances = parsed.investmentBalances
-      internalTransferReferences = parsed.internalTransferReferences
-    } catch (error) {
-      if (error instanceof TypeError) throw error
-      throw new TypeError('Não foi possível ler o PDF. Use um extrato TKB, Banco do Brasil, Yuh ou uma fatura Ourocard sem senha, com texto selecionável.')
-    } finally {
-      await task?.destroy()
-    }
+    const parsed = parsePdfStatement(rawText)
+    text = parsed.text
+    sourceAccount = parsed.sourceAccount
+    format = parsed.format
+    creditCardBill = parsed.creditCardBill
+    investmentBalances = parsed.investmentBalances
+    internalTransferReferences = parsed.internalTransferReferences
   } else {
-    text = await file.text()
+    text = rawText
   }
   const inspection = inspectStatementText(text, options)
   if (sourceAccount) inspection.sourceAccount = sourceAccount
@@ -67,4 +54,34 @@ export async function readStatementFile(file, options = {}) {
     for (const row of inspection.rows) row.internalTransfer = internalTransferReferences.has(row.cells[inspection.suggestedMapping.reference])
   }
   return { text, inspection }
+}
+
+export async function readPdfText(file) {
+  if (!file || !file.size || file.size > 1024 * 1024) throw new TypeError('Selecione um PDF de até 1 MB.')
+  let pdfjs
+  try {
+    // .js works with existing servers that don't register the .mjs MIME type.
+    pdfjs = await import('../../public/vendor/pdfjs/pdf.min.js')
+  } catch (cause) {
+    throw new TypeError('Não foi possível carregar o leitor de PDF. Atualize a página e selecione o arquivo novamente.', { cause })
+  }
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL('../../public/vendor/pdfjs/pdf.worker.min.js', import.meta.url).href
+  let task
+  try {
+    task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, useSystemFonts: true })
+    const pdf = await task.promise
+    if (pdf.numPages > 50) throw new TypeError('Use um PDF com até 50 páginas.')
+    const pages = []
+    for (let index = 1; index <= pdf.numPages; index++) {
+      const page = await pdf.getPage(index)
+      pages.push(pdfTextLines((await page.getTextContent()).items))
+    }
+    const pdfText = pages.join('\n\f\n')
+    return pdfText
+  } catch (error) {
+    if (error instanceof TypeError) throw error
+    throw new TypeError('Não foi possível ler o PDF. Use um PDF sem senha, com texto selecionável.')
+  } finally {
+    await task?.destroy()
+  }
 }
