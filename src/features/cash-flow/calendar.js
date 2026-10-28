@@ -18,6 +18,9 @@ export function saveCommitment(data) {
   const category = categoryById(String(data.get('categoryId') || ''), state.customCategories)
   if (data.get('categoryId') && category?.type !== 'expense') throw new Error('Escolha uma categoria de despesa.')
   if (category) item.categoryId = category.id
+  // Goal priority is edited on the Objetivos page; editing here keeps it.
+  const previous = current.find(row => row.id === id)
+  if (item.kind === 'goal' && previous?.kind === 'goal' && previous.priority) item.priority = previous.priority
   validateCommitment(item)
   updateCashFlow({ commitments: [...current.filter(row => row.id !== id), item] })
 }

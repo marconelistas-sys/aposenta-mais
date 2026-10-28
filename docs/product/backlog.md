@@ -1,5 +1,13 @@
 # Backlog inicial
 
+## Entrega: planejamento por objetivos, fase 2
+
+Reservas de liquidez, longevidade e legado; histórico mensal da confiança com cartão na Visão geral; simulador com alavancas combinadas; meta de legado com prioridade; carteira pelos prazos dos objetivos, com trajetória e aplicação como alocação-alvo. Página organizada em quatro abas. 1.010 testes aprovados e inspeção em navegador feita. [Fase 2](planejamento-por-objetivos.md#fase-2-entregue).
+
+## Entrega: planejamento por objetivos e confiança
+
+Nova tela Objetivos e confiança (`/objetivos`), baseada nas práticas de planejamento por objetivos das casas de wealth: prioridade por meta (essencial, importante, desejável), confiança por prioridade em cenários de mercado, zona de confiança de 75% a 90%, caminhos calculados para chegar a 80% e balanço em valor presente com taxa de cobertura e legado estimado. Usa o mesmo motor anual da Viabilidade. 1.004 testes aprovados e inspeção em navegador feita. [Concepção, decisões e próximas fases](planejamento-por-objetivos.md).
+
 ## Próximos itens após a Sprint 43
 
 - A1. Painéis de ano das projeções sem centavos (Visão geral, Projeção patrimonial, Viabilidade). frontend-developer. RICE 5,4. Primeira história da próxima sprint.

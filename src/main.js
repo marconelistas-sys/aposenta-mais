@@ -30,6 +30,7 @@ import { parseAnnualRealReturns, formatAnnualRealReturns } from './domain/invest
 import { renderViability, saveViability } from './features/plan/viability.js'
 import { renderConsortia, guideConsortiumForm, saveConsortium, consortiumView } from './features/cash-flow/consortia.js'
 import { renderRisk, renderMonthlyRisk, startRisk, cancelRisk, riskSettingsFromForm } from './features/plan/risk.js'
+import { renderGoals, cancelGoals, setGoalPriority, saveLegacyGoal, removeLegacyGoal, applyGoalAllocation, runGoalScenario, scenarioFromForm, scenarioLabel } from './features/goals/goals.js'
 import { guideCommitmentForm, guideMovementForm } from './app/planning-forms.js'
 import { ownedStorage } from './app/owned-storage.js'
 import { renderPostRetirement } from './features/plan/post-retirement.js'
@@ -196,6 +197,7 @@ function switchSessionPlan() {
   cashFlowChartView.flow = 'budget'
   timelineView.selectedYear = null
   cancelRisk(true)
+  cancelGoals(true)
   clearScenarioEditor()
   budgetOwnerView.selected = 'all'
   resetBudgetEntriesView()
@@ -223,6 +225,24 @@ const routes = {
   '/cambio': renderCurrencyExplorer,
   '/': renderDashboard,
   '/plano': renderPlan,
+  '/objetivos': () => renderGoals(() => {
+    if (currentPath() !== '/objetivos') return
+    // The worker result re-renders the page; keep keyboard focus on the same
+    // priority control and an open legacy form with what was typed.
+    const focused = document.activeElement?.dataset?.goalPriority
+    const legacy = app.querySelector('.goals-legacy-form')
+    const draft = legacy?.open ? Object.fromEntries(new FormData(legacy.querySelector('form'))) : null
+    const typing = legacy?.contains(document.activeElement) ? document.activeElement.name : null
+    render({ indicateRecalculation: false })
+    if (focused) Array.from(app.querySelectorAll('[data-goal-priority]')).find(control => control.dataset.goalPriority === focused)?.focus({ preventScroll: true })
+    const restored = draft && app.querySelector('.goals-legacy-form')
+    if (restored) {
+      restored.open = true
+      const form = restored.querySelector('form')
+      for (const [name, value] of Object.entries(draft)) if (form.elements.namedItem(name)) setFormFieldValue(form.elements.namedItem(name), value)
+      if (typing) form.elements.namedItem(typing)?.focus({ preventScroll: true })
+    }
+  }),
   '/carteira': renderInvestments,
   '/patrimonio': renderWealth,
   '/extratos': renderStatements,
@@ -865,6 +885,24 @@ document.addEventListener('click', async (event) => {
     }
     return
   }
+  if (event.target.closest('[data-legacy-remove]')) {
+    if (window.confirm('Remover a meta de legado do plano?')) { removeLegacyGoal(); render(); showToast('Meta de legado removida.') }
+    return
+  }
+  if (event.target.closest('[data-goals-apply-allocation]')) {
+    if (!window.confirm('Substituir a alocação-alvo por classe da Carteira pela alocação indicada pelos prazos dos objetivos?')) return
+    try { applyGoalAllocation(); render(); showToast('Alocação-alvo atualizada. Confira a divisão dos aportes na Carteira.') }
+    catch (error) { showToast(error.message) }
+    return
+  }
+  const scenarioReset = event.target.closest('[data-goals-scenario-reset]')
+  if (scenarioReset) {
+    event.preventDefault()
+    const form = scenarioReset.closest('[data-goals-scenario]')
+    for (const field of form.querySelectorAll('input[type="range"]')) field.value = '0'
+    updateGoalsScenario(form, { immediate: true })
+    return
+  }
   const annualAction = event.target.closest('[data-annual-edit], [data-annual-remove]')
   if (annualAction) {
     const kind = annualAction.dataset.annualKind
@@ -1504,7 +1542,24 @@ function scheduleContributionImpact(input) {
   }, 150)
 }
 
+// Combined levers: labels update at once, the calculation waits for a pause.
+let goalsScenarioTimer
+function updateGoalsScenario(form, { immediate = false } = {}) {
+  const adjustments = scenarioFromForm(form)
+  for (const [name, value] of Object.entries(adjustments)) {
+    const output = form.querySelector(`[data-scenario-output="${name}"]`)
+    if (output) output.textContent = scenarioLabel(name, value)
+  }
+  clearTimeout(goalsScenarioTimer)
+  goalsScenarioTimer = setTimeout(() => runGoalScenario(adjustments, html => {
+    const region = app.querySelector('[data-goals-scenario-result]')
+    if (region) region.innerHTML = html
+  }), immediate ? 0 : 250)
+}
+
 document.addEventListener('input', (event) => {
+  const goalsScenario = event.target.closest('[data-goals-scenario]')
+  if (goalsScenario) { updateGoalsScenario(goalsScenario); return }
   if (event.target.matches('[data-statement-mapping]')) { refreshStatementMapping(event.target); return }
   const impactForm = event.target.closest('[data-expense-impact-form]')
   if (impactForm) {
@@ -1530,6 +1585,16 @@ document.addEventListener('input', (event) => {
 })
 
 document.addEventListener('change', async (event) => {
+  if (event.target.closest('[data-goals-scenario]')) return
+  if (event.target.matches('[data-goal-priority]')) {
+    const id = event.target.dataset.goalPriority
+    try { setGoalPriority(id, event.target.value) }
+    catch (error) { showToast(error.message); return }
+    render()
+    showToast('Prioridade salva. Recalculando a confiança.')
+    Array.from(app.querySelectorAll('[data-goal-priority]')).find(control => control.dataset.goalPriority === id)?.focus({ preventScroll: true })
+    return
+  }
   if (event.target.matches('[data-ignore-credit-card-payment]')) {
     const id = event.target.dataset.ignoreCreditCardPayment
     try { updateCashFlowItem(id, { ignoreCreditCardPayment: event.target.checked }) }
@@ -1753,6 +1818,13 @@ document.addEventListener('change', async (event) => {
 })
 
 document.addEventListener('submit', async (event) => {
+  const legacyForm = event.target.closest('[data-legacy-goal-form]')
+  if (legacyForm) {
+    event.preventDefault()
+    try { saveLegacyGoal(readMoneyFormData(legacyForm)); render(); showToast('Meta de legado salva. Recalculando a confiança.') }
+    catch (error) { showFormError(legacyForm, error.message) }
+    return
+  }
   if (event.target.matches('[data-own-transfers-form]')) {
     event.preventDefault()
     try { saveOwnTransferSettings(new FormData(event.target)); render(); showToast('Transferências conciliadas. Orçamento atualizado.') }

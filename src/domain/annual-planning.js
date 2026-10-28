@@ -16,6 +16,8 @@ export function sanitizeAnnualRows(raw) {
     const category = value?.category !== undefined ? (assetCategories.has(value.category) ? value.category : 'other') : undefined
     // Expense category of an annual goal. Kept only when present, like category above.
     if (typeof value?.categoryId === 'string' && /^[a-z0-9-]{1,60}$/.test(value.categoryId)) row.categoryId = value.categoryId
+    // Goal priority for goals-based planning. Kept only when present and valid.
+    if (['essential', 'important', 'aspirational'].includes(value?.priority)) row.priority = value.priority
     if (category === 'real-estate' && typeof value.includeInSolvency === 'boolean') row.includeInSolvency = value.includeInSolvency
     try { validateAnnualRow(row); if (!result.some(item => item.id === row.id)) result.push(category !== undefined ? { ...row, category } : row) } catch {}
   }

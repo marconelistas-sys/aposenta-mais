@@ -17,6 +17,7 @@ import { currencies } from '../../shared/currencies.js'
 import { renderPremiumPromo } from '../premium/premium.js'
 import { exchangeRate } from '../../shared/exchange-rates.js'
 import { readinessGauge } from '../../shared/readiness-gauge.js'
+import { renderGoalsDashboardCard } from '../goals/goals.js'
 
 function privacyLabel(value) {
   return state.valuesHidden ? 'Valor oculto' : formatCurrency(value, false, state.currency)
@@ -131,6 +132,8 @@ export function renderDashboard() {
       </dl>
       ${state.valuesHidden ? '' : `<div class="retirement-income-strip__progress" role="meter" aria-label="Patrimônio projetado em relação ao necessário" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, Math.round(result.progress * 100))}"><span style="width:${Math.min(100, result.progress * 100).toFixed(1)}%"></span></div><div class="retirement-income-strip__meta"><strong class="retirement-income-strip__pct">${Math.round(result.progress * 100)}%</strong><span>do patrimônio necessário</span><details class="inline-info"><summary aria-label="Como calculamos" title="Como calculamos">${icon('info', 16)}</summary><p class="annual-chart-basis">Patrimônio projetado cobre ${Math.round(result.progress * 100)}% do necessário. Renda projetada = benefício estimado ${money(result.householdExpectedMonthlyBenefit)} + retirada de ${formatPercent(state.plan.annualWithdrawalRate)} ao ano do patrimônio. Aporte atual: ${money(state.plan.monthlyContribution)}/mês. Valores em poder de compra de hoje.</p></details></div>`}
     </section>
+
+    ${renderGoalsDashboardCard()}
 
     <section class="dashboard-grid" data-dashboard-overview aria-label="Impacto de longo prazo">
       ${renderPlanningOverview({ compact: true, cockpit: true, budget: cashFlow, today })}
