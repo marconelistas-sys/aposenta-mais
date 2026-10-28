@@ -94,6 +94,19 @@ function reserveField({ label, name, value, hint }) {
   `
 }
 
+function creditCardPaymentMessage(item) {
+  if (typeof item.ignoreCreditCardPayment === 'boolean') return item.ignoreCreditCardPayment
+    ? 'Excluído das despesas por sua escolha.'
+    : 'Valor integral incluído por sua escolha, mesmo se houver fatura ou cópia importada.'
+  if (item.creditCardPaymentStatus === 'duplicate') return 'Cópia da mesma transação bancária. Fora do orçamento.'
+  if (item.creditCardPaymentStatus === 'linked') return 'Fatura completa conciliada. Pagamento fora do orçamento.'
+  if (item.creditCardPaymentStatus === 'partial') return `Fatura incompleta. Saldo sem detalhe incluído: ${privateCurrency(item.creditCardPaymentLink.remainingAmount, state.valuesHidden, true, item.currency)}. Complete a importação para conferir compras e créditos.`
+  if (item.creditCardPaymentStatus === 'inconsistent') return 'Dados da fatura inconsistentes. Pagamento integral incluído. Revise a importação e possíveis valores em duplicidade.'
+  if (item.creditCardPaymentStatus === 'ambiguous') return 'Mais de uma correspondência possível. Pagamento integral incluído. Revise faturas e pagamentos repetidos.'
+  if (isCreditCardPayment(item)) return 'Sem fatura correspondente comprovada. Pagamento integral incluído. Importe a fatura completa para conciliar.'
+  return ''
+}
+
 function cashFlowItems(result) {
   if (result.convertedItems.length === 0) {
     return '<p class="scenario-empty">Nenhum lançamento neste filtro. Adicione uma receita ou despesa ou selecione Todas as titularidades.</p>'
@@ -111,7 +124,7 @@ function cashFlowItems(result) {
             <strong>${escapeHtml(item.description || item.category.name)}</strong>
             ${transactionDate ? `<span class="budget-item-date" data-budget-item-date>${escapeHtml(transactionDate)}</span>` : ''}
             <span>${item.transferMatch || item.transferPending || item.transferDecision === 'own' ? 'Transferência entre minhas contas' : recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']}${item.transferMatch || item.transferPending || item.transferDecision === 'own' ? '' : ` · ${escapeHtml(item.category.name)}`}</span>
-            ${item.type === 'expense' && item.recordKind === 'actual' && state.cashFlow.items.some(row => row.id === item.id) ? `<label data-credit-card-payment><input type="checkbox" data-ignore-credit-card-payment="${escapeHtml(item.id)}" ${ignoresCreditCardPayment(item) ? 'checked' : ''} /> Ignorar pagamento de cartão nas despesas</label>${isCreditCardPayment(item) ? `<span>Pagamento de cartão detectado pela descrição. ${ignoresCreditCardPayment(item) ? 'Fora do orçamento.' : 'Incluído no orçamento.'}</span>` : ''}` : ''}
+            ${item.type === 'expense' && item.recordKind === 'actual' && state.cashFlow.items.some(row => row.id === item.id) ? `<label data-credit-card-payment><input type="checkbox" data-ignore-credit-card-payment="${escapeHtml(item.id)}" ${ignoresCreditCardPayment(item) ? 'checked' : ''} /> Ignorar pagamento de cartão nas despesas</label>${typeof item.ignoreCreditCardPayment === 'boolean' ? `<button type="button" class="button button--secondary" data-auto-credit-card-payment="${escapeHtml(item.id)}">Usar conciliação automática</button>` : ''}${creditCardPaymentMessage(item) ? `<span>${creditCardPaymentMessage(item)}</span>` : ''}` : ''}
             ${pensionOutsideBudget(state, item) ? '<span data-payroll-pension>Desconto em folha / aporte externo · Fora do orçamento</span>' : ''}
             ${item.plannedExpenseLink ? `<span data-planned-expense-link="${escapeHtml(item.plannedExpenseLink.id)}">Vinculado automaticamente ao planejado: ${escapeHtml(item.plannedExpenseLink.description)}</span>` : item.plannedExpenseLinkStatus === 'ambiguous' ? '<span>Mais de um planejamento compatível, sem vínculo automático</span>' : ''}
             <details class="budget-item-details"><summary>${frequencyLabels[item.frequency]}${item.isActive ? '' : ' · Fora do mês'}${item.frequency === 'occasional' && !item.startDate ? ' · Data pendente' : ''} · Detalhes</summary><p>${periodLabel(item)}${item.source === 'txt' ? ' · Importado de extrato' : ''}</p></details>
@@ -354,7 +367,7 @@ function statementReviewRow(row) {
           ${categoriesForType(row.item.type, state.customCategories).map(option => `<option value="${escapeHtml(option.id)}" ${option.id === category?.id ? 'selected' : ''}>${escapeHtml(option.name)}</option>`).join('')}
         </select>
         <small title="${escapeHtml(classification?.reason || '')}">${escapeHtml(label)}</small>
-        ${ignoresCreditCardPayment(row.item) ? '<small data-credit-card-payment>Pagamento de cartão detectado. Será ignorado nas despesas. Você pode alterar essa opção após importar.</small>' : ''}
+        ${creditCardPaymentMessage(row.item) ? `<small data-credit-card-payment>${creditCardPaymentMessage(row.item)}</small>` : ''}
         ${classification?.matchedDescription ? `<small data-statement-similar-description>Categoria do lançamento semelhante: ${escapeHtml(classification.matchedDescription)}</small>` : ''}
       </div>
       <strong class="money-value">${privateCurrency(row.item.amount, state.valuesHidden, true, row.item.currency)}</strong>

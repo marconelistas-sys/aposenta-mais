@@ -450,7 +450,7 @@ function statementReviewView() {
   for (const row of rows) {
     if (!row.item) continue
     const linked = cardByKey.get(row.item.statementImportKey)
-    row.item = { ...row.item, creditCardPaymentLink: linked?.creditCardPaymentLink, creditCardPaymentStatus: linked?.creditCardPaymentStatus }
+    row.item = { ...row.item, creditCardPaymentLink: linked?.creditCardPaymentLink, creditCardPaymentStatus: linked?.creditCardPaymentStatus, creditCardPaymentDuplicateOf: linked?.creditCardPaymentDuplicateOf }
   }
   const balancePreview = previewInvestmentBalances(statementReviewState.files.flatMap(file => file.inspection.investmentBalances || []), state.plan.investments || [], { currency: state.currency, exchangeRates: state.exchangeRates, allowUndated: true })
   const investmentBalanceRows = balancePreview.rows.map(row => ({ ...row, selected: row.status === 'update' && (row.previousDate ? !statementReviewState.excludedInvestmentBalances?.has(row.key) : statementReviewState.initialInvestmentBalances?.has(row.key) === true) }))
@@ -681,6 +681,16 @@ function updateBudgetReferenceMonth(month, focusSelector = '[data-reference-mont
 }
 
 document.addEventListener('click', async (event) => {
+  const autoCardPayment = event.target.closest('[data-auto-credit-card-payment]')
+  if (autoCardPayment) {
+    const id = autoCardPayment.dataset.autoCreditCardPayment
+    try { updateCashFlowItem(id, { ignoreCreditCardPayment: undefined }) }
+    catch (error) { showToast(error.message); return }
+    render()
+    Array.from(app.querySelectorAll('[data-ignore-credit-card-payment]')).find(control => control.dataset.ignoreCreditCardPayment === id)?.focus({ preventScroll: true })
+    return
+  }
+
   if (!sessionReady) { event.preventDefault(); return }
   const monthStep = event.target.closest('[data-budget-month-step]')
   if (monthStep) {
