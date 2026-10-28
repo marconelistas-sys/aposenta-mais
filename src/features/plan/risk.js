@@ -13,7 +13,8 @@ export const riskView = { running: false, result: null, error: '', revision: nul
 let worker = null
 let timeoutId = null
 export function riskRevision() {
-  return JSON.stringify({ owner: ownedStorage.owner, plan: state.plan, cashFlow: state.cashFlow, currency: state.currency, rates: state.exchangeRates, categories: state.customCategories })
+  // The confidence history is a record of results, not an input of the projection.
+  return JSON.stringify({ owner: ownedStorage.owner, plan: { ...state.plan, goalsHistory: undefined }, cashFlow: state.cashFlow, currency: state.currency, rates: state.exchangeRates, categories: state.customCategories })
 }
 export function cancelRisk(clear = false) {
   clearTimeout(timeoutId); timeoutId = null

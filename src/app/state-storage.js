@@ -14,6 +14,7 @@ import { sanitizeLedger } from '../domain/accounts.js'
 import { sanitizeCommitments } from '../domain/financial-calendar.js'
 import { sanitizeConsortia } from '../domain/consortium.js'
 import { sanitizeRiskSettings } from '../domain/risk-plan.js'
+import { sanitizeGoalsHistory, sanitizeLegacyGoal } from '../domain/goal-settings.js'
 import { sanitizeDecumulation } from '../domain/post-retirement.js'
 import { linkedBudgetItem } from '../domain/ledger-links.js'
 import { sanitizeAnnualRows, sanitizeMigration } from '../domain/annual-planning.js'
@@ -246,6 +247,11 @@ export function sanitizePlan(candidate = {}) {
   plan.horizonReferenceMonth = typeof source.horizonReferenceMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.horizonReferenceMonth) ? source.horizonReferenceMonth : null
   plan.riskSettings = sanitizeRiskSettings(source.riskSettings)
   plan.targetAllocation = sanitizeTargetAllocation(source.targetAllocation)
+  // Goals settings are stored only when present, so older plans round-trip unchanged.
+  const legacyGoal = sanitizeLegacyGoal(source.legacyGoal)
+  if (legacyGoal) plan.legacyGoal = legacyGoal
+  const goalsHistory = sanitizeGoalsHistory(source.goalsHistory)
+  if (goalsHistory.length) plan.goalsHistory = goalsHistory
   plan.currencyTrends = sanitizeCurrencyTrends(source.currencyTrends)
   plan.inflationByCurrency = sanitizeInflationByCurrency(source.inflationByCurrency)
   plan.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null

@@ -28,6 +28,7 @@ export function sanitizeCommitments(raw) {
     }
     // Expense category chosen by the person. Kept only when present, so older plans round-trip unchanged.
     if (typeof value?.categoryId === 'string' && /^[a-z0-9-]{1,60}$/.test(value.categoryId)) item.categoryId = value.categoryId
+    if (item.kind === 'goal' && ['essential', 'important', 'aspirational'].includes(value?.priority)) item.priority = value.priority
     try { validateCommitment(item); if (!result.some(row => row.id === item.id)) result.push(item) } catch {}
   }
   return result

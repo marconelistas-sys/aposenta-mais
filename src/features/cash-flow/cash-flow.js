@@ -25,6 +25,7 @@ import { categoriesForType, categoryById } from '../../data/cash-flow-categories
 import { renderCashFlowTimeline } from './timeline.js'
 import { budgetEntriesView, filterBudgetEntries } from './budget-entries-view.js'
 import { expenseCategoryOptions } from '../plan/annual-planning.js'
+import { goalPriorities, goalPriorityLabels, defaultGoalPriority } from '../../domain/goals-planning.js'
 import { pageTabState, renderTabbedPanels } from '../../shared/page-tabs.js'
 
 const frequencyLabels = {
@@ -259,6 +260,10 @@ function annualGoalEditDialog() {
           <label class="form-field">
             <span class="form-field__label">Categoria</span>
             <span class="input-shell"><select name="categoryId" required>${expenseCategoryOptions()}</select></span>
+          </label>
+          <label class="form-field">
+            <span class="form-field__label">Prioridade do objetivo</span>
+            <span class="input-shell"><select name="priority">${goalPriorities.map(priority => `<option value="${priority}" ${priority === defaultGoalPriority ? 'selected' : ''}>${goalPriorityLabels[priority]}</option>`).join('')}</select></span>
           </label>
           <label class="form-field">
             <span class="form-field__label">Despesa total no ano inicial</span>

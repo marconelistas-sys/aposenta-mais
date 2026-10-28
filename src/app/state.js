@@ -23,6 +23,7 @@ import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeCont
 import { ownedStorage } from './owned-storage.js'
 import { validateTargetAllocation } from '../domain/target-allocation.js'
 import { validatePensionInvestment } from '../domain/pension-investment-links.js'
+import { upsertGoalsHistory } from '../domain/goal-settings.js'
 
 const unavailableStorage = {
   getItem: () => null,
@@ -195,6 +196,13 @@ export function removeInvestment(id) {
 export function importPensionBalance(snapshot, investmentId) {
   const plan = applyPensionBalance(state.plan, snapshot, investmentId, state.currency, state.exchangeRates)
   updatePlan(plan)
+}
+
+// Monthly confidence point of the goals page. Not a user edit: keeps the
+// demo flag and the last update time.
+export function recordGoalsSnapshot(snapshot) {
+  state.plan = { ...state.plan, goalsHistory: upsertGoalsHistory(state.plan.goalsHistory, snapshot) }
+  saveState()
 }
 
 export function updateCashFlow(patch) {
