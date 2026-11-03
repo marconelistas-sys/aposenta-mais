@@ -27,6 +27,7 @@ import { ownedStorage } from './owned-storage.js'
 import { validateTargetAllocation } from '../domain/target-allocation.js'
 import { validatePensionInvestment } from '../domain/pension-investment-links.js'
 import { upsertGoalsHistory } from '../domain/goal-settings.js'
+import { upsertWealthHistory, wealthSnapshot } from '../domain/wealth-history.js'
 
 const unavailableStorage = {
   getItem: () => null,
@@ -64,7 +65,32 @@ export function copyGuestPlanToAccount() {
   replaceFinancialData(guest)
 }
 
-export function saveState() {
+// Monthly balance-sheet photo (plan.wealthHistory). Taken whenever financial
+// data is saved, so the photo of the month follows the latest balances. Not for
+// the demo plan, deleted data or an empty plan. A failure never blocks saving.
+export function planWithWealthSnapshot(candidate, date = new Date().toISOString().slice(0, 10)) {
+  if (!candidate?.plan || candidate.isDemo || candidate.dataDeleted) return candidate?.plan
+  try {
+    const snapshot = wealthSnapshot(candidate, date)
+    return snapshot ? { ...candidate.plan, wealthHistory: upsertWealthHistory(candidate.plan.wealthHistory, snapshot) } : candidate.plan
+  } catch {
+    return candidate.plan
+  }
+}
+
+// Explicit trigger, e.g. when the financial report is opened in a month
+// without edits. Not a user edit: keeps the demo flag and the last update time.
+export function recordWealthSnapshot(date) {
+  const plan = planWithWealthSnapshot(state, date)
+  if (plan === state.plan) return false
+  state.plan = plan
+  return saveState({ wealth: false })
+}
+
+// Settings and view preferences pass { wealth: false }: they do not change
+// balances, and an exchange-rate refresh alone must not rewrite the history.
+export function saveState({ wealth = true } = {}) {
+  if (wealth) state.plan = planWithWealthSnapshot(state)
   try {
     appStorage.setItem(storageKeys.current, JSON.stringify(state))
     try {
@@ -81,7 +107,7 @@ export function saveState() {
 
 export function toggleValues() {
   state.valuesHidden = !state.valuesHidden
-  saveState()
+  saveState({ wealth: false })
 }
 
 export function updatePlan(patch) {
@@ -206,7 +232,7 @@ export function importPensionBalance(snapshot, investmentId) {
 // demo flag and the last update time.
 export function recordGoalsSnapshot(snapshot) {
   state.plan = { ...state.plan, goalsHistory: upsertGoalsHistory(state.plan.goalsHistory, snapshot) }
-  saveState()
+  saveState({ wealth: false })
 }
 
 export function updateCashFlow(patch) {
@@ -283,6 +309,7 @@ export function upsertStatementItems(items, { investmentBalances = [], accountBa
   if (portfolioChanged && investments.length !== portfolio.investments.length) throw new TypeError('Saldo de investimento inválido. Nenhuma alteração foi salva.')
   const nextPlan = portfolioChanged ? { ...state.plan, investments, ...investmentTotals(investments) } : state.plan
   const next = { ...state, plan: nextPlan, cashFlow: { ...state.cashFlow, items: reconcileOwnTransfers(plan.items, state.cashFlow.ownStatementAccounts) }, isDemo: false, lastUpdatedAt: new Date().toISOString() }
+  next.plan = planWithWealthSnapshot(next)
   appStorage.setItem(storageKeys.current, JSON.stringify(next))
   Object.assign(state, next)
   return { added: plan.added, updated: plan.updated, ...(balances.updates.length || movementUpdates ? { investmentUpdated: balances.updates.length + movementUpdates } : {}), ...(linking.created ? { investmentCreated: linking.created } : {}), ...(accountChanges ? { accountUpdated: accountChanges } : {}) }
@@ -414,7 +441,7 @@ export function replaceFinancialData(candidate) {
 
 export function toggleReminder() {
   state.reminderEnabled = !state.reminderEnabled
-  saveState()
+  saveState({ wealth: false })
 }
 
 export function setCurrency(currency) {
@@ -454,8 +481,14 @@ export function setExchangeRates(exchangeRates) {
     state.plan.investments = syncInvestmentCurrencies(state.plan.investments, state.currency, state.exchangeRates)
     Object.assign(state.plan, investmentTotals(state.plan.investments))
   }
-  saveState()
+  saveState({ wealth: false })
   return true
+}
+
+// The balance-sheet history stays with the live plan, never copied into a scenario.
+function scenarioPlan(plan) {
+  const { wealthHistory: _, ...rest } = structuredClone(plan)
+  return rest
 }
 
 export function addScenario(name, plan, context = {}) {
@@ -467,40 +500,43 @@ export function addScenario(name, plan, context = {}) {
     id,
     name: name.trim().slice(0, 40),
     currency: context.currency || state.currency,
-    plan: structuredClone(plan),
+    plan: scenarioPlan(plan),
     cashFlow: structuredClone(context.cashFlow || state.cashFlow),
     createdAt: new Date().toISOString()
   })
-  saveState()
+  saveState({ wealth: false })
 }
 
 export function updateScenario(id, name, plan, context = {}) {
   const index = state.scenarios.findIndex(item => item.id === id)
   if (index < 0) throw new Error('Cenário não encontrado.')
-  state.scenarios[index] = { ...state.scenarios[index], name: name.trim().slice(0, 40), plan: structuredClone(plan), currency: context.currency || state.scenarios[index].currency, cashFlow: structuredClone(context.cashFlow || state.scenarios[index].cashFlow) }
-  saveState()
+  state.scenarios[index] = { ...state.scenarios[index], name: name.trim().slice(0, 40), plan: scenarioPlan(plan), currency: context.currency || state.scenarios[index].currency, cashFlow: structuredClone(context.cashFlow || state.scenarios[index].cashFlow) }
+  saveState({ wealth: false })
 }
 
 export function loadScenario(id) {
   const scenario = state.scenarios.find((item) => item.id === id)
   if (!scenario) throw new TypeError('Cenário não encontrado.')
   // Foreign balances follow the current exchange rates, not the rates of the day it was saved.
+  const wealthHistory = state.plan.wealthHistory
   state.plan = syncPlanInvestments(structuredClone(scenario.plan), scenario.currency, state.exchangeRates)
+  if (wealthHistory?.length) state.plan.wealthHistory = wealthHistory
   if (scenario.cashFlow) state.cashFlow = structuredClone(scenario.cashFlow)
   state.currency = scenario.currency
   state.isDemo = false
   state.lastUpdatedAt = new Date().toISOString()
-  saveState()
+  // A what-if copy does not replace the photo of the month. The next edit does.
+  saveState({ wealth: false })
 }
 
 export function removeScenario(id) {
   state.scenarios = state.scenarios.filter((scenario) => scenario.id !== id)
-  saveState()
+  saveState({ wealth: false })
 }
 
 export function setChartRange(range) {
   state.activeChartRange = range
-  saveState()
+  saveState({ wealth: false })
 }
 
 export function resetState() {

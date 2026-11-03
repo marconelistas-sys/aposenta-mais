@@ -1,5 +1,11 @@
 # Backlog inicial
 
+## Entrega: relatório financeiro em PDF
+
+Nova tela Relatório financeiro (`/relatorio`, grupo Planejar), com "Salvar como PDF" pelo navegador, sem enviar dados. São 11 páginas A4: sumário com 11 indicadores e limites de mercado, achados e ações com impacto, fluxo de caixa e poupança, onde o gasto está alto e readequação do orçamento, balanço, patrimônio em seis dimensões e evolução, carteira, liquidez, dívidas, câmbio, aposentadoria com faixas P10–P90, lista de verificação e premissas. Foto mensal do patrimônio (`plan.wealthHistory`) gravada a partir de agora. 1.086 testes aprovados e PDF inspecionado. [Concepção, decisões e fase 2](relatorio-financeiro-pdf.md).
+
+Pendências: dívida com saldo de hoje no Balanço e do mês de referência em Dívidas; "sem ano de falta" ao lado de confiança baixa na Aposentadoria (cenário base × simulação); cor por entidade igual entre capítulos; teste em Safari/Firefox e leitor de tela; limites de custo da carteira (≥ 1% risco?) e teto de corte de 50% por categoria a confirmar.
+
 ## Entrega: planejamento por objetivos, fase 2
 
 Reservas de liquidez, longevidade e legado; histórico mensal da confiança com cartão na Visão geral; simulador com alavancas combinadas; meta de legado com prioridade; carteira pelos prazos dos objetivos, com trajetória e aplicação como alocação-alvo. Página organizada em quatro abas. 1.010 testes aprovados e inspeção em navegador feita. [Fase 2](planejamento-por-objetivos.md#fase-2-entregue).
