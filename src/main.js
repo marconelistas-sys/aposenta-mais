@@ -1,4 +1,5 @@
 import { previewInvestmentBalances } from './domain/statement-investment-balances.js'
+import { previewAccountBalances, unlinkedCashItems } from './domain/statement-account-balances.js'
 import { bindPensionImport } from './features/investments/pension-import.js'
 import { importPensionBalance } from './app/state.js'
 import { linkCreditCardPayments } from './domain/credit-card-payments.js'
@@ -490,6 +491,8 @@ function statementReviewView() {
   const balancePreview = previewInvestmentBalances(statementReviewState.files.flatMap(file => file.inspection.investmentBalances || []), state.plan.investments || [], { currency: state.currency, exchangeRates: state.exchangeRates, allowUndated: true })
   const investmentBalanceRows = balancePreview.rows.map(row => ({ ...row, selected: row.status === 'update' && (row.previousDate ? !statementReviewState.excludedInvestmentBalances?.has(row.key) : statementReviewState.initialInvestmentBalances?.has(row.key) === true) }))
   const investmentBalances = investmentBalanceRows.filter(row => row.selected)
+  const accountBalanceRows = previewAccountBalances(statementReviewState.files.flatMap(file => file.inspection.accountBalances || []), state.plan.investments || [], { currency: state.currency, targets: statementReviewState.accountTargets })
+  const accountBalances = accountBalanceRows.filter(row => row.selected)
   const selectedCount = rows.filter((row) => row.selected).length
   const availableSlots = Math.max(cashFlowItemLimit - state.cashFlow.items.length, 0)
   return {
@@ -507,7 +510,10 @@ function statementReviewView() {
     selectedCount,
     investmentBalanceRows,
     investmentBalances,
-    investmentUpdateCount: investmentBalances.length,
+    investmentUpdateCount: investmentBalances.length + accountBalances.length,
+    accountBalanceRows,
+    accountBalances,
+    unlinkedCash: unlinkedCashItems(state.plan.investments || []),
     duplicateCount: rows.filter((row) => row.duplicate).length,
     internalTransferCount: rows.filter(row => row.internalTransfer && !row.duplicate).length,
     invalidCount: rows.filter((row) => row.error).length,
@@ -1758,6 +1764,12 @@ document.addEventListener('change', async (event) => {
     return
   }
 
+  if (event.target.matches('[data-statement-account-target]')) {
+    if (!statementReviewState) return
+    statementReviewState.accountTargets.set(event.target.dataset.statementAccountTarget, event.target.value)
+    updateStatementReviewDialog(app, statementReviewView())
+    return
+  }
   if (event.target.matches('[data-statement-investment-balance]')) {
     if (!statementReviewState) return
     const key = event.target.dataset.statementInvestmentBalance
@@ -1848,7 +1860,7 @@ document.addEventListener('change', async (event) => {
       return
     }
     const generation = ownedStorage.generation
-    const batch = { files: [], activeFile: 0, loading: true, expectedFiles: files.length, excludedRows: new Set(), excludedInvestmentBalances: new Set(), initialInvestmentBalances: new Set(), categoryOverrides: new Map(), investmentTargets: new Map(), includedRows: new Set() }
+    const batch = { files: [], activeFile: 0, loading: true, expectedFiles: files.length, excludedRows: new Set(), excludedInvestmentBalances: new Set(), initialInvestmentBalances: new Set(), accountTargets: new Map(), categoryOverrides: new Map(), investmentTargets: new Map(), includedRows: new Set() }
     statementReviewState = batch
     showToast(`Lendo e classificando ${files.length} extratos...`)
     try {
@@ -2309,7 +2321,7 @@ document.addEventListener('submit', async (event) => {
     }
     const items = review.rows.filter((row) => row.selected).map((row) => row.item)
     try {
-      const result = upsertStatementItems(items, { investmentBalances: review.investmentBalances, allowUndatedBalances: true })
+      const result = upsertStatementItems(items, { investmentBalances: review.investmentBalances, accountBalances: review.accountBalances, allowUndatedBalances: true })
       const skippedCount = review.duplicateCount + review.invalidCount + review.rows.filter(row => row.internalTransfer && !row.duplicate && !row.selected).length
       statementReviewState = null
       resetBudgetEntriesView()
@@ -2319,7 +2331,7 @@ document.addEventListener('submit', async (event) => {
       const budgetPage = Boolean(app.querySelector('.budget-workspace'))
       revealInPageTab(app, app.querySelector('.budget-workspace'))
       app.querySelector('[data-budget-filters] [name="search"]')?.focus({ preventScroll: true })
-      showToast(`${result.added} lançamentos importados. ${result.updated} atualizados.${result.investmentUpdated ? ` ${result.investmentUpdated} saldos de aplicações atualizados.` : ''}${result.investmentCreated ? ` ${result.investmentCreated} investimentos criados na Carteira para completar os detalhes.` : ''}${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''}${budgetPage ? ' A lista mostra os realizados de todos os períodos.' : ' Confira os lançamentos no Orçamento.'}`)
+      showToast(`${result.added} lançamentos importados. ${result.updated} atualizados.${result.investmentUpdated ? ` ${result.investmentUpdated} saldos de aplicações atualizados.` : ''}${result.investmentCreated ? ` ${result.investmentCreated} investimentos criados na Carteira para completar os detalhes.` : ''}${result.accountUpdated ? ` ${result.accountUpdated} saldos de conta atualizados no Patrimônio.` : ''}${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''}${budgetPage ? ' A lista mostra os realizados de todos os períodos.' : ' Confira os lançamentos no Orçamento.'}`)
     } catch (error) {
       showToast(error.message)
     }

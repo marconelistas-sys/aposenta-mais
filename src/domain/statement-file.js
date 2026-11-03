@@ -22,7 +22,7 @@ export function pdfTextLines(items) {
 
 export async function readStatementFile(file, options = {}) {
   if (!file || !file.size || file.size > 1024 * 1024) throw new TypeError('Selecione um arquivo de até 1 MB.')
-  let text, sourceAccount, format, period, internalTransferReferences, creditCardBill, investmentBalances
+  let text, sourceAccount, format, period, internalTransferReferences, creditCardBill, investmentBalances, accountBalances
   const pdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf'
   const rawText = pdf ? await readPdfText(file) : await file.text()
   if (isPensionStatement(rawText)) {
@@ -42,6 +42,7 @@ export async function readStatementFile(file, options = {}) {
     period = parsed.period
     creditCardBill = parsed.creditCardBill
     investmentBalances = parsed.investmentBalances
+    accountBalances = parsed.accountBalances
     internalTransferReferences = parsed.internalTransferReferences
   } else {
     text = rawText
@@ -52,6 +53,8 @@ export async function readStatementFile(file, options = {}) {
   if (period) inspection.period = period
   if (creditCardBill) inspection.creditCardBill = creditCardBill
   if (investmentBalances) inspection.investmentBalances = investmentBalances
+  // Closing balance of each account and currency, at the end of the statement period.
+  if (accountBalances?.length && sourceAccount && period?.end) inspection.accountBalances = accountBalances.map(row => ({ ...row, bank: format, sourceAccount, asOfDate: period.end }))
   if (internalTransferReferences?.size) {
     for (const row of inspection.rows) row.internalTransfer = internalTransferReferences.has(row.cells[inspection.suggestedMapping.reference])
   }

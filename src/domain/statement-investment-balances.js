@@ -1,6 +1,7 @@
 import { currencies } from '../shared/currencies.js'
 import { investmentBalanceCurrency, investmentNativeAmount, round2, syncInvestmentCurrencies } from './investment-currency.js'
 import { createStatementDescriptionMatcher } from './statement-description-matching.js'
+import { isAccountBalanceItem } from './statement-account-balances.js'
 
 const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/^bb\s+/, '')
 const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value
@@ -39,7 +40,7 @@ export function previewInvestmentBalances(snapshots, investments, { currency, ex
   }
   const rows = [...unique.values()].map(snapshot => {
     const pension = snapshot.sourceAccount.startsWith('bvk:')
-    const eligible = investments.filter(item => (!pension || item.assetClass === 'pension') && investmentBalanceCurrency(item, currency) === snapshot.currency && (!item.statementAccount || item.statementAccount === snapshot.sourceAccount))
+    const eligible = investments.filter(item => !isAccountBalanceItem(item) && (!pension || item.assetClass === 'pension') && investmentBalanceCurrency(item, currency) === snapshot.currency && (!item.statementAccount || item.statementAccount === snapshot.sourceAccount))
     const exact = eligible.filter(item => (normalize(item.name) === normalize(snapshot.name) || (pension && normalize(item.name).split(' ').includes('bvk')) || (item.statementAccount === snapshot.sourceAccount && normalize(item.statementInvestmentName) === normalize(snapshot.name))))
     const matcher = exact.length ? null : createStatementDescriptionMatcher(eligible.map(item => ({ item: { ...item, type: 'investment' }, key: normalize(item.name) })))
     const matches = exact.length ? exact : (matcher(normalize(snapshot.name), 'investment') || []).map(match => match.item)
