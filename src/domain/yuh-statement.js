@@ -94,5 +94,5 @@ export function parseYuhStatement(text) {
   }
   if (!sections.length || !rows.length) throw new TypeError('Nenhum movimento encontrado no PDF Yuh.')
   const quote = value => `"${value.replaceAll('"', '""')}"`
-  return { format: 'yuh', sourceAccount, internalTransferReferences, text: ['data;descricao;valor;moeda;referencia', ...rows.map(row => `${row.date};${quote(row.description)};${(row.amount / 100).toFixed(2)};${row.currency};${quote(row.reference)}`)].join('\n') }
+  return { format: 'yuh', sourceAccount, period: { start, end }, internalTransferReferences, text: ['data;descricao;valor;moeda;referencia', ...rows.map(row => `${row.date};${quote(row.description)};${(row.amount / 100).toFixed(2)};${row.currency};${quote(row.reference)}`)].join('\n') }
 }

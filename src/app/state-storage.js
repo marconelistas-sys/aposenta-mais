@@ -21,7 +21,8 @@ import { sanitizeAnnualRows, sanitizeMigration } from '../domain/annual-planning
 import { sanitizeFinappMethod } from '../domain/finapp-viability.js'
 import { sanitizeTargetAllocation } from '../domain/target-allocation.js'
 import { currencies } from '../shared/currencies.js'
-import { syncPlanInvestments } from '../domain/investment-currency.js'
+import { investmentTotals, syncPlanInvestments } from '../domain/investment-currency.js'
+import { recomputeInvestmentMovements } from '../domain/statement-investment-movements.js'
 import { recoverFinappSourceRelationships } from '../domain/pension-investment-links.js'
 
 export const stateVersion = 10
@@ -122,6 +123,8 @@ export function sanitizeInvestment(investment, index = 0) {
     ...(safeDate(investment.balanceAsOf) ? { balanceAsOf: safeDate(investment.balanceAsOf) } : {}),
     ...(typeof investment.statementAccount === 'string' && investment.statementAccount ? { statementAccount: investment.statementAccount.slice(0, 128) } : {}),
     ...(typeof investment.statementInvestmentName === 'string' ? { statementInvestmentName: investment.statementInvestmentName.slice(0, 120) } : {}),
+    ...(investment.needsDetails === true ? { needsDetails: true } : {}),
+    ...(investment.movementBase && validNumber(Number(investment.movementBase.amount), [0, 1000000000]) && validNumber(Number(investment.movementBase.result), [0, 1000000000]) ? { movementBase: { amount: Number(investment.movementBase.amount), date: safeDate(investment.movementBase.date) || '', result: Number(investment.movementBase.result), asOf: safeDate(investment.movementBase.asOf) || '' } } : {}),
     returnType,
     returnValue,
     indexAnnualRate,
@@ -198,6 +201,7 @@ export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fal
     ...(typeof item.ignoreCreditCardPayment === 'boolean' ? { ignoreCreditCardPayment: item.ignoreCreditCardPayment } : {}),
     ...(['own', 'payment'].includes(item.transferDecision) ? { transferDecision: item.transferDecision } : {}),
     ...(item.statementInternalTransfer === true ? { statementInternalTransfer: true } : {}),
+    ...(item.statementInternalTransfer === true && safeId(item.statementInvestmentId, null) ? { statementInvestmentId: safeId(item.statementInvestmentId, null) } : {}),
     ...(typeof item.statementReference === 'string' && item.statementReference ? { statementReference: item.statementReference.slice(0, 256) } : {}),
     description: typeof item.description === 'string' ? item.description.trim().slice(0, 60) : '',
     amount,
@@ -364,6 +368,11 @@ export function sanitizeStoredState(candidate) {
   Object.assign(plan, syncPlanInvestments(plan, currency, exchangeRates, { inferLegacy: true }))
   const cashFlow = sanitizeCashFlow({ ...source.cashFlow, spouseRetirementMonth: source.plan?.spouseEnabled ? source.plan.spouseRetirementMonth : null, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }, currency, customCategories)
   recoverFinappSourceRelationships(plan, cashFlow)
+  // Repairs balances saved before movements were recomputed from their base.
+  if (cashFlow.items.some(item => item.statementInvestmentId)) {
+    const investments = recomputeInvestmentMovements(plan.investments, cashFlow.items, { currency, exchangeRates }).investments
+    Object.assign(plan, { investments, ...investmentTotals(investments) })
+  }
 
   return {
     version: stateVersion,

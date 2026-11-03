@@ -54,9 +54,33 @@ test('statement analysis renders observed capacity and safe descriptions without
   assert.equal(plan.monthlyContribution, 2500)
 })
 
-test('analysis blocks suspected duplicates instead of silently excluding legitimate repeated payments', async () => {
-  const { prepareStatementAnalysis } = await import('../src/features/statements/statements.js')
+test('analysis infers the period, counts repeated payments in one file and overlapping files once', async () => {
+  const { readStatementAnalysis } = await import('../src/features/statements/statements.js')
+  const january = 'data;descricao;valor\n02/01/2026;Salario;3000\n05/01/2026;Cafe;-5\n05/01/2026;Cafe;-5'
+  const february = 'data;descricao;valor\n02/02/2026;Salario;3000\n05/02/2026;Cafe;-5'
   const form = new FormData()
-  form.set('statement', new File(['data;descricao;valor\n02/01/2026;Salario;3000\n02/01/2026;Salario;3000'], 'statement.csv'))
-  await assert.rejects(prepareStatementAnalysis(form, { plan: {}, currency: 'BRL' }), /possivelmente duplicados/)
+  form.append('statement', new File([january], 'jan.csv'))
+  form.append('statement', new File([february], 'feb.csv'))
+  form.append('statement', new File([january], 'jan-again.csv'))
+  form.set('complete', 'on')
+  const result = await readStatementAnalysis(form, { currency: 'BRL', asOf: '2026-03-10' })
+  assert.equal(result.start, '2026-01-01')
+  assert.equal(result.end, '2026-02-28')
+  assert.deepEqual(result.months.map(month => month.expense), [10, 5])
+  assert.deepEqual(result.months.map(month => month.income), [3000, 3000])
+})
+
+test('analysis uses the statement currency and reports missing months', async () => {
+  const { readStatementAnalysis } = await import('../src/features/statements/statements.js')
+  const form = new FormData()
+  form.append('statement', new File(['"Booking Date","Partner Name","Amount (EUR)"\n2026-01-02,Employer,2000\n2026-02-02,Employer,2000'], 'n26.csv'))
+  form.set('complete', 'on')
+  const result = await readStatementAnalysis(form, { currency: 'CHF', asOf: '2026-03-10' })
+  assert.equal(result.currency, 'EUR')
+  assert.equal(result.income, 2000)
+  const gap = new FormData()
+  gap.append('statement', new File(['data;descricao;valor\n02/01/2026;Salario;3000'], 'jan.csv'))
+  gap.append('statement', new File(['data;descricao;valor\n02/03/2026;Salario;3000'], 'mar.csv'))
+  gap.set('complete', 'on')
+  await assert.rejects(readStatementAnalysis(gap, { currency: 'BRL', asOf: '2026-04-10' }), /Faltam extratos de 2026-02/)
 })

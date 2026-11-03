@@ -27,7 +27,8 @@ export function mergeStatementItem(previous, incoming) {
     id: previous.id,
     ...(previous.statementInternalTransfer ? { statementInternalTransfer: true } : {}),
     ...(typeof previous.ignoreCreditCardPayment === 'boolean' ? { ignoreCreditCardPayment: previous.ignoreCreditCardPayment } : {}),
-    ...(previous.transferDecision ? { transferDecision: previous.transferDecision } : {}),
+    // A decision made in the review wins over the one stored earlier.
+    ...(incoming.transferDecision || previous.transferDecision ? { transferDecision: incoming.transferDecision || previous.transferDecision } : {}),
     ...(previous.householdOwner ? { householdOwner: previous.householdOwner } : {}),
     ...(keepCategory ? { categoryId: previous.categoryId, categoryOrigin: 'confirmed' } : {})
   }
@@ -78,6 +79,23 @@ export function reviewStatementBatch(files, options = {}) {
       }
       rows.push(row)
     }
+  }
+  // The same movement may already exist under another key, e.g. imported from
+  // a CSV without account and now from the PDF with IBAN. Match the remaining
+  // rows by transaction data, once per existing item.
+  const matched = new Set(rows.map(row => row.updateTargetId).filter(Boolean))
+  const unmatched = new Map()
+  for (const item of existingItems.filter(item => isImported(item) && !matched.has(item.id))) {
+    const key = statementDuplicateKey(item)
+    unmatched.set(key, (unmatched.get(key) || 0) + 1)
+  }
+  for (const row of rows) {
+    if (!row.item || row.updateTargetId || row.duplicate) continue
+    const key = statementDuplicateKey(row.item)
+    if (!unmatched.get(key)) continue
+    unmatched.set(key, unmatched.get(key) - 1)
+    row.duplicate = true
+    row.duplicateSource = 'existing'
   }
   return { rows, errors, mappingErrors }
 }

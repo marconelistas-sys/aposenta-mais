@@ -44,12 +44,12 @@ export function budgetBarBreakdown(period, kind, metric) {
   return [...grouped.values()].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
 }
 
-export function budgetExpenseCategories(period) {
+export function budgetExpenseCategories(period, type = 'expense') {
   const groups = new Map()
   const totals = { planned: 0, actual: 0, plannedCount: 0, actualCount: 0 }
   for (const kind of ['planned', 'actual']) {
     for (const entry of period.entries[kind]) {
-      if (entry.type !== 'expense') continue
+      if (entry.type !== type) continue
       if (!groups.has(entry.categoryId)) groups.set(entry.categoryId, { categoryId: entry.categoryId, category: entry.category, planned: 0, actual: 0, entries: { planned: [], actual: [] } })
       const group = groups.get(entry.categoryId)
       group[kind] += entry.amount
@@ -64,5 +64,5 @@ export function budgetExpenseCategories(period) {
     differencePercent: group.entries.actual.length && group.planned > 0 ? (group.actual - group.planned) / group.planned : null,
     unplanned: group.entries.actual.length > 0 && group.entries.planned.length === 0
   }))
-  return { categories, totals, actualMonths: new Set(period.entries.actual.filter(entry => entry.type === 'expense').map(entry => entry.month)).size }
+  return { categories, totals, actualMonths: new Set(period.entries.actual.filter(entry => entry.type === type).map(entry => entry.month)).size }
 }

@@ -22,7 +22,7 @@ export function pdfTextLines(items) {
 
 export async function readStatementFile(file, options = {}) {
   if (!file || !file.size || file.size > 1024 * 1024) throw new TypeError('Selecione um arquivo de até 1 MB.')
-  let text, sourceAccount, format, internalTransferReferences, creditCardBill, investmentBalances
+  let text, sourceAccount, format, period, internalTransferReferences, creditCardBill, investmentBalances
   const pdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf'
   const rawText = pdf ? await readPdfText(file) : await file.text()
   if (isPensionStatement(rawText)) {
@@ -39,6 +39,7 @@ export async function readStatementFile(file, options = {}) {
     text = parsed.text
     sourceAccount = parsed.sourceAccount
     format = parsed.format
+    period = parsed.period
     creditCardBill = parsed.creditCardBill
     investmentBalances = parsed.investmentBalances
     internalTransferReferences = parsed.internalTransferReferences
@@ -48,6 +49,7 @@ export async function readStatementFile(file, options = {}) {
   const inspection = inspectStatementText(text, options)
   if (sourceAccount) inspection.sourceAccount = sourceAccount
   if (format) inspection.format = format
+  if (period) inspection.period = period
   if (creditCardBill) inspection.creditCardBill = creditCardBill
   if (investmentBalances) inspection.investmentBalances = investmentBalances
   if (internalTransferReferences?.size) {

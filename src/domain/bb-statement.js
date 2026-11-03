@@ -108,7 +108,7 @@ export function parseBbStatement(text) {
   if (!closed || opening === null || !rows.length) throw new TypeError('Extrato BB incompleto. Confira o saldo anterior e o saldo final.')
   const quote = value => `"${value.replaceAll('"', '""')}"`
   return {
-    format: 'bb', sourceAccount,
+    format: 'bb', sourceAccount, period: { start, end },
     investmentBalances: bbInvestmentBalances(text, { sourceAccount, asOfDate: end }),
     internalTransferReferences: new Set(rows.filter(row => isStatementInvestmentMovement(row.description)).map(row => row.reference)),
     text: ['data;descricao;valor;moeda;referencia', ...rows.map(row => `${row.date};${quote(row.description)};${(row.amount / 100).toFixed(2)};BRL;${quote(row.reference)}`)].join('\n')

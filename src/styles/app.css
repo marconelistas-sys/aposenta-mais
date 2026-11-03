@@ -4279,6 +4279,19 @@ details:where(:not(.disclosure, .navigation-menu))[open] > summary::before { tra
   color: var(--color-ink-soft);
   font-size: 12px;
 }
+.investment-needs-details {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  color: var(--color-ink);
+  background: var(--color-background);
+  font-size: 13px;
+}
+.statement-investment-target {
+  display: grid;
+  gap: 3px;
+  margin-top: 4px;
+}
 .statement-mapping > summary {
   cursor: pointer;
   font-weight: 650;

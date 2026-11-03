@@ -1,12 +1,12 @@
 import { budgetExpenseCategories } from './budget-overview.js'
 
-export function budgetExpenseAccumulated(yearModel, month) {
+export function budgetExpenseAccumulated(yearModel, month, type = 'expense') {
   const monthCount = month === 'all' ? 12 : Number(month)
   if (!Number.isInteger(monthCount) || monthCount < 1 || monthCount > 12) throw new RangeError('Mês do acumulado inválido.')
   const months = yearModel.months.slice(0, monthCount)
   const entries = Object.fromEntries(['planned', 'actual'].map(kind => [kind, months.flatMap(period => period.entries[kind])]))
-  const { categories, actualMonths } = budgetExpenseCategories({ entries })
-  const annualPlans = budgetExpenseCategories(yearModel.annual).categories
+  const { categories, actualMonths } = budgetExpenseCategories({ entries }, type)
+  const annualPlans = budgetExpenseCategories(yearModel.annual, type).categories
   const accumulated = new Map(categories.map(row => [row.categoryId, row]))
   const combined = annualPlans.map(annual => {
     const row = accumulated.get(annual.categoryId) || { categoryId: annual.categoryId, category: annual.category, planned: 0, actual: 0, entries: { planned: [], actual: [] } }

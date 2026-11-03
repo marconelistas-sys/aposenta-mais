@@ -78,7 +78,7 @@ export async function checkOwnTransfers(page) {
   const editor = page.locator('[data-cash-item-edit-form]')
   await editor.locator('[name="transferDecision"]').selectOption('own')
   await editor.locator('[type="submit"]').click()
-  assert.match(await page.locator('.cash-item').filter({ hasText: 'Movimento bancário 123' }).innerText(), /Transferência entre minhas contas.*Fora do orçamento/s)
+  assert.match(await page.locator('.cash-item').filter({ hasText: 'Movimento bancário 123' }).innerText(), /Transferência entre contas próprias ou do casal.*Fora do orçamento/s)
   const verified = await page.evaluate(async () => {
     const { state, upsertStatementItems } = await import('/src/app/state.js')
     const { buildBudgetYear } = await import('/src/domain/budget-overview.js')
