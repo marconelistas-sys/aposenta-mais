@@ -1,5 +1,5 @@
 import { isCreditCardPayment, ignoresCreditCardPayment } from '../../domain/credit-card-payments.js'
-import { renderStatementInvestmentReview } from '../../shared/statement-investment-review.js'
+import { renderStatementAccountReview, renderStatementInvestmentReview } from '../../shared/statement-investment-review.js'
 import { transactionDateLabel } from '../../shared/transaction-date.js'
 import { buildMonthlyBudget } from '../../domain/monthly-budget.js'
 import { renderViabilityPremises } from '../plan/viability.js'
@@ -448,6 +448,7 @@ export function statementReviewDialog(review) {
         ${review.files?.some(file => file.inspection.format === 'ourocard') ? '<p class="statement-review-privacy">Fatura Ourocard: compras e créditos são importados em BRL. Saldo anterior e pagamentos da fatura ficam fora do orçamento. Compras parceladas usam apenas a parcela desta fatura, no vencimento. Parcelas futuras não são criadas.</p>' : ''}
         <p class="statement-review-privacy">Para indicar um investimento, escolha Investimento: aplicação ou resgate na categoria da linha. ${review.internalTransferCount ? 'Aplicações e resgates ficam fora do orçamento. Marque os que deseja importar e escolha, em Na Carteira, o investimento a atualizar ou crie um novo para completar os detalhes depois.' : ''}</p>
         ${renderStatementInvestmentReview(review.investmentBalanceRows, state)}
+        ${renderStatementAccountReview(review.accountBalanceRows, { unlinkedCash: review.unlinkedCash, state })}
         <section class="statement-preview" aria-labelledby="statement-preview-title">
           <div class="statement-preview__header">
             <div><p class="eyebrow">PRÉVIA</p><h3 id="statement-preview-title">Escolha o que será importado</h3></div>
@@ -496,6 +497,7 @@ export function updateStatementReviewDialog(root, review) {
   const checkedRow = dialog.contains(document.activeElement) ? document.activeElement.dataset.statementRow : null
   const balanceKey = dialog.contains(document.activeElement) ? document.activeElement.dataset.statementInvestmentBalance : null
   const categoryRow = dialog.contains(document.activeElement) ? document.activeElement.dataset.statementCategory : null
+  const accountRow = dialog.contains(document.activeElement) ? document.activeElement.dataset.statementAccountTarget : null
   const mappingOpen = dialog.querySelector('[data-statement-mapping-details]')?.open
   const scrollTop = dialog.scrollTop
   const template = document.createElement('template')
@@ -506,6 +508,7 @@ export function updateStatementReviewDialog(root, review) {
   if (checkedRow) dialog.querySelector(`[data-statement-row="${checkedRow}"]`)?.focus({ preventScroll: true })
   if (balanceKey) [...dialog.querySelectorAll('[data-statement-investment-balance]')].find(node => node.dataset.statementInvestmentBalance === balanceKey)?.focus({ preventScroll: true })
   if (categoryRow) dialog.querySelector(`[data-statement-category="${categoryRow}"]`)?.focus({ preventScroll: true })
+  if (accountRow) [...dialog.querySelectorAll('[data-statement-account-target]')].find(node => node.dataset.statementAccountTarget === accountRow)?.focus({ preventScroll: true })
   if (field) dialog.querySelector(`[data-statement-mapping="${field}"]`)?.focus({ preventScroll: true })
   dialog.scrollTop = scrollTop
 }

@@ -1,5 +1,11 @@
 // Parses the table only. Text outside the table never becomes an instruction.
 export function tkbStatementToDelimited(text) {
+  return parseTkbStatement(text).text
+}
+
+// The closing balance is the running balance after the last movement, which
+// every row already checks against the Saldo column.
+export function parseTkbStatement(text) {
   const period = text.match(/Kontoauszug\s+(\d{2})\.(\d{2})\.(\d{4})\s*-\s*(\d{2})\.(\d{2})\.(\d{4})/)
   if (!period || !/Belastung\s+Gutschrift\s+Valuta\s+Saldo/.test(text)) {
     throw new TypeError('Formato PDF não suportado. Use um extrato mensal TKB com texto selecionável.')
@@ -66,5 +72,8 @@ export function tkbStatementToDelimited(text) {
   }
   if (!closed) throw new TypeError('Extrato TKB incompleto. Não foi encontrado o total dos movimentos.')
   if (!rows.length) throw new TypeError('Nenhum movimento encontrado no PDF TKB.')
-  return ['data;descricao;valor;moeda', ...rows.map(row => `${row.date};"${row.description.replaceAll('"', '""')}";${row.amount.toFixed(2)};${currency}`)].join('\n')
+  return {
+    accountBalances: Number.isFinite(previousBalance) ? [{ currency, amount: Math.round(previousBalance * 100) / 100 }] : [],
+    text: ['data;descricao;valor;moeda', ...rows.map(row => `${row.date};"${row.description.replaceAll('"', '""')}";${row.amount.toFixed(2)};${currency}`)].join('\n')
+  }
 }

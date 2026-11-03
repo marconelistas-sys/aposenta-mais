@@ -1,7 +1,8 @@
 // Synthetic statement. No account holder or real bank transactions.
-export function syntheticTkbPdf({ month = 8, year = 2026, knownMerchants = false } = {}) {
+export function syntheticTkbPdf({ month = 8, year = 2026, knownMerchants = false, iban = '' } = {}) {
   const rows = [
     [[8, 'Privatkonto CHF']],
+    ...(iban ? [[[8, `IBAN ${iban}`]]] : []),
     [[8, 'Kontoauszug 01.08.2026 - 31.08.2026']],
     [[8, 'Datum'], [16, 'Text'], [68, 'Belastung'], [82, 'Gutschrift'], [98, 'Valuta'], [116, 'Saldo']],
     [[8, '01.08.'], [16, 'Saldovortrag'], [114, "10'000.00"]],

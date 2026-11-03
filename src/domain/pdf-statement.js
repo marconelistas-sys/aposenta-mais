@@ -1,6 +1,6 @@
 import { isBbStatement, parseBbStatement } from './bb-statement.js'
 import { isYuhStatement, parseYuhStatement } from './yuh-statement.js'
-import { tkbStatementToDelimited } from './tkb-statement.js'
+import { parseTkbStatement } from './tkb-statement.js'
 import { isOurocardStatement, parseOurocardStatement } from './ourocard-statement.js'
 import { isN26Statement, parseN26Statement } from './n26-statement.js'
 
@@ -17,7 +17,7 @@ export function parsePdfStatement(text) {
       format: 'tkb',
       ...(day ? { period: { start: `${year}-${month}-${day}`, end: `${endYear}-${endMonth}-${endDay}` } } : {}),
       sourceAccount: text.match(/IBAN\s+((?:CH|LI)\d{2}[ \dA-Z]{17,30})/)?.[1]?.replace(/\s/g, '').slice(0, 21),
-      text: tkbStatementToDelimited(text)
+      ...parseTkbStatement(text)
     }
   }
   if (yuh) return parseYuhStatement(text)

@@ -8,6 +8,7 @@ const transaction = new RegExp(`^(.+?)\\s{2,}(\\d{2}\\.\\d{2}\\.\\d{4})\\s+(${am
 const valueDate = /^(?:Wertstellung|Value\s+Date)\s+\d{2}\.\d{2}\.\d{4}$/i
 const footer = /Erstellt am|Created on|Date issued/i
 const summaryLine = new RegExp(`^(Ausgehende Transaktionen|Einkommende Transaktionen|Eingehende Transaktionen|Outgoing transactions|Incoming transactions)\\s+(${amount})$`, 'i')
+const balanceLine = new RegExp(`^(Dein alter Kontostand|Alter Kontostand|Your old balance|Previous balance|Dein neuer Kontostand|Neuer Kontostand|Your new balance|New balance)\\s+(${amount})$`, 'i')
 const ignoredDetail = /^(IBAN:|BIC:|Wechselkurs|Exchange rate|Ursprungsbetrag|Original amount|Fremdwährung|Foreign currency)/i
 
 const iso = value => {
@@ -41,6 +42,7 @@ export function parseN26Statement(text) {
   if (accounts.some(account => account !== sourceAccount)) throw new TypeError('O PDF contém contas N26 diferentes. Use um extrato por arquivo.')
   const rows = []
   const totals = { outgoing: 0, incoming: 0, found: 0 }
+  const balances = {}
   let table = false, skipping = false, current = null
   for (const raw of text.normalize('NFC').split(/\r?\n/)) {
     const line = raw.replace(/\u00a0/g, ' ')
@@ -49,6 +51,14 @@ export function parseN26Statement(text) {
     if (!trimmed || skipping) continue
     if (footer.test(trimmed)) { skipping = true; continue }
     if (header.test(trimmed)) { table = true; continue }
+    const boundary = trimmed.match(balanceLine)
+    if (boundary) {
+      const value = cents(boundary[2])
+      if (!Number.isFinite(value)) throw new TypeError('Não foi possível ler os saldos do extrato N26.')
+      balances[/neu|new/i.test(boundary[1]) ? 'closing' : 'opening'] = value
+      table = false
+      continue
+    }
     const summary = trimmed.match(summaryLine)
     if (summary) {
       const value = cents(summary[2])
@@ -80,6 +90,9 @@ export function parseN26Statement(text) {
     const incoming = rows.reduce((sum, row) => sum + Math.max(row.amount, 0), 0)
     if (outgoing !== totals.outgoing || incoming !== totals.incoming) throw new TypeError('Os movimentos do PDF N26 não correspondem aos totais do resumo. Confira se o arquivo está completo.')
   }
+  // The new balance is reported only when it equals the old one plus the
+  // movements. Otherwise the movements are still imported, without the balance.
+  const closing = Number.isFinite(balances.opening) && Number.isFinite(balances.closing) && balances.opening + rows.reduce((sum, row) => sum + row.amount, 0) === balances.closing ? balances.closing : null
   const quote = value => `"${value.replaceAll('"', '""')}"`
   // The first detail line is the N26 transaction type, e.g. "MoneyBeam" or
   // "Mastercard • Lebensmittel". Further lines carry the payment reference.
@@ -88,6 +101,7 @@ export function parseN26Statement(text) {
     format: 'n26',
     sourceAccount,
     period: { start, end },
+    accountBalances: closing === null ? [] : [{ currency: 'EUR', amount: closing / 100 }],
     text: ['data;descricao;valor;moeda', ...rows.map(row => `${row.date};${quote(description(row))};${(row.amount / 100).toFixed(2)};EUR`)].join('\n')
   }
 }
