@@ -33,7 +33,10 @@ test('confirmação exige consentimento e altera somente a premissa selecionada'
   assert.throws(() => confirmProjectionAssumption('openingConfirmed', false))
   assert.throws(() => confirmProjectionAssumption('taxRegime', true))
   confirmProjectionAssumption('openingConfirmed', true)
-  assert.deepEqual(state.plan, { ...previous, finappMethod: { ...previous.finappMethod, openingConfirmed: true } })
+  // The monthly balance-sheet photo is a record of the save, not a premise.
+  const { wealthHistory, ...plan } = state.plan
+  assert.equal(wealthHistory.length, 1)
+  assert.deepEqual(plan, { ...previous, finappMethod: { ...previous.finappMethod, openingConfirmed: true } })
   assert.ok(!finappViability(state).confirmations.some(message => message.includes('saldos de abertura')))
 })
 

@@ -15,6 +15,7 @@ import { sanitizeCommitments } from '../domain/financial-calendar.js'
 import { sanitizeConsortia } from '../domain/consortium.js'
 import { sanitizeRiskSettings } from '../domain/risk-plan.js'
 import { sanitizeGoalsHistory, sanitizeLegacyGoal } from '../domain/goal-settings.js'
+import { sanitizeWealthHistory } from '../domain/wealth-history.js'
 import { sanitizeDecumulation } from '../domain/post-retirement.js'
 import { linkedBudgetItem } from '../domain/ledger-links.js'
 import { sanitizeAnnualRows, sanitizeMigration } from '../domain/annual-planning.js'
@@ -256,6 +257,8 @@ export function sanitizePlan(candidate = {}) {
   if (legacyGoal) plan.legacyGoal = legacyGoal
   const goalsHistory = sanitizeGoalsHistory(source.goalsHistory)
   if (goalsHistory.length) plan.goalsHistory = goalsHistory
+  const wealthHistory = sanitizeWealthHistory(source.wealthHistory)
+  if (wealthHistory.length) plan.wealthHistory = wealthHistory
   plan.currencyTrends = sanitizeCurrencyTrends(source.currencyTrends)
   plan.inflationByCurrency = sanitizeInflationByCurrency(source.inflationByCurrency)
   plan.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
@@ -345,7 +348,8 @@ function sanitizeScenario(scenario, customCategories, exchangeRates = bundledExc
     name,
     createdAt: typeof scenario.createdAt === 'string' ? scenario.createdAt : null,
     currency: normalizeCurrency(scenario.currency),
-    plan: syncPlanInvestments(sanitizePlan({ ...scenario.plan, retirementMonth: scenario.cashFlow?.retirementMonth || scenario.plan?.retirementMonth }), normalizeCurrency(scenario.currency), exchangeRates, { inferLegacy: true }),
+    // The balance-sheet history belongs to the live plan, not to a what-if copy.
+    plan: syncPlanInvestments(sanitizePlan({ ...scenario.plan, wealthHistory: undefined, retirementMonth: scenario.cashFlow?.retirementMonth || scenario.plan?.retirementMonth }), normalizeCurrency(scenario.currency), exchangeRates, { inferLegacy: true }),
     cashFlow: scenario.cashFlow
       ? sanitizeCashFlow({ ...scenario.cashFlow, spouseRetirementMonth: scenario.plan?.spouseEnabled ? scenario.plan.spouseRetirementMonth : null, retirementMonth: scenario.cashFlow.retirementMonth || scenario.plan?.retirementMonth }, scenario.currency, customCategories)
       : null
