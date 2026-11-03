@@ -464,7 +464,7 @@ export function statementReviewDialog(review) {
           <p>${review.rows.filter(row => row.item && !row.duplicate && !row.internalTransfer && !row.classification?.needsReview).length} categorias reconhecidas. ${review.rows.filter(row => row.item && !row.duplicate && !row.internalTransfer && row.classification?.needsReview).length} para revisar. Você pode importar e ajustar depois.</p>
           ${review.mappingErrors.length > 0
             ? '<p class="scenario-empty">Mapeie as três colunas obrigatórias para gerar a prévia.</p>'
-            : `<ul class="statement-review-list">${[...review.rows].sort((a, b) => Number(Boolean(b.classification?.needsReview && !b.duplicate)) - Number(Boolean(a.classification?.needsReview && !a.duplicate))).map(statementReviewRow).join('')}</ul>`}
+            : `<ul class="statement-review-list">${[...review.rows].sort((a, b) => Number(b.reviewFirst ?? Boolean(b.classification?.needsReview && !b.duplicate)) - Number(a.reviewFirst ?? Boolean(a.classification?.needsReview && !a.duplicate))).map(statementReviewRow).join('')}</ul>`}
         </section>
 
 
@@ -500,6 +500,7 @@ export function updateStatementReviewDialog(root, review) {
   const accountRow = dialog.contains(document.activeElement) ? document.activeElement.dataset.statementAccountTarget : null
   const mappingOpen = dialog.querySelector('[data-statement-mapping-details]')?.open
   const scrollTop = dialog.scrollTop
+  const listScrollTop = dialog.querySelector('.statement-review-list')?.scrollTop || 0
   const template = document.createElement('template')
   template.innerHTML = statementReviewDialog(review)
   dialog.replaceChildren(...template.content.querySelector('dialog').childNodes)
@@ -511,6 +512,8 @@ export function updateStatementReviewDialog(root, review) {
   if (accountRow) [...dialog.querySelectorAll('[data-statement-account-target]')].find(node => node.dataset.statementAccountTarget === accountRow)?.focus({ preventScroll: true })
   if (field) dialog.querySelector(`[data-statement-mapping="${field}"]`)?.focus({ preventScroll: true })
   dialog.scrollTop = scrollTop
+  const list = dialog.querySelector('.statement-review-list')
+  if (list) list.scrollTop = listScrollTop
 }
 
 function retirementScenario(label, contribution, detail, tone, schedules) {
