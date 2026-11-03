@@ -50,8 +50,7 @@ function sortRows(rows, type, sort) {
   return [...rows].sort(compare)
 }
 
-function chip(status) {
-  const [label, tone, glyph] = statuses[status]
+function chip([label, tone, glyph]) {
   return `<span class="budget-ytd-chip budget-ytd-chip--${tone}">${icon(glyph, 14)}${label}</span>`
 }
 
@@ -89,7 +88,7 @@ function categoryRow(row, data, state, money) {
   const realized = row.entries.actual.length ? money(row.actual) : 'Sem registros'
   const line = reading(row, data, money)
   const sentence = `Realizado até ${monthOnly(data.lastMonth)}: ${realized}. ${row.type === 'income' ? 'Previsto' : 'Planejado'} até ${monthOnly(data.lastMonth)}: ${money(row.plannedToDate)}. ${quotaLabel}: ${money(row.annualPlanned)}. ${line.replace(' · ', '. ')}.`
-  const summary = `<span class="budget-ytd-row-head"><span class="budget-ytd-name">${escapeHtml(row.category)}</span>${chip(row.status)}</span>${bullet(row)}<span class="budget-ytd-values" aria-hidden="true"><span><small>Realizado até ${month}</small><strong>${realized}</strong></span><span><small>${row.type === 'income' ? 'Previsto' : 'Planejado'} até ${month}</small><strong>${money(row.plannedToDate)}</strong></span><span><small>${quotaLabel}</small><strong>${money(row.annualPlanned)}</strong></span></span><span class="budget-ytd-reading" aria-hidden="true">${line}</span><span class="sr-only">${escapeHtml(sentence)}</span><small class="budget-ytd-more">Ver lançamentos</small>`
+  const summary = `<span class="budget-ytd-row-head"><span class="budget-ytd-name">${escapeHtml(row.category)}</span>${chip(statuses[row.status])}</span>${bullet(row)}<span class="budget-ytd-values" aria-hidden="true"><span><small>Realizado até ${month}</small><strong>${realized}</strong></span><span><small>${row.type === 'income' ? 'Previsto' : 'Planejado'} até ${month}</small><strong>${money(row.plannedToDate)}</strong></span><span><small>${quotaLabel}</small><strong>${money(row.annualPlanned)}</strong></span></span><span class="budget-ytd-reading" aria-hidden="true">${line}</span><span class="sr-only">${escapeHtml(sentence)}</span><small class="budget-ytd-more">Ver lançamentos</small>`
   const group = { categoryId: row.categoryId, category: row.category, entries: { planned: row.annualPlannedEntries, actual: row.entries.actual } }
   return `<li data-budget-ytd-category="${escapeHtml(row.categoryId)}" data-budget-ytd-row-status="${row.status}">${entryDetails(group, state, { attribute: 'data-budget-ytd-category-details', lastMonth: data.lastMonth, summary, className: 'budget-ytd-row' })}</li>`
 }
@@ -108,14 +107,33 @@ function card(type, totals, hasActual, data, money) {
   const remainingLabel = income ? totals.remaining >= 0 ? 'Falta receber no ano' : 'Acima da previsão anual' : totals.remaining >= 0 ? 'Saldo da cota anual' : 'Excesso sobre a cota anual'
   const used = totals.usedPercent
   const meter = used === null ? `<p class="budget-ytd-meter-label">Sem ${income ? 'previsão' : 'cota'} anual cadastrada</p>` : `<div class="budget-ytd-meter"><p class="budget-ytd-meter-label"><span>${income ? 'Previsão recebida' : 'Cota utilizada'}</span><strong>${percent(used)}</strong></p><span class="budget-ytd-meter-track" aria-hidden="true"><span class="budget-ytd-meter-fill ${used > 100 ? 'is-over' : ''}" style="width:${Math.min(100, Math.max(0, used))}%"></span></span></div>`
-  return `<article class="budget-overview-card budget-ytd-card budget-ytd-card--${type}"><h3>${income ? 'Receitas' : 'Despesas'}</h3><dl><div><dt>Realizado até ${month}</dt><dd>${hasActual ? money(totals.actual) : 'Sem registros'}</dd></div><div><dt>${income ? 'Previsto' : 'Planejado'} até ${month}</dt><dd>${money(totals.plannedToDate)}</dd></div><div><dt>Diferença</dt>${hasActual ? delta(totals.paceDelta, type, reference, money) : '<dd>Sem realizado</dd>'}</div><div><dt>${quotaLabel} (jan–dez)</dt><dd>${money(totals.annualPlanned)}</dd></div>${used === null ? '' : `<div><dt>${remainingLabel}</dt><dd>${money(Math.abs(totals.remaining))}</dd></div>`}</dl>${meter}</article>`
+  return `<article class="budget-overview-card budget-ytd-card budget-ytd-card--${type}"><h3>${income ? 'Receitas' : 'Despesas'}</h3><dl><div><dt>Realizado até ${month}</dt><dd>${hasActual ? money(totals.actual) : 'Sem registros'}</dd></div><div><dt>${income ? 'Previsto' : 'Planejado'} até ${month}</dt><dd>${money(totals.plannedToDate)}</dd></div><div><dt>Diferença</dt>${hasActual ? delta(totals.paceDelta, type, reference, money) : '<dd>Sem realizado</dd>'}</div><div><dt>${quotaLabel} (jan–dez)</dt><dd>${money(totals.annualPlanned)}</dd></div>${used === null ? '' : `<div><dt>${remainingLabel}</dt>${remainingValue(totals.remaining, type, money)}</div>`}</dl>${meter}</article>`
+}
+
+// Sinal explícito: positivo com "+", negativo com "−", zero sem sinal.
+const signed = (amount, money) => amount > 0 ? `+${money(amount)}` : amount < 0 ? `−${money(-amount)}` : money(0)
+
+// Excesso sobre a cota (despesa) é desfavorável; receita acima da previsão anual é favorável.
+// Ainda restar cota ou receita a receber é a situação esperada no meio do ano: fica neutro.
+function remainingValue(remaining, type, money) {
+  if (remaining >= 0) return `<dd>${money(remaining)}</dd>`
+  const tone = type === 'income' ? 'is-favorable' : 'is-unfavorable'
+  return `<dd class="${tone}">+${money(-remaining)}</dd>`
+}
+
+const balanceStates = {
+  surplus: ['Superávit acumulado', 'success', 'trendUp'],
+  deficit: ['Déficit acumulado', 'danger', 'alertTriangle'],
+  even: ['Saldo zerado', 'neutral', 'info']
 }
 
 function balanceCard(data, hasActual, money) {
   const { balance } = data.totals
   const month = monthShort(data.lastMonth)
-  const value = amount => amount < 0 ? `−${money(-amount)}` : money(amount)
-  return `<article class="budget-overview-card budget-ytd-card budget-ytd-card--balance"><h3>Saldo</h3><dl><div><dt>Saldo acumulado até ${month}</dt><dd class="${hasActual && balance.actual < 0 ? 'is-unfavorable' : ''}">${hasActual ? value(balance.actual) : 'Sem registros'}</dd></div><div><dt>Planejado até ${month}</dt><dd>${value(balance.plannedToDate)}</dd></div><div><dt>Diferença</dt>${hasActual ? delta((Math.round(balance.actual * 100) - Math.round(balance.plannedToDate * 100)) / 100, 'balance', 'planejado', money) : '<dd>Sem realizado</dd>'}</div></dl><p class="budget-ytd-meter-label">Receitas menos despesas, de janeiro a ${month}.</p></article>`
+  const outcome = !hasActual ? '' : balance.actual > 0 ? 'surplus' : balance.actual < 0 ? 'deficit' : 'even'
+  const tone = { surplus: 'is-favorable', deficit: 'is-unfavorable' }[outcome] || ''
+  const badge = outcome ? chip(balanceStates[outcome]) : ''
+  return `<article class="budget-overview-card budget-ytd-card budget-ytd-card--balance"${outcome ? ` data-budget-ytd-balance="${outcome}"` : ''}><header class="budget-ytd-card-head"><h3>Saldo</h3>${badge}</header><dl><div><dt>Saldo acumulado até ${month}</dt><dd class="${`budget-ytd-balance-value ${tone}`.trim()}">${hasActual ? signed(balance.actual, money) : 'Sem registros'}</dd></div><div><dt>Planejado até ${month}</dt><dd>${signed(balance.plannedToDate, money)}</dd></div><div><dt>Diferença</dt>${hasActual ? delta((Math.round(balance.actual * 100) - Math.round(balance.plannedToDate * 100)) / 100, 'balance', 'planejado', money) : '<dd>Sem realizado</dd>'}</div></dl><p class="budget-ytd-meter-label">Receitas menos despesas, de janeiro a ${month}.</p></article>`
 }
 
 function unplannedList(rows, type, data, state, money) {

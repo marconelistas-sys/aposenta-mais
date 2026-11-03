@@ -176,3 +176,38 @@ test('entry details keep their default output for existing callers', () => {
   assert.match(custom, /class="budget-category-details extra" data-x="health"><summary><b>S<\/b><\/summary>/)
   assert.match(custom, /Previsto após [a-zç]+ de \d{4} \(compõe a cota anual\)/)
 })
+
+test('balance card shows surplus, deficit and zero with sign, tone and text', () => {
+  const salary = { ...plan, id: 'salary', categoryId: 'salary', type: 'income', amount: 5000 }
+  const deficit = renderBudgetYearToDate(fixture([plan, ...monthly([1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000])]), { today })
+  assert.match(deficit, /budget-ytd-card--balance" data-budget-ytd-balance="deficit"/)
+  assert.match(deficit, /budget-ytd-chip--danger">[\s\S]*?Déficit acumulado<\/span>/)
+  assert.match(deficit, /<dt>Saldo acumulado até set<\/dt><dd class="budget-ytd-balance-value is-unfavorable">−CHF\s9\.000,00<\/dd>/)
+  assert.match(deficit, /<dt>Planejado até set<\/dt><dd>−CHF\s7\.830,00<\/dd>/)
+  assert.match(deficit, /budget-ytd-card--balance[\s\S]*<dd class="budget-ytd-delta is-unfavorable">−CHF\s1\.170,00<small>abaixo do planejado/)
+
+  const surplus = renderBudgetYearToDate(fixture([plan, salary, ...monthly([870, 870]), actual('s1', 'salary', 'income', 5000, '2026-01-25'), actual('s2', 'salary', 'income', 5000, '2026-02-25')]), { today })
+  assert.match(surplus, /data-budget-ytd-balance="surplus"/)
+  assert.match(surplus, /budget-ytd-chip--success">[\s\S]*?Superávit acumulado<\/span>/)
+  assert.match(surplus, /<dd class="budget-ytd-balance-value is-favorable">\+CHF\s8\.260,00<\/dd>/)
+  assert.match(surplus, /<dt>Planejado até set<\/dt><dd>\+CHF\s37\.170,00<\/dd>/)
+
+  const even = renderBudgetYearToDate(fixture([plan, { ...salary, amount: 870 }, ...monthly([870]), actual('s1', 'salary', 'income', 870, '2026-01-25')]), { today })
+  assert.match(even, /data-budget-ytd-balance="even"/)
+  assert.match(even, /budget-ytd-chip--neutral">[\s\S]*?Saldo zerado<\/span>/)
+  assert.match(even, /<dd class="budget-ytd-balance-value">CHF\s0,00<\/dd>/)
+
+  const none = renderBudgetYearToDate(fixture([plan]), { today })
+  assert.doesNotMatch(none, /data-budget-ytd-balance=|Superávit|Déficit|Saldo zerado/)
+  assert.match(none, /<dd class="budget-ytd-balance-value">Sem registros<\/dd>/)
+})
+
+test('annual quota excess is unfavorable and income above the annual forecast is favorable', () => {
+  const expense = renderBudgetYearToDate(fixture([plan, actual('big', 'health', 'expense', 11000, '2026-02-10')]), { today })
+  assert.match(expense, /<dt>Excesso sobre a cota anual<\/dt><dd class="is-unfavorable">\+CHF\s560,00<\/dd>/)
+  const withinQuota = renderBudgetYearToDate(fixture([plan, ...monthly([870])]), { today })
+  assert.match(withinQuota, /<dt>Saldo da cota anual<\/dt><dd>CHF\s9\.570,00<\/dd>/)
+  const bonus = { ...plan, id: 'bonus', categoryId: 'business', type: 'income', amount: 1000, frequency: 'occasional', startDate: '2026-03-01' }
+  const income = renderBudgetYearToDate(fixture([plan, bonus, actual('b1', 'business', 'income', 1500, '2026-03-02')]), { today })
+  assert.match(income, /<dt>Acima da previsão anual<\/dt><dd class="is-favorable">\+CHF\s500,00<\/dd>/)
+})

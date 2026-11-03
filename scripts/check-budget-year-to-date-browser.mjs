@@ -69,6 +69,28 @@ try {
   assert.match(await panel.locator('[data-budget-ytd-unplanned="expense"] > summary').innerText(), /Sem planejamento no ano: 1 categoria/)
   assert.equal(await panel.locator('.budget-ytd-bullet').first().getAttribute('aria-hidden'), 'true')
 
+  // Cores computadas: o tom favorável/desfavorável precisa vencer a regra da última
+  // linha do card mensal, inclusive na Diferença do card Saldo.
+  const tokens = await page.evaluate(() => {
+    const probe = document.createElement('span')
+    document.body.append(probe)
+    const read = name => { probe.style.color = `var(${name})`; return getComputedStyle(probe).color }
+    const result = { green: read('--color-green'), danger: read('--color-danger'), ink: read('--color-ink'), greenSoft: (probe.style.color = 'var(--color-green-soft)', getComputedStyle(probe).color) }
+    probe.remove()
+    return result
+  })
+  const balanceCard = panel.locator('.budget-ytd-card--balance')
+  assert.equal(await balanceCard.getAttribute('data-budget-ytd-balance'), 'surplus')
+  assert.match(await balanceCard.innerText(), /Superávit acumulado/)
+  assert.equal(await balanceCard.evaluate(node => getComputedStyle(node).backgroundColor), tokens.greenSoft)
+  const color = locator => locator.evaluate(node => getComputedStyle(node).color)
+  assert.match(await balanceCard.locator('.budget-ytd-balance-value').innerText(), /^\+CHF/)
+  assert.equal(await color(balanceCard.locator('.budget-ytd-balance-value')), tokens.green)
+  assert.equal(await color(balanceCard.locator('.budget-ytd-delta')), tokens.danger)
+  assert.equal(await color(balanceCard.locator('.budget-ytd-delta small')), tokens.danger)
+  assert.equal(await color(panel.locator('.budget-ytd-card--expense .budget-ytd-delta')), tokens.danger)
+  assert.equal(await color(panel.locator('.budget-ytd-card--expense dl > div:last-child dd')), tokens.ink)
+
   await page.locator('[data-budget-month-step="1"]').click()
   assert.equal(await tab.getAttribute('aria-selected'), 'true')
   assert.equal(await title.innerText(), 'Acumulado de janeiro a outubro de 2026')
