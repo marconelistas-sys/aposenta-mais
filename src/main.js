@@ -18,7 +18,6 @@ import { bindBudgetCategoriesInteractions, budgetCategoriesView, budgetCategoryP
 import { bindBudgetYearToDateInteractions } from './features/cash-flow/budget-year-to-date.js'
 import { reviewStatementBatch, statementBatchLimit } from './domain/statement-batch.js'
 import { suggestStatementInvestment, newInvestmentTarget } from './domain/statement-investment-movements.js'
-import { statementMerchantKey } from './domain/statement-classification.js'
 import { cashFlowItemLimit } from './shared/limits.js'
 import { readStatementFile } from './domain/statement-file.js'
 import { openReviewTarget } from './app/review-navigation.js'
@@ -433,7 +432,8 @@ function statementReviewView() {
     existingItems: state.cashFlow.items
   })
   const incomingKeys = new Set(review.rows.filter(row => row.item).map(row => row.item.statementImportKey))
-  const overrideFor = item => statementReviewState.categoryOverrides.get(`${item.type}:${(item.categoryMerchantKey || statementMerchantKey(item.description))}`)
+  // A category choice applies to its own row only, never to similar movements.
+  const overrideFor = item => statementReviewState.categoryOverrides.get(item.statementImportKey)
   const isTransfer = item => Boolean(item.transferMatch || item.transferPending || item.transferDecision === 'own')
   // Choosing a category for a movement shown as transfer turns it into a payment.
   const reconcile = (decisions = new Map()) => {
@@ -450,6 +450,8 @@ function statementReviewView() {
   const previewByKey = new Map(previewItems.map(item => [item.statementImportKey, item]))
   const investments = state.plan.investments || []
   const rows = review.rows.map(row => {
+    // The list order uses the suggestion before your choices, so rows stay in place.
+    row = { ...row, reviewFirst: Boolean(row.classification?.needsReview && !row.duplicate) }
     if (row.item) row = { ...row, item: previewByKey.get(row.item.statementImportKey) || row.item }
     const override = row.item && overrideFor(row.item)
     if (override === ownTransferChoice && row.item.transferDecision === 'own') row = {
@@ -1754,7 +1756,7 @@ document.addEventListener('change', async (event) => {
   if (event.target.matches('[data-statement-category]')) {
     const row = statementReviewView()?.rows.find(row => row.rowNumber === Number(event.target.dataset.statementCategory))
     if (row?.item) {
-      statementReviewState.categoryOverrides.set(`${row.item.type}:${(row.item.categoryMerchantKey || statementMerchantKey(row.item.description))}`, event.target.value)
+      statementReviewState.categoryOverrides.set(row.item.statementImportKey, event.target.value)
       updateStatementReviewDialog(app, statementReviewView())
     }
     return
