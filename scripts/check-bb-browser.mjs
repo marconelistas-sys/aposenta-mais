@@ -9,6 +9,7 @@ import { once } from 'node:events'
 import { chromium } from 'playwright'
 import { syntheticBbPdf } from './fixtures/bb-pdf.mjs'
 import { syntheticTkbPdf } from './fixtures/tkb-pdf.mjs'
+import { syntheticRendimentoPdf } from './fixtures/rendimento-pdf.mjs'
 
 // Always start a separate server, database and browser profile. Never use an
 // existing instance or the user's local plan when testing confirmation.
@@ -134,8 +135,15 @@ try {
   assert.equal(await page.locator('[data-statement-account-target]').isDisabled(), true)
   await page.locator('[data-statement-confirm]').click()
   assert.deepEqual(await cashItems(), [['Conta TKB (CHF)', 17253.6, '2026-10-31']])
+  // Banco Rendimento: daily blocks, newest first, split across pages.
+  await upload({ name: 'rendimento.pdf', mimeType: 'application/pdf', buffer: syntheticRendimentoPdf() })
+  assert.match(await page.locator('[data-statement-review-dialog]').innerText(), /Formato detectado: Banco Rendimento \(BRL\)/)
+  assert.equal(await page.locator('[data-statement-row]').count(), 14)
+  assert.match(await page.locator('[data-statement-account-review]').innerText(), /Conta Rendimento \(BRL\)[\s\S]*2.721,58 em 03\/11\/2026/)
+  await page.locator('[data-statement-confirm]').click()
+  assert.deepEqual((await cashItems()).find(item => item[0] === 'Conta Rendimento (BRL)'), ['Conta Rendimento (BRL)', 2721.58, '2026-11-03'])
   assert.deepEqual(errors, [])
-  console.log(`BB validado: ${expected.raw} movimentos, ${expected.budget} lançamentos de orçamento, ${expected.transfers} aplicações/resgates separados, seis prestações preservadas, conciliação, cobertura mínima da análise, reimportação, lote misto de 12 PDFs com TKB e saldo final da conta no Patrimônio.`)
+  console.log(`BB validado: ${expected.raw} movimentos, ${expected.budget} lançamentos de orçamento, ${expected.transfers} aplicações/resgates separados, seis prestações preservadas, conciliação, cobertura mínima da análise, reimportação, lote misto de 12 PDFs com TKB, saldo final da conta no Patrimônio e extrato Banco Rendimento.`)
 } finally {
   await browser?.close()
   const exited = once(server, 'exit')
