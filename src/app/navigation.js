@@ -14,6 +14,7 @@ export const additionalNavigation = [
   { href: '/consorcios', label: 'Consórcios', icon: 'building' },
   { href: '/objetivos', label: 'Objetivos e confiança', icon: 'target' },
   { href: '/viabilidade', label: 'Viabilidade do plano', icon: 'check' },
+  { href: '/relatorio', label: 'Relatório financeiro', icon: 'book' },
   { href: '/apos-aposentadoria', label: 'Após aposentadoria', icon: 'clock' },
   { href: '/riscos', label: 'Riscos anuais', icon: 'trendUp' },
   { href: '/riscos-mensais', label: 'Liquidez mensal', icon: 'calendar' },
@@ -24,7 +25,7 @@ export const additionalNavigation = [
 
 // The full menu groups every screen by the task the person wants to do.
 export const navigationGroups = [
-  { title: 'Planejar', hrefs: ['/', '/plano', '/objetivos', '/fluxo-caixa', '/simulacoes', '/viabilidade', '/apos-aposentadoria'] },
+  { title: 'Planejar', hrefs: ['/', '/plano', '/objetivos', '/fluxo-caixa', '/simulacoes', '/viabilidade', '/apos-aposentadoria', '/relatorio'] },
   { title: 'Patrimônio e investimentos', hrefs: ['/carteira', '/patrimonio', '/consorcios', '/cambio'] },
   { title: 'Dinheiro do dia a dia', hrefs: ['/orcamento', '/contas', '/extratos', '/calendario'] },
   { title: 'Riscos', hrefs: ['/riscos', '/riscos-mensais'] },

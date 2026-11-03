@@ -32,6 +32,7 @@ import { parseAnnualRealReturns, formatAnnualRealReturns } from './domain/invest
 import { renderViability, saveViability } from './features/plan/viability.js'
 import { renderConsortia, guideConsortiumForm, saveConsortium, consortiumView } from './features/cash-flow/consortia.js'
 import { renderRisk, renderMonthlyRisk, startRisk, cancelRisk, riskSettingsFromForm } from './features/plan/risk.js'
+import { renderReport, cancelReport, retryReport, printReport, reportTitle } from './features/report/report.js'
 import { renderGoals, cancelGoals, setGoalPriority, saveLegacyGoal, removeLegacyGoal, applyGoalAllocation, runGoalScenario, scenarioFromForm, scenarioLabel } from './features/goals/goals.js'
 import { guideCommitmentForm, guideMovementForm } from './app/planning-forms.js'
 import { ownedStorage } from './app/owned-storage.js'
@@ -181,6 +182,7 @@ bindBudgetExpensePies(document, section => {
   updateBudgetExpensePieDetail(section, renderBudgetExpensePies(context.categories, state, context.periodLabel, context))
 })
 const app = document.querySelector('#app')
+const defaultDocumentTitle = document.title
 bindNavigationMenu(app)
 bindWealthCallouts(app)
 let disposeValueLayout = () => {}
@@ -200,6 +202,7 @@ function switchSessionPlan() {
   timelineView.selectedYear = null
   cancelRisk(true)
   cancelGoals(true)
+  cancelReport(true)
   clearScenarioEditor()
   budgetOwnerView.selected = 'all'
   resetBudgetEntriesView()
@@ -245,6 +248,7 @@ const routes = {
       if (typing) form.elements.namedItem(typing)?.focus({ preventScroll: true })
     }
   }),
+  '/relatorio': () => renderReport(refreshReport),
   '/carteira': renderInvestments,
   '/patrimonio': renderWealth,
   '/extratos': () => renderStatements(statementReviewView()),
@@ -264,6 +268,16 @@ const routes = {
 function currentPath() {
   const path = window.location.pathname.replace(/\/$/, '')
   return path || '/'
+}
+
+// Worker progress re-renders the report page; keep focus on the same control.
+function refreshReport() {
+  if (currentPath() !== '/relatorio') return
+  const active = document.activeElement
+  const key = ['reportPrint', 'reportJump', 'reportRetry', 'toggleValues'].find(name => active?.dataset?.[name] !== undefined)
+  const value = key ? active.dataset[key] : null
+  render({ indicateRecalculation: false })
+  if (key) Array.from(app.querySelectorAll(`[data-${key.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}]`)).find(node => node.dataset[key] === value && !node.disabled)?.focus({ preventScroll: true })
 }
 
 function captureSimulationForm() {
@@ -296,7 +310,9 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
   const pageRenderer = state.dataDeleted && canRenderFinancialPage(pathname) && !isPublicPage(pathname) && pathname !== '/perfil'
     ? renderDeletedState
     : selectedRenderer
-  app.innerHTML = appLayout(pageRenderer() + (isLocalPlanOpen() && !isPublicPage(pathname) && !state.dataDeleted ? renderExpenseImpact() : ''), pathname)
+  const pageMarkup = pageRenderer()
+  document.title = pathname === '/relatorio' && pageRenderer === selectedRenderer ? reportTitle() : defaultDocumentTitle
+  app.innerHTML = appLayout(pageMarkup + (isLocalPlanOpen() && !isPublicPage(pathname) && !state.dataDeleted ? renderExpenseImpact() : ''), pathname)
   for (const key of openTools) {
     const tool = app.querySelector(`[data-budget-tool="${key}"]`)
     if (tool) tool.open = true
@@ -1003,6 +1019,15 @@ document.addEventListener('click', async (event) => {
     return
   }
   if (event.target.closest('[data-risk-cancel]')) { cancelRisk(); render(); return }
+  if (event.target.closest('[data-report-print]')) { if (!printReport(window)) showToast('Mostre os valores e aguarde o relatório para salvar o PDF.'); return }
+  if (event.target.closest('[data-report-retry]')) { retryReport(refreshReport); render({ indicateRecalculation: false }); return }
+  const reportJump = event.target.closest('[data-report-jump]')
+  if (reportJump) {
+    const heading = app.querySelector(`#report-${reportJump.dataset.reportJump}-title`)
+    heading?.scrollIntoView({ block: 'start' })
+    heading?.focus({ preventScroll: true })
+    return
+  }
   const consortiumEdit = event.target.closest('[data-consortium-edit]')
   if (consortiumEdit) {
     const item = (state.cashFlow.consortia || []).find(row => row.id === consortiumEdit.dataset.consortiumEdit)
