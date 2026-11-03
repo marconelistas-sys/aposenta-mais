@@ -8,7 +8,7 @@ import { investmentLimit } from './statement-investment-movements.js'
 // balance of the latest statement imported for every account.
 export const newAccountTarget = 'new'
 export const accountBalanceName = currency => `Saldo em conta ${currency}`
-const bankLabels = { tkb: 'TKB', yuh: 'Yuh', bb: 'BB', n26: 'N26', rendimento: 'Rendimento' }
+const bankLabels = { tkb: 'TKB', yuh: 'Yuh', swissquote: 'Swissquote', bb: 'BB', n26: 'N26', rendimento: 'Rendimento' }
 
 const normalize = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value

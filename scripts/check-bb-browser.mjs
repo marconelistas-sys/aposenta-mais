@@ -10,6 +10,7 @@ import { chromium } from 'playwright'
 import { syntheticBbPdf } from './fixtures/bb-pdf.mjs'
 import { syntheticTkbPdf } from './fixtures/tkb-pdf.mjs'
 import { syntheticRendimentoPdf } from './fixtures/rendimento-pdf.mjs'
+import { syntheticSwissquotePdf } from './fixtures/swissquote-pdf.mjs'
 
 // Always start a separate server, database and browser profile. Never use an
 // existing instance or the user's local plan when testing confirmation.
@@ -142,8 +143,19 @@ try {
   assert.match(await page.locator('[data-statement-account-review]').innerText(), /Conta Rendimento \(BRL\)[\s\S]*2.721,58 em 03\/11\/2026/)
   await page.locator('[data-statement-confirm]').click()
   assert.deepEqual((await cashItems()).find(item => item[0] === 'Conta Rendimento (BRL)'), ['Conta Rendimento (BRL)', 2721.58, '2026-11-03'])
+  // Swissquote: one section per currency, with the currency exchange out of the budget.
+  await upload({ name: 'swissquote.pdf', mimeType: 'application/pdf', buffer: syntheticSwissquotePdf() })
+  assert.match(await page.locator('[data-statement-review-dialog]').innerText(), /Formato detectado: Swissquote/)
+  assert.equal(await page.locator('[data-statement-row]').count(), 5)
+  assert.equal(await page.locator('[data-statement-selected-count]').innerText(), '3')
+  const swissquoteBalances = await page.locator('[data-statement-account-review]').innerText()
+  assert.match(swissquoteBalances, /Conta Swissquote \(CHF\)[\s\S]*1.234,50 em 31\/10\/2026/)
+  assert.match(swissquoteBalances, /Conta Swissquote \(USD\)[\s\S]*950,00 em 31\/10\/2026/)
+  await page.locator('[data-statement-confirm]').click()
+  const swissquoteItems = (await cashItems()).filter(item => item[0].startsWith('Conta Swissquote'))
+  assert.deepEqual(swissquoteItems, [['Conta Swissquote (CHF)', 1234.5, '2026-10-31'], ['Conta Swissquote (USD)', 950, '2026-10-31']])
   assert.deepEqual(errors, [])
-  console.log(`BB validado: ${expected.raw} movimentos, ${expected.budget} lançamentos de orçamento, ${expected.transfers} aplicações/resgates separados, seis prestações preservadas, conciliação, cobertura mínima da análise, reimportação, lote misto de 12 PDFs com TKB, saldo final da conta no Patrimônio e extrato Banco Rendimento.`)
+  console.log(`BB validado: ${expected.raw} movimentos, ${expected.budget} lançamentos de orçamento, ${expected.transfers} aplicações/resgates separados, seis prestações preservadas, conciliação, cobertura mínima da análise, reimportação, lote misto de 12 PDFs com TKB, saldo final da conta no Patrimônio e extratos Banco Rendimento e Swissquote.`)
 } finally {
   await browser?.close()
   const exited = once(server, 'exit')
