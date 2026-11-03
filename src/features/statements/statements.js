@@ -8,7 +8,7 @@ import { analyzeStatementPlanning, inferStatementCoverage } from '../../domain/s
 import { statementHistoryMonths } from '../../domain/statement-history.js'
 import { statementReviewDialog } from '../cash-flow/cash-flow.js'
 
-const supportedFiles = 'CSV, TXT, OFX ou PDF TKB, Banco do Brasil, Yuh, N26 ou fatura Ourocard'
+const supportedFiles = 'CSV, TXT, OFX ou PDF TKB, Banco do Brasil, Banco Rendimento, Swissquote, Yuh, N26 ou fatura Ourocard'
 
 export function renderStatements(statementReview = null) {
   return `<section class="panel"><p class="eyebrow">IMPORTAR EXTRATOS</p><h1>Extratos bancários</h1>

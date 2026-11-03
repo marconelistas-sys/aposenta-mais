@@ -444,7 +444,7 @@ export function statementReviewDialog(review) {
           <p class="statement-mapping-status" role="status">${blockReason ? escapeHtml(blockReason) : `Prévia atualizada: ${review.rows.filter(row => row.item).length} lançamentos válidos e ${review.invalidCount} inválidos.`}</p>
         </details>
 
-        ${review.files?.some(file => file.inspection.format) ? `<p class="statement-review-privacy">Formato detectado: ${[...new Set(review.files.map(file => file.inspection.format === 'bvk' ? 'BVK (CHF)' : file.inspection.format === 'bb' ? 'Banco do Brasil (BRL)' : file.inspection.format === 'tkb' ? 'TKB' : file.inspection.format === 'yuh' ? 'Yuh' : file.inspection.format === 'ourocard' ? 'Fatura Ourocard (BRL)' : file.inspection.format === 'n26' ? 'N26 (EUR)' : file.inspection.format === 'rendimento' ? 'Banco Rendimento (BRL)' : 'Texto/OFX'))].join(' · ')}.</p>` : ''}
+        ${review.files?.some(file => file.inspection.format) ? `<p class="statement-review-privacy">Formato detectado: ${[...new Set(review.files.map(file => file.inspection.format === 'bvk' ? 'BVK (CHF)' : file.inspection.format === 'bb' ? 'Banco do Brasil (BRL)' : file.inspection.format === 'tkb' ? 'TKB' : file.inspection.format === 'yuh' ? 'Yuh' : file.inspection.format === 'swissquote' ? 'Swissquote' : file.inspection.format === 'ourocard' ? 'Fatura Ourocard (BRL)' : file.inspection.format === 'n26' ? 'N26 (EUR)' : file.inspection.format === 'rendimento' ? 'Banco Rendimento (BRL)' : 'Texto/OFX'))].join(' · ')}.</p>` : ''}
         ${review.files?.some(file => file.inspection.format === 'ourocard') ? '<p class="statement-review-privacy">Fatura Ourocard: compras e créditos são importados em BRL. Saldo anterior e pagamentos da fatura ficam fora do orçamento. Compras parceladas usam apenas a parcela desta fatura, no vencimento. Parcelas futuras não são criadas.</p>' : ''}
         <p class="statement-review-privacy">Para indicar um investimento, escolha Investimento: aplicação ou resgate na categoria da linha. ${review.internalTransferCount ? 'Aplicações e resgates ficam fora do orçamento. Marque os que deseja importar e escolha, em Na Carteira, o investimento a atualizar ou crie um novo para completar os detalhes depois.' : ''}</p>
         ${renderStatementInvestmentReview(review.investmentBalanceRows, state)}
@@ -711,14 +711,14 @@ function budgetImportTools() {
   return `
 
         <details class="panel disclosure statement-import">
-          <summary>Importar até 12 extratos CSV, TXT, OFX ou PDF TKB/BB/Yuh/N26/Ourocard</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
+          <summary>Importar até 12 extratos CSV, TXT, OFX ou PDF TKB/BB/Rendimento/Swissquote/Yuh/N26/Ourocard</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
           <p>Os arquivos são lidos e classificados neste navegador. Selecione até 12 extratos ou faturas de uma só vez. As compras são classificadas automaticamente pela descrição e pelas categorias que você confirmou. Confira as sugestões na prévia. Reimportar a mesma fatura atualiza os lançamentos sem duplicá-los e preserva suas categorias confirmadas.</p>
           <code>data;descricao;valor;moeda;categoria;tipo</code>
           <label class="statement-file">
             <span>Selecionar até 12 extratos</span>
             <input type="file" accept=".txt,.csv,.ofx,.pdf,text/plain,text/csv,application/x-ofx,application/pdf" multiple data-statement-file />
           </label>
-          <small>PDF: extratos Banco do Brasil, TKB, Yuh e N26, e faturas Ourocard em BRL são detectados automaticamente. CSV da N26 é reconhecido em EUR. Até 12 arquivos, com 1 MB e 2.000 movimentos por arquivo. Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Nenhuma linha é adicionada antes da sua confirmação.</small>
+          <small>PDF: extratos Banco do Brasil, Banco Rendimento, TKB, Swissquote, Yuh e N26, e faturas Ourocard em BRL são detectados automaticamente. CSV da N26 é reconhecido em EUR. Até 12 arquivos, com 1 MB e 2.000 movimentos por arquivo. Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Nenhuma linha é adicionada antes da sua confirmação.</small>
           <div class="open-finance-roadmap">
             <strong>Open Finance</strong>
             <span>Conexão direta planejada. Ela exigirá consentimento explícito e uma instituição receptora participante.</span>
