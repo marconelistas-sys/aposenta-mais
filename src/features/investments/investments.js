@@ -8,7 +8,7 @@ import { allocationDimensions, defaultRebalanceBand, exposureDistribution, rebal
 import { currencies } from '../../shared/currencies.js'
 import { cashFlowTimeline } from '../../domain/cash-flow-timeline.js'
 import { projectRetirementWithSchedules, retirementMonths, scheduledContributionBalances } from '../../domain/retirement.js'
-import { escapeHtml, formatPercent, percentInputValue, privateCurrency } from '../../shared/formatters.js'
+import { escapeHtml, formatMonth, formatPercent, percentInputValue, privateCurrency } from '../../shared/formatters.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { icon } from '../../shared/icons.js'
 import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution, isForeignBalance } from '../../domain/investment-currency.js'
@@ -65,6 +65,11 @@ function portfolioReturn() {
   ), 0) / state.plan.currentAssets
 }
 
+
+function projectionPeriod(months) {
+  const years = Math.floor(months / 12), rest = Math.round(months % 12)
+  return [years ? `${years} ${years === 1 ? 'ano' : 'anos'}` : '', rest ? `${rest} ${rest === 1 ? 'mês' : 'meses'}` : ''].filter(Boolean).join(' e ') || 'menos de um mês'
+}
 
 function preciseRate(value) {
   return `${(value * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`
@@ -212,6 +217,7 @@ function investmentList() {
       const factors = investmentAccumulationFactors(investment, state.plan, months)
       const futureValue = investment.amount * factors.growth + investment.monthlyContribution * factors.contribution + (scheduled.find(item => item.investmentId === investment.id)?.assets || 0)
       const linked = state.cashFlow.items.filter(item => item.pensionInvestmentId === investment.id)
+      const movements = state.cashFlow.items.filter(item => item.statementInternalTransfer && item.statementInvestmentId === investment.id).sort((left, right) => String(right.startDate).localeCompare(String(left.startDate)))
       const usesDefault = investment.returnType === 'default'
       return `
         <article class="investment-card">
@@ -229,11 +235,13 @@ function investmentList() {
             <div><dt>Ano previsto de liberação</dt><dd>${state.valuesHidden ? 'Oculto' : investment.liquidity === 'available' ? 'Já disponível' : state.plan.finappMethod?.releases?.find(row => row.investmentId === investment.id)?.year || 'Não informado'}</dd></div>
             <div><dt>Aporte mensal</dt><dd>${foreignBalance(investment, investment.monthlyContribution, investmentNativeContribution(investment, state.currency))}</dd></div>
             ${linked.length ? `<div><dt>Contribuições vinculadas no Orçamento</dt><dd>${linked.map(item => `<a href="${escapeHtml(budgetReviewLink(item.id, 'pensionInvestmentId'))}" data-route>${escapeHtml(item.description)}</a>`).join('<br>')}<small>Incluídas na projeção deste fundo. O aporte mensal acima é o aporte adicional da Carteira.</small></dd></div>` : ''}
+            ${movements.length ? `<div data-investment-movements><dt>Aplicações e resgates no Orçamento</dt><dd>${movements.slice(0, 3).map(item => `${escapeHtml(item.startDate.split('-').reverse().join('/'))} · ${item.type === 'expense' ? 'Aplicação' : 'Resgate'} · ${privateCurrency(item.amount, state.valuesHidden, true, item.currency)}`).join('<br>')}${movements.length > 3 ? `<br>e mais ${movements.length - 3}` : ''}<small>Fora das receitas e despesas. Entram no saldo os posteriores ao último saldo informado manualmente ou por extrato de saldo.</small></dd></div>` : ''}
             <div><dt>Exposição</dt><dd>${escapeHtml(investment.exposureCurrency || state.currency)}${investment.exposureCurrency && investment.exposureCurrency !== state.currency && investmentExposureShare(investment) < 1 ? ` ${preciseRate(investmentExposureShare(investment))}` : ''} · ${regionLabels[investment.region] || regionLabels.domestic}</dd></div>
             <div><dt>Custo anual</dt><dd>${state.valuesHidden ? 'Oculto' : investmentAnnualFee(investment) ? preciseRate(investmentAnnualFee(investment)) : 'Não informado'}</dd></div>
             <div><dt>Retorno usado em ${new Date().getUTCFullYear()}</dt><dd>${state.valuesHidden ? 'Oculto' : `${preciseRate(rate)} real ao ano`}</dd></div>
-            <div><dt>Valor no prazo confirmado do plano</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}</dd></div>
+            <div data-investment-projection><dt>Projeção ${state.plan.retirementMonth ? `em ${escapeHtml(formatMonth(state.plan.retirementMonth))}` : 'na aposentadoria'}</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}<small>Não é o saldo de hoje. Saldo atual${investment.monthlyContribution ? ' e aporte mensal' : ''} com retorno real de ${state.valuesHidden ? 'taxa oculta' : preciseRate(rate)} ao ano por ${projectionPeriod(months)}${scheduled.some(item => item.investmentId === investment.id) ? ', mais as contribuições vinculadas no Orçamento' : ''}.</small></dd></div>
           </dl>
+          ${investment.needsDetails ? '<p class="investment-needs-details" role="note"><strong>Completar detalhes.</strong> Criado a partir de um extrato. Edite para informar nome, classe, liquidez e retorno. Até lá, a projeção usa a taxa habitual do plano.</p>' : ''}
           <p class="investment-return-source">${sourceDetail(investment, resolveGrossInvestmentRealReturn(investment, state.plan))}${investmentAnnualFee(investment) && !state.valuesHidden ? `, antes do custo anual de ${preciseRate(investmentAnnualFee(investment))}` : ''}</p>
           ${investment.annualRealReturns?.length ? `<details class="disclosure"><summary>Retornos reais por ano (${investment.annualRealReturns.length})</summary>${state.valuesHidden ? '<p>Retornos ocultos.</p>' : `<dl>${investment.annualRealReturns.map(row => `<div><dt>${row.year}</dt><dd>${formatPercent(row.rate)}</dd></div>`).join('')}</dl>`}<p>Anos sem ajuste usam a taxa habitual deste investimento.</p></details>` : ''}
           <div class="investment-card__actions">

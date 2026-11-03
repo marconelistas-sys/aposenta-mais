@@ -2,45 +2,66 @@ import { readStatementFile } from '../../domain/statement-file.js'
 import { renderStatementHistory } from './history.js'
 import { state } from '../../app/state.js'
 import { escapeHtml } from '../../shared/formatters.js'
-import { reviewStatementImport } from '../../domain/statement-import.js'
-import { analyzeStatementPlanning } from '../../domain/statement-planning.js'
+import { convertCurrency } from '../../shared/exchange-rates.js'
+import { reviewStatementBatch, statementBatchLimit } from '../../domain/statement-batch.js'
+import { analyzeStatementPlanning, inferStatementCoverage } from '../../domain/statement-planning.js'
+import { statementHistoryMonths } from '../../domain/statement-history.js'
+import { statementReviewDialog } from '../cash-flow/cash-flow.js'
 
-export function renderStatements() {
-  return `<section class="panel"><p class="eyebrow">EXTRATOS E APOSENTADORIA</p><h1>Seu plano combina com sua rotina?</h1>
-    <p>Compare a sobra mensal observada com o aporte que você planeja. O arquivo é lido neste navegador. O resumo será salvo no histórico, sem alterar seu orçamento.</p>
+const supportedFiles = 'CSV, TXT, OFX ou PDF TKB, Banco do Brasil, Yuh, N26 ou fatura Ourocard'
+
+export function renderStatements(statementReview = null) {
+  return `<section class="panel"><p class="eyebrow">IMPORTAR EXTRATOS</p><h1>Extratos bancários</h1>
+    <p>Selecione até ${statementBatchLimit} extratos ${supportedFiles}. O período de cada extrato é detectado automaticamente. Movimentos que já estão no orçamento aparecem como “Já está nos lançamentos” e não são importados de novo, mesmo que os extratos se sobreponham.</p>
+    <label class="statement-file">
+      <span>Selecionar extratos para importar</span>
+      <input type="file" accept=".txt,.csv,.ofx,.pdf,text/plain,text/csv,application/x-ofx,application/pdf" multiple data-statement-file />
+    </label>
+    <small>Nenhuma linha é adicionada antes da sua confirmação na revisão. Até 1 MB e 2.000 movimentos por arquivo.</small></section>
+    <section class="panel"><p class="eyebrow">EXTRATOS E APOSENTADORIA</p><h2>Seu plano combina com sua rotina?</h2>
+    <p>Compare a sobra mensal observada com o aporte que você planeja. Os arquivos são lidos neste navegador. O resumo será salvo no histórico, sem alterar seu orçamento.</p>
     <form data-bank-analysis>
-      <label class="form-field">Extrato CSV, TXT, OFX ou PDF TKB, Banco do Brasil ou Yuh<input name="statement" type="file" accept=".csv,.txt,.ofx,.pdf" required></label>
-      <p>CSV/TXT: colunas data, descricao e valor, com despesas negativas. Use a moeda do plano. Até 1 MB e 2.000 movimentos, sem cortes silenciosos.</p>
-      <label class="form-field">Início da cobertura<input name="start" type="date" required></label>
-      <label class="form-field">Fim da cobertura<input name="end" type="date" required></label>
-      <label><input name="complete" type="checkbox" required> O arquivo contém todas as receitas e despesas familiares do período, sem transferências entre minhas contas, aplicações, resgates ou despesas duplicadas de cartão.</label>
-      <p>Para salvar no histórico, use de 2 a 24 meses completos. Transações ausentes também afetam a estimativa. A análise inclui meses completos sem movimentos como zero.</p>
+      <label class="form-field">Extratos ${supportedFiles}<input name="statement" type="file" accept=".csv,.txt,.ofx,.pdf" multiple required></label>
+      <p>Selecione um extrato com vários meses ou vários extratos mensais de uma vez. O período vem do próprio extrato. Sem período impresso, valem os meses dos movimentos. Movimentos repetidos em extratos sobrepostos contam uma vez.</p>
+      <label><input name="complete" type="checkbox" required> Os arquivos contêm todas as receitas e despesas familiares desses meses, sem transferências entre minhas contas, aplicações, resgates ou despesas duplicadas de cartão.</label>
+      <p>Para salvar no histórico, use de 2 a ${statementHistoryMonths} meses completos e consecutivos. Transações ausentes também afetam a estimativa. Meses completos sem movimentos contam como zero.</p>
       <button class="button button--primary" type="submit">Analisar e salvar resumo</button>
-    </form><div data-bank-analysis-result aria-live="polite"></div>
-    <p><a href="/orcamento" data-route>Revisar orçamento e importar movimentos selecionados</a></p></section>${renderStatementHistory()}`
+    </form><div data-bank-analysis-result aria-live="polite"></div></section>${renderStatementHistory()}${statementReviewDialog(statementReview)}`
 }
 
-export async function readStatementAnalysis(formData, { currency = state.currency } = {}) {
-  const file = formData.get('statement')
-  if (!file || !file.size || file.size > 1024 * 1024) throw new Error('Selecione um arquivo de até 1 MB.')
-  const { inspection } = await readStatementFile(file, { maximumRows: 2000, analysisOnly: true })
-  if (inspection.truncatedRows) throw new Error('Divida o extrato em arquivos com até 2.000 movimentos.')
-  const review = reviewStatementImport(inspection, { defaultCurrency: currency })
+export async function readStatementAnalysis(formData, { currency = state.currency, asOf } = {}) {
+  const uploads = formData.getAll('statement').filter(file => file && file.size)
+  if (!uploads.length) throw new Error('Selecione pelo menos um extrato.')
+  if (uploads.length > statementBatchLimit || uploads.some(file => file.size > 1024 * 1024)) throw new Error(`Selecione até ${statementBatchLimit} extratos, com no máximo 1 MB por arquivo.`)
+  const files = []
+  for (const file of uploads) {
+    try {
+      const { inspection } = await readStatementFile(file, { maximumRows: 2000, analysisOnly: true })
+      if (inspection.truncatedRows) throw new Error('Divida o extrato em arquivos com até 2.000 movimentos.')
+      files.push({ fileName: file.name, inspection, mapping: inspection.suggestedMapping })
+    } catch (error) { throw new Error(uploads.length > 1 ? `${file.name}: ${error.message}` : error.message) }
+  }
+  const review = reviewStatementBatch(files, { defaultCurrency: currency })
   if (review.mappingErrors.length || review.errors.length) throw new Error([...review.mappingErrors, ...review.errors].slice(0, 3).join(' '))
-  // Equal transactions may be legitimate. Require review instead of silently discarding them.
-  if (review.rows.some(row => row.duplicate)) throw new Error('Há movimentos possivelmente duplicados. Revise o arquivo antes de analisar.')
-  const result = analyzeStatementPlanning(review.rows.map(row => row.item), { start: formData.get('start'), end: formData.get('end'), complete: formData.get('complete') === 'on', currency })
-  if (result.excluded.currency) throw new Error('O extrato contém outra moeda. Converta os valores de forma consistente antes de comparar com o plano.')
-  const start = formData.get('start'), end = formData.get('end')
-  const normalized = review.rows.map(({ item }) => [item.startDate, item.description, item.type, item.amount, item.currency]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify({ currency, start, end, items: normalized })))
+  // Repeated statements and overlapping periods share import keys. Count each movement once.
+  const rows = review.rows.filter(row => row.item && !row.duplicate)
+  const coverage = inferStatementCoverage(files.map((file, index) => ({ period: file.inspection.period, dates: rows.filter(row => row.fileIndex === index).map(row => row.item.startDate) })), asOf ? { asOf } : {})
+  if (coverage.months > statementHistoryMonths) throw new Error(`Use no máximo ${statementHistoryMonths} meses completos por análise.`)
+  const statementCurrencies = [...new Set(rows.map(row => row.item.currency))]
+  if (statementCurrencies.length > 1) throw new Error(`Os extratos têm moedas diferentes (${statementCurrencies.join(', ')}). Analise cada moeda separadamente.`)
+  const analysisCurrency = statementCurrencies[0] || currency
+  const { start, end } = coverage
+  const result = analyzeStatementPlanning(rows.map(row => row.item), { start, end, complete: formData.get('complete') === 'on', currency: analysisCurrency, ...(asOf ? { asOf } : {}) })
+  const normalized = rows.map(({ item }) => [item.startDate, item.description, item.type, item.amount, item.currency]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify({ currency: analysisCurrency, start, end, items: normalized })))
   const id = 'analysis-' + Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('')
-  return { ...result, id, start, end, currency, createdAt: new Date().toISOString() }
+  return { ...result, id, start, end, currency: analysisCurrency, createdAt: new Date().toISOString() }
 }
 
 export async function prepareStatementAnalysis(formData, { plan = state.plan, currency = state.currency } = {}) {
   const result = await readStatementAnalysis(formData, { currency })
-  return renderStatementAnalysis(result, { currency, contribution: Number(plan.monthlyContribution) || 0 })
+  const contribution = convertCurrency(Number(plan.monthlyContribution) || 0, currency, result.currency, state.exchangeRates)
+  return renderStatementAnalysis(result, { currency: result.currency, contribution })
 }
 
 export function renderStatementAnalysis(result, { currency, contribution }) {

@@ -64,7 +64,9 @@ try {
   await upload(bbUpload)
   assert.equal(await page.locator('[data-statement-selected-count]').innerText(), String(expected.budget))
   assert.equal(await page.locator('[data-statement-row]').count(), expected.raw)
-  assert.equal(await page.locator('[data-statement-row]:disabled').count(), expected.transfers)
+  // Detected applications can be marked for import, but start unselected.
+  assert.equal(await page.locator('.statement-review-row').filter({ hasText: 'Aplicação/resgate' }).locator('[data-statement-row]:not(:checked):enabled').count(), expected.transfers)
+  assert.equal(await page.locator('[data-statement-investment-target]').count(), expected.transfers)
   assert.match(await page.locator('[data-statement-review-dialog]').innerText(), /Formato detectado: Banco do Brasil \(BRL\)/)
   assert.match(await page.locator('.statement-review-summary').innerText(), new RegExp(`${expected.transfers} aplicações/resgates`))
   assert.equal(await page.locator('[data-statement-category] option:checked').filter({ hasText: /^Consórcio$/ }).count(), 6)
@@ -90,7 +92,7 @@ try {
     await prepareLedgerStatement(file, 'bb-test')
     const { readStatementAnalysis } = await import('/src/features/statements/statements.js')
     const form = new FormData()
-    form.set('statement', file); form.set('start', '2026-01-01'); form.set('end', '2026-01-31'); form.set('complete', 'on')
+    form.set('statement', file); form.set('complete', 'on')
     let requiresTwoMonths = false
     try { await readStatementAnalysis(form, { currency: 'BRL' }) }
     catch (error) { if (/pelo menos dois meses/.test(error.message)) requiresTwoMonths = true; else throw error }

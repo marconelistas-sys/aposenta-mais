@@ -14,7 +14,9 @@ import { reconcileOwnTransfers } from './domain/own-transfers.js'
 import { saveOwnTransferSettings } from './app/state.js'
 import { bindBudgetOverviewInteractions, budgetOverviewView } from './features/cash-flow/budget-overview.js'
 import { bindBudgetCategoriesInteractions, budgetCategoriesView, budgetCategoryPieData } from './features/cash-flow/budget-categories.js'
+import { bindBudgetYearToDateInteractions } from './features/cash-flow/budget-year-to-date.js'
 import { reviewStatementBatch, statementBatchLimit } from './domain/statement-batch.js'
+import { suggestStatementInvestment, newInvestmentTarget } from './domain/statement-investment-movements.js'
 import { statementMerchantKey } from './domain/statement-classification.js'
 import { cashFlowItemLimit } from './shared/limits.js'
 import { readStatementFile } from './domain/statement-file.js'
@@ -99,7 +101,7 @@ import { projectRetirementWithSchedules } from './domain/retirement.js'
 import { renderContent } from './features/content/content.js'
 import { renderDashboard } from './features/dashboard/dashboard.js'
 import { renderWealth } from './features/wealth/wealth.js'
-import { renderCashFlow, renderBudgetEntries, updateStatementReviewDialog, readStatementMapping, statementImportBlockReason, updateBudgetEntryResults } from './features/cash-flow/cash-flow.js'
+import { renderCashFlow, renderBudgetEntries, updateStatementReviewDialog, readStatementMapping, statementImportBlockReason, updateBudgetEntryResults, ownTransferChoice, investmentChoice } from './features/cash-flow/cash-flow.js'
 import { budgetEntriesView, resetBudgetEntriesView, readBudgetFilters } from './features/cash-flow/budget-entries-view.js'
 import { renderPlan } from './features/plan/plan.js'
 import { renderProfile } from './features/profile/profile.js'
@@ -245,7 +247,7 @@ const routes = {
   }),
   '/carteira': renderInvestments,
   '/patrimonio': renderWealth,
-  '/extratos': renderStatements,
+  '/extratos': () => renderStatements(statementReviewView()),
   '/fluxo-caixa': renderCashFlow,
   '/orcamento': () => renderBudgetEntries(statementReviewView()),
   '/simulacoes': renderSimulations,
@@ -430,16 +432,49 @@ function statementReviewView() {
     existingItems: state.cashFlow.items
   })
   const incomingKeys = new Set(review.rows.filter(row => row.item).map(row => row.item.statementImportKey))
-  const previewItems = reconcileOwnTransfers([...state.cashFlow.items.filter(item => !incomingKeys.has(item.statementImportKey)), ...review.rows.filter(row => row.item && !row.duplicate).map(row => row.item)], state.cashFlow.ownStatementAccounts)
+  const overrideFor = item => statementReviewState.categoryOverrides.get(`${item.type}:${(item.categoryMerchantKey || statementMerchantKey(item.description))}`)
+  const isTransfer = item => Boolean(item.transferMatch || item.transferPending || item.transferDecision === 'own')
+  // Choosing a category for a movement shown as transfer turns it into a payment.
+  const reconcile = (decisions = new Map()) => {
+    const incoming = review.rows.filter(row => row.item && !row.duplicate).map(row => {
+      if (overrideFor(row.item) === investmentChoice) return { ...row.item, statementInternalTransfer: true }
+      const decision = overrideFor(row.item) === ownTransferChoice ? 'own' : decisions.get(row.item.statementImportKey)
+      return decision ? { ...row.item, transferDecision: decision } : row.item
+    })
+    return reconcileOwnTransfers([...state.cashFlow.items.filter(item => !incomingKeys.has(item.statementImportKey)), ...incoming], state.cashFlow.ownStatementAccounts)
+  }
+  let previewItems = reconcile()
+  const payments = new Map(previewItems.filter(item => incomingKeys.has(item.statementImportKey) && isTransfer(item) && categoryById(overrideFor(item), state.customCategories)?.type === item.type).map(item => [item.statementImportKey, 'payment']))
+  if (payments.size) previewItems = reconcile(payments)
   const previewByKey = new Map(previewItems.map(item => [item.statementImportKey, item]))
+  const investments = state.plan.investments || []
   const rows = review.rows.map(row => {
     if (row.item) row = { ...row, item: previewByKey.get(row.item.statementImportKey) || row.item }
-    const override = row.item && statementReviewState.categoryOverrides.get(`${row.item.type}:${(row.item.categoryMerchantKey || statementMerchantKey(row.item.description))}`)
+    const override = row.item && overrideFor(row.item)
+    if (override === ownTransferChoice && row.item.transferDecision === 'own') row = {
+      ...row,
+      classification: { categoryId: row.item.categoryId, confidence: 1, needsReview: false, reason: 'Transferência confirmada por você', origin: 'confirmed' }
+    }
     const category = override && categoryById(override, state.customCategories)
     if (category && row.item && category.type === row.item.type) row = {
       ...row,
       item: { ...row.item, categoryId: category.id, categoryOrigin: 'confirmed' },
       classification: { categoryId: category.id, confidence: 1, needsReview: false, reason: 'Categoria confirmada por você', origin: 'confirmed' }
+    }
+    // Detected applications stay out unless marked. Rows you mark as investment are imported.
+    if (row.item?.statementInternalTransfer) {
+      const marked = override === investmentChoice
+      const key = row.item.statementImportKey
+      const target = statementReviewState.investmentTargets.get(key) ?? (suggestStatementInvestment(row.item, investments, state.cashFlow.items) || (marked && row.item.type === 'expense' ? newInvestmentTarget : ''))
+      const included = marked || statementReviewState.includedRows.has(row.rowNumber)
+      row = {
+        ...row,
+        internalTransfer: true,
+        investmentMarked: marked,
+        item: { ...row.item, ...(target ? { statementInvestmentTarget: target } : {}) },
+        classification: { categoryId: row.item.categoryId, confidence: 1, needsReview: false, origin: marked ? 'confirmed' : 'automatic', reason: 'Aplicação ou resgate de investimento. Não compõe o orçamento.' }
+      }
+      return { ...row, selected: !row.duplicate && included && !statementReviewState.excludedRows.has(row.rowNumber) }
     }
     return { ...row, selected: Boolean(row.item) && !row.duplicate && !row.internalTransfer && !statementReviewState.excludedRows.has(row.rowNumber) }
   })
@@ -535,8 +570,14 @@ function cashItemInputFromForm(form) {
     recordKind,
     ...(form.elements.namedItem('pensionCapitalRelease') ? { pensionCapitalRelease: form.elements.namedItem('pensionCapitalRelease').disabled ? undefined : form.elements.namedItem('pensionCapitalRelease').value !== 'no' } : {}),
     ...(form.elements.namedItem('pensionInvestmentId') ? { pensionInvestmentId: form.elements.namedItem('pensionInvestmentId').disabled ? null : form.elements.namedItem('pensionInvestmentId').value || null } : {}),
-    ...(form.elements.namedItem('transferDecision') ? { transferDecision: recordKind === 'actual' && ['own', 'payment'].includes(form.elements.namedItem('transferDecision').value) ? form.elements.namedItem('transferDecision').value : undefined } : {})
+    ...(form.elements.namedItem('transferDecision') ? { transferDecision: recordKind === 'actual' && ['own', 'payment'].includes(form.elements.namedItem('transferDecision').value) ? form.elements.namedItem('transferDecision').value : undefined } : {}),
+    ...(form.elements.namedItem('transferDecision') ? investmentFieldsFromForm(form, recordKind) : {})
   }
+}
+
+function investmentFieldsFromForm(form, recordKind) {
+  const investment = recordKind === 'actual' && form.elements.namedItem('transferDecision').value === 'investment'
+  return { statementInternalTransfer: investment, ...(investment ? { investmentTarget: form.elements.namedItem('investmentTarget').value } : {}) }
 }
 
 function syncCashItemRecordFields(form) {
@@ -549,6 +590,17 @@ function syncCashItemRecordFields(form) {
   startDate.required = isActual
   const transferDecision = form.elements.namedItem('transferDecision')
   if (transferDecision) transferDecision.disabled = !isActual
+  const investmentField = form.querySelector('[data-investment-target-field]')
+  if (investmentField) {
+    const investment = isActual && transferDecision.value === 'investment'
+    const target = form.elements.namedItem('investmentTarget')
+    const expense = categoryById(form.elements.namedItem('categoryId').value, state.customCategories)?.type === 'expense'
+    investmentField.hidden = !investment
+    target.disabled = !investment
+    const createOption = target.querySelector('[data-expense-only]')
+    createOption.disabled = !expense
+    if (!expense && target.value === 'new') target.value = ''
+  }
 }
 
 function openCashItemDialog(id) {
@@ -565,7 +617,10 @@ function openCashItemDialog(id) {
   const pensionCapital = form.elements.namedItem('pensionCapitalRelease')
   if (pensionCapital) pensionCapital.value = item.pensionCapitalRelease === false ? 'no' : 'yes'
   const imported = item.source === 'txt'
-  form.elements.namedItem('transferDecision').value = item.transferDecision || 'auto'
+  form.elements.namedItem('transferDecision').value = item.statementInternalTransfer ? 'investment' : item.transferDecision || 'auto'
+  // An existing classification keeps its link. Suggestions apply only when classifying now.
+  const linked = (state.plan.investments || []).some(investment => investment.id === item.statementInvestmentId) ? item.statementInvestmentId : ''
+  form.elements.namedItem('investmentTarget').value = item.statementInternalTransfer ? linked : suggestStatementInvestment(item, state.plan.investments || [], state.cashFlow.items) || (item.type === 'expense' ? newInvestmentTarget : '')
   form.elements.namedItem('recordKind').disabled = imported
   form.querySelector('[data-cash-edit-source]').textContent = imported
     ? 'Item importado. A origem e a classificação como realizado são preservadas.'
@@ -777,6 +832,14 @@ document.addEventListener('click', async (event) => {
     selectPageTab(app, 'orcamento', 'categorias', { focus: false })
     const heading = app.querySelector('#budget-expense-pies-title') || app.querySelector('[data-budget-categories] h2')
     heading?.setAttribute('tabindex', '-1')
+    heading?.focus({ preventScroll: true })
+    heading?.scrollIntoView({ block: 'start' })
+    return
+  }
+
+  if (event.target.closest('[data-show-budget-year-to-date]')) {
+    selectPageTab(app, 'orcamento', 'acumulado', { focus: false })
+    const heading = app.querySelector('#budget-ytd-title')
     heading?.focus({ preventScroll: true })
     heading?.scrollIntoView({ block: 'start' })
     return
@@ -1672,6 +1735,16 @@ document.addEventListener('change', async (event) => {
     updateStatementReviewDialog(app, statementReviewView())
     return
   }
+  if (event.target.matches('[data-statement-investment-target]')) {
+    const row = statementReviewView()?.rows.find(row => row.rowNumber === Number(event.target.dataset.statementInvestmentTarget))
+    if (row?.item) {
+      statementReviewState.investmentTargets.set(row.item.statementImportKey, event.target.value)
+      statementReviewState.excludedRows.delete(row.rowNumber)
+      statementReviewState.includedRows.add(row.rowNumber)
+      updateStatementReviewDialog(app, statementReviewView())
+    }
+    return
+  }
   if (event.target.matches('[data-statement-category]')) {
     const row = statementReviewView()?.rows.find(row => row.rowNumber === Number(event.target.dataset.statementCategory))
     if (row?.item) {
@@ -1701,8 +1774,8 @@ document.addEventListener('change', async (event) => {
   if (event.target.matches('[data-statement-row]')) {
     if (!statementReviewState) return
     const rowNumber = Number(event.target.dataset.statementRow)
-    if (event.target.checked) statementReviewState.excludedRows.delete(rowNumber)
-    else statementReviewState.excludedRows.add(rowNumber)
+    if (event.target.checked) { statementReviewState.excludedRows.delete(rowNumber); statementReviewState.includedRows.add(rowNumber) }
+    else { statementReviewState.excludedRows.add(rowNumber); statementReviewState.includedRows.delete(rowNumber) }
     const review = statementReviewView()
     updateStatementReviewDialog(app, review)
     return
@@ -1746,9 +1819,9 @@ document.addEventListener('change', async (event) => {
     return
   }
 
-  if (event.target.matches('select[name="recordKind"]')) {
+  if (event.target.matches('select[name="recordKind"], [data-cash-item-edit-form] select[name="transferDecision"], [data-cash-item-edit-form] select[name="categoryId"]')) {
     syncCashItemRecordFields(event.target.closest('form'))
-    return
+    if (event.target.matches('select[name="recordKind"]')) return
   }
 
   if (event.target.matches('[data-cash-flow-month]')) {
@@ -1775,7 +1848,7 @@ document.addEventListener('change', async (event) => {
       return
     }
     const generation = ownedStorage.generation
-    const batch = { files: [], activeFile: 0, loading: true, expectedFiles: files.length, excludedRows: new Set(), excludedInvestmentBalances: new Set(), initialInvestmentBalances: new Set(), categoryOverrides: new Map() }
+    const batch = { files: [], activeFile: 0, loading: true, expectedFiles: files.length, excludedRows: new Set(), excludedInvestmentBalances: new Set(), initialInvestmentBalances: new Set(), categoryOverrides: new Map(), investmentTargets: new Map(), includedRows: new Set() }
     statementReviewState = batch
     showToast(`Lendo e classificando ${files.length} extratos...`)
     try {
@@ -2237,15 +2310,16 @@ document.addEventListener('submit', async (event) => {
     const items = review.rows.filter((row) => row.selected).map((row) => row.item)
     try {
       const result = upsertStatementItems(items, { investmentBalances: review.investmentBalances, allowUndatedBalances: true })
-      const skippedCount = review.duplicateCount + review.invalidCount + review.internalTransferCount
+      const skippedCount = review.duplicateCount + review.invalidCount + review.rows.filter(row => row.internalTransfer && !row.duplicate && !row.selected).length
       statementReviewState = null
       resetBudgetEntriesView()
       budgetEntriesView.period = 'all'
       budgetEntriesView.recordKind = 'actual'
       render()
+      const budgetPage = Boolean(app.querySelector('.budget-workspace'))
       revealInPageTab(app, app.querySelector('.budget-workspace'))
       app.querySelector('[data-budget-filters] [name="search"]')?.focus({ preventScroll: true })
-      showToast(`${result.added} lançamentos importados. ${result.updated} atualizados.${result.investmentUpdated ? ` ${result.investmentUpdated} saldos de aplicações atualizados.` : ''}${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''} A lista mostra os realizados de todos os períodos.`)
+      showToast(`${result.added} lançamentos importados. ${result.updated} atualizados.${result.investmentUpdated ? ` ${result.investmentUpdated} saldos de aplicações atualizados.` : ''}${result.investmentCreated ? ` ${result.investmentCreated} investimentos criados na Carteira para completar os detalhes.` : ''}${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''}${budgetPage ? ' A lista mostra os realizados de todos os períodos.' : ' Confira os lançamentos no Orçamento.'}`)
     } catch (error) {
       showToast(error.message)
     }
@@ -2358,11 +2432,14 @@ document.addEventListener('submit', async (event) => {
     event.preventDefault()
     try {
       const id = cashItemEditForm.elements.namedItem('itemId').value
-      updateCashFlowItem(id, cashItemInputFromForm(cashItemEditForm))
+      const saved = updateCashFlowItem(id, cashItemInputFromForm(cashItemEditForm))
       recordDataOperation('correction')
+      const change = saved.investmentChange
+      const date = value => value.split('-').reverse().join('/')
+      const message = !change ? 'Lançamento atualizado.' : change.created ? `Lançamento classificado como investimento. ${change.name} foi criado na Carteira para completar os detalhes.` : !change.counted ? `Lançamento vinculado a ${change.name}. O saldo informado em ${date(change.baseDate)} já inclui os movimentos até essa data e foi mantido.` : change.applied ? `Lançamento classificado como investimento. Saldo de ${change.name} recalculado.` : `Lançamento vinculado a ${change.name}. O saldo já considerava este lançamento.`
       const context = categoryEntryContext(cashItemEditForm)
-      if (context) finishCategoryEntrySave('Lançamento atualizado. Os totais foram recalculados.', context)
-      else finishBudgetSave('Lançamento atualizado.', id)
+      if (context) finishCategoryEntrySave(change ? message : 'Lançamento atualizado. Os totais foram recalculados.', context)
+      else finishBudgetSave(message, id)
     } catch (error) {
       showFormError(cashItemEditForm, error.message)
     }
@@ -2511,6 +2588,7 @@ bindMonthlyHints(document)
 bindPageTabs(app)
 bindBudgetOverviewInteractions(app, () => state, updateBudgetReferenceMonth)
 bindBudgetCategoriesInteractions(app, () => state, updateBudgetReferenceMonth)
+bindBudgetYearToDateInteractions(app, () => state)
 document.addEventListener('input', event => {
   const group = event.target.closest?.('[data-target-dimension]')
   if (!group) return

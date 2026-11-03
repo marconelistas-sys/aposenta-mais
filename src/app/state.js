@@ -2,7 +2,9 @@ import { previewInvestmentBalances } from '../domain/statement-investment-balanc
 import { applyPensionBalance } from '../domain/pension-balance-import.js'
 import { reconcileOwnTransfers } from '../domain/own-transfers.js'
 import { planStatementUpdates } from '../domain/statement-batch.js'
+import { linkStatementInvestments, recomputeInvestmentMovements, newInvestmentTarget } from '../domain/statement-investment-movements.js'
 import { cashFlowItemLimit } from '../shared/limits.js'
+import { categoryById } from '../data/cash-flow-categories.js'
 import { defaultPlan } from '../data/mock-plan.js'
 import { sanitizeCurrencyTrends, sanitizeInflationByCurrency, validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
@@ -158,7 +160,8 @@ export function upsertInvestment(candidate) {
   const balanceAsOf = candidate.balanceAsOf || new Date().toISOString().slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(balanceAsOf) || !Number.isFinite(Date.parse(balanceAsOf)) || new Date(balanceAsOf).toISOString().slice(0, 10) !== balanceAsOf) throw new TypeError('Informe uma data válida para o saldo.')
   const previousRecord = { ...(existingIndex >= 0 ? current[existingIndex] : {}) }
-  candidate = { ...(previousRecord.statementAccount ? { statementAccount: previousRecord.statementAccount, statementInvestmentName: previousRecord.statementInvestmentName } : {}), ...candidate, balanceAsOf, balanceSource: 'manual' }
+  // Completing details keeps the movement base. A changed balance replaces it on the next recompute.
+  candidate = { ...(previousRecord.statementAccount ? { statementAccount: previousRecord.statementAccount, statementInvestmentName: previousRecord.statementInvestmentName } : {}), ...(previousRecord.movementBase ? { movementBase: previousRecord.movementBase } : {}), ...candidate, balanceAsOf, balanceSource: 'manual' }
   const record = foreign
     ? { ...candidate, id, nativeAmount: round2(Number(candidate.amount)), nativeMonthlyContribution: round2(Number(candidate.monthlyContribution) || 0), amount: convertCurrency(Number(candidate.amount) || 0, candidate.currency, state.currency, state.exchangeRates), monthlyContribution: convertCurrency(Number(candidate.monthlyContribution) || 0, candidate.currency, state.currency, state.exchangeRates) }
     : { ...candidate, id }
@@ -251,26 +254,53 @@ export function importCashFlowItems(items) {
 
 export function upsertStatementItems(items, { investmentBalances = [], allowUndatedBalances = false } = {}) {
   if (!Array.isArray(items) || (!items.length && !investmentBalances.length)) throw new TypeError('Nenhum lançamento selecionado.')
-  const validated = items.map((item, index) => sanitizeCashFlowItem(item, index, state.customCategories, state.currency))
+  const balances = previewInvestmentBalances(investmentBalances, state.plan.investments || [], { currency: state.currency, exchangeRates: state.exchangeRates, allowUndated: allowUndatedBalances })
+  // A movement already linked to an investment never creates a second one on reimport.
+  const linked = new Map(state.cashFlow.items.filter(item => item.statementImportKey && item.statementInvestmentId).map(item => [item.statementImportKey, item.statementInvestmentId]))
+  const movements = items.filter(item => item.statementInternalTransfer && item.statementInvestmentTarget).map(item => ({
+    key: item.statementImportKey,
+    target: item.statementInvestmentTarget === newInvestmentTarget && balances.investments.some(investment => investment.id === linked.get(item.statementImportKey)) ? linked.get(item.statementImportKey) : item.statementInvestmentTarget,
+    type: item.type, amount: item.amount, currency: item.currency, date: item.startDate, description: item.description
+  }))
+  const linking = linkStatementInvestments(movements, balances.investments)
+  const validated = items.map((item, index) => sanitizeCashFlowItem(linking.links.has(item.statementImportKey) ? { ...item, statementInvestmentId: linking.links.get(item.statementImportKey) } : item, index, state.customCategories, state.currency))
   if (validated.some(item => !item)) throw new TypeError('Há lançamentos inválidos no lote. Nenhuma alteração foi salva.')
   const plan = planStatementUpdates(state.cashFlow.items, validated)
   if (plan.items.length > cashFlowItemLimit) throw new RangeError(`O orçamento aceita até ${cashFlowItemLimit} lançamentos. Nenhuma alteração foi salva.`)
-  const balances = previewInvestmentBalances(investmentBalances, state.plan.investments || [], { currency: state.currency, exchangeRates: state.exchangeRates, allowUndated: allowUndatedBalances })
-  const investments = sanitizeInvestments(balances.investments)
-  if (balances.updates.length && investments.length !== balances.investments.length) throw new TypeError('Saldo de investimento inválido. Nenhuma alteração foi salva.')
-  const nextPlan = balances.updates.length ? { ...state.plan, investments, ...investmentTotals(investments) } : state.plan
+  // Previous links of reimported movements are recomputed too, in case the target changed.
+  const relinked = validated.map(item => linked.get(item.statementImportKey)).filter(Boolean)
+  const touched = [...new Set([...linking.links.values(), ...relinked, ...balances.updates.map(row => row.investmentId)])]
+  const portfolio = recomputeInvestmentMovements(linking.investments, plan.items, { currency: state.currency, exchangeRates: state.exchangeRates, ids: touched })
+  const createdIds = new Set(linking.investments.slice(balances.investments.length).map(investment => investment.id))
+  const movementUpdates = [...portfolio.changed].filter(id => !createdIds.has(id) && !balances.updates.some(row => row.investmentId === id)).length
+  const portfolioChanged = balances.updates.length || linking.created || portfolio.changed.size
+  const investments = sanitizeInvestments(portfolio.investments)
+  if (portfolioChanged && investments.length !== portfolio.investments.length) throw new TypeError('Saldo de investimento inválido. Nenhuma alteração foi salva.')
+  const nextPlan = portfolioChanged ? { ...state.plan, investments, ...investmentTotals(investments) } : state.plan
   const next = { ...state, plan: nextPlan, cashFlow: { ...state.cashFlow, items: reconcileOwnTransfers(plan.items, state.cashFlow.ownStatementAccounts) }, isDemo: false, lastUpdatedAt: new Date().toISOString() }
   appStorage.setItem(storageKeys.current, JSON.stringify(next))
   Object.assign(state, next)
-  return { added: plan.added, updated: plan.updated, ...(balances.updates.length ? { investmentUpdated: balances.updates.length } : {}) }
+  return { added: plan.added, updated: plan.updated, ...(balances.updates.length || movementUpdates ? { investmentUpdated: balances.updates.length + movementUpdates } : {}), ...(linking.created ? { investmentCreated: linking.created } : {}) }
+}
+
+// Linked movements define the balance together with its base. Any change to
+// them, including deletion, recomputes the investments involved.
+function recomputeLinkedInvestments(items, ids, investments = state.plan.investments || []) {
+  const scope = ids.filter(Boolean)
+  if (!scope.length) return null
+  const portfolio = recomputeInvestmentMovements(investments, items, { currency: state.currency, exchangeRates: state.exchangeRates, ids: scope })
+  const next = sanitizeInvestments(portfolio.investments)
+  if (next.length !== portfolio.investments.length) throw new TypeError('Saldo de investimento inválido. Nenhuma alteração foi salva.')
+  state.plan = { ...state.plan, investments: next, ...investmentTotals(next) }
+  return portfolio
 }
 
 export function removeCashFlowItem(id) {
   if (id.startsWith('ledger:')) throw new Error('Desvincule o movimento em Contas para remover este realizado.')
-  updateCashFlow({
-    ...state.cashFlow,
-    items: state.cashFlow.items.filter((item) => item.id !== id)
-  })
+  const removed = state.cashFlow.items.find(item => item.id === id)
+  const items = state.cashFlow.items.filter((item) => item.id !== id)
+  recomputeLinkedInvestments(items, [removed?.statementInvestmentId])
+  updateCashFlow({ ...state.cashFlow, items })
 }
 
 export function updateCashFlowItem(id, patch) {
@@ -278,9 +308,10 @@ export function updateCashFlowItem(id, patch) {
   const index = state.cashFlow.items.findIndex((item) => item.id === id)
   if (index < 0) throw new TypeError('Lançamento não encontrado.')
   const current = state.cashFlow.items[index]
+  const { investmentTarget, ...fields } = patch
   const candidate = {
     ...current,
-    ...patch,
+    ...fields,
     id: current.id,
     source: current.source,
     ...(patch.categoryId && patch.categoryId !== current.categoryId ? { categoryOrigin: 'confirmed' } : {}),
@@ -294,12 +325,30 @@ export function updateCashFlowItem(id, patch) {
   if (candidate.startDate && candidate.endDate && candidate.endDate < candidate.startDate) {
     throw new RangeError('A data final deve ser igual ou posterior à data inicial.')
   }
-  const updated = sanitizeCashFlowItem(candidate, index, state.customCategories, state.currency)
+  let updated = sanitizeCashFlowItem(candidate, index, state.customCategories, state.currency)
   if (!updated) throw new TypeError('Revise os dados do lançamento.')
+  let linking = null
+  if (updated.statementInternalTransfer && investmentTarget !== undefined) {
+    if (!investmentTarget) {
+      const { statementInvestmentId, ...unlinked } = updated
+      updated = unlinked
+    } else {
+      if (updated.recordKind !== 'actual') throw new TypeError('Somente lançamentos realizados podem atualizar a Carteira.')
+      const investments = state.plan.investments || []
+      // Saving again never creates a second investment for the same movement.
+      const target = investmentTarget === newInvestmentTarget && investments.some(investment => investment.id === current.statementInvestmentId) ? current.statementInvestmentId : investmentTarget
+      linking = linkStatementInvestments([{ key: id, target, type: updated.type, currency: updated.currency, date: updated.startDate, description: updated.description || categoryById(updated.categoryId, state.customCategories)?.name }], investments)
+      updated = { ...updated, statementInvestmentId: linking.links.get(id) }
+    }
+  }
   const items = [...state.cashFlow.items]
   items[index] = updated
+  const portfolio = recomputeLinkedInvestments(items, [...new Set([current.statementInvestmentId, updated.statementInvestmentId])], linking?.investments)
+  const investment = updated.statementInvestmentId && state.plan.investments.find(row => row.id === updated.statementInvestmentId)
+  const baseDate = portfolio?.bases.get(updated.statementInvestmentId) || ''
+  const investmentChange = linking && investment ? { name: investment.name, created: linking.created > 0, applied: portfolio.changed.has(investment.id), counted: !baseDate || updated.startDate > baseDate, baseDate, balanceAsOf: investment.balanceAsOf || '' } : null
   updateCashFlow({ ...state.cashFlow, items })
-  return updated
+  return investmentChange ? { ...updated, investmentChange } : updated
 }
 
 function validateIncomeEnd(item) {

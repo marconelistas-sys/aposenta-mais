@@ -5,9 +5,9 @@ import { normalizeCurrency, currencies } from '../shared/currencies.js'
 
 const headerAliases = {
   time: ['hora', 'horario', 'time', 'transaction_time'],
-  date: ['data', 'date'],
-  description: ['descricao', 'description', 'historico', 'memo'],
-  amount: ['valor', 'amount'],
+  date: ['data', 'date', 'booking date', 'buchungsdatum', 'datum'],
+  description: ['descricao', 'description', 'historico', 'memo', 'partner name', 'payee', 'empfanger', 'name zahlungsbeteiligter'],
+  amount: ['valor', 'amount', 'amount (eur)', 'betrag (eur)', 'betrag'],
   currency: ['moeda', 'currency'],
   category: ['categoria', 'category'],
   type: ['tipo', 'type'],
@@ -70,6 +70,12 @@ function normalizeDate(value) {
   const date = iso ? text : local ? `${local[3]}-${local[2]}-${local[1]}` : ''
   const time = Date.parse(`${date}T00:00:00Z`)
   return date && Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === date ? date : null
+}
+
+// Exports such as N26 name the account currency in the amount header, e.g. "Amount (EUR)".
+function headerCurrency(headers, mapping) {
+  if (mapping.currency >= 0) return ''
+  return normalizeText(headers[mapping.amount]).match(/\((brl|chf|eur|usd)\)$/)?.[1]?.toUpperCase() || ''
 }
 
 function columnMap(headers) {
@@ -190,11 +196,16 @@ export function inspectStatementText(text, { maximumRows = 100, analysisOnly = f
   const limit = Math.max(0, Math.min(requestedLimit, analysisOnly ? 2000 : 100))
   const delimiter = detectDelimiter(lines[0])
   const headers = splitDelimitedLine(lines[0], delimiter)
+  const suggestedMapping = columnMap(headers)
+  const currency = headerCurrency(headers, suggestedMapping)
+  const n26 = currency === 'EUR' && ['partner name', 'payee', 'empfanger', 'name zahlungsbeteiligter'].includes(normalizeText(headers[suggestedMapping.description]))
   return {
     headers,
     sourceAccount,
     delimiter,
-    suggestedMapping: columnMap(headers),
+    ...(currency ? { currency } : {}),
+    ...(n26 ? { format: 'n26' } : {}),
+    suggestedMapping,
     rows: lines.slice(1, limit + 1).map((line, offset) => ({
       rowNumber: offset + 2,
       cells: splitDelimitedLine(line.replace(/\n/g, ' '), delimiter)
@@ -223,6 +234,8 @@ export function reviewStatementImport(inspection, {
     return { mapping: safeMapping, mappingErrors: mapErrors, rows: [], errors }
   }
 
+  // The currency named in the file wins over the plan currency when no column was mapped.
+  if (inspection.currency && safeMapping.currency < 0) defaultCurrency = inspection.currency
   const classify = createStatementClassifier({ existingItems, customCategories })
   const existingKeys = new Set(existingItems.map(statementDuplicateKey).filter(Boolean))
   const existingReferences = new Set(existingItems.map(item => item.statementReference).filter(Boolean))

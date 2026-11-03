@@ -8,6 +8,7 @@ import { renderMonthNavigation } from './month-navigation.js'
 import { renderOwnTransfers } from './own-transfers.js'
 import { renderBudgetOverview } from './budget-overview.js'
 import { renderBudgetCategories } from './budget-categories.js'
+import { renderBudgetYearToDate } from './budget-year-to-date.js'
 import { cashFlowItemLimit } from '../../shared/limits.js'
 import { renderMonthTracking } from './month-tracking.js'
 import { householdOwners, householdOwnerField, budgetOwnerView } from '../../shared/household-owner.js'
@@ -110,14 +111,14 @@ function cashFlowItems(result) {
           <div class="cash-item__identity">
             <strong>${escapeHtml(item.description || item.category.name)}</strong>
             ${transactionDate ? `<span class="budget-item-date" data-budget-item-date>${escapeHtml(transactionDate)}</span>` : ''}
-            <span>${item.transferMatch || item.transferPending || item.transferDecision === 'own' ? 'Transferência entre minhas contas' : recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']}${item.transferMatch || item.transferPending || item.transferDecision === 'own' ? '' : ` · ${escapeHtml(item.category.name)}`}</span>
-            ${item.type === 'expense' && item.recordKind === 'actual' && state.cashFlow.items.some(row => row.id === item.id) ? `<label data-credit-card-payment><input type="checkbox" data-ignore-credit-card-payment="${escapeHtml(item.id)}" ${ignoresCreditCardPayment(item) ? 'checked' : ''} /> Ignorar pagamento de cartão nas despesas</label>${isCreditCardPayment(item) ? `<span>Pagamento de cartão detectado pela descrição. ${ignoresCreditCardPayment(item) ? 'Fora do orçamento.' : 'Incluído no orçamento.'}</span>` : ''}` : ''}
+            <span>${item.statementInternalTransfer ? `Investimento${investmentName(item) ? `: ${escapeHtml(investmentName(item))}` : ''}` : item.transferMatch || item.transferPending || item.transferDecision === 'own' ? 'Transferência entre contas próprias ou do casal' : recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']}${item.statementInternalTransfer || item.transferMatch || item.transferPending || item.transferDecision === 'own' ? '' : ` · ${escapeHtml(item.category.name)}`}</span>
+            ${item.type === 'expense' && item.recordKind === 'actual' && !item.statementInternalTransfer && state.cashFlow.items.some(row => row.id === item.id) ? `<label data-credit-card-payment><input type="checkbox" data-ignore-credit-card-payment="${escapeHtml(item.id)}" ${ignoresCreditCardPayment(item) ? 'checked' : ''} /> Ignorar pagamento de cartão nas despesas</label>${isCreditCardPayment(item) ? `<span>Pagamento de cartão detectado pela descrição. ${ignoresCreditCardPayment(item) ? 'Fora do orçamento.' : 'Incluído no orçamento.'}</span>` : ''}` : ''}
             ${pensionOutsideBudget(state, item) ? '<span data-payroll-pension>Desconto em folha / aporte externo · Fora do orçamento</span>' : ''}
             ${item.plannedExpenseLink ? `<span data-planned-expense-link="${escapeHtml(item.plannedExpenseLink.id)}">Vinculado automaticamente ao planejado: ${escapeHtml(item.plannedExpenseLink.description)}</span>` : item.plannedExpenseLinkStatus === 'ambiguous' ? '<span>Mais de um planejamento compatível, sem vínculo automático</span>' : ''}
             <details class="budget-item-details"><summary>${frequencyLabels[item.frequency]}${item.isActive ? '' : ' · Fora do mês'}${item.frequency === 'occasional' && !item.startDate ? ' · Data pendente' : ''} · Detalhes</summary><p>${periodLabel(item)}${item.source === 'txt' ? ' · Importado de extrato' : ''}</p></details>
           </div>
           <div class="cash-item__amount">
-            ${(item.transferMatch || item.transferPending || item.transferDecision === 'own') ? `<span>${item.budgetAmount ? `Somente tarifa no orçamento: ${privateCurrency(item.budgetAmount, state.valuesHidden, true, item.currency)}` : 'Fora do orçamento'}</span>` : ''}
+            ${item.statementInternalTransfer ? '<span>Fora do orçamento</span>' : (item.transferMatch || item.transferPending || item.transferDecision === 'own') ? `<span>${item.budgetAmount ? `Somente tarifa no orçamento: ${privateCurrency(item.budgetAmount, state.valuesHidden, true, item.currency)}` : 'Fora do orçamento'}</span>` : ''}
             <strong class="money-value">${original}${item.frequency === 'annual' ? ' <small>por ano</small>' : ''}</strong>
             ${item.consortiumId && !state.valuesHidden && Number.isFinite(item.consortiumSavings) ? `<span class="consortium-item-split">${privateCurrency(item.consortiumSavings, false, true, item.currency)} vira cota · ${privateCurrency(item.consortiumCosts, false, true, item.currency)} custo</span>` : ''}
             ${item.frequency === 'annual' && !state.valuesHidden ? `<span class="monthly-equivalent money-value">${privateCurrency(item.amount / 12, false, true, item.currency)}/mês</span>` : ''}
@@ -164,6 +165,8 @@ function pensionInvestmentField() {
   return `<label class="form-field" data-pension-capital-field hidden><span class="form-field__label">Liberação da previdência</span><span class="input-shell"><select name="pensionCapitalRelease" disabled><option value="yes" selected>Liberar saldo acumulado</option><option value="no">Somente benefício mensal</option></select></span><small>Para INSS ou outro benefício sem saldo resgatável, escolha somente benefício mensal. As contribuições não aumentam o patrimônio. Cadastre as parcelas previstas como receita na categoria Aposentadoria e benefício, com valor e data de início. Esta escolha não altera a origem do pagamento, como desconto em folha.</small></label><label class="form-field" data-pension-investment-field hidden><span class="form-field__label">Investimento de destino da previdência</span><span class="input-shell"><select name="pensionInvestmentId" disabled><option value="">Sem vínculo com a Carteira</option>${investments.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('')}${missing.map(id => `<option value="${escapeHtml(id)}">Investimento indisponível, revise o destino</option>`).join('')}</select></span><small>Os aportes aumentam o saldo do investimento escolhido. O fim dos aportes não define a liberação, que segue a disponibilidade cadastrada na Carteira.</small></label>`
 }
 
+const investmentName = item => (state.plan.investments || []).find(investment => investment.id === item.statementInvestmentId)?.name || ''
+
 function cashItemEditDialog() {
   return `
     <dialog class="cash-edit-dialog" data-cash-item-dialog aria-labelledby="cash-edit-title">
@@ -179,10 +182,20 @@ function cashItemEditDialog() {
             <span class="form-field__label">Tratamento no orçamento</span>
             <span class="input-shell"><select name="transferDecision">
               <option value="auto">Detectar automaticamente</option>
-              <option value="own">Transferência entre minhas contas</option>
+              <option value="own">Transferência entre contas próprias ou do casal</option>
               <option value="payment">Pagamento ou recebimento de terceiros</option>
+              <option value="investment">Investimento: aplicação ou resgate</option>
             </select></span>
-            <small>Para realizados. Transferências próprias ficam fora das receitas e despesas, exceto tarifas identificadas. A decisão permanece na reimportação.</small>
+            <small>Para realizados. Transferências próprias e investimentos ficam fora das receitas e despesas. Transferências mantêm as tarifas identificadas. A decisão permanece na reimportação.</small>
+          </label>
+          <label class="form-field" data-investment-target-field hidden>
+            <span class="form-field__label">Investimento na Carteira</span>
+            <span class="input-shell"><select name="investmentTarget" disabled>
+              <option value="">Sem vínculo, só tirar do orçamento</option>
+              <option value="new" data-expense-only>Criar investimento com este lançamento</option>
+              ${(state.plan.investments || []).length ? `<optgroup label="Atualizar o saldo de">${state.plan.investments.map(investment => `<option value="${escapeHtml(investment.id)}">${escapeHtml(investment.name)}</option>`).join('')}</optgroup>` : ''}
+            </select></span>
+            <small>O saldo é o último saldo informado mais as aplicações e menos os resgates vinculados depois dele, em qualquer ordem. O investimento novo aparece na Carteira para você completar classe, liquidez e retorno. Remover a classificação, alterar o valor ou excluir o lançamento recalcula o saldo.</small>
           </label>
           <label class="form-field">
             <span class="form-field__label">Categoria</span>
@@ -328,6 +341,25 @@ function statementMappingField(review, field) {
   `
 }
 
+export const ownTransferChoice = '__own-transfer'
+export const investmentChoice = '__investment'
+const ownTransferLabel = 'Transferência entre contas próprias ou do casal'
+const isOwnTransfer = item => Boolean(item.transferMatch || item.transferPending || item.transferDecision === 'own')
+
+function statementInvestmentTarget(row) {
+  const target = row.item.statementInvestmentTarget || ''
+  const investments = state.plan.investments || []
+  return `
+        <label class="statement-investment-target"><small>Na Carteira</small>
+          <select data-statement-investment-target="${row.rowNumber}" aria-label="Investimento da linha ${row.rowNumber}">
+            <option value="" ${!target ? 'selected' : ''}>Só registrar, sem alterar a Carteira</option>
+            ${row.item.type === 'expense' ? `<option value="new" ${target === 'new' ? 'selected' : ''}>Criar investimento para completar depois</option>` : ''}
+            ${investments.length ? `<optgroup label="Atualizar o saldo de">${investments.map(investment => `<option value="${escapeHtml(investment.id)}" ${target === investment.id ? 'selected' : ''}>${escapeHtml(investment.name)}</option>`).join('')}</optgroup>` : ''}
+          </select>
+        </label>
+        <small>${target === 'new' ? 'O investimento entra na Carteira com este valor. Classe, liquidez e retorno ficam para você completar.' : target ? `${row.item.type === 'expense' ? 'Soma ao' : 'Subtrai do'} saldo, se o movimento for posterior ao último saldo informado manualmente ou por extrato de saldo.` : 'O movimento fica registrado fora do orçamento. Você pode vinculá-lo a um investimento ao reimportar.'}</small>`
+}
+
 function statementReviewRow(row) {
   if (!row.item) {
     return `
@@ -340,25 +372,30 @@ function statementReviewRow(row) {
   }
   const category = categoryById(row.item.categoryId, state.customCategories)
   const classification = row.classification
-  const label = row.item.transferPending ? 'Transferência própria a conciliar, somente tarifa entra no orçamento' : row.item.transferMatch ? 'Transferência conciliada, somente tarifa entra no orçamento' : row.internalTransfer ? 'Não compõe o orçamento' : classification?.needsReview ? 'Revisar categoria' : classification?.origin === 'confirmed' ? 'Confirmado' : classification?.origin === 'history' ? 'Aprendido com sua revisão' : classification?.origin === 'file' ? 'Do arquivo' : 'Confiança alta'
+  const label = row.internalTransfer ? (row.selected ? 'Aplicação ou resgate, fora do orçamento' : 'Aplicação ou resgate detectado. Marque a linha para importar.') : row.item.transferPending ? 'Transferência própria a conciliar, somente tarifa entra no orçamento' : row.item.transferMatch ? 'Transferência conciliada, somente tarifa entra no orçamento' : row.item.transferDecision === 'own' ? 'Transferência confirmada, fora do orçamento' : classification?.needsReview ? 'Revisar categoria' : classification?.origin === 'confirmed' ? 'Confirmado' : classification?.origin === 'history' ? 'Aprendido com sua revisão' : classification?.origin === 'file' ? 'Do arquivo' : 'Confiança alta'
   const duplicateLabel = row.duplicateSource === 'existing'
     ? 'Já está nos lançamentos'
     : row.duplicateSource === 'file' ? 'Repetido no arquivo' : ''
   return `
     <li class="statement-review-row ${row.duplicate ? 'is-duplicate' : ''}">
-      <input type="checkbox" data-statement-row="${row.rowNumber}" ${row.selected ? 'checked' : ''} ${row.duplicate || row.internalTransfer ? 'disabled' : ''} aria-label="Importar linha ${row.rowNumber}" />
+      <input type="checkbox" data-statement-row="${row.rowNumber}" ${row.selected ? 'checked' : ''} ${row.duplicate ? 'disabled' : ''} aria-label="Importar linha ${row.rowNumber}" />
       <div class="statement-review-row__identity">
         <strong>${escapeHtml(row.item.description)}</strong>
         <span>${row.item.startDate}${row.fileName ? ` · ${escapeHtml(row.fileName)}` : ''} · ${row.internalTransfer ? 'Investimento' : row.item.type === 'income' ? 'Receita' : 'Despesa'}</span>
-        <select data-statement-category="${row.rowNumber}" aria-label="Categoria da linha ${row.rowNumber}" ${row.duplicate || row.internalTransfer ? 'disabled' : ''}>
-          ${categoriesForType(row.item.type, state.customCategories).map(option => `<option value="${escapeHtml(option.id)}" ${option.id === category?.id ? 'selected' : ''}>${escapeHtml(option.name)}</option>`).join('')}
+        <select data-statement-category="${row.rowNumber}" aria-label="Categoria da linha ${row.rowNumber}" ${row.duplicate || (row.internalTransfer && !row.investmentMarked) ? 'disabled' : ''}>
+          <option value="${ownTransferChoice}" ${!row.internalTransfer && isOwnTransfer(row.item) ? 'selected' : ''}>${ownTransferLabel}</option>
+          <option value="${investmentChoice}" ${row.internalTransfer ? 'selected' : ''}>Investimento: aplicação ou resgate</option>
+          <optgroup label="${row.item.type === 'income' ? 'Receitas' : 'Despesas'}">
+          ${categoriesForType(row.item.type, state.customCategories).map(option => `<option value="${escapeHtml(option.id)}" ${!row.internalTransfer && !isOwnTransfer(row.item) && option.id === category?.id ? 'selected' : ''}>${escapeHtml(option.name)}</option>`).join('')}
+          </optgroup>
         </select>
         <small title="${escapeHtml(classification?.reason || '')}">${escapeHtml(label)}</small>
+        ${row.internalTransfer && !row.duplicate ? statementInvestmentTarget(row) : ''}
         ${ignoresCreditCardPayment(row.item) ? '<small data-credit-card-payment>Pagamento de cartão detectado. Será ignorado nas despesas. Você pode alterar essa opção após importar.</small>' : ''}
         ${classification?.matchedDescription ? `<small data-statement-similar-description>Categoria do lançamento semelhante: ${escapeHtml(classification.matchedDescription)}</small>` : ''}
       </div>
       <strong class="money-value">${privateCurrency(row.item.amount, state.valuesHidden, true, row.item.currency)}</strong>
-      <span class="statement-row-status">${duplicateLabel || (row.item.transferPending ? 'Transferência a conciliar' : row.item.transferMatch ? 'Transferência própria' : row.internalTransfer ? 'Aplicação/resgate' : row.updateTargetId ? 'Atualizar existente' : 'Novo lançamento')}</span>
+      <span class="statement-row-status">${duplicateLabel || (row.item.transferPending ? 'Transferência a conciliar' : row.item.transferMatch || row.item.transferDecision === 'own' ? 'Transferência própria' : row.internalTransfer ? 'Aplicação/resgate' : row.updateTargetId ? 'Atualizar existente' : 'Novo lançamento')}</span>
     </li>
   `
 }
@@ -368,7 +405,7 @@ export function statementImportBlockReason(review) {
   if (review.mappingErrors.length) return review.mappingErrors.join(' ')
   if (review.overLimit) return `Você selecionou ${review.newCount ?? review.selectedCount} novos lançamentos, mas há espaço para ${review.availableSlots}. Desmarque ${(review.newCount ?? review.selectedCount) - review.availableSlots} linhas na prévia para importar.`
   if (review.selectedCount > 0 || review.investmentUpdateCount > 0) return ''
-  if (review.internalTransferCount && review.rows.every(row => row.internalTransfer || row.duplicate)) return 'Aplicações e resgates não compõem receitas e despesas. Nenhum lançamento de orçamento para importar.'
+  if (review.internalTransferCount && review.rows.every(row => row.internalTransfer || row.duplicate)) return 'Aplicações e resgates não compõem receitas e despesas. Marque as linhas que deseja importar e escolha o investimento na Carteira.'
   if (review.invalidCount) return review.rows.find(row => row.error)?.error || review.errors.find(error => error.startsWith('Linha')) || 'Nenhum lançamento válido. Corrija as colunas ou restaure o mapeamento detectado.'
   if (review.duplicateCount && review.rows.every(row => row.duplicate)) return `Todos os ${review.duplicateCount} lançamentos já constam no orçamento ou se repetem no arquivo. Nenhum lançamento novo para importar.`
   return 'Nenhum lançamento selecionado. Marque pelo menos uma linha válida na prévia.'
@@ -407,9 +444,9 @@ export function statementReviewDialog(review) {
           <p class="statement-mapping-status" role="status">${blockReason ? escapeHtml(blockReason) : `Prévia atualizada: ${review.rows.filter(row => row.item).length} lançamentos válidos e ${review.invalidCount} inválidos.`}</p>
         </details>
 
-        ${review.files?.some(file => file.inspection.format) ? `<p class="statement-review-privacy">Formato detectado: ${[...new Set(review.files.map(file => file.inspection.format === 'bvk' ? 'BVK (CHF)' : file.inspection.format === 'bb' ? 'Banco do Brasil (BRL)' : file.inspection.format === 'tkb' ? 'TKB' : file.inspection.format === 'yuh' ? 'Yuh' : file.inspection.format === 'ourocard' ? 'Fatura Ourocard (BRL)' : 'Texto/OFX'))].join(' · ')}.</p>` : ''}
+        ${review.files?.some(file => file.inspection.format) ? `<p class="statement-review-privacy">Formato detectado: ${[...new Set(review.files.map(file => file.inspection.format === 'bvk' ? 'BVK (CHF)' : file.inspection.format === 'bb' ? 'Banco do Brasil (BRL)' : file.inspection.format === 'tkb' ? 'TKB' : file.inspection.format === 'yuh' ? 'Yuh' : file.inspection.format === 'ourocard' ? 'Fatura Ourocard (BRL)' : file.inspection.format === 'n26' ? 'N26 (EUR)' : 'Texto/OFX'))].join(' · ')}.</p>` : ''}
         ${review.files?.some(file => file.inspection.format === 'ourocard') ? '<p class="statement-review-privacy">Fatura Ourocard: compras e créditos são importados em BRL. Saldo anterior e pagamentos da fatura ficam fora do orçamento. Compras parceladas usam apenas a parcela desta fatura, no vencimento. Parcelas futuras não são criadas.</p>' : ''}
-        ${review.internalTransferCount ? '<p class="statement-review-privacy">Aplicações e resgates de investimentos ficam fora do orçamento e continuam disponíveis na conciliação em Contas.</p>' : ''}
+        <p class="statement-review-privacy">Para indicar um investimento, escolha Investimento: aplicação ou resgate na categoria da linha. ${review.internalTransferCount ? 'Aplicações e resgates ficam fora do orçamento. Marque os que deseja importar e escolha, em Na Carteira, o investimento a atualizar ou crie um novo para completar os detalhes depois.' : ''}</p>
         ${renderStatementInvestmentReview(review.investmentBalanceRows, state)}
         <section class="statement-preview" aria-labelledby="statement-preview-title">
           <div class="statement-preview__header">
@@ -668,14 +705,14 @@ function budgetImportTools() {
   return `
 
         <details class="panel disclosure statement-import">
-          <summary>Importar até 12 extratos CSV, TXT, OFX ou PDF TKB/BB/Yuh/Ourocard</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
+          <summary>Importar até 12 extratos CSV, TXT, OFX ou PDF TKB/BB/Yuh/N26/Ourocard</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
           <p>Os arquivos são lidos e classificados neste navegador. Selecione até 12 extratos ou faturas de uma só vez. As compras são classificadas automaticamente pela descrição e pelas categorias que você confirmou. Confira as sugestões na prévia. Reimportar a mesma fatura atualiza os lançamentos sem duplicá-los e preserva suas categorias confirmadas.</p>
           <code>data;descricao;valor;moeda;categoria;tipo</code>
           <label class="statement-file">
             <span>Selecionar até 12 extratos</span>
             <input type="file" accept=".txt,.csv,.ofx,.pdf,text/plain,text/csv,application/x-ofx,application/pdf" multiple data-statement-file />
           </label>
-          <small>PDF: extratos Banco do Brasil, TKB e Yuh, e faturas Ourocard em BRL são detectados automaticamente. Até 12 arquivos, com 1 MB e 2.000 movimentos por arquivo. Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Nenhuma linha é adicionada antes da sua confirmação.</small>
+          <small>PDF: extratos Banco do Brasil, TKB, Yuh e N26, e faturas Ourocard em BRL são detectados automaticamente. CSV da N26 é reconhecido em EUR. Até 12 arquivos, com 1 MB e 2.000 movimentos por arquivo. Datas aceitas: AAAA-MM-DD ou DD/MM/AAAA. Débitos podem usar valor negativo. Nenhuma linha é adicionada antes da sua confirmação.</small>
           <div class="open-finance-roadmap">
             <strong>Open Finance</strong>
             <span>Conexão direta planejada. Ela exigirá consentimento explícito e uma instituição receptora participante.</span>
@@ -726,13 +763,14 @@ export function renderBudgetEntries(statementReview = null) {
     const source = item.consortiumId ? 'consortium' : item.annualGoalId ? 'annualGoals' : item.commitmentId ? 'commitments' : 'item'
     const id = item.consortiumId || item.annualGoalId || item.commitmentId || item.id
     return `<li><div class="pressure-rank-heading"><div><button type="button" class="budget-category-entry-link" data-edit-budget-category="${source}" data-category-item-id="${escapeHtml(id)}" data-category-entry-month="${escapeHtml(item.month)}">${escapeHtml(item.description)}</button><span>${escapeHtml(item.category)}</span></div><strong class="money-value">${privateCurrency(item.amount, false, true, state.currency)}</strong></div><small>${formatPercent(item.amount / result.planned.expenses)} das saídas previstas</small></li>`
-  }).join('')}</ol>` : '<p>Nenhuma despesa planejada para este mês.</p>'}<button type="button" class="budget-category-entry-link" data-show-budget-expense-pies>Ver todas as despesas por categoria</button><p><a href="/fluxo-caixa?aba=anual" data-route>Ver impacto no patrimônio</a></p></details>`
+  }).join('')}</ol>` : '<p>Nenhuma despesa planejada para este mês.</p>'}<button type="button" class="budget-category-entry-link" data-show-budget-expense-pies>Ver todas as despesas por categoria</button><button type="button" class="budget-category-entry-link" data-show-budget-year-to-date>Ver acumulado do ano por categoria</button><p><a href="/fluxo-caixa?aba=anual" data-route>Ver impacto no patrimônio</a></p></details>`
   const options = (values, selected) => Object.entries(values).map(([value, label]) => `<option value="${value}" ${selected === value ? 'selected' : ''}>${label}</option>`).join('')
   return `<section class="page-heading page-heading--inner budget-heading"><div><p class="eyebrow">ORÇAMENTO</p><h1>Orçamento mensal</h1><p>Cadastre o previsto e acompanhe o realizado no mês selecionado.</p><a href="/fluxo-caixa?aba=anual" data-route>Ver impacto no patrimônio ${icon('arrowRight', 16)}</a></div><div class="budget-page-actions"><button class="button button--primary" type="button" data-new-cash-item ${state.cashFlow.items.length >= cashFlowItemLimit ? 'disabled' : ''}>${icon('plus', 18)} Adicionar lançamento</button><button class="button button--secondary" type="button" data-new-expense-category>${icon('plus', 18)} Nova categoria de despesa</button><button class="button button--secondary" type="button" data-open-budget-import>${icon('document', 18)} Importar extrato</button><button class="button button--secondary" type="button" data-open-budget-transfers>${icon('transfer', 18)} Transferências</button>${state.cashFlow.items.length >= cashFlowItemLimit ? '<p class="budget-capacity">Limite de 10.000 registros atingido. Edite os registros existentes ou exclua os desnecessários.</p>' : ''}</div></section>
     ${renderMonthNavigation(state.cashFlow.referenceMonth, { label: 'Mês do orçamento' })}
 
     ${renderTabbedPanels('orcamento', [
       { key: 'resumo', label: 'Resumo do mês', html: `<div class="budget-summary-layout">${renderBudgetMonthSummary()}${renderMonthTracking(state, { showMonthSelector: false })}</div>${pressure}${!state.valuesHidden && result.excluded.undated.length ? `<section class="panel settings-card"><p>Há lançamentos eventuais sem data, fora dos totais.</p><ul>${result.excluded.undated.map(item => `<li><button type="button" class="budget-category-entry-link" data-edit-cash-item="${escapeHtml(item.id)}">Informar data de ${escapeHtml(item.description || item.category.name)}</button></li>`).join('')}</ul></section>` : ''}` },
+      { key: 'acumulado', label: 'Acumulado do ano', html: renderBudgetYearToDate(state) },
       { key: 'categorias', label: 'Categorias', html: renderBudgetCategories(state) },
       { key: 'lancamentos', label: 'Lançamentos', html: `<section class="panel budget-workspace" aria-labelledby="cash-items-title">
       <form class="budget-filters" data-budget-filters role="search" aria-label="Filtrar lançamentos">
@@ -751,7 +789,7 @@ export function renderBudgetEntries(statementReview = null) {
       { key: 'visao', label: 'Ano do orçamento', html: renderBudgetOverview(state) }
     ], { label: 'Visões do orçamento' })}
     <details class="panel disclosure"><summary>Como a previdência entra no orçamento</summary><label class="form-field"><span>Pagamento da previdência</span><select data-budget-pension-mode ${state.valuesHidden ? 'disabled' : ''}><option value="external" ${state.plan.finappMethod?.pensionMode !== 'cash-funded' ? 'selected' : ''}>Desconto em folha ou aporte externo</option><option value="cash-funded" ${state.plan.finappMethod?.pensionMode === 'cash-funded' ? 'selected' : ''}>Pagamento com o orçamento</option></select></label><p>Use desconto em folha quando a receita cadastrada já é o salário líquido. Esses aportes ficam fora das despesas, categorias, gráficos e saldo do orçamento. O cadastro permanece disponível para edição e acompanhamento previdenciário. Esta configuração também vale para as projeções.</p></details>
-    <details class="panel disclosure" data-budget-tool="transferencias" ${typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('aba') === 'transferencias' ? 'open' : ''}><summary>Transferências entre minhas contas</summary>${renderOwnTransfers(state)}</details>
+    <details class="panel disclosure" data-budget-tool="transferencias" ${typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('aba') === 'transferencias' ? 'open' : ''}><summary>Transferências entre contas próprias ou do casal</summary>${renderOwnTransfers(state)}</details>
     <details class="panel disclosure" data-budget-tool="importar" ${typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('aba') === 'importar' ? 'open' : ''}><summary>Importar e exportar lançamentos</summary>${budgetImportTools()}</details>
     ${newCashItemDialog()}
     ${newExpenseCategoryDialog()}

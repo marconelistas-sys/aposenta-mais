@@ -513,7 +513,7 @@ try {
   assert.equal(await page.locator('[data-page-tab="orcamento:resumo"]').getAttribute('aria-selected'), 'true')
   assert.equal(await page.locator('.cash-month-summary').count(), 1)
   assert.equal(await page.locator('.month-tracking').count(), 1)
-  assert.equal(await page.locator('[data-page-tab^="orcamento:"]').count(), 4)
+  assert.equal(await page.locator('[data-page-tab^="orcamento:"]').count(), 5)
   const summary = page.locator('.cash-month-summary')
   assert.match(await summary.locator('[data-cash-summary-actual="income"] dd').innerText(), /1.000/)
   assert.match(await summary.locator('[data-cash-summary-actual="expenses"] dd').innerText(), /125/)
@@ -823,7 +823,7 @@ try {
   const travelAnnualQuota = page.locator('[data-budget-annual-quota-category="travel"]')
   assert.match(await travelAnnualQuota.innerText(), /700,00/)
   await travelAnnualQuota.locator('header button').click()
-  assert.equal(await page.locator('[data-category-item-id="annual-travel-plan"]').isVisible(), true)
+  assert.equal(await page.locator('[data-page-tab-panel="orcamento:categorias"] [data-category-item-id="annual-travel-plan"]').isVisible(), true)
   assert.match(await travelAnnualQuota.innerText(), /dezembro de 2026/)
   for (const width of [320, 1440]) {
     await page.setViewportSize({ width, height: 950 })

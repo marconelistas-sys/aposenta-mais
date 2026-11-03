@@ -40,3 +40,27 @@ export function analyzeStatementPlanning(items, { start, end, currency, asOf = n
       .map(g => ({ description: g.description, type: g.type, monthly: g.total / months.length, months: g.months.size }))
       .sort((a, b) => b.monthly - a.monthly).slice(0, 8) }
 }
+
+// Coverage comes from each file: the period printed in the statement, or else
+// the calendar months of its transactions. Only complete past months count.
+export function inferStatementCoverage(files, { asOf = new Date().toISOString().slice(0, 10) } = {}) {
+  const monthKey = date => date.slice(0, 7)
+  const nextMonth = month => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 1)).toISOString().slice(0, 7)
+  const lastDay = month => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)).toISOString().slice(0, 10)
+  const covered = new Set()
+  for (const { period, dates } of files) {
+    const sorted = dates.filter(Boolean).sort()
+    const start = period?.start || (sorted.length ? `${monthKey(sorted[0])}-01` : '')
+    const end = period?.end || (sorted.length ? lastDay(monthKey(sorted.at(-1))) : '')
+    if (!start || !end) continue
+    for (let month = monthKey(start); month <= monthKey(end); month = nextMonth(month)) {
+      if (`${month}-01` >= start && lastDay(month) <= end && lastDay(month) < asOf) covered.add(month)
+    }
+  }
+  const months = [...covered].sort()
+  if (months.length < 2) throw new Error('Use pelo menos dois meses completos. Meses parciais não entram na comparação. Selecione vários extratos mensais de uma vez.')
+  const missing = []
+  for (let month = months[0]; month < months.at(-1); month = nextMonth(month)) if (!covered.has(month)) missing.push(month)
+  if (missing.length) throw new Error(`Faltam extratos de ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? ' e outros meses' : ''}. Selecione extratos de meses consecutivos.`)
+  return { start: `${months[0]}-01`, end: lastDay(months.at(-1)), months: months.length }
+}

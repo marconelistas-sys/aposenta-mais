@@ -176,7 +176,7 @@ test('resumo sem planejamento não anuncia equilíbrio e projeção não repete 
   assert.doesNotMatch(budget, /Orçamento equilibrado/)
   assert.equal((budget.match(/class="panel settings-card cash-month-summary"/g) || []).length, 1)
   assert.equal((budget.match(/aria-label="Acompanhamento do mês"/g) || []).length, 1)
-  assert.equal((budget.match(/data-page-tab="orcamento:/g) || []).length, 4)
+  assert.equal((budget.match(/data-page-tab="orcamento:/g) || []).length, 5)
   const projection = renderCashFlow()
   assert.doesNotMatch(projection, /cash-month-summary|month-tracking|data-cash-summary-actual/)
   assert.match(projection, /Projeção patrimonial/)

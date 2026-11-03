@@ -93,11 +93,14 @@ test('lançamento sem palavras de transferência e sem conta identificada pode s
   const state = { cashFlow: { items: [original], ownStatementAccounts: [] }, valuesHidden: false }
   const html = renderOwnTransfers(state)
   assert.match(html, /name="decision:unknown"/)
-  assert.match(html, /Transferência entre minhas contas/)
+  assert.match(html, /Transferência entre contas próprias ou do casal/)
   const confirmed = sanitizeCashFlow({ items: [{ ...original, transferDecision: 'own' }] }, 'CHF').items[0]
   assert.equal(confirmed.amount, 100)
   assert.equal(transferBudgetAmount(confirmed), 0)
   assert.equal(mergeStatementItem(confirmed, original).transferDecision, 'own')
+  // A decision made in the import review replaces the stored one.
+  assert.equal(mergeStatementItem(confirmed, { ...original, transferDecision: 'payment' }).transferDecision, 'payment')
+  assert.equal(mergeStatementItem({ ...original, transferDecision: 'payment' }, { ...original, transferDecision: 'own' }).transferDecision, 'own')
   const reverted = sanitizeCashFlow({ items: [{ ...confirmed, transferDecision: 'payment' }] }, 'CHF').items[0]
   assert.equal(transferBudgetAmount(reverted), 100)
 })
