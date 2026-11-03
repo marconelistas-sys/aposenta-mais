@@ -310,12 +310,24 @@
 .budget-ytd-card { cursor: default; display: grid; align-content: start; gap: 14px; }
 .budget-ytd-card:hover { border-color: var(--color-border); }
 .budget-ytd-card h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.budget-ytd-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
 .budget-ytd-card dl { margin: 0; }
-.budget-ytd-card dl > div:last-child dd { color: inherit; }
-.budget-overview-card.budget-ytd-card small { display: block; margin-top: 2px; color: var(--color-ink-muted); font-size: 12px; font-weight: 400; letter-spacing: 0; }
+/* O tom (favorável/desfavorável) chega por variável herdada, não por especificidade.
+   A segunda regra também anula o azul de marca que .budget-overview-card aplica à
+   última linha do card mensal; aqui a última linha é um valor comum ou a Diferença. */
+.budget-ytd-card :where(.is-favorable) { --budget-ytd-tone: var(--color-green); }
+.budget-ytd-card :where(.is-unfavorable) { --budget-ytd-tone: var(--color-danger); }
+.budget-ytd-card dd, .budget-ytd-card dl > div:last-child dd { color: var(--budget-ytd-tone, inherit); }
+.budget-overview-card.budget-ytd-card small { display: block; margin-top: 2px; color: var(--budget-ytd-tone, var(--color-ink-muted)); font-size: 12px; font-weight: 400; letter-spacing: 0; }
 .budget-ytd-card dd { text-align: right; }
-.budget-ytd-card dd.is-unfavorable, .budget-ytd-card dd.is-unfavorable small { color: var(--color-danger); }
-.budget-ytd-card dd.is-favorable, .budget-ytd-card dd.is-favorable small { color: var(--color-green); }
+.budget-ytd-card dd:where(.is-favorable, .is-unfavorable) { font-weight: 650; }
+/* Card Saldo: o estado do acumulado (superávit/déficit) colore a borda, uma faixa
+   superior e o fundo suave. O selo com ícone e texto repete a informação sem cor. */
+.budget-ytd-card--balance[data-budget-ytd-balance] { --budget-ytd-accent: var(--color-border-strong); border-color: var(--budget-ytd-accent); box-shadow: inset 0 3px 0 var(--budget-ytd-accent); }
+.budget-ytd-card--balance[data-budget-ytd-balance="surplus"] { --budget-ytd-accent: var(--color-green); background: var(--color-green-soft); }
+.budget-ytd-card--balance[data-budget-ytd-balance="deficit"] { --budget-ytd-accent: var(--color-danger); background: var(--color-danger-soft); }
+.budget-ytd-card--balance[data-budget-ytd-balance]:hover { border-color: var(--budget-ytd-accent); }
+.budget-ytd-card .budget-ytd-balance-value { font-size: clamp(16px, 1.7vw, 22px); }
 .budget-ytd-meter { display: grid; gap: 6px; }
 .budget-ytd-meter-label { display: flex; justify-content: space-between; gap: 12px; margin: 0; color: var(--color-ink-muted); font-size: 12px; }
 .budget-ytd-meter-label strong { color: var(--color-ink); font-variant-numeric: tabular-nums; }
