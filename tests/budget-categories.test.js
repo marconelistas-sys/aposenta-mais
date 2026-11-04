@@ -45,8 +45,8 @@ test('totais anuais conciliam com categorias, rateio, câmbio e exclusão de inv
   assert.equal(result.categories.reduce((sum, row) => sum + row.actual, 0), 200)
   assert.ok(result.categories.find(row => row.categoryId === 'custom').planned > 1200)
   assert.equal(result.actualMonths, 1)
-  budgetCategoriesView.month = 'all'
-  assert.match(renderBudgetCategories(state), /despesas realizadas em 1 de 12 meses/)
+  budgetCategoriesView.period = 'year'
+  assert.match(renderBudgetCategories(state, { today: new Date('2027-02-01T12:00:00Z') }), /Realizados lançados em 1 de 12 meses\./)
 })
 
 test('respeita meses ativos e deixa explícitos dados ausentes e períodos vazios', () => {
@@ -55,32 +55,36 @@ test('respeita meses ativos e deixa explícitos dados ausentes e períodos vazio
   const result = budgetExpenseCategories(buildBudgetYear(state, 2026).months[7])
   assert.equal(result.categories.find(row => row.categoryId === 'groceries').unplanned, true)
   const html = renderBudgetCategories(state)
-  assert.match(html, /Sem planejamento/)
-  assert.match(html, /Sem realizado/)
-  assert.match(html, /Não calculado/)
+  assert.match(html, /category-row__tag">sem planejado/)
+  assert.match(html, /Nada lançado/)
+  assert.match(html, /<span aria-hidden="true">—<\/span><span class="sr-only">sem comparação<\/span>/)
+  assert.doesNotMatch(html, /Sem planejamento|Sem realizado|Não calculado|Sem registros|Variação|Ver lançamentos/)
   state.cashFlow.items = []
-  assert.match(renderBudgetCategories(state), /Nenhuma despesa planejada ou realizada/)
+  assert.match(renderBudgetCategories(state), /Agosto de 2026 não tem despesas planejadas nem realizadas\./)
 })
 
-test('oculta categorias, detalhes, totais e barras no modo privado e escapa descrições', () => {
+test('modo privado: nomes visíveis, valores mascarados, sem barras nem ações; descrições escapadas', () => {
   const state = fixture()
   state.cashFlow.items[1].description = '<img src=x onerror=alert(1)>'
   assert.match(renderBudgetCategories(state), /&lt;img src=x/)
   const hidden = renderBudgetCategories({ ...state, valuesHidden: true })
-  assert.match(hidden, /Valores ocultos/)
-  assert.doesNotMatch(hidden, /<table|width:|food-planned|Mercado e alimentação|img src|data-plan-budget-category/)
+  assert.match(hidden, /Valores ocultos\./)
+  assert.match(hidden, /data-budget-categories-show-values/)
+  assert.match(hidden, /Mercado e alimentação/)
+  assert.match(hidden, /&lt;img src=x/)
+  assert.doesNotMatch(hidden, /<img|width:|category-bar|data-plan-budget-category|data-edit-budget-category|\d+,\d{2}|\d%|data-tone="unfavorable"/)
 })
 
-test('ordena por maior excesso por padrão e limpa seleção ao trocar a sessão', () => {
+test('ordena por maior diferença por padrão e limpa a seleção ao trocar a sessão', () => {
   assert.equal(budgetCategoriesView.sort, 'difference')
   const state = fixture()
   state.cashFlow.items[1].amount = 180
   const html = renderBudgetCategories(state)
-  assert.match(html, /value="difference" selected>Maior excesso/ )
-  const table = html.split('<tbody>')[1]
-  assert.ok(table.indexOf('Mercado e alimentação') < table.indexOf('Compras'))
-  assert.ok(table.indexOf('Compras') < table.indexOf('Moradia'))
-  Object.assign(budgetCategoriesView, { year: 2020, month: 'all', sort: 'planned' })
+  assert.match(html, /value="difference" selected>Maior diferença/)
+  const list = html.split('category-list__head')[1]
+  assert.ok(list.indexOf('Mercado e alimentação') < list.indexOf('Compras'))
+  assert.ok(list.indexOf('Compras') < list.indexOf('Moradia'))
+  Object.assign(budgetCategoriesView, { period: 'year', sort: 'planned' })
   resetBudgetEntriesView()
-  assert.deepEqual(budgetCategoriesView, { year: null, month: null, sort: 'difference' })
+  assert.deepEqual(budgetCategoriesView, { period: 'month', sort: 'difference' })
 })

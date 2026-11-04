@@ -4,7 +4,6 @@ import { bindPensionImport } from './features/investments/pension-import.js'
 import { importPensionBalance } from './app/state.js'
 import { linkCreditCardPayments } from './domain/credit-card-payments.js'
 import { normalizePlanningHref } from './app/planning-routes.js'
-import { bindBudgetExpensePies, updateBudgetExpensePieDetail, renderBudgetExpensePies } from './shared/budget-expense-pies.js'
 import { bindAssetAllocation } from './shared/asset-allocation.js'
 import { renderMonthlyBudgetComposition } from './features/cash-flow/monthly-budget-detail.js'
 import { bindSelectOptions, enhanceSelectOptions } from './shared/select-options.js'
@@ -14,7 +13,7 @@ import { bindRequestProgress, withRequestProgress } from './app/request-progress
 import { reconcileOwnTransfers } from './domain/own-transfers.js'
 import { saveOwnTransferSettings } from './app/state.js'
 import { bindBudgetOverviewInteractions, budgetOverviewView } from './features/cash-flow/budget-overview.js'
-import { bindBudgetCategoriesInteractions, budgetCategoriesView, budgetCategoryPieData } from './features/cash-flow/budget-categories.js'
+import { bindBudgetCategoriesInteractions, budgetCategoriesView } from './features/cash-flow/budget-categories.js'
 import { bindBudgetYearToDateInteractions } from './features/cash-flow/budget-year-to-date.js'
 import { reviewStatementBatch, statementBatchLimit } from './domain/statement-batch.js'
 import { suggestStatementInvestment, newInvestmentTarget } from './domain/statement-investment-movements.js'
@@ -170,16 +169,6 @@ bindPensionImport(document, {
   getState: () => state,
   save: importPensionBalance,
   onSaved: () => { recordDataOperation('correction'); render(); showToast('Saldo de previdência atualizado no patrimônio.') }
-})
-const expensePieContexts = new WeakMap()
-bindBudgetExpensePies(document, section => {
-  if (state.valuesHidden || !app.contains(section)) return
-  let context = expensePieContexts.get(section)
-  if (!context) {
-    context = budgetCategoryPieData(state)
-    expensePieContexts.set(section, context)
-  }
-  updateBudgetExpensePieDetail(section, renderBudgetExpensePies(context.categories, state, context.periodLabel, context))
 })
 const app = document.querySelector('#app')
 const defaultDocumentTitle = document.title
@@ -700,13 +689,18 @@ function refreshBudgetResults() {
   updateBudgetEntryResults(app)
 }
 
+// Every enclosing <details>, so a group inside Outras despesas stays visible.
+function openAncestors(node) {
+  for (let details = node.closest('details'); details; details = details.parentElement?.closest('details')) details.open = true
+}
+
 function finishCategoryEntrySave(message, context) {
   render()
   const links = [...app.querySelectorAll('[data-edit-budget-category]')].filter(node => !node.closest('[data-page-tab-panel]')?.hidden)
   const matches = node => node.dataset.editBudgetCategory === context.source && node.dataset.categoryItemId === context.id
   const target = links.find(node => matches(node) && node.dataset.categoryEntryMonth === context.month) || links.find(matches)
   if (target) {
-    if (target.closest('details')) target.closest('details').open = true
+    openAncestors(target)
     target.focus({ preventScroll: true })
     target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   } else app.querySelector('[data-reference-month-navigation] [data-cash-flow-month]')?.focus({ preventScroll: true })
@@ -765,8 +759,6 @@ function updateBudgetReferenceMonth(month, focusSelector = '[data-reference-mont
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || month < '1900-01' || month > '2200-12') throw new RangeError('Selecione um mês entre 1900 e 2200.')
   setCashFlowReferenceMonth(month)
   budgetOverviewView.year = null
-  budgetCategoriesView.year = null
-  if (budgetCategoriesView.month !== 'all') budgetCategoriesView.month = null
   render()
   const control = app.querySelector(focusSelector)
   const target = control && !control.disabled ? control : app.querySelector('[data-reference-month-navigation] [data-cash-flow-month]')
@@ -864,13 +856,12 @@ document.addEventListener('click', async (event) => {
     return
   }
 
+  // "Ver gastos por categoria" (Lançamentos): the month, largest actual first.
   if (event.target.closest('[data-show-budget-expense-pies]')) {
-    budgetCategoriesView.year = null
-    budgetCategoriesView.month = null
+    Object.assign(budgetCategoriesView, { period: 'month', sort: 'actual' })
     render()
     selectPageTab(app, 'orcamento', 'categorias', { focus: false })
-    const heading = app.querySelector('#budget-expense-pies-title') || app.querySelector('[data-budget-categories] h2')
-    heading?.setAttribute('tabindex', '-1')
+    const heading = app.querySelector('#budget-categories-title')
     heading?.focus({ preventScroll: true })
     heading?.scrollIntoView({ block: 'start' })
     return
@@ -949,14 +940,15 @@ document.addEventListener('click', async (event) => {
   if (monthCategory) {
     const month = monthCategory.dataset.month
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month || '')) return
-    Object.assign(budgetCategoriesView, { year: Number(month.slice(0, 4)), month: month.slice(5, 7), sort: 'difference' })
+    // The month is the global one (already the checked month); one month, by difference.
+    if (month !== state.cashFlow.referenceMonth) setCashFlowReferenceMonth(month)
+    Object.assign(budgetCategoriesView, { period: 'month', sort: 'difference' })
     render()
     selectPageTab(app, 'orcamento', 'categorias', { focus: false })
     const id = monthCategory.dataset.openMonthCategory
     const details = id ? [...app.querySelectorAll('[data-budget-category-details]')].find(node => node.dataset.budgetCategoryDetails === id) : null
     if (details) details.open = true
-    const target = details?.querySelector('summary') || app.querySelector('[data-budget-categories] h2')
-    if (!details) target?.setAttribute('tabindex', '-1')
+    const target = details?.querySelector('summary') || app.querySelector('#budget-categories-title')
     target?.focus({ preventScroll: true })
     target?.scrollIntoView({ block: 'start' })
     return
@@ -1257,6 +1249,14 @@ document.addEventListener('click', async (event) => {
     toggleValues()
     render()
     showToast(state.valuesHidden ? 'Valores ocultos.' : 'Valores visíveis.')
+    return
+  }
+  // "Mostrar valores" inside Categorias: same toggle, then back to the tab title.
+  if (event.target.closest('[data-budget-categories-show-values]')) {
+    if (state.valuesHidden) toggleValues()
+    render()
+    app.querySelector('#budget-categories-title')?.focus({ preventScroll: true })
+    showToast('Valores visíveis.')
     return
   }
   // "Mostrar valores" inside Conferir o mês: same toggle, then back to the answer.
@@ -2576,7 +2576,7 @@ document.addEventListener('submit', async (event) => {
         render()
         const entry = [...app.querySelectorAll('[data-edit-budget-category="item"]')].filter(node => !node.closest('[data-page-tab-panel]')?.hidden).find(button => button.dataset.categoryItemId === id)
         if (entry) {
-          entry.closest('details').open = true
+          openAncestors(entry)
           entry.focus({ preventScroll: true })
         } else app.querySelector('[data-reference-month-navigation] [data-cash-flow-month]')?.focus({ preventScroll: true })
         showToast('Despesa planejada adicionada.')
@@ -2706,7 +2706,7 @@ window.addEventListener('popstate', () => {
 bindMonthlyHints(document)
 bindPageTabs(app)
 bindBudgetOverviewInteractions(app, () => state, updateBudgetReferenceMonth)
-bindBudgetCategoriesInteractions(app, () => state, updateBudgetReferenceMonth)
+bindBudgetCategoriesInteractions(app, () => state)
 bindBudgetYearToDateInteractions(app, () => state)
 document.addEventListener('input', event => {
   const group = event.target.closest?.('[data-target-dimension]')

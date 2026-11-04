@@ -101,8 +101,8 @@ try {
   // "›" opens Categorias on the checked month, sorted by difference, with the category open.
   await page.locator('[data-open-month-category="leisure"]').click()
   assert.match(page.url(), /\/orcamento\?aba=categorias$/)
-  assert.equal(await page.locator('[data-budget-category-control="month"]').inputValue(), '10')
-  assert.equal(await page.locator('[data-budget-category-control="year"]').inputValue(), '2026')
+  assert.equal(await page.locator('[data-budget-category-control="period"]').inputValue(), 'month')
+  assert.equal(await page.locator('#budget-reference-month').inputValue(), '2026-10')
   assert.equal(await page.locator('[data-budget-category-control="sort"]').inputValue(), 'difference')
   assert.equal(await page.locator('[data-budget-category-details="leisure"]').getAttribute('open'), '')
   await page.locator('[data-page-tab="orcamento:resumo"]').click()

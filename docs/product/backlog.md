@@ -1,12 +1,20 @@
 # Backlog inicial
 
+## Entrega: Despesas por categoria
+
+Planejada e implementada em 2026-11-04. Aba com 693 px a 1.440 (antes 5.277) e 1.094 px a 390 (antes 7.640); 1.113 testes e `npm run test:budget-categories-browser`. A aba Categorias do Orçamento deixa de repetir a análise que Conferir o mês (o mês) e o Panorama (o ano) já fazem e vira o livro das categorias: uma lista com Planejado, Realizado, Diferença e uma barra por categoria, um clique para ver os lançamentos (realizado primeiro, do maior para o menor) e editar. Saem os 2 gráficos de barras, as 2 pizzas, o bloco "Gastos acima do planejado" e 4 dos 6 controles de exibição. O mês vem do seletor global; um seletor "Período" oferece "Outubro", "Janeiro a outubro" (o caminho de volta do Acumulado do ano) e "Ano de 2026", com "Usado: N%" no ano em andamento. Com valores ocultos, nomes visíveis e valores mascarados. A análise de Outras despesas fica dentro da categoria, como "Sugestões pela descrição", sem pizzas. Sem matemática nova (`budgetExpenseCategories`, `budgetExpenseAccumulated`, `budgetAnnualQuota`, `otherExpenseAnalysis`). Metas: aba ≤ 2.000 px a 1.440 px (hoje 5.277) e ≤ 3.000 px a 390 px (hoje 7.640), primeira categoria na primeira tela, sem rolagem lateral, ≤ 5 paradas de Tab até a primeira categoria (hoje 57). RICE da lista nova 3,2. [Decisões e histórias](categorias.md). Avaliação de UX em [avaliacao-ux-categorias.md](avaliacao-ux-categorias.md).
+
+Pendências [validar]: remover os gráficos da aba; nomes visíveis com valores ocultos, em ordem alfabética; "Janeiro a outubro" como volta do Acumulado do ano (perguntar em 2026-11-18); "Usado: N%" no ano em andamento; receitas só na fase 2. Revisão no fechamento de novembro de 2026, junto com Conferir o mês. Os renderizadores antigos ficam sem uso por um ciclo.
+
+Depois: receitas na aba; "Lançar realizado" dentro da categoria; filtros, "Ver todos" e cabeçalho fixo para listas longas; ordenação "Maior uso" no ano em andamento; apagar `budget-expense-pies.js`, `budget-category-bars.js` e `budget-expense-overruns.js` (renderizadores) após a revisão.
+
 ## Entrega: Conferir o mês
 
 Planejada e implementada em 2026-11-04. Modelo em `src/domain/month-check.js`, tela em `src/features/cash-flow/month-check.js`. 1.103 testes aprovados (`tests/month-check.test.js`, `tests/month-check-view.test.js`), mais `npm run test:month-check-browser` e `npm run test:budget-browser`. A 390 × 844 px, a frase principal fica a 661 px do topo (meta < 844) e a aba mede 1.514 px (meta ≤ 2.000, antes 3.025). Com a aba aberta, ficam 2 frases sem dado (antes 14) e 4 detalhes (antes 6). A aba "Conferir o mês" do Orçamento passa a responder, sem sair dela, se o mês ficou dentro do planejado, quais categorias explicam a diferença e o que ainda falta lançar. Ordem fixa no desktop e no celular: frase do mês, quadro Planejado × Realizado × Diferença (Receitas, Despesas, Sobra), "Onde passou do planejado" (fecha ao centavo com o quadro), "Ainda sem realizado" (com "Lançar realizado" e eventuais sem data) e rodapé com "Conta N realizados, o último em DD/MM". Saem os totais repetidos, os avisos genéricos e 2 dos 3 detalhes da aba. Sem matemática nova (`buildMonthlyBudget`, `budgetExpenseCategories`, `budgetExpenseOverruns` com limite 0). RICE 1,9. [Decisões e histórias](conferir-mes.md). Avaliação de UX em [avaliacao-ux-conferir-mes.md](avaliacao-ux-conferir-mes.md).
 
 Pendências [validar]: "Sobra/Falta" só nesta aba; centavos em toda a aba; nomes visíveis com valores ocultos, como no Panorama; T1 a T4 na tela atual em 2026-11-18. Revisão no fechamento de novembro de 2026.
 
-Depois: fase 2 do Orçamento (menu "Mais" no cabeçalho, detalhe da previdência em Lançamentos, Transferências e Importar só quando acionados, sombra de rolagem na barra de abas), RICE 2,5; seletor de mês em inglês ("October 2026"); aba Categorias com nomes visíveis quando os valores estão ocultos.
+Depois: fase 2 do Orçamento (menu "Mais" no cabeçalho, detalhe da previdência em Lançamentos, Transferências e Importar só quando acionados, sombra de rolagem na barra de abas), RICE 2,5; seletor de mês em inglês ("October 2026"). (A aba Categorias com nomes visíveis quando os valores estão ocultos entrou na entrega "Despesas por categoria".)
 
 ## Entrega: Panorama financeiro e Orçamento para lançar
 
