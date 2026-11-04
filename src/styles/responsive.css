@@ -1111,3 +1111,9 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
 .request-progress-bar::after { content: ''; display: block; width: 35%; height: 100%; background: var(--color-brand); animation: page-loading-progress 1.2s ease-in-out infinite; }
 @keyframes page-loading-progress { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
 @media (prefers-reduced-motion: reduce) { .request-progress-bar::after { width: 100%; animation: none; } }
+
+/* Budget points to the Panorama for the year analysis. */
+.budget-heading-links { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; margin: 0; }
+.budget-heading-links a { display: inline-flex; align-items: center; gap: .3rem; min-height: 44px; }
+.budget-analysis-link { margin: 1rem 0 0; padding: .9rem 1.1rem; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: var(--color-ink-soft); }
+.budget-analysis-link a { font-weight: 650; }

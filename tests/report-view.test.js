@@ -4,7 +4,9 @@ import { createExportableState } from '../src/app/state-storage.js'
 import { buildFinancialReport, reportChapters } from '../src/domain/financial-report.js'
 import { confidenceStatus } from '../src/domain/goals-planning.js'
 import { bridgeRows, categorySegments, divergingRows, fanChart, quotaRows, segmentedBar, statusBadge } from '../src/features/report/report-charts.js'
-import { chapterTitles, compactReference, renderReportDocument, renderReportScreen, reportDocumentTitle } from '../src/features/report/report-view.js'
+import { chapterTitles, compactReference, panoramaTabs, renderReportDocument, renderReportScreen, reportDocumentTitle } from '../src/features/report/report-view.js'
+import { readFileSync } from 'node:fs'
+import { pageTabState } from '../src/shared/page-tabs.js'
 import { printReport, reportView } from '../src/features/report/report.js'
 import { groupedNavigation } from '../src/app/navigation.js'
 import { state } from '../src/app/state.js'
@@ -27,7 +29,8 @@ test('o documento traz capa, sumário e os capítulos na ordem do modelo, sem <d
   for (const key of reportChapters) assert.match(html, new RegExp(`<h2 id="report-${key}-title"[^>]*>${chapterTitles[key]}</h2>`))
   assert.doesNotMatch(html, /<details/)
   assert.match(html, /data-report-cover/)
-  assert.match(html, /<h1 id="report-title"/)
+  assert.match(html, /<h2 id="report-title" class="report-cover__heading"/)
+  assert.doesNotMatch(html, /<h1/, 'o h1 é o da tela (Panorama financeiro)')
   // Long chapters start a new A4 page; short ones continue on the sheet before.
   for (const key of ['cashFlow', 'spending', 'balanceSheet', 'retirement']) assert.match(html, new RegExp(`report-chapter--page"? data-report-chapter="${key}"|class="report-chapter report-chapter--page" data-report-chapter="${key}"`))
   assert.match(html, /class="report-chapter report-chapter--flow" data-report-chapter="appendix"/)
@@ -98,7 +101,7 @@ test('tela: carregamento, faixas em cálculo, erro e valores ocultos', () => {
   assert.doesNotMatch(loading, /data-report[ >]/)
   const partial = renderReportScreen({ status: 'partial', step: 'risk', report })
   assert.doesNotMatch(partial, /data-report-print disabled/)
-  assert.match(partial, /Se salvar agora, o PDF sai com o cenário base/)
+  assert.match(partial, /Se salvar o PDF agora, ele sai com o cenário base/)
   assert.match(partial, /Calculando as faixas P10 a P90/)
   assert.match(partial, /não é enviado a nenhum servidor/)
   assert.match(partial, /Cabeçalhos e rodapés/)
@@ -145,9 +148,9 @@ test('gráficos: zero neutro, vermelho só material, ponte e categorias com Outr
   assert.match(statusBadge('attention'), /aria-hidden="true">!<\/span>Atenção/)
 })
 
-test('rota no grupo Planejar e PDF bloqueado com valores ocultos', () => {
-  const planning = groupedNavigation().find(group => group.title === 'Planejar')
-  assert.ok(planning.items.some(item => item.href === '/relatorio' && item.label === 'Relatório financeiro'))
+test('Panorama no grupo Entender e PDF bloqueado com valores ocultos', () => {
+  const understand = groupedNavigation().find(group => group.title === 'Entender')
+  assert.deepEqual(understand.items.map(item => item.href), ['/', '/panorama'])
   const calls = []
   const view = { print: () => calls.push('print') }
   const previous = { hidden: state.valuesHidden, report: reportView.report }
@@ -165,4 +168,54 @@ test('rota no grupo Planejar e PDF bloqueado com valores ocultos', () => {
     state.valuesHidden = previous.hidden
     reportView.report = previous.report
   }
+})
+
+test('Panorama: 7 abas na ordem do relatório, capítulos contíguos e links para ajustar fora da impressão', () => {
+  delete pageTabState.panorama
+  const tabs = [...html.matchAll(/data-page-tab="panorama:(\w+)"[^>]*>([^<]+)</g)].map(match => [match[1], match[2]])
+  assert.deepEqual(tabs, [['resumo', 'Resumo'], ['gastos', 'Fluxo e gastos'], ['patrimonio', 'Patrimônio'], ['carteira', 'Carteira'], ['reserva', 'Reserva, dívidas e câmbio'], ['aposentadoria', 'Aposentadoria'], ['premissas', 'Verificação e premissas']])
+  const panels = Object.fromEntries([...html.matchAll(/data-page-tab-panel="panorama:(\w+)"[^>]*>([\s\S]*?)(?=<div class="page-tab-panel"|<\/article>)/g)].map(match => [match[1], match[2]]))
+  const chaptersOf = key => [...panels[key].matchAll(/data-report-chapter="(\w+)"/g)].map(match => match[1])
+  assert.deepEqual(chaptersOf('resumo'), ['summary'])
+  assert.match(panels.resumo, /data-report-cover/)
+  assert.deepEqual(chaptersOf('gastos'), ['cashFlow', 'spending'])
+  assert.deepEqual(chaptersOf('patrimonio'), ['balanceSheet', 'wealth'])
+  assert.deepEqual(chaptersOf('carteira'), ['portfolio'])
+  assert.deepEqual(chaptersOf('reserva'), ['liquidity', 'debts', 'currency'])
+  assert.deepEqual(chaptersOf('aposentadoria'), ['retirement'])
+  assert.deepEqual(chaptersOf('premissas'), ['checklist', 'appendix'])
+  // Only the first tab is visible; the others are in the page, hidden.
+  assert.match(html, /data-page-tab-panel="panorama:resumo" >/)
+  assert.equal((html.match(/data-page-tab-panel="panorama:\w+" hidden/g) || []).length, 6)
+  for (const tab of panoramaTabs) {
+    const nav = panels[tab.key].match(/<nav class="report-adjust report-screen-only"[^>]*data-report-adjust="(\w+)">([\s\S]*?)<\/nav>/)
+    assert.equal(nav?.[1], tab.key)
+    assert.match(nav[2], /Ajustar em/)
+    for (const [, href] of tab.adjust) assert.match(nav[2], new RegExp(`href="${href.replace(/[?]/g, '\\?')}" data-route`))
+    assert.equal(/Simular em/.test(nav[2]), tab.simulate.length > 0)
+  }
+  assert.match(panels.gastos, /href="\/orcamento\?aba=lancamentos" data-route>Lançamentos</)
+})
+
+test('Panorama: tela com h1 próprio, sem sumário de capítulos, e a aba pedida na URL', () => {
+  const screen = renderReportScreen({ status: 'complete', report })
+  assert.equal((screen.match(/<h1/g) || []).length, 1)
+  assert.match(screen, /<h1>Panorama financeiro<\/h1>/)
+  assert.doesNotMatch(screen, /report-toc|data-report-jump/)
+  assert.match(screen, /Salvar relatório em PDF/)
+  assert.match(screen, /O PDF traz todas as abas/)
+  pageTabState.panorama = 'reserva'
+  try {
+    const opened = renderReportDocument(report)
+    assert.match(opened, /data-page-tab-panel="panorama:reserva" >/)
+    assert.match(opened, /aria-selected="true" tabindex="0" data-page-tab="panorama:reserva"/)
+    assert.match(opened, /data-page-tab-panel="panorama:resumo" hidden/)
+  } finally { delete pageTabState.panorama }
+})
+
+test('impressão: todas as abas saem, sem a barra de abas nem os links de ajuste', () => {
+  const css = readFileSync(new URL('../src/styles/report.css', import.meta.url), 'utf8')
+  const print = css.slice(css.indexOf('@media print'))
+  assert.match(print, /\.report > \[data-page-tab-panel\]\[hidden\] \{ display: block !important; \}/)
+  assert.match(print, /\.report > \.page-tabs, \.report-screen-only/)
 })

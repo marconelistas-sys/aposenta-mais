@@ -65,16 +65,14 @@ test('partial-year pressure uses included months and preserves the complete sort
   assert.doesNotMatch(html, /data-expense-impact="Pension"/)
 })
 
-test('monthly pressure ignores list filters and disappears under privacy mode', () => {
+test('budget is for entering and checking: no spending analysis block, a link to the Panorama instead', () => {
   replaceFinancialData(fixture())
   resetBudgetEntriesView()
-  const extract = () => renderBudgetEntries().split('class="panel budget-month-pressure"')[1]?.split('class="panel budget-workspace"')[0]
-  const original = extract()
-  budgetEntriesView.search = 'nothing'
-  budgetEntriesView.recordKind = 'actual'
-  assert.equal(extract(), original)
+  const html = renderBudgetEntries()
+  assert.doesNotMatch(html, /budget-month-pressure|O que mais pesa/)
+  assert.match(html, /data-budget-analysis-link>[^]*?href="\/panorama\?aba=gastos"/)
   state.valuesHidden = true
-  assert.equal(extract(), undefined)
+  assert.doesNotMatch(renderBudgetEntries(), /budget-month-pressure/)
   assert.deepEqual(cashFlowDetailPanels([row], state.plan, 'BRL', true), [])
   state.valuesHidden = false
   resetBudgetEntriesView()

@@ -1,9 +1,11 @@
-// Renderização do Relatório financeiro a partir do modelo pronto
-// (buildFinancialReport). Funções puras: recebem o modelo e devolvem HTML.
-// A mesma marcação serve à tela e à impressão (CSS em src/styles/report.css).
-// Nunca usa <details>: na impressão, conteúdo recolhido some.
+// Renderização do Panorama financeiro (tela) e do Relatório financeiro (PDF)
+// a partir do modelo pronto (buildFinancialReport). Funções puras: recebem o
+// modelo e devolvem HTML. A mesma marcação serve à tela, em abas, e à
+// impressão, com todas as abas em sequência (CSS em src/styles/report.css).
+// Nunca usa <details> no documento: na impressão, conteúdo recolhido some.
 import { escapeHtml, formatMonth } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
+import { renderTabbedPanels } from '../../shared/page-tabs.js'
 import { allocationRows, bridgeRows, currencyPairs, divergingRows, emptyState, fanChart, figure, historyLine, projectionLine, quotaRows, reserveBullet, segmentedBar, shortMonth, sparkline, statusBadge } from './report-charts.js'
 import { formatReportDate, formatReportMoney, formatReportMonths, formatReportPercent, formatReportPoints, formatReportText } from './report-text.js'
 
@@ -99,7 +101,7 @@ function cover(report) {
     ['Carteira', coverage.investments.count ? `${coverage.investments.count} ${coverage.investments.count === 1 ? 'investimento' : 'investimentos'}${coverage.investments.newestBalanceAsOf ? `, saldos de ${e(formatReportDate(coverage.investments.oldestBalanceAsOf))}${coverage.investments.oldestBalanceAsOf !== coverage.investments.newestBalanceAsOf ? ` a ${e(formatReportDate(coverage.investments.newestBalanceAsOf))}` : ''}` : ', sem data de saldo'}` : 'Não detalhada'],
     ['Histórico do patrimônio', coverage.wealthHistory.count ? `${coverage.wealthHistory.count} ${coverage.wealthHistory.count === 1 ? 'foto mensal' : 'fotos mensais'}, ${e(periodLabel(coverage.wealthHistory.firstMonth, coverage.wealthHistory.lastMonth))}` : 'Ainda sem fotos mensais']
   ]
-  return `<header class="report-cover" data-report-cover><div class="report-cover__title"><p class="report-cover__brand">Aposenta<span>+</span></p><h1 id="report-title" tabindex="-1">Relatório financeiro</h1><p class="report-cover__subtitle">Data-base: ${e(formatMonth(meta.referenceMonth))} · gerado em ${e(formatReportDate(meta.date))}</p>${meta.isDemo ? `<p class="report-cover__demo">${statusBadge('info', 'Dados de demonstração')}</p>` : ''}</div><dl class="report-params">${params.map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('')}</dl>${quality.length ? `<div class="report-quality" role="note"><p><strong>Qualidade dos dados:</strong> ${quality.length} ${quality.length === 1 ? 'ponto pede' : 'pontos pedem'} revisão antes de usar os números. ${quality.slice(0, 2).map(row => t(row.message)).join(' ')}${quality.length > 2 ? ` Os demais estão no capítulo 12.` : ''}</p></div>` : ''}</header>`
+  return `<header class="report-cover" data-report-cover><div class="report-cover__title"><p class="report-cover__brand">Aposenta<span>+</span></p><h2 id="report-title" class="report-cover__heading" tabindex="-1">Relatório financeiro</h2><p class="report-cover__subtitle">Data-base: ${e(formatMonth(meta.referenceMonth))} · gerado em ${e(formatReportDate(meta.date))}</p>${meta.isDemo ? `<p class="report-cover__demo">${statusBadge('info', 'Dados de demonstração')}</p>` : ''}</div><dl class="report-params">${params.map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('')}</dl>${quality.length ? `<div class="report-quality" role="note"><p><strong>Qualidade dos dados:</strong> ${quality.length} ${quality.length === 1 ? 'ponto pede' : 'pontos pedem'} revisão antes de usar os números. ${quality.slice(0, 2).map(row => t(row.message)).join(' ')}${quality.length > 2 ? ` Os demais estão no capítulo 12.` : ''}</p></div>` : ''}</header>`
 }
 
 function summary(report) {
@@ -466,9 +468,43 @@ function pageStyle(report) {
   return `<style data-report-page-style>@page { size: A4; margin: 14mm 16mm 18mm; @bottom-left { content: "${text}"; ${box} } @bottom-right { content: "Página " counter(page) " de " counter(pages); ${box} } }</style>`
 }
 
+// ── Panorama tabs ────────────────────────────────────────────────────────
+// Contiguous blocks of the chapter order, so the printed sequence (every tab,
+// one after the other) is the same as the report's. See
+// docs/product/panorama-financeiro.md.
+export const panoramaTabs = Object.freeze([
+  { key: 'resumo', label: 'Resumo', chapters: ['cover', 'summary'], adjust: [['Orçamento', '/orcamento?aba=resumo'], ['Carteira', '/carteira'], ['Objetivos e confiança', '/objetivos']], simulate: [['Viabilidade do plano', '/viabilidade']] },
+  { key: 'gastos', label: 'Fluxo e gastos', chapters: ['cashFlow', 'spending'], adjust: [['Lançamentos', '/orcamento?aba=lancamentos'], ['Categorias do orçamento', '/orcamento?aba=categorias'], ['Extratos bancários', '/extratos']], simulate: [['Projeção patrimonial', '/fluxo-caixa?aba=anual']] },
+  { key: 'patrimonio', label: 'Patrimônio', chapters: ['balanceSheet', 'wealth'], adjust: [['Patrimônio', '/patrimonio'], ['Carteira', '/carteira'], ['Consórcios', '/consorcios']], simulate: [['Projeção patrimonial', '/fluxo-caixa?aba=anual']] },
+  { key: 'carteira', label: 'Carteira', chapters: ['portfolio'], adjust: [['Carteira: saldos, liquidez e alocação-alvo', '/carteira']], simulate: [] },
+  { key: 'reserva', label: 'Reserva, dívidas e câmbio', chapters: ['liquidity', 'debts', 'currency'], adjust: [['Carteira', '/carteira'], ['Calendário e dívidas', '/calendario']], simulate: [['Liquidez mensal', '/riscos-mensais'], ['Câmbio', '/cambio']] },
+  { key: 'aposentadoria', label: 'Aposentadoria', chapters: ['retirement'], adjust: [['Meu plano', '/plano'], ['Objetivos e confiança', '/objetivos']], simulate: [['Simulações', '/simulacoes'], ['Riscos anuais', '/riscos'], ['Após aposentadoria', '/apos-aposentadoria']] },
+  { key: 'premissas', label: 'Verificação e premissas', chapters: ['checklist', 'appendix'], adjust: [['Meu plano', '/plano'], ['Perfil e dados', '/perfil']], simulate: [['Viabilidade do plano', '/viabilidade']] }
+])
+
+// Links from the reading screen to the screens that change the numbers.
+// Screen only: they never print.
+function adjustLinks(tab) {
+  const row = (label, links) => links.length ? `<p><span class="report-adjust__label">${label}</span> ${links.map(([text, href]) => `<a href="${e(href)}" data-route>${e(text)}</a>`).join('<span aria-hidden="true"> · </span>')}</p>` : ''
+  return `<nav class="report-adjust report-screen-only" aria-label="${e(`Ajustar e simular: ${tab.label}`)}" data-report-adjust="${tab.key}">${row('Ajustar em', tab.adjust)}${row('Simular em', tab.simulate)}</nav>`
+}
+
 export function renderReportDocument(report, options = {}) {
-  const chapters = report.chapterOrder.map((key, index) => bodies[key] ? chapterSection(key, index + 2, report[key], bodies[key](report, options)) : '').join('')
-  return `<article class="report" data-report aria-labelledby="report-title">${pageStyle(report)}${cover(report)}${summary(report)}${chapters}</article>`
+  const blocks = {
+    cover: () => cover(report),
+    summary: () => summary(report)
+  }
+  report.chapterOrder.forEach((key, index) => {
+    if (bodies[key]) blocks[key] = () => chapterSection(key, index + 2, report[key], bodies[key](report, options))
+  })
+  // A chapter the tabs do not name goes to the last tab, never lost.
+  const named = new Set(panoramaTabs.flatMap(tab => tab.chapters))
+  const extra = report.chapterOrder.filter(key => !named.has(key))
+  const tabs = panoramaTabs.map((tab, index) => {
+    const keys = [...tab.chapters.filter(key => key === 'cover' || key === 'summary' || report.chapterOrder.includes(key)), ...(index === panoramaTabs.length - 1 ? extra : [])]
+    return { key: tab.key, label: tab.label, html: adjustLinks(tab) + keys.map(key => blocks[key]?.() || '').join('') }
+  })
+  return `<article class="report" data-report aria-labelledby="report-title">${pageStyle(report)}${renderTabbedPanels('panorama', tabs, { label: 'Assuntos do panorama' })}</article>`
 }
 
 // ── Screen around the report: actions, progress, privacy ─────────────────
@@ -478,34 +514,38 @@ export function renderReportScreen({ status = 'idle', step = null, report = null
   const fanPending = status === 'partial'
   const blocked = hidden || !report
   const statusText = hidden
-    ? 'Os valores estão ocultos. Mostre os valores para gerar o relatório: o PDF nunca sai com valores mascarados.'
-    : status === 'error' ? `Não foi possível montar o relatório. ${error}`
-      : !report ? `${steps[step] || 'Preparando o relatório'}… etapa ${step === 'risk' ? 3 : step === 'report' ? 2 : 1} de 3. O cálculo roda neste navegador.`
-        : fanPending ? `Relatório pronto, exceto as faixas P10 a P90 da aposentadoria, ainda em cálculo. Se salvar agora, o PDF sai com o cenário base no lugar das faixas.`
-          : riskError ? `Relatório pronto, sem as faixas P10 a P90: ${riskError}`
-            : `Relatório pronto. Data-base ${formatMonth(report.meta.referenceMonth)}.`
+    ? 'Os valores estão ocultos. Mostre os valores para ver o panorama e salvar o PDF: o arquivo nunca sai com valores mascarados.'
+    : status === 'error' ? `Não foi possível montar o panorama. ${error}`
+      : !report ? `${steps[step] || 'Preparando o panorama'}… etapa ${step === 'risk' ? 3 : step === 'report' ? 2 : 1} de 3. O cálculo roda neste navegador.`
+        : fanPending ? 'Panorama pronto, exceto as faixas P10 a P90 da aposentadoria, ainda em cálculo. Se salvar o PDF agora, ele sai com o cenário base no lugar das faixas.'
+          : riskError ? `Panorama pronto, sem as faixas P10 a P90: ${riskError}`
+            : `Panorama pronto. Data-base ${formatMonth(report.meta.referenceMonth)}.`
   const toolbar = `<aside class="report-toolbar panel" aria-labelledby="report-toolbar-title" data-report-toolbar>
     <div class="report-toolbar__main">
-      <h2 id="report-toolbar-title" class="report-toolbar__title">Salvar o relatório em PDF</h2>
+      <h2 id="report-toolbar-title" class="report-toolbar__title">Relatório em PDF</h2>
       <p class="report-toolbar__status report-toolbar__status--${hidden ? 'hidden' : status}" role="status" aria-live="polite" data-report-status>${!report && !hidden && status !== 'error' ? '<span class="report-spinner" aria-hidden="true"></span>' : ''}${e(statusText)}</p>
       <p class="report-toolbar__privacy">${icon('lock', 16)}<span>${t(report?.appendix?.privacyNotice) || 'O arquivo contém seus dados financeiros e não é enviado a nenhum servidor.'} Guarde-o em local seguro.</span></p>
     </div>
     <div class="report-toolbar__actions">
       ${hidden ? `<button type="button" class="button button--primary" data-toggle-values>${icon('eye', 18)} Mostrar valores</button>` : ''}
       ${status === 'error' && !hidden ? '<button type="button" class="button button--secondary" data-report-retry>Tentar novamente</button>' : ''}
-      <button type="button" class="button ${hidden ? 'button--secondary' : 'button--primary'}" data-report-print ${blocked ? 'disabled aria-describedby="report-print-blocked"' : ''}>${icon('download', 18)} Salvar como PDF</button>
-      ${blocked ? `<p id="report-print-blocked" class="sr-only">${hidden ? 'Indisponível com os valores ocultos.' : 'Disponível quando o relatório estiver montado.'}</p>` : ''}
+      <button type="button" class="button ${hidden ? 'button--secondary' : 'button--primary'}" data-report-print ${blocked ? 'disabled aria-describedby="report-print-blocked"' : ''}>${icon('download', 18)} Salvar relatório em PDF</button>
+      ${blocked ? `<p id="report-print-blocked" class="sr-only">${hidden ? 'Indisponível com os valores ocultos.' : 'Disponível quando o panorama estiver montado.'}</p>` : ''}
     </div>
-    <ul class="report-toolbar__tips">
-      <li>Na janela de impressão, escolha <strong>Salvar como PDF</strong> como destino e o papel <strong>A4</strong>.</li>
-      <li>Desmarque <strong>Cabeçalhos e rodapés</strong>: o relatório já traz data-base e número de página.</li>
-      <li>Melhor resultado no Chrome ou no Edge. No Safari e no Firefox, ative a impressão de fundos e confira as páginas na prévia.</li>
-    </ul>
+    <details class="report-toolbar__tips" data-report-tips>
+      <summary>Como salvar o PDF</summary>
+      <ul>
+        <li>O PDF traz todas as abas, na ordem do relatório, seja qual for a aba aberta.</li>
+        <li>Na janela de impressão, escolha <strong>Salvar como PDF</strong> como destino e o papel <strong>A4</strong>.</li>
+        <li>Desmarque <strong>Cabeçalhos e rodapés</strong>: o relatório já traz data-base e número de página.</li>
+        <li>Melhor resultado no Chrome ou no Edge. No Safari e no Firefox, ative a impressão de fundos e confira as páginas na prévia.</li>
+      </ul>
+    </details>
   </aside>`
-  const heading = `<section class="page-heading report-heading"><div><p class="eyebrow">PLANEJAR</p><h1>Relatório financeiro</h1><p>Diagnóstico completo do plano, pronto para salvar em PDF: fluxo de caixa, gastos acima do plano, patrimônio, carteira, riscos e aposentadoria.</p></div></section>`
+  const heading = `<section class="page-heading report-heading"><div><p class="eyebrow">ENTENDER</p><h1>Panorama financeiro</h1><p>Onde estão suas finanças: fluxo de caixa, gastos acima do plano, patrimônio, carteira, reserva, dívidas, câmbio e aposentadoria. Para mudar um número, use os links “Ajustar em” de cada aba.</p></div></section>`
   const body = hidden
-    ? `<div class="report-gate panel" data-report-gate>${icon('eyeOff', 22)}<p>Valores ocultos. O relatório aparece quando você mostrar os valores.</p></div>`
-    : ready ? `<nav class="report-toc report-screen-only" aria-label="Capítulos do relatório"><ol>${['summary', ...report.chapterOrder].map((key, index) => `<li><button type="button" class="report-toc__link" data-report-jump="${key}">${index + 1}. ${chapterTitles[key]}</button></li>`).join('')}</ol></nav>${renderReportDocument(report, { fanPending })}`
+    ? `<div class="report-gate panel" data-report-gate>${icon('eyeOff', 22)}<p>Valores ocultos. O panorama aparece quando você mostrar os valores.</p></div>`
+    : ready ? renderReportDocument(report, { fanPending })
       : status === 'error' ? ''
         : `<div class="report-loading panel" aria-hidden="true"><span class="report-loading__bar"></span><span class="report-loading__bar"></span><span class="report-loading__bar report-loading__bar--short"></span></div>`
   return `${heading}${toolbar}${body}`

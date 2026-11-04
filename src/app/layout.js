@@ -6,9 +6,9 @@ import { syncState } from './sync-state.js'
 import { isLocalPlanOpen } from './local-access.js'
 import { currencies } from '../shared/currencies.js'
 
-import { primaryNavigation as navigation, additionalNavigation, groupedNavigation } from './navigation.js'
+import { primaryNavigation as navigation, additionalNavigation, groupedNavigation, mobileNavigationHrefs } from './navigation.js'
 
-const mobileNavigation = ['/', '/carteira', '/orcamento', '/fluxo-caixa'].map(href => navigation.find(item => item.href === href))
+const mobileNavigation = mobileNavigationHrefs.map(href => navigation.find(item => item.href === href))
 const navigationHref = item => `${item.href}${item.tab ? `?aba=${encodeURIComponent(item.tab)}` : ''}`
 
 function navigationLink(item, pathname, mobile = false) {

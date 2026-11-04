@@ -19,7 +19,6 @@
     "db:migrate:supabase": "node --env-file-if-exists=.env scripts/migrate-supabase.mjs",
     "test:statement-browser": "node scripts/check-statement-browser.mjs",
     "test:budget-browser": "node scripts/check-budget-overview-browser.mjs",
-    "test:budget-ytd-browser": "node scripts/check-budget-year-to-date-browser.mjs",
     "test:loading-browser": "node scripts/check-request-progress-browser.mjs",
     "test:investment-statement-browser": "node scripts/check-investment-statement-browser.mjs",
     "test:bb-browser": "node scripts/check-bb-browser.mjs",

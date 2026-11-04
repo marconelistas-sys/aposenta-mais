@@ -1,11 +1,11 @@
 export const primaryNavigation = [
   { href: '/', label: 'Visão geral', icon: 'home' },
-  { href: '/plano', label: 'Meu plano', icon: 'target' },
-  { href: '/carteira', label: 'Carteira', icon: 'wallet' },
+  { href: '/panorama', label: 'Panorama', icon: 'book', tab: 'resumo' },
   { href: '/orcamento', label: 'Orçamento', mobileLabel: 'Orçamento', icon: 'calendar', tab: 'resumo' },
-  { href: '/fluxo-caixa', label: 'Projeção patrimonial', mobileLabel: 'Projeção', icon: 'trendUp', tab: 'anual' },
-  { href: '/simulacoes', label: 'Simulações', icon: 'calculator' },
-  { href: '/patrimonio', label: 'Patrimônio', icon: 'building' }
+  { href: '/carteira', label: 'Carteira', icon: 'wallet' },
+  { href: '/patrimonio', label: 'Patrimônio', icon: 'building' },
+  { href: '/plano', label: 'Meu plano', icon: 'target' },
+  { href: '/fluxo-caixa', label: 'Projeção patrimonial', mobileLabel: 'Projeção', icon: 'trendUp', tab: 'anual' }
 ]
 export const additionalNavigation = [
   { href: '/contas', label: 'Contas e movimentos', icon: 'bank' },
@@ -13,8 +13,8 @@ export const additionalNavigation = [
   { href: '/calendario', label: 'Calendário e dívidas', icon: 'calendar' },
   { href: '/consorcios', label: 'Consórcios', icon: 'building' },
   { href: '/objetivos', label: 'Objetivos e confiança', icon: 'target' },
+  { href: '/simulacoes', label: 'Simulações', icon: 'calculator' },
   { href: '/viabilidade', label: 'Viabilidade do plano', icon: 'check' },
-  { href: '/relatorio', label: 'Relatório financeiro', icon: 'book' },
   { href: '/apos-aposentadoria', label: 'Após aposentadoria', icon: 'clock' },
   { href: '/riscos', label: 'Riscos anuais', icon: 'trendUp' },
   { href: '/riscos-mensais', label: 'Liquidez mensal', icon: 'calendar' },
@@ -23,14 +23,18 @@ export const additionalNavigation = [
   { href: '/privacidade', label: 'Privacidade', icon: 'shield' }
 ]
 
-// The full menu groups every screen by the task the person wants to do.
+// The full menu separates reading the situation (Entender) from the screens
+// that enter and adjust values (docs/product/panorama-financeiro.md).
 export const navigationGroups = [
-  { title: 'Planejar', hrefs: ['/', '/plano', '/objetivos', '/fluxo-caixa', '/simulacoes', '/viabilidade', '/apos-aposentadoria', '/relatorio'] },
-  { title: 'Patrimônio e investimentos', hrefs: ['/carteira', '/patrimonio', '/consorcios', '/cambio'] },
-  { title: 'Dinheiro do dia a dia', hrefs: ['/orcamento', '/contas', '/extratos', '/calendario'] },
-  { title: 'Riscos', hrefs: ['/riscos', '/riscos-mensais'] },
+  { title: 'Entender', hrefs: ['/', '/panorama'] },
+  { title: 'Lançar e ajustar', hrefs: ['/orcamento', '/contas', '/extratos', '/calendario', '/carteira', '/patrimonio', '/consorcios'] },
+  { title: 'Planejar e simular', hrefs: ['/plano', '/objetivos', '/fluxo-caixa', '/simulacoes', '/viabilidade', '/apos-aposentadoria'] },
+  { title: 'Riscos', hrefs: ['/riscos', '/riscos-mensais', '/cambio'] },
   { title: 'Conta e privacidade', hrefs: ['/perfil', '/privacidade'] }
 ]
+
+// Bottom bar on phones: the two reading screens and the two most used entry screens.
+export const mobileNavigationHrefs = ['/', '/panorama', '/orcamento', '/carteira']
 
 export function groupedNavigation() {
   const all = [...primaryNavigation, ...additionalNavigation]

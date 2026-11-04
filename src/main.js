@@ -248,7 +248,7 @@ const routes = {
       if (typing) form.elements.namedItem(typing)?.focus({ preventScroll: true })
     }
   }),
-  '/relatorio': () => renderReport(refreshReport),
+  '/panorama': () => renderReport(refreshReport),
   '/carteira': renderInvestments,
   '/patrimonio': renderWealth,
   '/extratos': () => renderStatements(statementReviewView()),
@@ -270,14 +270,22 @@ function currentPath() {
   return path || '/'
 }
 
-// Worker progress re-renders the report page; keep focus on the same control.
+// Worker progress re-renders the Panorama while the person reads it; keep the
+// open tab (pageTabState), the scroll position and the focus on the same
+// control or link.
 function refreshReport() {
-  if (currentPath() !== '/relatorio') return
+  if (currentPath() !== '/panorama') return
   const active = document.activeElement
-  const key = ['reportPrint', 'reportJump', 'reportRetry', 'toggleValues'].find(name => active?.dataset?.[name] !== undefined)
+  const key = ['reportPrint', 'reportRetry', 'toggleValues', 'pageTab'].find(name => active?.dataset?.[name] !== undefined)
   const value = key ? active.dataset[key] : null
+  const link = !key && active?.matches?.('[data-report-adjust] a, [data-report] a') ? { href: active.getAttribute('href'), text: active.textContent } : null
+  const tipsOpen = app.querySelector('[data-report-tips]')?.open
+  const scroll = window.scrollY
   render({ indicateRecalculation: false })
+  if (tipsOpen && app.querySelector('[data-report-tips]')) app.querySelector('[data-report-tips]').open = true
+  window.scrollTo({ top: scroll, behavior: 'instant' })
   if (key) Array.from(app.querySelectorAll(`[data-${key.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}]`)).find(node => node.dataset[key] === value && !node.disabled)?.focus({ preventScroll: true })
+  else if (link) Array.from(app.querySelectorAll('[data-report] a')).find(node => node.getAttribute('href') === link.href && node.textContent === link.text && !node.closest('[hidden]'))?.focus({ preventScroll: true })
 }
 
 function captureSimulationForm() {
@@ -311,7 +319,7 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
     ? renderDeletedState
     : selectedRenderer
   const pageMarkup = pageRenderer()
-  document.title = pathname === '/relatorio' && pageRenderer === selectedRenderer ? reportTitle() : defaultDocumentTitle
+  document.title = pathname === '/panorama' && pageRenderer === selectedRenderer ? reportTitle() : defaultDocumentTitle
   app.innerHTML = appLayout(pageMarkup + (isLocalPlanOpen() && !isPublicPage(pathname) && !state.dataDeleted ? renderExpenseImpact() : ''), pathname)
   for (const key of openTools) {
     const tool = app.querySelector(`[data-budget-tool="${key}"]`)
@@ -861,14 +869,6 @@ document.addEventListener('click', async (event) => {
     return
   }
 
-  if (event.target.closest('[data-show-budget-year-to-date]')) {
-    selectPageTab(app, 'orcamento', 'acumulado', { focus: false })
-    const heading = app.querySelector('#budget-ytd-title')
-    heading?.focus({ preventScroll: true })
-    heading?.scrollIntoView({ block: 'start' })
-    return
-  }
-
   const monthlyBudgetButton = event.target.closest('[data-monthly-budget-detail]')
   if (monthlyBudgetButton) {
     if (state.valuesHidden) return
@@ -1021,13 +1021,6 @@ document.addEventListener('click', async (event) => {
   if (event.target.closest('[data-risk-cancel]')) { cancelRisk(); render(); return }
   if (event.target.closest('[data-report-print]')) { if (!printReport(window)) showToast('Mostre os valores e aguarde o relatório para salvar o PDF.'); return }
   if (event.target.closest('[data-report-retry]')) { retryReport(refreshReport); render({ indicateRecalculation: false }); return }
-  const reportJump = event.target.closest('[data-report-jump]')
-  if (reportJump) {
-    const heading = app.querySelector(`#report-${reportJump.dataset.reportJump}-title`)
-    heading?.scrollIntoView({ block: 'start' })
-    heading?.focus({ preventScroll: true })
-    return
-  }
   const consortiumEdit = event.target.closest('[data-consortium-edit]')
   if (consortiumEdit) {
     const item = (state.cashFlow.consortia || []).find(row => row.id === consortiumEdit.dataset.consortiumEdit)

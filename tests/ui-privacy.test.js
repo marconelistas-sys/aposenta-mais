@@ -79,7 +79,7 @@ test('fluxo de caixa explica dados locais e oculta valores', () => {
   assert.doesNotMatch(html, /data-cash-item-form/)
   const budget = renderBudgetEntries()
   assert.match(budget, /R\$ •••••/)
-  assert.match(budget, /Importar até 12 extratos CSV, TXT, OFX ou PDF TKB\/BB/)
+  assert.match(budget, /Importar até 12 extratos CSV, TXT, OFX ou PDF \(TKB, BB,/)
   assert.match(budget, /name="startDate"/)
   assert.match(budget, /name="endDate"/)
   assert.match(budget, /Previdência complementar/)
