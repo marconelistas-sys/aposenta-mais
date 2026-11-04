@@ -8,7 +8,6 @@ import { renderMonthNavigation } from './month-navigation.js'
 import { renderOwnTransfers } from './own-transfers.js'
 import { renderBudgetOverview } from './budget-overview.js'
 import { renderBudgetCategories } from './budget-categories.js'
-import { renderBudgetYearToDate } from './budget-year-to-date.js'
 import { cashFlowItemLimit } from '../../shared/limits.js'
 import { renderMonthTracking } from './month-tracking.js'
 import { householdOwners, householdOwnerField, budgetOwnerView } from '../../shared/household-owner.js'
@@ -711,7 +710,7 @@ function budgetImportTools() {
   return `
 
         <details class="panel disclosure statement-import">
-          <summary>Importar até 12 extratos CSV, TXT, OFX ou PDF TKB/BB/Rendimento/Swissquote/Yuh/N26/Ourocard</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
+          <summary>Importar até 12 extratos CSV, TXT, OFX ou PDF (TKB, BB, Rendimento, Swissquote, Yuh, N26, Ourocard)</summary><p><a href="/extratos" data-route>Analisar extratos para ajustar o planejamento</a></p>
           <p>Os arquivos são lidos e classificados neste navegador. Selecione até 12 extratos ou faturas de uma só vez. As compras são classificadas automaticamente pela descrição e pelas categorias que você confirmou. Confira as sugestões na prévia. Reimportar a mesma fatura atualiza os lançamentos sem duplicá-los e preserva suas categorias confirmadas.</p>
           <code>data;descricao;valor;moeda;categoria;tipo</code>
           <label class="statement-file">
@@ -764,19 +763,15 @@ export function updateBudgetEntryResults(root) {
 
 export function renderBudgetEntries(statementReview = null) {
   const result = budgetEntriesResult()
-  const topExpenses = result.entries.planned.filter(item => item.type === 'expense').sort((a, b) => b.amount - a.amount).slice(0, 3)
-  const pressure = state.valuesHidden ? '' : `<details class="panel disclosure budget-month-pressure" open><summary>O que mais pesa no orçamento de ${monthLabel(state.cashFlow.referenceMonth)}</summary>${topExpenses.length ? `<ol class="pressure-ranking">${topExpenses.map(item => {
-    const source = item.consortiumId ? 'consortium' : item.annualGoalId ? 'annualGoals' : item.commitmentId ? 'commitments' : 'item'
-    const id = item.consortiumId || item.annualGoalId || item.commitmentId || item.id
-    return `<li><div class="pressure-rank-heading"><div><button type="button" class="budget-category-entry-link" data-edit-budget-category="${source}" data-category-item-id="${escapeHtml(id)}" data-category-entry-month="${escapeHtml(item.month)}">${escapeHtml(item.description)}</button><span>${escapeHtml(item.category)}</span></div><strong class="money-value">${privateCurrency(item.amount, false, true, state.currency)}</strong></div><small>${formatPercent(item.amount / result.planned.expenses)} das saídas previstas</small></li>`
-  }).join('')}</ol>` : '<p>Nenhuma despesa planejada para este mês.</p>'}<button type="button" class="budget-category-entry-link" data-show-budget-expense-pies>Ver todas as despesas por categoria</button><button type="button" class="budget-category-entry-link" data-show-budget-year-to-date>Ver acumulado do ano por categoria</button><p><a href="/fluxo-caixa?aba=anual" data-route>Ver impacto no patrimônio</a></p></details>`
+  // Budget is the screen to enter and check values; the analysis of where
+  // spending is high lives in the Panorama (docs/product/panorama-financeiro.md).
+  const analysis = `<p class="budget-analysis-link" data-budget-analysis-link>Para entender o ano, veja <a href="/panorama?aba=gastos" data-route>onde o gasto está alto</a> no Panorama.</p>`
   const options = (values, selected) => Object.entries(values).map(([value, label]) => `<option value="${value}" ${selected === value ? 'selected' : ''}>${label}</option>`).join('')
-  return `<section class="page-heading page-heading--inner budget-heading"><div><p class="eyebrow">ORÇAMENTO</p><h1>Orçamento mensal</h1><p>Cadastre o previsto e acompanhe o realizado no mês selecionado.</p><a href="/fluxo-caixa?aba=anual" data-route>Ver impacto no patrimônio ${icon('arrowRight', 16)}</a></div><div class="budget-page-actions"><button class="button button--primary" type="button" data-new-cash-item ${state.cashFlow.items.length >= cashFlowItemLimit ? 'disabled' : ''}>${icon('plus', 18)} Adicionar lançamento</button><button class="button button--secondary" type="button" data-new-expense-category>${icon('plus', 18)} Nova categoria de despesa</button><button class="button button--secondary" type="button" data-open-budget-import>${icon('document', 18)} Importar extrato</button><button class="button button--secondary" type="button" data-open-budget-transfers>${icon('transfer', 18)} Transferências</button>${state.cashFlow.items.length >= cashFlowItemLimit ? '<p class="budget-capacity">Limite de 10.000 registros atingido. Edite os registros existentes ou exclua os desnecessários.</p>' : ''}</div></section>
+  return `<section class="page-heading page-heading--inner budget-heading"><div><p class="eyebrow">ORÇAMENTO</p><h1>Orçamento mensal</h1><p>Cadastre o previsto e confira o realizado no mês selecionado. A análise do ano fica no Panorama.</p><p class="budget-heading-links"><a href="/panorama?aba=gastos" data-route>Ver análise no Panorama ${icon('arrowRight', 16)}</a> <a href="/fluxo-caixa?aba=anual" data-route>Ver impacto no patrimônio ${icon('arrowRight', 16)}</a></p></div><div class="budget-page-actions"><button class="button button--primary" type="button" data-new-cash-item ${state.cashFlow.items.length >= cashFlowItemLimit ? 'disabled' : ''}>${icon('plus', 18)} Adicionar lançamento</button><button class="button button--secondary" type="button" data-new-expense-category>${icon('plus', 18)} Nova categoria de despesa</button><button class="button button--secondary" type="button" data-open-budget-import>${icon('document', 18)} Importar extrato</button><button class="button button--secondary" type="button" data-open-budget-transfers>${icon('transfer', 18)} Transferências</button>${state.cashFlow.items.length >= cashFlowItemLimit ? '<p class="budget-capacity">Limite de 10.000 registros atingido. Edite os registros existentes ou exclua os desnecessários.</p>' : ''}</div></section>
     ${renderMonthNavigation(state.cashFlow.referenceMonth, { label: 'Mês do orçamento' })}
 
     ${renderTabbedPanels('orcamento', [
-      { key: 'resumo', label: 'Resumo do mês', html: `<div class="budget-summary-layout">${renderBudgetMonthSummary()}${renderMonthTracking(state, { showMonthSelector: false })}</div>${pressure}${!state.valuesHidden && result.excluded.undated.length ? `<section class="panel settings-card"><p>Há lançamentos eventuais sem data, fora dos totais.</p><ul>${result.excluded.undated.map(item => `<li><button type="button" class="budget-category-entry-link" data-edit-cash-item="${escapeHtml(item.id)}">Informar data de ${escapeHtml(item.description || item.category.name)}</button></li>`).join('')}</ul></section>` : ''}` },
-      { key: 'acumulado', label: 'Acumulado do ano', html: renderBudgetYearToDate(state) },
+      { key: 'resumo', label: 'Conferir o mês', html: `<div class="budget-summary-layout">${renderBudgetMonthSummary()}${renderMonthTracking(state, { showMonthSelector: false })}</div>${analysis}${!state.valuesHidden && result.excluded.undated.length ? `<section class="panel settings-card"><p>Há lançamentos eventuais sem data, fora dos totais.</p><ul>${result.excluded.undated.map(item => `<li><button type="button" class="budget-category-entry-link" data-edit-cash-item="${escapeHtml(item.id)}">Informar data de ${escapeHtml(item.description || item.category.name)}</button></li>`).join('')}</ul></section>` : ''}` },
       { key: 'categorias', label: 'Categorias', html: renderBudgetCategories(state) },
       { key: 'lancamentos', label: 'Lançamentos', html: `<section class="panel budget-workspace" aria-labelledby="cash-items-title">
       <form class="budget-filters" data-budget-filters role="search" aria-label="Filtrar lançamentos">

@@ -84,19 +84,23 @@ test('desktop menu pairs a distinct icon with each existing destination and pres
   } finally { closeLocalPlan() }
 })
 
-test('budget and projection open distinct tasks in desktop, full and mobile navigation', () => {
+test('menu separates understanding from entering values; budget and projection stay distinct', () => {
   openLocalPlan()
   try {
     const html = appLayout('', '/orcamento')
     const mobile = html.split('aria-label="Navegação no celular"')[1].split('</nav>')[0]
+    assert.deepEqual([...mobile.matchAll(/href="([^"]+)"/g)].map(match => match[1]), ['/', '/panorama?aba=resumo', '/orcamento?aba=resumo', '/carteira'])
     assert.match(mobile, /href="\/orcamento\?aba=resumo"[\s\S]*?aria-current="page"/)
-    assert.match(mobile, /href="\/fluxo-caixa\?aba=anual"[\s\S]*?<span>Projeção<\/span>/)
     assert.doesNotMatch(html, /<span>Fluxo de caixa<\/span>/)
+    assert.deepEqual(primaryNavigation.map(item => item.href), ['/', '/panorama', '/orcamento', '/carteira', '/patrimonio', '/plano', '/fluxo-caixa'])
     const groups = groupedNavigation()
-    assert.ok(groups.find(group => group.title === 'Planejar').items.some(item => item.href === '/fluxo-caixa'))
-    const daily = groups.find(group => group.title === 'Dinheiro do dia a dia').items
-    assert.ok(daily.some(item => item.href === '/orcamento'))
-    assert.ok(!daily.some(item => item.href === '/fluxo-caixa'))
+    assert.deepEqual(groups.map(group => group.title), ['Entender', 'Lançar e ajustar', 'Planejar e simular', 'Riscos', 'Conta e privacidade'])
+    const byTitle = title => groups.find(group => group.title === title).items.map(item => item.href)
+    assert.deepEqual(byTitle('Entender'), ['/', '/panorama'])
+    assert.deepEqual(byTitle('Lançar e ajustar'), ['/orcamento', '/contas', '/extratos', '/calendario', '/carteira', '/patrimonio', '/consorcios'])
+    assert.ok(byTitle('Planejar e simular').includes('/fluxo-caixa'))
+    assert.ok(byTitle('Riscos').includes('/cambio'))
+    assert.ok(!byTitle('Lançar e ajustar').includes('/fluxo-caixa'))
   } finally { closeLocalPlan() }
 })
 

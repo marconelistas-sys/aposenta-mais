@@ -1,5 +1,11 @@
 # Backlog inicial
 
+## Entrega: Panorama financeiro e Orçamento para lançar
+
+As telas do relatório viram o Panorama financeiro (`/panorama`, 2º item da barra principal), com 7 abas: Resumo, Fluxo e gastos, Patrimônio, Carteira, Reserva, dívidas e câmbio, Aposentadoria, Verificação e premissas. Cada aba traz links "Ajustar em" e "Simular em". O PDF sai completo de qualquer aba. O menu separa Entender de Lançar e ajustar. O Orçamento fica com 4 abas: Conferir o mês, Categorias, Lançamentos e Ano do orçamento. Saíram o Acumulado do ano e o bloco "O que mais pesa", que o Panorama cobre. `/relatorio` e `/orcamento?aba=acumulado` redirecionam. 1.090 testes aprovados, mais as verificações em navegador do Panorama, do PDF (11 páginas) e do Orçamento. [Decisões e histórias](panorama-financeiro.md).
+
+Pendências: perguntar ao dono, em 2026-11-18, se sente falta do Acumulado do ano. O código fica no repositório por um ciclo. Sessão observada com o dono.
+
 ## Entrega: relatório financeiro em PDF
 
 Nova tela Relatório financeiro (`/relatorio`, grupo Planejar), com "Salvar como PDF" pelo navegador, sem enviar dados. São 11 páginas A4: sumário com 11 indicadores e limites de mercado, achados e ações com impacto, fluxo de caixa e poupança, onde o gasto está alto e readequação do orçamento, balanço, patrimônio em seis dimensões e evolução, carteira, liquidez, dívidas, câmbio, aposentadoria com faixas P10–P90, lista de verificação e premissas. Foto mensal do patrimônio (`plan.wealthHistory`) gravada a partir de agora. 1.086 testes aprovados e PDF inspecionado. [Concepção, decisões e fase 2](relatorio-financeiro-pdf.md).

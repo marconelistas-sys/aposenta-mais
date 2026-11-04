@@ -113,6 +113,7 @@ export function renderDashboard() {
       </div>
       <div class="dashboard-tools">
         <a class="button button--primary" href="/orcamento?aba=resumo" data-route data-monthly-planning-shortcut>Planejar meu mês ${icon('arrowRight', 17)}</a>
+        <a class="button button--secondary" href="/panorama" data-route data-panorama-shortcut>Ver panorama completo ${icon('arrowRight', 17)}</a>
         ${currencySelector()}
         <div class="last-update">
           <span class="status-dot" aria-hidden="true"></span>

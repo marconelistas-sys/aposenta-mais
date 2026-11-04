@@ -24,7 +24,7 @@ Relatório completo em PDF que avalie a situação financeira com as práticas d
 | Tema | Decisão | Motivo |
 |---|---|---|
 | Geração do PDF | Rota `/relatorio` com página HTML de relatório e botão "Salvar como PDF" (`window.print()`), CSS `@page` A4 | Dados não saem do navegador; reaproveita SVGs; zero dependência. Playwright só em teste |
-| Ponto de entrada | Item "Relatório financeiro" no grupo Planejar do menu | Relatório é leitura do plano inteiro |
+| Ponto de entrada | Item "Relatório financeiro" no grupo Planejar do menu. Substituído pelo Panorama financeiro (`/panorama`, em abas): ver [panorama-financeiro.md](panorama-financeiro.md) | Relatório é leitura do plano inteiro |
 | Valores ocultos | Página mostra aviso e bloqueia o botão até revelar os valores | Nunca imprimir máscaras em silêncio |
 | Histórico de patrimônio | `plan.wealthHistory`: uma foto por mês, no padrão de `goalsHistory` (troca a foto do mês, sanitiza, limite de 120 meses) | Base para a evolução real a partir de agora |
 | Evolução realizada | Com menos de 2 fotos, a seção mostra a composição de hoje e a projeção, com aviso. Com 2 ou mais, linha do patrimônio por mês e variação entre a primeira e a última foto | Não estimar o passado |

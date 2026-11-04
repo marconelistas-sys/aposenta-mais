@@ -26,3 +26,10 @@ test('normalization is idempotent and supports same-origin absolute links', () =
   assert.equal(href, '/orcamento?aba=resumo#month')
   assert.equal(normalizePlanningHref(href), href)
 })
+
+test('the old report opens the Panorama summary and the old year to date opens the Panorama spending tab', () => {
+  assert.equal(normalizePlanningHref('/relatorio'), '/panorama')
+  assert.equal(normalizePlanningHref('/relatorio?x=1#capa'), '/panorama#capa')
+  assert.equal(normalizePlanningHref('/orcamento?aba=acumulado'), '/panorama?aba=gastos')
+  for (const href of ['/panorama', '/panorama?aba=gastos', '/orcamento?aba=categorias', '/orcamento?aba=visao', '/orcamento?aba=transferencias', '/orcamento?aba=importar']) assert.equal(normalizePlanningHref(href), href)
+})

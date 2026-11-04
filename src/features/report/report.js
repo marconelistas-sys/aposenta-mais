@@ -1,5 +1,5 @@
-// Rota /relatorio: monta o relatório em segundo plano e mostra a página com a
-// barra de ações. Ao abrir, grava a foto mensal do patrimônio. Reaproveita a
+// Rota /panorama (antiga /relatorio): monta o relatório em segundo plano e
+// mostra o Panorama financeiro em abas, com a barra do PDF. Ao abrir, grava a foto mensal do patrimônio. Reaproveita a
 // confiança dos objetivos já calculada (Objetivos) quando o plano não mudou.
 import { recordWealthSnapshot, state } from '../../app/state.js'
 import { ownedStorage } from '../../app/owned-storage.js'
