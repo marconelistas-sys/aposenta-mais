@@ -18,10 +18,10 @@ Rótulos: [fato] verificado no código; [suposição] decisão sem dado; [valida
 |---|---|---|
 | Nome e rota | `/panorama`, rótulo "Panorama financeiro". `/relatorio` redireciona | Nome descreve o uso na tela; o PDF continua se chamando "Relatório financeiro" |
 | Forma | O relatório vira tela com 7 abas (`renderTabbedPanels`, `pageId` `panorama`, `?aba=`). Mesmo modelo, mesma renderização dos capítulos. Sumário de capítulos (TOC) sai | Zero matemática nova; abas já testadas em outras telas |
-| Impressão | Botão "Salvar relatório em PDF" em qualquer aba imprime o documento inteiro, na ordem atual. `@media print` mostra todos os painéis e esconde a barra de abas. Vale também para Ctrl+P | O PDF não pode depender da aba aberta |
+| Impressão | Botão "Salvar relatório em PDF" em qualquer aba imprime o documento inteiro, na ordem atual. `@media print` mostra todos os painéis e esconde a barra de abas. **Só pelo botão** (2026-11-04): ele marca `<html data-report-printing>` e põe o `@page` A4 no `<head>` durante a impressão; Ctrl+P imprime a tela como está | O PDF não pode depender da aba aberta; o PDF é uma ação, não o jeito de ver o panorama |
 | Carregamento | Abas aparecem no estado `partial` (o modelo sem Monte Carlo). Só a aba Aposentadoria mostra "Calculando as faixas P10 a P90…" com o cenário base | O `partial` já traz todos os capítulos [fato: `report-worker.js`] |
 | Re-renderização | Ao chegar o `complete`, aba ativa, foco e rolagem se mantêm | O Monte Carlo termina até 2 min depois, com a pessoa já lendo outra aba |
-| Valores ocultos | Mesmo bloqueio do relatório: aviso e botão "Mostrar valores", sem abas. Ao revelar, volta à aba em que estava | Todo capítulo é valor; máscara parcial engana |
+| Valores ocultos | **Revisto em 2026-11-04 pelo dono:** o panorama aparece sempre, com abas, e todo valor em dinheiro mascarado (`CHF •••••`, sem sinal, também nos eixos dos gráficos). Só o PDF fica bloqueado, com aviso e "Mostrar valores". Ao revelar, continua na mesma aba | Ver o panorama não depende de gerar o PDF; o arquivo nunca sai com máscaras |
 | Abas vazias | A aba aparece sempre; capítulo sem dados mostra o estado vazio existente | URLs estáveis; a ausência de dado é informação |
 | Ajustar e simular | Topo de cada aba: linha "Ajustar em" (telas de cadastro) e, quando houver, "Simular em" (projeção e risco). Só na tela | Liga leitura a correção sem misturar as duas |
 | Orçamento | Fica com 4 abas de trabalho. Sai "Acumulado do ano" e o bloco "O que mais pesa". Aba padrão continua `resumo`, rotulada "Conferir o mês" | Orçamento vira tela de lançar e conferir; a análise mora no Panorama |
@@ -154,9 +154,10 @@ Como dono do plano, quero ler as abas enquanto as faixas P10–P90 são calculad
 
 Como dono do plano, quero salvar o PDF de qualquer aba, para não perder capítulos por estar na aba errada.
 
-- Dada a aba Carteira ativa e o relatório `complete`, quando aciono "Salvar relatório em PDF" ou Ctrl+P, então a prévia traz capa e capítulos 1 a 12 na ordem, sem barra de abas nem links "Ajustar em", em até 12 páginas A4.
-- Dados os valores ocultos, quando abro `/panorama`, então vejo o aviso e "Mostrar valores", nenhuma aba e nenhum valor, e o botão de PDF desabilitado com motivo lido por leitor de tela.
-- Dados os valores ocultos com `?aba=aposentadoria`, quando clico "Mostrar valores", então a aba Aposentadoria abre.
+- Dada a aba Carteira ativa e o relatório `complete`, quando aciono "Salvar relatório em PDF", então a prévia traz capa e capítulos 1 a 12 na ordem, sem barra de abas nem links "Ajustar em", em até 12 páginas A4.
+- Dado o Panorama aberto, quando uso Ctrl+P sem o botão, então a impressão é a da tela (barra de abas, só a aba aberta), sem o layout A4 do relatório.
+- Dados os valores ocultos, quando abro `/panorama`, então vejo as 7 abas com os valores em dinheiro mascarados, o aviso, "Mostrar valores" e o botão de PDF desabilitado com motivo lido por leitor de tela.
+- Dados os valores ocultos com `?aba=aposentadoria`, quando clico "Mostrar valores", então continuo na aba Aposentadoria, com os valores.
 
 ### H4. Ajustar e simular a partir da aba
 
@@ -242,7 +243,8 @@ Conteúdo informativo: o Panorama mantém os avisos do relatório (não é recom
   - URLs antigas redirecionadas.
   - Sem rolagem horizontal em 1440, 390, 360 e 320 px, nas 7 abas.
   - Impressão a partir da aba Carteira com os 12 capítulos, PDF A4 de 11 páginas.
-  - Valores ocultos bloqueiam o PDF, e ao revelar a pessoa volta à aba em que estava.
+  - Valores ocultos mascaram o panorama e bloqueiam o PDF; ao revelar, a pessoa continua na aba em que estava.
+  - Ctrl+P sem o botão não monta o relatório (2026-11-04).
 - `npm run test:budget-browser`: 4 abas, sem "O que mais pesa", com link para o Panorama.
   - A verificação já falhava antes desta entrega: o título "Importar até 12 extratos…" tinha uma sequência de bancos sem espaços que estourava a 375 px. O título foi corrigido.
 - `scripts/check-budget-year-to-date-browser.mjs` foi removido junto com a aba. Os testes unitários do Acumulado continuam.

@@ -4,7 +4,7 @@ import { createExportableState } from '../src/app/state-storage.js'
 import { buildFinancialReport, reportChapters } from '../src/domain/financial-report.js'
 import { confidenceStatus } from '../src/domain/goals-planning.js'
 import { bridgeRows, categorySegments, divergingRows, fanChart, quotaRows, segmentedBar, statusBadge } from '../src/features/report/report-charts.js'
-import { chapterTitles, compactReference, panoramaTabs, renderReportDocument, renderReportScreen, reportDocumentTitle } from '../src/features/report/report-view.js'
+import { chapterTitles, compactReference, panoramaTabs, renderReportDocument, renderReportScreen, reportDocumentTitle, reportPageStyle } from '../src/features/report/report-view.js'
 import { readFileSync } from 'node:fs'
 import { pageTabState } from '../src/shared/page-tabs.js'
 import { printReport, reportView } from '../src/features/report/report.js'
@@ -77,8 +77,8 @@ test('cada figura tem título-conclusão, Como ler e Fonte', () => {
   assert.ok(figures.filter(body => /<dt>Como ler<\/dt>/.test(body)).length >= 10)
   assert.match(html, /Patrimônio líquido de CHF [\d.]+ em out\/26/, 'linha do histórico com 6 fotos')
   assert.match(html, /Cenário base: patrimônio financeiro/, 'sem as faixas, mostra o cenário base')
-  assert.match(html, /@page \{ size: A4; margin: 14mm 16mm 18mm; @bottom-left \{ content: "Aposenta\+ · Relatório financeiro · data-base outubro de 2026 · CHF";/)
-  assert.match(html, /counter\(page\) " de " counter\(pages\)/)
+  assert.match(reportPageStyle(report), /^@page \{ size: A4; margin: 14mm 16mm 18mm; @bottom-left \{ content: "Aposenta\+ · Relatório financeiro · data-base outubro de 2026 · CHF";/)
+  assert.match(reportPageStyle(report), /counter\(page\) " de " counter\(pages\)/)
 })
 
 test('estado vazio explícito em cada capítulo sem dados', () => {
@@ -108,11 +108,18 @@ test('tela: carregamento, faixas em cálculo, erro e valores ocultos', () => {
   const failed = renderReportScreen({ status: 'error', error: 'Horizonte inválido.' })
   assert.match(failed, /data-report-retry/)
   assert.match(failed, /Horizonte inválido\./)
+  // Values hidden: the Panorama still shows, every amount masked; only the PDF is blocked.
   const hidden = renderReportScreen({ status: 'complete', report, hidden: true })
   assert.match(hidden, /data-report-print disabled/)
   assert.match(hidden, /data-toggle-values/)
   assert.match(hidden, /nunca sai com valores mascarados/)
-  assert.doesNotMatch(hidden, /data-report[ >]|CHF|•••/)
+  assert.match(hidden, /data-report aria-labelledby/)
+  assert.equal((hidden.match(/data-page-tab="panorama:/g) || []).length, 7)
+  assert.match(hidden, /CHF •••••/)
+  assert.doesNotMatch(textOf(hidden), /CHF\s?[−+]?\d/)
+  assert.match(renderReportScreen({ status: 'complete', report }), /CHF\s?[−+]?\d/, 'sem máscara depois de mostrar os valores')
+  const hiddenLoading = renderReportScreen({ status: 'running', step: 'report', hidden: true })
+  assert.match(hiddenLoading, /etapa 2 de 3/)
   assert.equal(reportDocumentTitle(report), 'Relatório financeiro Aposenta+ 2026-10')
 })
 
@@ -148,7 +155,7 @@ test('gráficos: zero neutro, vermelho só material, ponte e categorias com Outr
   assert.match(statusBadge('attention'), /aria-hidden="true">!<\/span>Atenção/)
 })
 
-test('Panorama no grupo Entender e PDF bloqueado com valores ocultos', () => {
+test('Panorama no grupo Entender; PDF só pelo botão e bloqueado com valores ocultos', () => {
   const understand = groupedNavigation().find(group => group.title === 'Entender')
   assert.deepEqual(understand.items.map(item => item.href), ['/', '/panorama'])
   const calls = []
@@ -164,6 +171,24 @@ test('Panorama no grupo Entender e PDF bloqueado com valores ocultos', () => {
     reportView.report = report
     assert.equal(printReport(view), true)
     assert.deepEqual(calls, ['print'])
+    // With a document: the print layout and the A4 page style exist only during that print.
+    const listeners = {}
+    const head = { nodes: [], append(node) { this.nodes.push(node); node.remove = () => { this.nodes = this.nodes.filter(item => item !== node) } } }
+    const root = { dataset: {} }
+    const seen = []
+    const browser = {
+      onafterprint: null,
+      document: { documentElement: root, head, createElement: () => ({ dataset: {}, textContent: '' }) },
+      addEventListener: (name, listener) => { listeners[name] = listener },
+      removeEventListener: name => { delete listeners[name] },
+      print: () => seen.push({ printing: 'reportPrinting' in root.dataset, page: head.nodes[0]?.textContent })
+    }
+    assert.equal(printReport(browser), true)
+    assert.equal(seen[0].printing, true)
+    assert.match(seen[0].page, /@page \{ size: A4;[\s\S]*data-base outubro de 2026/)
+    listeners.afterprint()
+    assert.equal('reportPrinting' in root.dataset, false)
+    assert.equal(head.nodes.length, 0)
   } finally {
     state.valuesHidden = previous.hidden
     reportView.report = previous.report
@@ -213,9 +238,14 @@ test('Panorama: tela com h1 próprio, sem sumário de capítulos, e a aba pedida
   } finally { delete pageTabState.panorama }
 })
 
-test('impressão: todas as abas saem, sem a barra de abas nem os links de ajuste', () => {
+test('impressão: só pelo botão; todas as abas saem, sem a barra de abas nem os links de ajuste', () => {
   const css = readFileSync(new URL('../src/styles/report.css', import.meta.url), 'utf8')
   const print = css.slice(css.indexOf('@media print'))
-  assert.match(print, /\.report > \[data-page-tab-panel\]\[hidden\] \{ display: block !important; \}/)
+  assert.match(print, /\[data-report-printing\] \.report > \[data-page-tab-panel\]\[hidden\] \{ display: block !important; \}/)
   assert.match(print, /\.report > \.page-tabs, \.report-screen-only/)
+  // Ctrl+P is not the PDF: every print rule waits for the button's mark.
+  const rules = print.slice(print.indexOf('{') + 1).split('\n').filter(line => line.includes('{') && !line.trim().startsWith('/*'))
+  for (const rule of rules) for (const selector of rule.slice(0, rule.indexOf('{')).split(/,(?![^()]*\))/)) assert.match(selector.trim(), /^:root\[data-report-printing\]/, selector)
+  // The A4 @page is not in the screen document either.
+  assert.doesNotMatch(renderReportDocument(report), /@page|data-report-page-style/)
 })

@@ -6,7 +6,7 @@ import { ownedStorage } from '../../app/owned-storage.js'
 import { riskRevision } from '../plan/risk.js'
 import { goalsView } from '../goals/goals.js'
 import { runReport } from './report-worker.js'
-import { renderReportScreen, reportDocumentTitle } from './report-view.js'
+import { renderReportScreen, reportDocumentTitle, reportPageStyle } from './report-view.js'
 
 // The bands take long on large plans; past this limit the report stays with
 // the base scenario in their place.
@@ -97,9 +97,33 @@ export function reportTitle() {
   return reportView.report ? reportDocumentTitle(reportView.report) : 'Relatório financeiro Aposenta+'
 }
 
-// Prints only a complete, visible report. Values hidden never print masks.
+// The only way to make the PDF: the "Salvar relatório em PDF" button. It
+// marks <html> with data-report-printing (the print layout in report.css
+// applies only then) and adds the A4 @page style; both go away after the
+// print, so Ctrl+P prints the screen as it is. Prints only a built, visible
+// report: values hidden never print masks.
 export function printReport(view = globalThis) {
   if (state.valuesHidden || !reportView.report) return false
-  view.print()
+  const doc = view.document
+  const root = doc?.documentElement
+  const style = doc?.createElement('style')
+  if (style) {
+    style.dataset.reportPageStyle = ''
+    style.textContent = reportPageStyle(reportView.report)
+    doc.head.append(style)
+    root.dataset.reportPrinting = ''
+  }
+  let done = false
+  const cleanup = () => {
+    if (done) return
+    done = true
+    style?.remove()
+    if (root) delete root.dataset.reportPrinting
+    view.removeEventListener?.('afterprint', cleanup)
+  }
+  view.addEventListener?.('afterprint', cleanup)
+  try { view.print() } catch (error) { cleanup(); throw error }
+  // Browsers without afterprint still block in print(); clean up after it.
+  if (!('onafterprint' in view)) cleanup()
   return true
 }

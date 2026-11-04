@@ -5,7 +5,7 @@
 // conteúdo segue legível em tabela ou legenda (nunca só pela cor).
 import { escapeHtml, formatCompactCurrency } from '../../shared/formatters.js'
 import { planningChartLine } from '../../shared/planning-chart.js'
-import { formatReportMoney, formatReportPercent, formatReportPoints, minusSign } from './report-text.js'
+import { formatReportMoney, formatReportPercent, formatReportPoints, isMoneyMasked, maskedMoney, minusSign } from './report-text.js'
 
 const finite = Number.isFinite
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
@@ -179,7 +179,7 @@ function spread(labels, gap, top, bottom) {
 }
 
 const lineFrame = { width: 680, height: 224, left: 84, right: 520, top: 16, bottom: 190 }
-const axisMoney = (value, currency) => (value < 0 ? minusSign : '') + formatCompactCurrency(Math.abs(value), currency)
+const axisMoney = (value, currency) => isMoneyMasked() ? maskedMoney(currency) : (value < 0 ? minusSign : '') + formatCompactCurrency(Math.abs(value), currency)
 
 function lineAxes({ ticks, y, xLabels, frame }) {
   const grid = ticks.map(tick => `<line class="report-svg-grid${tick.value === 0 ? ' report-svg-grid--zero' : ''}" x1="${frame.left}" x2="${frame.right}" y1="${round(y(tick.value))}" y2="${round(y(tick.value))}"/><text class="report-svg-tick" x="${frame.left - 8}" y="${round(y(tick.value) + 4)}" text-anchor="end">${escapeHtml(tick.text)}</text>`)

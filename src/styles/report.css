@@ -58,7 +58,6 @@
 .report-spinner { flex: none; width: 16px; height: 16px; margin-top: 3px; border: 2px solid var(--color-track); border-top-color: var(--color-brand); border-radius: 50%; animation: report-spin 0.9s linear infinite; }
 @keyframes report-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .report-spinner { animation: none; border-top-color: var(--color-ink-muted); } }
-.report-gate { display: flex; align-items: center; gap: var(--space-3); max-width: 900px; margin: 0 auto; padding: var(--space-6) var(--space-5); border-radius: var(--radius-lg); color: var(--color-ink-soft); }
 .report-loading { display: grid; gap: var(--space-3); max-width: 900px; margin: 0 auto; padding: var(--space-6); border-radius: var(--radius-lg); }
 .report-loading__bar { height: 14px; border-radius: 999px; background: var(--color-track); }
 .report-loading__bar--short { width: 60%; }
@@ -325,42 +324,43 @@
 }
 
 /* ── Print: A4, chapters on new pages, nothing outside the report ──────── */
-/* @page (A4, margens e rodapé com data-base e página) vem no <style> do
-   próprio relatório, para não alterar a impressão das outras telas. */
+/* Só quando o botão "Salvar relatório em PDF" inicia a impressão: printReport
+   marca <html data-report-printing> e põe o @page (A4, margens e rodapé com
+   data-base e página) no <head>, e tira os dois depois. Ctrl+P, aqui ou em
+   outra tela, imprime a tela como está. */
 @media print {
-  .report, .report * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  html:has([data-report-toolbar]), body:has([data-report-toolbar]) { background: #fff; }
-  body:has([data-report-toolbar]) :is(.skip-link, .app-header, .app-footer, .mobile-nav, .demo-banner, .toast-region, .request-progress, .request-progress-bar, .report-heading, .report-toolbar, .report > .page-tabs, .report-screen-only, .recalc-bar, dialog) { display: none; }
+  :root[data-report-printing] .report, :root[data-report-printing] .report * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  :root[data-report-printing], :root[data-report-printing] body { background: #fff; }
+  :root[data-report-printing] body :is(.skip-link, .app-header, .app-footer, .mobile-nav, .demo-banner, .toast-region, .request-progress, .request-progress-bar, .report-heading, .report-toolbar, .report > .page-tabs, .report-screen-only, .recalc-bar, dialog) { display: none; }
   /* Every tab prints, whatever tab is open on screen. */
-  .report > [data-page-tab-panel], .report > [data-page-tab-panel][hidden] { display: block !important; }
-  body:has([data-report-toolbar]) .page-shell { width: auto; min-height: 0; margin: 0; padding: 0; }
-  body:has([data-report-gate]) .report-gate { display: flex; border: 0; box-shadow: none; }
-  .report { display: block; max-width: none; font-size: 9.5pt; line-height: 1.38; }
-  .report-cover, .report-chapter { display: block; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: none; }
-  .report-chapter > * + * { margin-top: 0.8em; }
-  .report-cover { display: grid; }
-  .report-cover { padding-top: 0.5em; border-top: 4pt solid var(--color-brand); }
-  .report-cover__heading { font-size: 22pt; }
-  .report-chapter--summary { margin-top: 1.1em; }
-  .report-chapter--page { break-before: page; }
-  .report-chapter--flow { margin-top: 1.8em; break-before: auto; }
-  .report-chapter__header { break-after: avoid; }
-  .report-chapter h2 { font-size: 18pt; }
-  .report-headline { font-size: 12.5pt; }
-  .report-callout, .report-kpis, .report-table-scroll, .report-empty, .report-indicator, .report-finding, .report-action, .report-dimension, .report-multiple { break-inside: avoid; }
-  .report-figure:not(.report-figure--breakable) { break-inside: avoid; }
-  .report-figure__title, .report-subtitle { break-after: avoid; }
-  .report-table-scroll { overflow: visible; }
-  .report-figure__notes { font-size: 7.5pt; }
-  .report-indicator__reference { font-size: 7pt; }
-  .report-indicators { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.45em; }
-  .report-indicator__value { font-size: 1.4em; }
-  .report-indicator__sentence { font-size: 0.8em; line-height: 1.3; }
-  .report-figure--breakable { break-inside: auto; }
-  .report-finding, .report-action { padding-block: 0.5em; }
-  .report-indicator { padding: 0.55em 0.7em; }
-  .report a { color: inherit; text-decoration: none; }
-  .report-table th, .report-table td { padding-block: 0.26em; }
-  [data-report-chapter="appendix"] { font-size: 8.6pt; }
-  [data-report-chapter="appendix"] .report-deflist--glossary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  :root[data-report-printing] .report > [data-page-tab-panel], :root[data-report-printing] .report > [data-page-tab-panel][hidden] { display: block !important; }
+  :root[data-report-printing] body .page-shell { width: auto; min-height: 0; margin: 0; padding: 0; }
+  :root[data-report-printing] .report { display: block; max-width: none; font-size: 9.5pt; line-height: 1.38; }
+  :root[data-report-printing] .report-cover, :root[data-report-printing] .report-chapter { display: block; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: none; }
+  :root[data-report-printing] .report-chapter > * + * { margin-top: 0.8em; }
+  :root[data-report-printing] .report-cover { display: grid; }
+  :root[data-report-printing] .report-cover { padding-top: 0.5em; border-top: 4pt solid var(--color-brand); }
+  :root[data-report-printing] .report-cover__heading { font-size: 22pt; }
+  :root[data-report-printing] .report-chapter--summary { margin-top: 1.1em; }
+  :root[data-report-printing] .report-chapter--page { break-before: page; }
+  :root[data-report-printing] .report-chapter--flow { margin-top: 1.8em; break-before: auto; }
+  :root[data-report-printing] .report-chapter__header { break-after: avoid; }
+  :root[data-report-printing] .report-chapter h2 { font-size: 18pt; }
+  :root[data-report-printing] .report-headline { font-size: 12.5pt; }
+  :root[data-report-printing] .report-callout, :root[data-report-printing] .report-kpis, :root[data-report-printing] .report-table-scroll, :root[data-report-printing] .report-empty, :root[data-report-printing] .report-indicator, :root[data-report-printing] .report-finding, :root[data-report-printing] .report-action, :root[data-report-printing] .report-dimension, :root[data-report-printing] .report-multiple { break-inside: avoid; }
+  :root[data-report-printing] .report-figure:not(.report-figure--breakable) { break-inside: avoid; }
+  :root[data-report-printing] .report-figure__title, :root[data-report-printing] .report-subtitle { break-after: avoid; }
+  :root[data-report-printing] .report-table-scroll { overflow: visible; }
+  :root[data-report-printing] .report-figure__notes { font-size: 7.5pt; }
+  :root[data-report-printing] .report-indicator__reference { font-size: 7pt; }
+  :root[data-report-printing] .report-indicators { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.45em; }
+  :root[data-report-printing] .report-indicator__value { font-size: 1.4em; }
+  :root[data-report-printing] .report-indicator__sentence { font-size: 0.8em; line-height: 1.3; }
+  :root[data-report-printing] .report-figure--breakable { break-inside: auto; }
+  :root[data-report-printing] .report-finding, :root[data-report-printing] .report-action { padding-block: 0.5em; }
+  :root[data-report-printing] .report-indicator { padding: 0.55em 0.7em; }
+  :root[data-report-printing] .report a { color: inherit; text-decoration: none; }
+  :root[data-report-printing] .report-table th, :root[data-report-printing] .report-table td { padding-block: 0.26em; }
+  :root[data-report-printing] [data-report-chapter="appendix"] { font-size: 8.6pt; }
+  :root[data-report-printing] [data-report-chapter="appendix"] .report-deflist--glossary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
