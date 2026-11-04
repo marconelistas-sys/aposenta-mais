@@ -1,5 +1,13 @@
 # Backlog inicial
 
+## Entrega: Conferir o mês
+
+Planejada e implementada em 2026-11-04. Modelo em `src/domain/month-check.js`, tela em `src/features/cash-flow/month-check.js`. 1.103 testes aprovados (`tests/month-check.test.js`, `tests/month-check-view.test.js`), mais `npm run test:month-check-browser` e `npm run test:budget-browser`. A 390 × 844 px, a frase principal fica a 661 px do topo (meta < 844) e a aba mede 1.514 px (meta ≤ 2.000, antes 3.025). Com a aba aberta, ficam 2 frases sem dado (antes 14) e 4 detalhes (antes 6). A aba "Conferir o mês" do Orçamento passa a responder, sem sair dela, se o mês ficou dentro do planejado, quais categorias explicam a diferença e o que ainda falta lançar. Ordem fixa no desktop e no celular: frase do mês, quadro Planejado × Realizado × Diferença (Receitas, Despesas, Sobra), "Onde passou do planejado" (fecha ao centavo com o quadro), "Ainda sem realizado" (com "Lançar realizado" e eventuais sem data) e rodapé com "Conta N realizados, o último em DD/MM". Saem os totais repetidos, os avisos genéricos e 2 dos 3 detalhes da aba. Sem matemática nova (`buildMonthlyBudget`, `budgetExpenseCategories`, `budgetExpenseOverruns` com limite 0). RICE 1,9. [Decisões e histórias](conferir-mes.md). Avaliação de UX em [avaliacao-ux-conferir-mes.md](avaliacao-ux-conferir-mes.md).
+
+Pendências [validar]: "Sobra/Falta" só nesta aba; centavos em toda a aba; nomes visíveis com valores ocultos, como no Panorama; T1 a T4 na tela atual em 2026-11-18. Revisão no fechamento de novembro de 2026.
+
+Depois: fase 2 do Orçamento (menu "Mais" no cabeçalho, detalhe da previdência em Lançamentos, Transferências e Importar só quando acionados, sombra de rolagem na barra de abas), RICE 2,5; seletor de mês em inglês ("October 2026"); aba Categorias com nomes visíveis quando os valores estão ocultos.
+
 ## Entrega: Panorama financeiro e Orçamento para lançar
 
 As telas do relatório viram o Panorama financeiro (`/panorama`, 2º item da barra principal), com 7 abas: Resumo, Fluxo e gastos, Patrimônio, Carteira, Reserva, dívidas e câmbio, Aposentadoria, Verificação e premissas. Cada aba traz links "Ajustar em" e "Simular em". O PDF sai completo de qualquer aba. O menu separa Entender de Lançar e ajustar. O Orçamento fica com 4 abas: Conferir o mês, Categorias, Lançamentos e Ano do orçamento. Saíram o Acumulado do ano e o bloco "O que mais pesa", que o Panorama cobre. `/relatorio` e `/orcamento?aba=acumulado` redirecionam. 1.090 testes aprovados, mais as verificações em navegador do Panorama, do PDF (11 páginas) e do Orçamento. [Decisões e histórias](panorama-financeiro.md).

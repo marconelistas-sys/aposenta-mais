@@ -713,6 +713,13 @@ function finishCategoryEntrySave(message, context) {
   showToast(message)
 }
 
+// Date for an actual from Conferir o mês: today in the current month,
+// otherwise the 1st of the checked month (visible and editable in the form).
+function monthCheckDate(month, today = new Date()) {
+  const key = today.toISOString().slice(0, 10)
+  return key.slice(0, 7) === month ? key : `${month}-01`
+}
+
 function categoryEntryContext(form) {
   const dialog = form.closest('dialog')
   return dialog?.dataset.budgetEntryId ? { source: dialog.dataset.budgetEntrySource, id: dialog.dataset.budgetEntryId, month: dialog.dataset.budgetEntryMonth } : null
@@ -902,6 +909,7 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('currency').value = state.currency
     form.elements.namedItem('startDate').value = `${month}-01`
     form.elements.namedItem('endMode').value = 'none'
+    delete dialog.dataset.recordedFromCheck
     dialog.dataset.plannedCategory = category.id
     guideBudgetForm(form, state.customCategories)
     dialog.showModal()
@@ -909,15 +917,74 @@ document.addEventListener('click', async (event) => {
     return
   }
 
+  // Conferir o mês: "Lançar realizado" opens the form already filled with the
+  // category (income or expense), Realizado, Eventual and the date; the amount
+  // stays empty, with the focus, so the person types the number they checked.
+  const recordCategoryButton = event.target.closest('[data-record-budget-category]')
+  if (recordCategoryButton) {
+    if (state.valuesHidden) return
+    const category = categoryById(recordCategoryButton.dataset.recordBudgetCategory, state.customCategories)
+    const month = recordCategoryButton.dataset.recordBudgetMonth
+    const dialog = app.querySelector('[data-new-cash-item-dialog]')
+    if (!category || !['income', 'expense'].includes(category.type) || !dialog || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return
+    if (state.cashFlow.items.length >= cashFlowItemLimit) { showToast('Limite de lançamentos atingido.'); return }
+    const form = dialog.querySelector('[data-cash-item-form]')
+    form.reset()
+    form.querySelector('[data-form-error]')?.remove()
+    delete dialog.dataset.plannedCategory
+    form.elements.namedItem('categoryId').value = category.id
+    form.elements.namedItem('description').value = category.name
+    form.elements.namedItem('recordKind').value = 'actual'
+    form.elements.namedItem('frequency').value = 'occasional'
+    form.elements.namedItem('currency').value = state.currency
+    form.elements.namedItem('startDate').value = monthCheckDate(month)
+    form.elements.namedItem('endMode').value = 'none'
+    dialog.dataset.recordedFromCheck = category.id
+    guideBudgetForm(form, state.customCategories)
+    dialog.showModal()
+    form.elements.namedItem('amount').focus()
+    return
+  }
+  const monthCategory = event.target.closest('[data-open-month-category]')
+  if (monthCategory) {
+    const month = monthCategory.dataset.month
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month || '')) return
+    Object.assign(budgetCategoriesView, { year: Number(month.slice(0, 4)), month: month.slice(5, 7), sort: 'difference' })
+    render()
+    selectPageTab(app, 'orcamento', 'categorias', { focus: false })
+    const id = monthCategory.dataset.openMonthCategory
+    const details = id ? [...app.querySelectorAll('[data-budget-category-details]')].find(node => node.dataset.budgetCategoryDetails === id) : null
+    if (details) details.open = true
+    const target = details?.querySelector('summary') || app.querySelector('[data-budget-categories] h2')
+    if (!details) target?.setAttribute('tabindex', '-1')
+    target?.focus({ preventScroll: true })
+    target?.scrollIntoView({ block: 'start' })
+    return
+  }
+
   if (event.target.closest('[data-new-cash-item]')) {
     const dialog = app.querySelector('[data-new-cash-item-dialog]')
+    const kind = event.target.closest('[data-new-cash-item]').dataset.newCashItemKind
     if (dialog) {
-      if (dialog.dataset.plannedCategory) {
+      if (dialog.dataset.plannedCategory || dialog.dataset.recordedFromCheck || kind) {
         dialog.querySelector('form').reset()
         delete dialog.dataset.plannedCategory
+        delete dialog.dataset.recordedFromCheck
         guideBudgetForm(dialog.querySelector('form'), state.customCategories)
       }
-      if (budgetEntriesView.recordKind === 'actual') {
+      if (kind === 'planned') {
+        const form = dialog.querySelector('[data-cash-item-form]')
+        form.elements.namedItem('recordKind').value = 'planned'
+        form.elements.namedItem('startDate').value = `${state.cashFlow.referenceMonth}-01`
+        guideBudgetForm(form, state.customCategories)
+      } else if (kind === 'actual') {
+        const form = dialog.querySelector('[data-cash-item-form]')
+        form.elements.namedItem('recordKind').value = 'actual'
+        form.elements.namedItem('frequency').value = 'occasional'
+        form.elements.namedItem('startDate').value = monthCheckDate(state.cashFlow.referenceMonth)
+        dialog.dataset.recordedFromCheck = 'any'
+        guideBudgetForm(form, state.customCategories)
+      } else if (budgetEntriesView.recordKind === 'actual') {
         const form = dialog.querySelector('[data-cash-item-form]')
         form.elements.namedItem('recordKind').value = 'actual'
         form.elements.namedItem('frequency').value = 'occasional'
@@ -944,7 +1011,8 @@ document.addEventListener('click', async (event) => {
     if (tool) { tool.open = true; tool.querySelector('summary')?.focus(); tool.scrollIntoView({ block: 'start' }) }
     return
   }
-  if (event.target.closest('[data-open-budget-import]')) {
+  // Header button, plus the ones inside Conferir o mês (own hook, same action).
+  if (event.target.closest('[data-open-budget-import], [data-month-check-import]')) {
     const tool = app.querySelector('[data-budget-tool="importar"]')
     if (tool) tool.open = true
     const section = app.querySelector('.statement-import')
@@ -1189,6 +1257,16 @@ document.addEventListener('click', async (event) => {
     toggleValues()
     render()
     showToast(state.valuesHidden ? 'Valores ocultos.' : 'Valores visíveis.')
+    return
+  }
+  // "Mostrar valores" inside Conferir o mês: same toggle, then back to the answer.
+  if (event.target.closest('[data-month-check-show-values]')) {
+    if (state.valuesHidden) toggleValues()
+    render()
+    const title = app.querySelector('#month-check-title')
+    title?.setAttribute('tabindex', '-1')
+    title?.focus({ preventScroll: true })
+    showToast('Valores visíveis.')
     return
   }
 
@@ -2482,10 +2560,19 @@ document.addEventListener('submit', async (event) => {
   if (cashItemForm) {
     event.preventDefault()
     try {
-      const fromCategory = cashItemForm.closest('[data-new-cash-item-dialog]')?.dataset.plannedCategory
+      const newDialog = cashItemForm.closest('[data-new-cash-item-dialog]')
+      const fromCategory = newDialog?.dataset.plannedCategory
+      const fromCheck = newDialog?.dataset.recordedFromCheck
       addCashFlowItem(cashItemInputFromForm(cashItemForm))
       const id = state.cashFlow.items.at(-1)?.id
-      if (fromCategory) {
+      if (fromCheck) {
+        // Back to Conferir o mês, which now counts the new actual.
+        delete newDialog.dataset.recordedFromCheck
+        render()
+        app.querySelector('#month-check-title')?.setAttribute('tabindex', '-1')
+        app.querySelector('#month-check-title')?.focus({ preventScroll: true })
+        showToast('Realizado lançado.')
+      } else if (fromCategory) {
         render()
         const entry = [...app.querySelectorAll('[data-edit-budget-category="item"]')].filter(node => !node.closest('[data-page-tab-panel]')?.hidden).find(button => button.dataset.categoryItemId === id)
         if (entry) {

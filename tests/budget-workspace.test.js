@@ -1,5 +1,5 @@
 import { cashFlowItemLimit } from '../src/shared/limits.js'
-import { renderMonthTracking } from '../src/features/cash-flow/month-tracking.js'
+import { renderMonthCheck } from '../src/features/cash-flow/month-check.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { budgetEntriesView, filterBudgetEntries, readBudgetFilters, resetBudgetEntriesView } from '../src/features/cash-flow/budget-entries-view.js'
@@ -114,12 +114,12 @@ test('empty budget offers creation and capacity limit explains the disabled acti
 })
 
 test('family summary remains independent of list filters including ownership', () => {
-  const before = renderMonthTracking(state, { compact: true })
+  const before = renderMonthCheck(state)
   assert.ok(renderBudgetEntries().includes(before))
   budgetEntriesView.type = 'expense'
   budgetEntriesView.search = 'nothing'
   budgetOwnerView.selected = 'spouse'
-  const after = renderMonthTracking(state, { compact: true })
+  const after = renderMonthCheck(state)
   assert.ok(renderBudgetEntries().includes(after))
   assert.equal(after, before)
 })
@@ -136,34 +136,36 @@ test('resumo único do orçamento mostra despesas e saldo realizados do mês, co
     actual('planned', 'expense', 9000, { recordKind: 'planned' }),
     actual('other-month', 'expense', 99, { startDate: '2026-10-05', endDate: '2026-10-05' })
   ] })
-  const metric = (html, key) => html.match(new RegExp(`data-cash-summary-actual="${key}"[^>]*>[\\s\\S]*?<dd[^>]*>([^<]+)</dd>`))?.[1]
-  let html = renderBudgetEntries()
-  assert.match(metric(html, 'income'), /1.000/)
-  assert.match(metric(html, 'expenses'), /225/)
-  assert.match(metric(html, 'balance'), /775/)
+  // Conferir o mês: the actual column of the month table (no plan in these months).
+  const metric = (html, key) => html.match(new RegExp(`data-month-check-row="${key}"[\\s\\S]*?<td data-label="realizado">([^<]+)</td>`))?.[1]
+  const today = new Date('2026-12-01T12:00:00Z')
+  let html = renderMonthCheck(state, { today })
+  assert.match(metric(html, 'income'), /1\.000,00/)
+  assert.match(metric(html, 'expenses'), /225,00/, 'CHF 15 convertido e transferência própria fora')
+  assert.match(metric(html, 'balance'), /775,00/)
   state.cashFlow.referenceMonth = '2026-10'
-  html = renderBudgetEntries()
-  assert.equal(metric(html, 'income'), 'Sem registros')
-  assert.match(metric(html, 'expenses'), /99/)
-  assert.match(metric(html, 'balance'), /-.*99/)
+  html = renderMonthCheck(state, { today })
+  assert.equal(metric(html, 'income'), 'Nada lançado')
+  assert.match(metric(html, 'expenses'), /99,00/)
+  assert.match(metric(html, 'balance'), /^Falta R\$\s?99,00$/)
   state.cashFlow.referenceMonth = '2026-11'
-  html = renderBudgetEntries()
-  assert.equal(metric(html, 'income'), 'Sem registros')
-  assert.equal(metric(html, 'expenses'), 'Sem registros')
-  assert.equal(metric(html, 'balance'), 'Sem registros')
+  html = renderMonthCheck(state, { today })
+  assert.match(html, /Novembro está vazio\./)
+  assert.doesNotMatch(html, /data-month-check-table/)
+  assert.ok(renderBudgetEntries().includes('data-month-check '))
 })
 
 test('resumo único do orçamento oculta valores e sinal do saldo realizado no modo privado', () => {
   state.valuesHidden = true
   Object.assign(state.cashFlow, { referenceMonth: '2026-09', annualGoals: [], commitments: [], consortia: [], items: [{ id: 'secret', description: 'Compra', categoryId: 'groceries', type: 'expense', amount: 987654.32, currency: 'BRL', frequency: 'occasional', startDate: '2026-09-01', recordKind: 'actual' }] })
-  const html = renderBudgetEntries()
-  const summary = html.match(/<dl class="metric-row cash-month-summary__actual">([\s\S]*?)<\/dl>/)?.[1]
-  assert.match(summary, /Receitas realizadas/)
-  assert.match(summary, /Despesas realizadas/)
-  assert.match(summary, /Saldo realizado/)
+  const html = renderMonthCheck(state, { today: new Date('2026-12-01T12:00:00Z') })
+  const summary = html.match(/<table class="month-check-table"([\s\S]*?)<\/table>/)?.[1]
+  assert.match(summary, /Receitas/)
+  assert.match(summary, /Despesas/)
+  assert.match(summary, /Sobra/)
   assert.match(summary, /•••/)
-  assert.match(summary, /data-tone="neutral"/)
-  assert.doesNotMatch(summary, /987|654|negative/)
+  assert.doesNotMatch(summary, /987|654|unfavorable|Falta|−/)
+  assert.match(html, /Valores ocultos\./)
 })
 
 
@@ -172,12 +174,11 @@ test('resumo sem planejamento não anuncia equilíbrio e projeção não repete 
   state.valuesHidden = false
   Object.assign(state.cashFlow, { referenceMonth: '2026-08', items: [], annualGoals: [], commitments: [], consortia: [] })
   const budget = renderBudgetEntries()
-  assert.match(budget, /Sem orçamento cadastrado/)
-  assert.doesNotMatch(budget, /Orçamento equilibrado/)
-  assert.equal((budget.match(/class="panel settings-card cash-month-summary"/g) || []).length, 1)
-  assert.equal((budget.match(/aria-label="Acompanhamento do mês"/g) || []).length, 1)
+  assert.match(budget, /Agosto está vazio\./)
+  assert.doesNotMatch(budget, /equilibrado|Sobraram/)
+  assert.equal((budget.match(/data-month-check /g) || []).length, 1)
   assert.equal((budget.match(/data-page-tab="orcamento:/g) || []).length, 4)
   const projection = renderCashFlow()
-  assert.doesNotMatch(projection, /cash-month-summary|month-tracking|data-cash-summary-actual/)
+  assert.doesNotMatch(projection, /data-month-check|cash-month-summary|month-tracking|data-cash-summary-actual/)
   assert.match(projection, /Projeção patrimonial/)
 })
