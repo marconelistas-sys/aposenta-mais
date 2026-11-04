@@ -137,9 +137,19 @@ try {
   }
   assert.equal(await page.locator('[data-page-tab="panorama:gastos"]').getAttribute('aria-selected'), 'true')
 
+  // Ctrl+P is not the PDF: without the button, print media keeps the screen
+  // layout (app frame, tab bar, only the open tab) and no A4 @page style.
+  await page.emulateMedia({ media: 'print' })
+  assert.equal(await page.locator('.report > .page-tabs').isVisible(), true, 'Ctrl+P não monta o relatório')
+  assert.equal(await page.locator('[data-page-tab-panel="panorama:resumo"]').isVisible(), false)
+  assert.equal(await page.locator('style[data-report-page-style]').count(), 0)
+  await page.emulateMedia({ media: 'screen' })
+
   await print.focus()
   await page.keyboard.press('Enter')
   assert.equal(await page.evaluate(() => window.__printCalls), 1)
+  assert.equal(await page.evaluate(() => 'reportPrinting' in document.documentElement.dataset), true, 'o botão liga o layout do PDF')
+  assert.equal(await page.locator('head style[data-report-page-style]').count(), 1)
 
   for (const width of [390, 360, 320]) {
     await page.setViewportSize({ width, height: 900 })
@@ -178,24 +188,27 @@ try {
   const rasterized = spawnSync('pdftoppm', ['-r', '80', '-png', pdfPath, join(output, 'pagina')], { stdio: 'ignore' })
   await page.emulateMedia({ media: 'screen' })
   await page.setViewportSize({ width: 1440, height: 1000 })
+  // After the print: the PDF layout and the @page style go away.
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')))
+  assert.equal(await page.evaluate(() => 'reportPrinting' in document.documentElement.dataset), false)
+  assert.equal(await page.locator('style[data-report-page-style]').count(), 0)
 
-  // Values hidden: no report, no masks, blocked button, and a notice in print.
+  // Values hidden: the Panorama still shows, amounts masked; only the PDF is blocked.
   await page.locator('[data-report-toolbar] [data-toggle-values], .header-actions [data-toggle-values]').first().click()
-  assert.equal(await page.locator('[data-report]').count(), 0)
+  assert.equal(await page.locator('[data-report]').count(), 1, 'o panorama aparece com os valores ocultos')
+  assert.equal(await page.locator('[data-page-tab^="panorama:"]').count(), 7)
+  assert.equal(await page.locator('[data-page-tab="panorama:carteira"]').getAttribute('aria-selected'), 'true', 'a aba aberta continua')
   assert.equal(await print.isDisabled(), true)
   assert.match(await status.innerText(), /nunca sai com valores mascarados/)
-  assert.doesNotMatch(await page.locator('main').innerText(), /CHF\s?\d/)
-  await page.emulateMedia({ media: 'print' })
-  assert.equal(await page.locator('[data-report-gate]').isVisible(), true)
-  await page.emulateMedia({ media: 'screen' })
-  assert.equal(await page.locator('[data-page-tab]').count(), 0, 'sem abas com valores ocultos')
+  assert.doesNotMatch(await page.locator('main').innerText(), /(CHF|R\$|US\$)\s?[−+]?\d/)
+  assert.match(await page.locator('[data-page-tab-panel="panorama:carteira"]').innerText(), /CHF •••••/)
   await page.locator('[data-report-toolbar] [data-toggle-values]').click()
   await page.locator('[data-report]').waitFor()
   assert.equal(await print.isEnabled(), true)
-  assert.equal(await page.locator('[data-page-tab="panorama:carteira"]').getAttribute('aria-selected'), 'true', 'ao revelar, volta à aba em que estava')
+  assert.equal(await page.locator('[data-page-tab="panorama:carteira"]').getAttribute('aria-selected'), 'true', 'ao revelar, continua na aba em que estava')
 
   assert.deepEqual(errors, [])
-  console.log(`Panorama validado: barra principal e grupo Entender, 7 abas, links Ajustar em, URLs antigas, carregamento em segundo plano (abas em ${(partialAt / 1000).toFixed(1)} s, faixas P10–P90 em ${(completeAt / 1000).toFixed(1)} s${sawPartial ? ', PDF liberado com aviso antes das faixas' : ''}), sem <details>, teclado nas abas, telas de 1440, 390, 360 e 320 px sem estouro em todas as abas, impressão de todas as abas sem a moldura do app, PDF A4 com ${pages} páginas e valores ocultos bloqueando o PDF.`)
+  console.log(`Panorama validado: barra principal e grupo Entender, 7 abas, links Ajustar em, URLs antigas, carregamento em segundo plano (abas em ${(partialAt / 1000).toFixed(1)} s, faixas P10–P90 em ${(completeAt / 1000).toFixed(1)} s${sawPartial ? ', PDF liberado com aviso antes das faixas' : ''}), sem <details>, teclado nas abas, telas de 1440, 390, 360 e 320 px sem estouro em todas as abas, impressão de todas as abas sem a moldura do app, PDF A4 com ${pages} páginas só pelo botão (Ctrl+P imprime a tela) e valores ocultos mascarando o panorama e bloqueando o PDF.`)
   console.log(`PDF e capturas em ${output}${rasterized.status === 0 ? ' (páginas em PNG via pdftoppm)' : ' (pdftoppm indisponível: sem PNG das páginas)'}.`)
 } finally {
   await browser?.close()

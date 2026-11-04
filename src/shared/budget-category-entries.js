@@ -1,6 +1,6 @@
 import { escapeHtml, formatMonth, privateCurrency } from './formatters.js'
 
-function entryLink(entry, state) {
+export function entryLink(entry, state) {
   const description = escapeHtml(entry.description)
   const source = entry.consortiumId ? 'consortium' : entry.annualGoalId ? 'annualGoals' : entry.commitmentId ? 'commitments' : 'item'
   const id = entry.consortiumId || entry.annualGoalId || entry.commitmentId || entry.id

@@ -5,6 +5,7 @@
 // sinal, negativo sempre com sinal (mesmo sem `signed`). Parâmetros `text`
 // são nomes digitados pelo usuário: sempre escapados.
 import { escapeHtml, formatMonth, formatProjectedCurrency } from '../../shared/formatters.js'
+import { currencySymbol } from '../../shared/currencies.js'
 
 export const minusSign = '−'
 const numberFormats = new Map()
@@ -22,8 +23,21 @@ function signed(magnitude, rounded, { signed: withPlus = false } = {}) {
 
 const roundTo = (value, digits) => Math.round(value * 10 ** digits) / 10 ** digits || 0
 
+// Values hidden: the Panorama still shows on screen, with every amount masked
+// (no sign either). Set only while one screen render runs; the PDF is never
+// rendered masked, since it is blocked with the values hidden.
+let moneyMasked = false
+export const isMoneyMasked = () => moneyMasked
+export function withMaskedMoney(masked, render) {
+  const previous = moneyMasked
+  moneyMasked = Boolean(masked)
+  try { return render() } finally { moneyMasked = previous }
+}
+export const maskedMoney = currency => `${currencySymbol(currency)} •••••`
+
 export function formatReportMoney(value, currency, options = {}) {
   if (!Number.isFinite(value)) return 'indisponível'
+  if (moneyMasked) return maskedMoney(currency)
   const rounded = Math.round(value) || 0
   return signed(formatProjectedCurrency(Math.abs(rounded), currency), rounded, options)
 }

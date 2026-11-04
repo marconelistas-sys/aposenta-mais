@@ -9,7 +9,7 @@ import { renderOwnTransfers } from './own-transfers.js'
 import { renderBudgetOverview } from './budget-overview.js'
 import { renderBudgetCategories } from './budget-categories.js'
 import { cashFlowItemLimit } from '../../shared/limits.js'
-import { renderMonthTracking } from './month-tracking.js'
+import { renderMonthCheck } from './month-check.js'
 import { householdOwners, householdOwnerField, budgetOwnerView } from '../../shared/household-owner.js'
 import { state } from '../../app/state.js'
 import {
@@ -539,6 +539,8 @@ export function selectCashFlowTab(tab) {
   return cashFlowView.tab
 }
 
+// Out of the interface since 2026-11-04 (Conferir o mês, docs/product/conferir-mes.md).
+// Kept for one cycle with renderMonthTracking; delete after the December review.
 export function renderBudgetMonthSummary() {
   const money = value => privateCurrency(value, state.valuesHidden, false, state.currency)
   const comparison = buildMonthlyBudget(state)
@@ -752,7 +754,7 @@ function budgetEntriesResult() {
 export function renderBudgetEntryResults(result = budgetEntriesResult()) {
   const items = filterBudgetEntries(result.convertedItems)
   const period = budgetEntriesView.period === 'all' ? 'Todos os períodos' : `Vigentes em ${monthLabel(state.cashFlow.referenceMonth)}`
-  return `<div class="budget-list-context"><h2 id="cash-items-title">${period}</h2><p role="status">${items.length} de ${result.convertedItems.length} lançamentos exibidos</p><button type="button" class="budget-category-entry-link" data-show-budget-expense-pies>Ver para onde vai o dinheiro</button></div>
+  return `<div class="budget-list-context"><h2 id="cash-items-title">${period}</h2><p role="status">${items.length} de ${result.convertedItems.length} lançamentos exibidos</p><button type="button" class="budget-category-entry-link" data-show-budget-expense-pies>Ver gastos por categoria</button></div>
     ${items.length ? cashFlowItems({ convertedItems: items }) : `<div class="budget-empty"><h3>${result.convertedItems.length ? 'Nenhum lançamento encontrado' : 'Seu orçamento ainda não tem lançamentos'}</h3><p>${result.convertedItems.length ? 'Tente outra busca ou use Todos os períodos para consultar registros encerrados, futuros ou sem data.' : 'Adicione sua primeira receita ou despesa para organizar o orçamento.'}</p>${result.convertedItems.length ? '<button type="button" class="button button--secondary" data-reset-budget-filters>Limpar e ver todos</button>' : '<button type="button" class="button button--primary" data-new-cash-item>Adicionar lançamento</button>'}</div>`}`
 }
 
@@ -763,15 +765,14 @@ export function updateBudgetEntryResults(root) {
 
 export function renderBudgetEntries(statementReview = null) {
   const result = budgetEntriesResult()
-  // Budget is the screen to enter and check values; the analysis of where
-  // spending is high lives in the Panorama (docs/product/panorama-financeiro.md).
-  const analysis = `<p class="budget-analysis-link" data-budget-analysis-link>Para entender o ano, veja <a href="/panorama?aba=gastos" data-route>onde o gasto está alto</a> no Panorama.</p>`
   const options = (values, selected) => Object.entries(values).map(([value, label]) => `<option value="${value}" ${selected === value ? 'selected' : ''}>${label}</option>`).join('')
   return `<section class="page-heading page-heading--inner budget-heading"><div><p class="eyebrow">ORÇAMENTO</p><h1>Orçamento mensal</h1><p>Cadastre o previsto e confira o realizado no mês selecionado. A análise do ano fica no Panorama.</p><p class="budget-heading-links"><a href="/panorama?aba=gastos" data-route>Ver análise no Panorama ${icon('arrowRight', 16)}</a> <a href="/fluxo-caixa?aba=anual" data-route>Ver impacto no patrimônio ${icon('arrowRight', 16)}</a></p></div><div class="budget-page-actions"><button class="button button--primary" type="button" data-new-cash-item ${state.cashFlow.items.length >= cashFlowItemLimit ? 'disabled' : ''}>${icon('plus', 18)} Adicionar lançamento</button><button class="button button--secondary" type="button" data-new-expense-category>${icon('plus', 18)} Nova categoria de despesa</button><button class="button button--secondary" type="button" data-open-budget-import>${icon('document', 18)} Importar extrato</button><button class="button button--secondary" type="button" data-open-budget-transfers>${icon('transfer', 18)} Transferências</button>${state.cashFlow.items.length >= cashFlowItemLimit ? '<p class="budget-capacity">Limite de 10.000 registros atingido. Edite os registros existentes ou exclua os desnecessários.</p>' : ''}</div></section>
     ${renderMonthNavigation(state.cashFlow.referenceMonth, { label: 'Mês do orçamento' })}
 
     ${renderTabbedPanels('orcamento', [
-      { key: 'resumo', label: 'Conferir o mês', html: `<div class="budget-summary-layout">${renderBudgetMonthSummary()}${renderMonthTracking(state, { showMonthSelector: false })}</div>${analysis}${!state.valuesHidden && result.excluded.undated.length ? `<section class="panel settings-card"><p>Há lançamentos eventuais sem data, fora dos totais.</p><ul>${result.excluded.undated.map(item => `<li><button type="button" class="budget-category-entry-link" data-edit-cash-item="${escapeHtml(item.id)}">Informar data de ${escapeHtml(item.description || item.category.name)}</button></li>`).join('')}</ul></section>` : ''}` },
+      // Budget is the screen to enter and check values; the analysis of the
+      // year lives in the Panorama (docs/product/conferir-mes.md).
+      { key: 'resumo', label: 'Conferir o mês', html: renderMonthCheck(state) },
       { key: 'categorias', label: 'Categorias', html: renderBudgetCategories(state) },
       { key: 'lancamentos', label: 'Lançamentos', html: `<section class="panel budget-workspace" aria-labelledby="cash-items-title">
       <form class="budget-filters" data-budget-filters role="search" aria-label="Filtrar lançamentos">

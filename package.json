@@ -27,7 +27,9 @@
     "test:pension-browser": "node scripts/check-pension-links-browser.mjs",
     "test:pension-import-browser": "node scripts/check-pension-import-browser.mjs",
     "test:goals-browser": "node scripts/check-goals-browser.mjs",
-    "test:report-browser": "node scripts/check-report-print-browser.mjs"
+    "test:report-browser": "node scripts/check-report-print-browser.mjs",
+    "test:month-check-browser": "node scripts/check-month-check-browser.mjs",
+    "test:budget-categories-browser": "node scripts/check-budget-categories-browser.mjs"
   },
   "engines": {
     "node": ">=24"

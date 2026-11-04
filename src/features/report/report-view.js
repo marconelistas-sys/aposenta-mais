@@ -7,7 +7,7 @@ import { escapeHtml, formatMonth } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 import { renderTabbedPanels } from '../../shared/page-tabs.js'
 import { allocationRows, bridgeRows, currencyPairs, divergingRows, emptyState, fanChart, figure, historyLine, projectionLine, quotaRows, reserveBullet, segmentedBar, shortMonth, sparkline, statusBadge } from './report-charts.js'
-import { formatReportDate, formatReportMoney, formatReportMonths, formatReportPercent, formatReportPoints, formatReportText } from './report-text.js'
+import { formatReportDate, formatReportMoney, formatReportMonths, formatReportPercent, formatReportPoints, formatReportText, withMaskedMoney } from './report-text.js'
 
 const finite = Number.isFinite
 const t = formatReportText
@@ -462,10 +462,12 @@ const bodies = { cashFlow: cashFlowBody, spending: spendingBody, balanceSheet: b
 
 // Page footer of the printed file (Chrome draws @page margin boxes). Plain
 // text from the model dates only; quotes and backslashes are escaped for CSS.
-function pageStyle(report) {
+// CSS text only: printReport adds it to <head> for the print it starts, so
+// Ctrl+P on any screen (Panorama included) keeps the browser's own page.
+export function reportPageStyle(report) {
   const text = `Aposenta+ · Relatório financeiro · data-base ${formatMonth(report.meta.referenceMonth)} · ${report.meta.currency}`.replace(/[\\"]/g, '\\$&').replace(/[\n\r<>]/g, ' ')
   const box = 'color: #5c6b82; font: 7.5pt/1.2 Inter, ui-sans-serif, -apple-system, "Segoe UI", sans-serif; vertical-align: top; padding-top: 4mm;'
-  return `<style data-report-page-style>@page { size: A4; margin: 14mm 16mm 18mm; @bottom-left { content: "${text}"; ${box} } @bottom-right { content: "Página " counter(page) " de " counter(pages); ${box} } }</style>`
+  return `@page { size: A4; margin: 14mm 16mm 18mm; @bottom-left { content: "${text}"; ${box} } @bottom-right { content: "Página " counter(page) " de " counter(pages); ${box} } }`
 }
 
 // ── Panorama tabs ────────────────────────────────────────────────────────
@@ -504,17 +506,19 @@ export function renderReportDocument(report, options = {}) {
     const keys = [...tab.chapters.filter(key => key === 'cover' || key === 'summary' || report.chapterOrder.includes(key)), ...(index === panoramaTabs.length - 1 ? extra : [])]
     return { key: tab.key, label: tab.label, html: adjustLinks(tab) + keys.map(key => blocks[key]?.() || '').join('') }
   })
-  return `<article class="report" data-report aria-labelledby="report-title">${pageStyle(report)}${renderTabbedPanels('panorama', tabs, { label: 'Assuntos do panorama' })}</article>`
+  return `<article class="report" data-report aria-labelledby="report-title">${renderTabbedPanels('panorama', tabs, { label: 'Assuntos do panorama' })}</article>`
 }
 
 // ── Screen around the report: actions, progress, privacy ─────────────────
 const steps = { goals: 'Calculando a confiança dos objetivos', report: 'Montando os capítulos', risk: 'Calculando as faixas P10 a P90 da aposentadoria' }
+// The Panorama shows whenever the report is built, values hidden or not
+// (masked then). The PDF is a separate action: only the button starts it, and
+// it stays blocked with the values hidden, so the file never has masks.
 export function renderReportScreen({ status = 'idle', step = null, report = null, error = '', riskError = '', hidden = false } = {}) {
-  const ready = Boolean(report) && !hidden
   const fanPending = status === 'partial'
   const blocked = hidden || !report
-  const statusText = hidden
-    ? 'Os valores estão ocultos. Mostre os valores para ver o panorama e salvar o PDF: o arquivo nunca sai com valores mascarados.'
+  const statusText = hidden && report
+    ? 'Valores ocultos no panorama. Para salvar o PDF, mostre os valores: o arquivo nunca sai com valores mascarados.'
     : status === 'error' ? `Não foi possível montar o panorama. ${error}`
       : !report ? `${steps[step] || 'Preparando o panorama'}… etapa ${step === 'risk' ? 3 : step === 'report' ? 2 : 1} de 3. O cálculo roda neste navegador.`
         : fanPending ? 'Panorama pronto, exceto as faixas P10 a P90 da aposentadoria, ainda em cálculo. Se salvar o PDF agora, ele sai com o cenário base no lugar das faixas.'
@@ -523,12 +527,12 @@ export function renderReportScreen({ status = 'idle', step = null, report = null
   const toolbar = `<aside class="report-toolbar panel" aria-labelledby="report-toolbar-title" data-report-toolbar>
     <div class="report-toolbar__main">
       <h2 id="report-toolbar-title" class="report-toolbar__title">Relatório em PDF</h2>
-      <p class="report-toolbar__status report-toolbar__status--${hidden ? 'hidden' : status}" role="status" aria-live="polite" data-report-status>${!report && !hidden && status !== 'error' ? '<span class="report-spinner" aria-hidden="true"></span>' : ''}${e(statusText)}</p>
+      <p class="report-toolbar__status report-toolbar__status--${hidden && report ? 'hidden' : status}" role="status" aria-live="polite" data-report-status>${!report && status !== 'error' ? '<span class="report-spinner" aria-hidden="true"></span>' : ''}${e(statusText)}</p>
       <p class="report-toolbar__privacy">${icon('lock', 16)}<span>${t(report?.appendix?.privacyNotice) || 'O arquivo contém seus dados financeiros e não é enviado a nenhum servidor.'} Guarde-o em local seguro.</span></p>
     </div>
     <div class="report-toolbar__actions">
       ${hidden ? `<button type="button" class="button button--primary" data-toggle-values>${icon('eye', 18)} Mostrar valores</button>` : ''}
-      ${status === 'error' && !hidden ? '<button type="button" class="button button--secondary" data-report-retry>Tentar novamente</button>' : ''}
+      ${status === 'error' ? '<button type="button" class="button button--secondary" data-report-retry>Tentar novamente</button>' : ''}
       <button type="button" class="button ${hidden ? 'button--secondary' : 'button--primary'}" data-report-print ${blocked ? 'disabled aria-describedby="report-print-blocked"' : ''}>${icon('download', 18)} Salvar relatório em PDF</button>
       ${blocked ? `<p id="report-print-blocked" class="sr-only">${hidden ? 'Indisponível com os valores ocultos.' : 'Disponível quando o panorama estiver montado.'}</p>` : ''}
     </div>
@@ -543,9 +547,7 @@ export function renderReportScreen({ status = 'idle', step = null, report = null
     </details>
   </aside>`
   const heading = `<section class="page-heading report-heading"><div><p class="eyebrow">ENTENDER</p><h1>Panorama financeiro</h1><p>Onde estão suas finanças: fluxo de caixa, gastos acima do plano, patrimônio, carteira, reserva, dívidas, câmbio e aposentadoria. Para mudar um número, use os links “Ajustar em” de cada aba.</p></div></section>`
-  const body = hidden
-    ? `<div class="report-gate panel" data-report-gate>${icon('eyeOff', 22)}<p>Valores ocultos. O panorama aparece quando você mostrar os valores.</p></div>`
-    : ready ? renderReportDocument(report, { fanPending })
+  const body = report ? withMaskedMoney(hidden, () => renderReportDocument(report, { fanPending }))
       : status === 'error' ? ''
         : `<div class="report-loading panel" aria-hidden="true"><span class="report-loading__bar"></span><span class="report-loading__bar"></span><span class="report-loading__bar report-loading__bar--short"></span></div>`
   return `${heading}${toolbar}${body}`

@@ -70,7 +70,9 @@ test('budget is for entering and checking: no spending analysis block, a link to
   resetBudgetEntriesView()
   const html = renderBudgetEntries()
   assert.doesNotMatch(html, /budget-month-pressure|O que mais pesa/)
-  assert.match(html, /data-budget-analysis-link>[^]*?href="\/panorama\?aba=gastos"/)
+  // One link to the Panorama, in the page heading (Conferir o mês no longer repeats it).
+  assert.equal((html.match(/href="\/panorama\?aba=gastos"/g) || []).length, 1)
+  assert.match(html, /budget-heading-links"><a href="\/panorama\?aba=gastos"/)
   state.valuesHidden = true
   assert.doesNotMatch(renderBudgetEntries(), /budget-month-pressure/)
   assert.deepEqual(cashFlowDetailPanels([row], state.plan, 'BRL', true), [])
