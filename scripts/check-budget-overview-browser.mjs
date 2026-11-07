@@ -86,27 +86,38 @@ try {
   assert.equal(await page.locator('[data-page-tab="orcamento:resumo"]').getAttribute('aria-selected'), 'true')
   await page.locator('[data-page-tab="orcamento:visao"]').click()
   assert.equal(await page.locator('[data-page-tab="orcamento:visao"]').getAttribute('aria-selected'), 'true')
-  const plannedBarStyles = await page.evaluate(() => {
+  // Divergent bullet chart: actual = solid narrow bar, planned = neutral track with a black target
+  // tick, income above zero and expenses below, balance as a marker. Not color alone.
+  const chartStyles = await page.evaluate(() => {
     const style = selector => {
-      const computed = getComputedStyle(document.querySelector(selector))
-      return { image: computed.backgroundImage, color: computed.backgroundColor, size: computed.backgroundSize }
+      const element = document.querySelector(selector)
+      const computed = getComputedStyle(element)
+      const box = element.getBoundingClientRect()
+      return { color: computed.backgroundColor, border: computed.borderTopColor, width: box.width, top: box.top, bottom: box.bottom }
     }
+    const zero = document.querySelector('.budget-chart-lines .is-zero').getBoundingClientRect().top
     return {
-      income: style('[data-budget-bar="2026-08:planned:income"]'),
-      expenses: style('[data-budget-bar="2026-08:planned:expenses"]'),
-      incomeLegend: style('.budget-chart-legend .is-income.is-planned'),
-      expensesLegend: style('.budget-chart-legend .is-expenses.is-planned'),
+      zero,
+      plannedIncome: style('[data-budget-bar="2026-08:planned:income"]'),
+      plannedExpenses: style('[data-budget-bar="2026-08:planned:expenses"]'),
       actualIncome: style('[data-budget-bar="2026-08:actual:income"]'),
-      actualExpenses: style('[data-budget-bar="2026-08:actual:expenses"]')
+      actualExpenses: style('[data-budget-bar="2026-08:actual:expenses"]'),
+      net: style('[data-budget-bar="2026-08:actual:balance"]'),
+      plannedKey: style('.budget-key--planned'),
+      targets: document.querySelectorAll('.budget-target').length,
+      tabStops: document.querySelectorAll('[data-budget-bar][tabindex="0"]').length
     }
   })
-  assert.match(plannedBarStyles.income.image, /repeating-linear-gradient/)
-  assert.match(plannedBarStyles.expenses.image, /radial-gradient/)
-  assert.deepEqual(plannedBarStyles.income, plannedBarStyles.incomeLegend)
-  assert.deepEqual(plannedBarStyles.expenses, plannedBarStyles.expensesLegend)
-  assert.equal(plannedBarStyles.actualIncome.image, 'none')
-  assert.equal(plannedBarStyles.actualExpenses.image, 'none')
-  await page.screenshot({ path: '/tmp/fin2-planned-bars.png' })
+  assert.equal(chartStyles.plannedIncome.color, chartStyles.plannedExpenses.color, 'planned track is neutral for both series')
+  assert.equal(chartStyles.plannedIncome.color, chartStyles.plannedKey.color)
+  assert.notEqual(chartStyles.actualIncome.color, chartStyles.actualExpenses.color)
+  assert.ok(chartStyles.plannedIncome.width > chartStyles.actualIncome.width + 8, 'planned track is wider than the actual bar')
+  assert.ok(chartStyles.actualIncome.bottom <= chartStyles.zero + 2 && chartStyles.actualIncome.top < chartStyles.zero - 50, 'income goes up from zero')
+  assert.ok(chartStyles.actualExpenses.top >= chartStyles.zero - 2 && chartStyles.actualExpenses.bottom > chartStyles.zero + 20, 'expenses go down from zero')
+  assert.ok(chartStyles.net.bottom < chartStyles.zero, 'positive balance marker sits above zero')
+  assert.equal(chartStyles.targets, 24)
+  assert.equal(chartStyles.tabStops, 1)
+  await page.locator('.budget-overview-chart').screenshot({ path: '/tmp/fin2-budget-chart-1440.png' })
   const newExpenseCategory = page.locator('[data-new-expense-category]')
   const expenseCategoryDialog = page.locator('[data-new-expense-category-dialog]')
   const initialCategoryCount = await page.evaluate(async () => { const { state } = await import('/src/app/state.js'); return state.customCategories.length })
@@ -134,7 +145,8 @@ try {
   assert.match(await expenseCategoryDialog.locator('[data-form-error]').innerText(), /já existe/)
   assert.equal(await expenseCategoryDialog.evaluate(dialog => dialog.open), true)
   await expenseCategoryDialog.getByRole('button', { name: 'Cancelar', exact: true }).click()
-  assert.equal(await page.locator('[data-budget-bar]').count(), 48)
+  // 12 planned income + 12 planned expenses + 4 actual (Jun, Jul, Aug expenses; Aug income) + 12 balance markers.
+  assert.equal(await page.locator('[data-budget-bar]').count(), 40)
   // One month navigator drives all four budget views, including year boundaries.
   const referenceMonth = page.locator('#budget-reference-month')
   const nextMonth = page.getByRole('button', { name: 'Próximo mês', exact: true })
@@ -201,19 +213,25 @@ try {
     for (const [key, enabled] of Object.entries({ income, planned, actual })) {
       await page.locator(`[data-budget-chart-filter="${key}"]`).setChecked(enabled)
     }
-    const count = 12 * (income ? 2 : 1) * (Number(planned) + Number(actual))
+    const plannedBars = planned ? 12 * (income ? 2 : 1) : 0
+    const actualBars = actual ? 3 + (income ? 1 : 0) : 0
+    const netMarks = income ? (planned ? 12 : actual ? 1 : 0) : 0
+    const count = plannedBars + actualBars + netMarks
     assert.equal(await page.locator('[data-budget-bar]').count(), count)
-    assert.equal(await page.locator('.budget-bar--planned').count(), planned ? 12 * (income ? 2 : 1) : 0)
-    assert.equal(await page.locator('.budget-bar--actual').count(), actual ? 12 * (income ? 2 : 1) : 0)
+    assert.equal(await page.locator('.budget-bar--planned').count(), plannedBars)
+    assert.equal(await page.locator('.budget-bar--actual').count(), actualBars)
+    assert.equal(await page.locator('.budget-net').count(), netMarks)
     const ids = await page.locator('[data-budget-bar]').evaluateAll(bars => bars.map(bar => bar.dataset.budgetBar))
     assert.equal(new Set(ids).size, count)
-    assert.equal(await page.locator('.budget-chart-legend span').count(), (income ? 2 : 1) * (Number(planned) + Number(actual)))
+    assert.equal(await page.locator('.budget-chart-legend .budget-key--planned').count(), Number(planned))
+    assert.equal(await page.locator('.budget-chart-legend .budget-key--actual-income').count(), Number(income && actual))
+    assert.equal(await page.locator('.budget-chart-legend .budget-key--net').count(), Number(income && (planned || actual)))
     if (!planned && !actual) assert.match(await page.locator('.budget-chart-empty').innerText(), /Selecione Realizado ou Planejado/)
   }
   await page.locator('[data-budget-chart-filter="income"]').check()
   await page.locator('[data-budget-chart-filter="planned"]').check()
   await page.locator('[data-budget-overview-period="years"]').click()
-  assert.equal(await page.locator('[data-budget-bar]').count(), 10)
+  assert.equal(await page.locator('[data-budget-bar]').count(), 15)
   assert.equal(await page.locator('[data-budget-chart-filter="actual"]').isChecked(), false)
   await page.locator('[data-budget-overview-metric="balance"]').click()
   assert.equal(await page.locator('[data-budget-bar]').count(), 5)
@@ -222,7 +240,31 @@ try {
   await page.locator('[data-budget-overview-period="months"]').click()
   await page.locator('[data-budget-chart-filter="actual"]').focus()
   await page.keyboard.press('Space')
-  assert.equal(await page.locator('[data-budget-bar]').count(), 48)
+  assert.equal(await page.locator('[data-budget-bar]').count(), 40)
+  // Roving tabindex: one tab stop; arrows move between months (same series) and between values.
+  await page.locator('[data-budget-bar="2026-08:actual:expenses"]').focus()
+  await page.keyboard.press('ArrowLeft')
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.budgetBar), '2026-07:actual:expenses')
+  assert.match(await page.locator('[data-budget-bar-detail] .budget-detail-total').innerText(), /440,00/)
+  await page.keyboard.press('ArrowLeft')
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.budgetBar), '2026-06:actual:expenses')
+  await page.keyboard.press('ArrowUp')
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.budgetBar), '2026-06:planned:expenses')
+  await page.keyboard.press('ArrowUp')
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.budgetBar), '2026-06:planned:balance')
+  await page.keyboard.press('Home')
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.budgetBar), '2026-01:planned:balance')
+  await page.keyboard.press('End')
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.budgetBar), '2026-12:planned:balance')
+  assert.equal(await page.locator('[data-budget-bar][tabindex="0"]').count(), 1)
+  assert.equal(await page.locator('[data-budget-bar="2026-12:planned:balance"]').getAttribute('tabindex'), '0')
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Shift+Tab')
+  assert.equal(await page.evaluate(() => document.activeElement.hasAttribute('data-budget-bar')), false, 'Shift+Tab leaves the chart in one step')
+  await page.locator('.budget-chart-table summary').click()
+  assert.equal(await page.locator('.budget-chart-table tbody tr').count(), 12)
+  assert.match(await page.locator('.budget-chart-table tr[aria-current="date"]').innerText(), /Agosto de 2026[\s\S]*5\.100,00[\s\S]*\+CHF\s3\.125,00/)
+  await page.locator('.budget-chart-table summary').click()
   await page.locator('[data-page-tab="orcamento:categorias"]').click()
   const categories = page.locator('[data-budget-categories]')
   const categoryRow = name => categories.locator('.category-row').filter({ has: page.locator('.category-row__name', { hasText: name }) })
@@ -365,16 +407,22 @@ try {
   await page.locator('[data-budget-bar="2026-06:actual:balance"]').focus()
   assert.match(await detail.locator('.budget-detail-total').innerText(), /-.*300,00/)
   await page.keyboard.press('Escape')
+  await page.locator('.budget-overview-chart').screenshot({ path: '/tmp/fin2-budget-chart-balance.png' })
   await page.locator('[data-budget-overview-period="years"]').click()
-  assert.equal(await page.locator('[data-budget-bar]').count(), 10)
+  assert.equal(await page.locator('[data-budget-bar]').count(), 6)
   await page.locator('[data-budget-bar="2026:actual:balance"]').focus()
   assert.match(await detail.locator('.budget-detail-total').innerText(), /2.385,00/)
   await page.keyboard.press('Escape')
+  await page.locator('[data-budget-overview-metric="expenses"]').click()
+  await page.locator('.budget-overview-chart').screenshot({ path: '/tmp/fin2-budget-chart-years.png' })
+  await page.locator('[data-budget-overview-metric="balance"]').click()
   await page.locator('[data-budget-overview-period="months"]').click()
   await page.locator('[data-budget-overview-year]').selectOption('2025')
-  assert.equal(await page.locator('[data-budget-bar="2025-08:actual:balance"]').count(), 1)
-  await page.locator('[data-budget-bar="2025-08:actual:balance"]').focus()
-  assert.match(await detail.innerText(), /Sem registros/)
+  // Months without actual records draw no actual mark (absence is not zero); the planned one stays.
+  assert.equal(await page.locator('[data-budget-bar="2025-08:actual:balance"]').count(), 0)
+  assert.match(await page.locator('[data-budget-bar="2025-08:planned:balance"]').getAttribute('aria-label'), /Sem registros realizados/)
+  await page.locator('[data-budget-bar="2025-08:planned:balance"]').focus()
+  assert.match(await detail.locator('.budget-detail-total').innerText(), /3.200,00/)
   await page.keyboard.press('Escape')
   await page.locator('[data-budget-overview-year]').selectOption('2026')
   await page.locator('[data-budget-overview-metric="expenses"]').click()
@@ -383,7 +431,19 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `Overflow at ${width}px`)
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.screenshot({ path: `/tmp/fin2-budget-overview-${width}.png`, fullPage: true })
+    await page.locator('.budget-overview-chart').screenshot({ path: `/tmp/fin2-budget-chart-${width}.png` })
   }
+  // At 320px the chart scrolls inside its box; opening the tab brings the selected month into view.
+  await page.locator('[data-page-tab="orcamento:categorias"]').click()
+  await page.locator('[data-page-tab="orcamento:visao"]').click()
+  await page.waitForFunction(() => {
+    const scroller = document.querySelector('[data-budget-overview] .budget-chart-scroll')
+    const column = scroller.querySelector('.budget-chart-column--selected').getBoundingClientRect()
+    const box = scroller.getBoundingClientRect()
+    return scroller.scrollLeft > 0 && column.left >= box.left - 1 && column.right <= box.right + 1
+  })
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'chart scroll stays inside its box')
+  await page.locator('.budget-overview-chart').screenshot({ path: '/tmp/fin2-budget-chart-320-selected.png' })
   await bar.click()
   assert.equal(await detail.isVisible(), true)
   const bounds = await detail.boundingBox()

@@ -12,7 +12,7 @@ import { saveBudgetCategory } from './app/budget-category-edit.js'
 import { bindRequestProgress, withRequestProgress } from './app/request-progress.js'
 import { reconcileOwnTransfers } from './domain/own-transfers.js'
 import { saveOwnTransferSettings } from './app/state.js'
-import { bindBudgetOverviewInteractions, budgetOverviewView } from './features/cash-flow/budget-overview.js'
+import { bindBudgetOverviewInteractions, budgetOverviewView, revealSelectedBudgetPeriod } from './features/cash-flow/budget-overview.js'
 import { bindBudgetCategoriesInteractions, budgetCategoriesView } from './features/cash-flow/budget-categories.js'
 import { bindBudgetYearToDateInteractions } from './features/cash-flow/budget-year-to-date.js'
 import { reviewStatementBatch, statementBatchLimit } from './domain/statement-batch.js'
@@ -316,6 +316,7 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
   }
   if (projectionFlowOpen && app.querySelector('[data-projection-flow-details]')) app.querySelector('[data-projection-flow-details]').open = true
   bindPlanningChartInteractions(app)
+  revealSelectedBudgetPeriod(app)
   bindPaymentDialog(app)
   enhanceMoneyInputs(app, { hidden: state.valuesHidden })
   restoreSimulationForm(simulationValues)
