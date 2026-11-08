@@ -2,7 +2,7 @@ import { revealInPageTab } from '../shared/page-tabs.js'
 
 // Review links only open local editors or focus existing fields. They never save data.
 const fields = {
-  '/carteira': ['investmentName', 'liquidity', 'investmentReleaseYear', 'investmentAmount', 'inflation:BRL', 'inflation:EUR', 'inflation:USD', 'inflation:CHF'],
+  '/carteira': ['investmentName', 'liquidity', 'investmentReleaseYear', 'investmentAmount', 'annualInflation', 'inflation:BRL', 'inflation:EUR', 'inflation:USD', 'inflation:CHF'],
   '/orcamento': ['startDate', 'endDate', 'endMode', 'categoryId', 'description', 'pensionInvestmentId', 'pensionCapitalRelease', 'indexation'],
   '/viabilidade': ['openingConfirmed', 'pensionConfirmed', 'pensionMode', 'taxRegime'],
   '/construir/objetivo': ['retirementMonth'],
@@ -23,7 +23,11 @@ export function openReviewTarget(root, location, { hidden = false, openBudget, o
     try { openBudget(id) } catch { onMissing('O lançamento indicado não está mais no cadastro.'); return false }
     scope = root.querySelector('[data-cash-item-edit-form]')
   } else if (kind && kind !== 'field') return false
-  if (kind && fields[url.pathname]?.includes(field)) target = [...(scope?.querySelectorAll('[name]') || [])].find(node => node.name === field)
+  if (kind && fields[url.pathname]?.includes(field)) {
+    // A radio group receives the focus on its checked option, or on the first one.
+    const named = [...(scope?.querySelectorAll('[name]') || [])].filter(node => node.name === field)
+    target = named.find(node => node.type === 'radio' && node.checked) || named[0]
+  }
   if (!kind && url.pathname === '/perfil' && /^#migration-pending-(?:[a-z_]+--?\d+|\d+)$/.test(url.hash)) {
     target = root.querySelector(url.hash)
     if (!target) { onMissing('O registro indicado não está mais na lista de revisão da importação.'); return false }

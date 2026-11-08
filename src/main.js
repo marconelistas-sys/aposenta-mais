@@ -42,7 +42,9 @@ import { expenseImpactView, resetExpenseImpact, renderExpenseImpact, calculateEx
 import { paymentView, bindPaymentDialog } from './features/cash-flow/payments.js'
 import { linkCalendarPayment, unlinkCalendarPayment } from './domain/calendar-payments.js'
 import { variableView } from './features/dashboard/variable-contributions.js'
-import { guideBudgetForm, showFormError } from './app/form-guidance.js'
+import { guideBudgetForm, showFormError, markIndexationTouched, prepareIndexationField, readIndexationField } from './app/form-guidance.js'
+import { incomeIndexationContext, indexationRequiredMessage } from './shared/income-indexation.js'
+import { sanitizeIncomeIndexation } from './domain/income-indexation.js'
 import { changeAccounts, reconcileLedgerMovement, linkMovementBudget } from './app/accounts.js'
 import { updatePortfolioFromAccount } from './app/portfolio-link.js'
 import { recordReconciliation } from './domain/ledger-links.js'
@@ -320,7 +322,7 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
   bindPaymentDialog(app)
   enhanceMoneyInputs(app, { hidden: state.valuesHidden })
   restoreSimulationForm(simulationValues)
-  document.querySelectorAll('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]').forEach(form => guideBudgetForm(form, state.customCategories))
+  document.querySelectorAll('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]').forEach(form => guideBudgetForm(form, state.customCategories, incomeIndexationContext(state)))
   guideCommitmentForm(document.querySelector('[data-commitment-form]'))
   guideConsortiumForm(document.querySelector('[data-consortium-form]'))
   guideMovementForm(document.querySelector('[data-movement-form]'), state.cashFlow.ledger.accounts)
@@ -590,6 +592,8 @@ function cashItemInputFromForm(form) {
     endDate: form.elements.namedItem('endMode').value === 'date' ? form.elements.namedItem('endDate').value : null,
     endMode: form.elements.namedItem('endMode').value,
     recordKind,
+    // Hidden, disabled or empty: undefined, so saving removes a previous value (H1.2, H1.5, H1.10).
+    ...(form.querySelector('[data-income-indexation]') ? { indexation: readIndexationField(form, indexationRequiredMessage) } : {}),
     ...(form.elements.namedItem('pensionCapitalRelease') ? { pensionCapitalRelease: form.elements.namedItem('pensionCapitalRelease').disabled ? undefined : form.elements.namedItem('pensionCapitalRelease').value !== 'no' } : {}),
     ...(form.elements.namedItem('pensionInvestmentId') ? { pensionInvestmentId: form.elements.namedItem('pensionInvestmentId').disabled ? null : form.elements.namedItem('pensionInvestmentId').value || null } : {}),
     ...(form.elements.namedItem('transferDecision') ? { transferDecision: recordKind === 'actual' && ['own', 'payment'].includes(form.elements.namedItem('transferDecision').value) ? form.elements.namedItem('transferDecision').value : undefined } : {}),
@@ -638,6 +642,7 @@ function openCashItemDialog(id) {
   }
   const pensionCapital = form.elements.namedItem('pensionCapitalRelease')
   if (pensionCapital) pensionCapital.value = item.pensionCapitalRelease === false ? 'no' : 'yes'
+  prepareIndexationField(form, sanitizeIncomeIndexation(item.indexation))
   const imported = item.source === 'txt'
   form.elements.namedItem('transferDecision').value = item.statementInternalTransfer ? 'investment' : item.transferDecision || 'auto'
   // An existing classification keeps its link. Suggestions apply only when classifying now.
@@ -648,7 +653,7 @@ function openCashItemDialog(id) {
     ? 'Item importado. A origem e a classificação como realizado são preservadas.'
     : 'Item manual. Você pode alterar todos os campos.'
   syncCashItemRecordFields(form)
-  guideBudgetForm(form, state.customCategories)
+  guideBudgetForm(form, state.customCategories, incomeIndexationContext(state))
   updateMonthlyHint(dialog.querySelector('form'))
   if (typeof dialog.showModal === 'function') dialog.showModal()
   else dialog.setAttribute('open', '')
@@ -894,6 +899,7 @@ document.addEventListener('click', async (event) => {
     const form = dialog.querySelector('[data-cash-item-form]')
     form.reset()
     form.querySelector('[data-form-error]')?.remove()
+    prepareIndexationField(form, undefined, { isNew: true })
     form.elements.namedItem('categoryId').value = category.id
     form.elements.namedItem('description').value = category.name
     form.elements.namedItem('recordKind').value = 'planned'
@@ -903,7 +909,7 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('endMode').value = 'none'
     delete dialog.dataset.recordedFromCheck
     dialog.dataset.plannedCategory = category.id
-    guideBudgetForm(form, state.customCategories)
+    guideBudgetForm(form, state.customCategories, incomeIndexationContext(state))
     dialog.showModal()
     form.elements.namedItem('amount').focus()
     return
@@ -923,6 +929,7 @@ document.addEventListener('click', async (event) => {
     const form = dialog.querySelector('[data-cash-item-form]')
     form.reset()
     form.querySelector('[data-form-error]')?.remove()
+    prepareIndexationField(form, undefined, { isNew: true })
     delete dialog.dataset.plannedCategory
     form.elements.namedItem('categoryId').value = category.id
     form.elements.namedItem('description').value = category.name
@@ -932,7 +939,7 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('startDate').value = monthCheckDate(month)
     form.elements.namedItem('endMode').value = 'none'
     dialog.dataset.recordedFromCheck = category.id
-    guideBudgetForm(form, state.customCategories)
+    guideBudgetForm(form, state.customCategories, incomeIndexationContext(state))
     dialog.showModal()
     form.elements.namedItem('amount').focus()
     return
@@ -961,27 +968,28 @@ document.addEventListener('click', async (event) => {
     if (dialog) {
       if (dialog.dataset.plannedCategory || dialog.dataset.recordedFromCheck || kind) {
         dialog.querySelector('form').reset()
+        prepareIndexationField(dialog.querySelector('form'), undefined, { isNew: true })
         delete dialog.dataset.plannedCategory
         delete dialog.dataset.recordedFromCheck
-        guideBudgetForm(dialog.querySelector('form'), state.customCategories)
+        guideBudgetForm(dialog.querySelector('form'), state.customCategories, incomeIndexationContext(state))
       }
       if (kind === 'planned') {
         const form = dialog.querySelector('[data-cash-item-form]')
         form.elements.namedItem('recordKind').value = 'planned'
         form.elements.namedItem('startDate').value = `${state.cashFlow.referenceMonth}-01`
-        guideBudgetForm(form, state.customCategories)
+        guideBudgetForm(form, state.customCategories, incomeIndexationContext(state))
       } else if (kind === 'actual') {
         const form = dialog.querySelector('[data-cash-item-form]')
         form.elements.namedItem('recordKind').value = 'actual'
         form.elements.namedItem('frequency').value = 'occasional'
         form.elements.namedItem('startDate').value = monthCheckDate(state.cashFlow.referenceMonth)
         dialog.dataset.recordedFromCheck = 'any'
-        guideBudgetForm(form, state.customCategories)
+        guideBudgetForm(form, state.customCategories, incomeIndexationContext(state))
       } else if (budgetEntriesView.recordKind === 'actual') {
         const form = dialog.querySelector('[data-cash-item-form]')
         form.elements.namedItem('recordKind').value = 'actual'
         form.elements.namedItem('frequency').value = 'occasional'
-        guideBudgetForm(form, state.customCategories)
+        guideBudgetForm(form, state.customCategories, incomeIndexationContext(state))
       }
       dialog.showModal()
       dialog.querySelector('[name="categoryId"]')?.focus()
@@ -1786,7 +1794,8 @@ document.addEventListener('change', async (event) => {
   }
   if (event.target.matches('[data-recurring-choice]')) { const fields = event.target.closest('section').querySelector('[data-recurring-fields]'); fields.disabled = !event.target.checked; return }
   if (event.target.matches('[data-budget-owner]')) { budgetOwnerView.selected = event.target.value; render(); return }
-  if (event.target.matches('[name="householdOwner"]')) { guideBudgetForm(event.target.closest('form'), state.customCategories); return }
+  if (event.target.matches('[name="householdOwner"]')) { guideBudgetForm(event.target.closest('form'), state.customCategories, incomeIndexationContext(state)); return }
+  if (event.target.matches('[data-income-indexation] input[name="indexation"]')) markIndexationTouched(event.target)
   if (event.target.matches('[data-login-provider]')) { authState.loginProvider = event.target.value; return }
 
   if (event.target.matches('[data-property-solvency], [data-cash-flow-price-basis], [data-annual-chart-mode]')) {
@@ -1826,7 +1835,7 @@ document.addEventListener('change', async (event) => {
   }
   if (event.target.matches('[data-withdraw-deficits]')) { variableView.withdrawDeficits = event.target.checked; render(); return }
   const budgetForm = event.target.closest('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]')
-  if (budgetForm) guideBudgetForm(budgetForm, state.customCategories)
+  if (budgetForm) guideBudgetForm(budgetForm, state.customCategories, incomeIndexationContext(state))
   if (event.target.matches('[data-timeline-period]')) {
     const yearControl = event.target.closest('section')?.querySelector('[data-cash-flow-year], [data-chart-year]')
     timelineView.selectedYear = yearControl?.selectedOptions[0]?.textContent.match(/^\d{4}/)?.[0] || null

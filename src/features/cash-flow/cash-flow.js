@@ -27,6 +27,7 @@ import { budgetEntriesView, filterBudgetEntries } from './budget-entries-view.js
 import { expenseCategoryOptions } from '../plan/annual-planning.js'
 import { goalPriorities, goalPriorityLabels, defaultGoalPriority } from '../../domain/goals-planning.js'
 import { pageTabState, renderTabbedPanels } from '../../shared/page-tabs.js'
+import { incomeIndexationField, indexationListLabel } from '../../shared/income-indexation.js'
 
 const frequencyLabels = {
   monthly: 'Mensal',
@@ -104,13 +105,14 @@ function cashFlowItems(result) {
       const original = privateCurrency(item.amount, state.valuesHidden, true, item.currency)
       const converted = privateCurrency(item.convertedAmount, state.valuesHidden, true, state.currency)
       const transactionDate = transactionDateLabel(item)
+      const indexation = indexationListLabel(item)
       return `
         <article class="cash-item ${item.isActive ? '' : 'is-inactive'}">
           <span class="cash-item__type cash-item__type--${item.type}" title="${item.type === 'income' ? 'Receita' : 'Despesa'}">${icon(item.type === 'income' ? 'arrowDownLeft' : 'arrowUpRight', 18)}<span class="sr-only">${item.type === 'income' ? 'Receita' : 'Despesa'}</span></span>
           <div class="cash-item__identity">
             <strong>${escapeHtml(item.description || item.category.name)}</strong>
             ${transactionDate ? `<span class="budget-item-date" data-budget-item-date>${escapeHtml(transactionDate)}</span>` : ''}
-            <span>${item.statementInternalTransfer ? `Investimento${investmentName(item) ? `: ${escapeHtml(investmentName(item))}` : ''}` : item.transferMatch || item.transferPending || item.transferDecision === 'own' ? 'Transferência entre contas próprias ou do casal' : recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']}${item.statementInternalTransfer || item.transferMatch || item.transferPending || item.transferDecision === 'own' ? '' : ` · ${escapeHtml(item.category.name)}`}</span>
+            <span>${item.statementInternalTransfer ? `Investimento${investmentName(item) ? `: ${escapeHtml(investmentName(item))}` : ''}` : item.transferMatch || item.transferPending || item.transferDecision === 'own' ? 'Transferência entre contas próprias ou do casal' : recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']}${item.statementInternalTransfer || item.transferMatch || item.transferPending || item.transferDecision === 'own' ? '' : ` · ${escapeHtml(item.category.name)}`}${indexation ? `<span data-indexation-label> · ${indexation}</span>` : ''}</span>
             ${item.type === 'expense' && item.recordKind === 'actual' && !item.statementInternalTransfer && state.cashFlow.items.some(row => row.id === item.id) ? `<label data-credit-card-payment><input type="checkbox" data-ignore-credit-card-payment="${escapeHtml(item.id)}" ${ignoresCreditCardPayment(item) ? 'checked' : ''} /> Ignorar pagamento de cartão nas despesas</label>${isCreditCardPayment(item) ? `<span>Pagamento de cartão detectado pela descrição. ${ignoresCreditCardPayment(item) ? 'Fora do orçamento.' : 'Incluído no orçamento.'}</span>` : ''}` : ''}
             ${pensionOutsideBudget(state, item) ? '<span data-payroll-pension>Desconto em folha / aporte externo · Fora do orçamento</span>' : ''}
             ${item.plannedExpenseLink ? `<span data-planned-expense-link="${escapeHtml(item.plannedExpenseLink.id)}">Vinculado automaticamente ao planejado: ${escapeHtml(item.plannedExpenseLink.description)}</span>` : item.plannedExpenseLinkStatus === 'ambiguous' ? '<span>Mais de um planejamento compatível, sem vínculo automático</span>' : ''}
@@ -238,6 +240,7 @@ function cashItemEditDialog() {
             <select name="endMode" aria-label="Tipo de término"><option value="date">Data manual acima, opcional</option><option value="none">Sem término</option><option value="retirement">Até a aposentadoria do titular</option><option value="spouse-retirement">Até a aposentadoria do cônjuge</option></select>
             <small>O vínculo acompanha o mês confirmado no orçamento. A data manual só vale quando essa opção está selecionada.</small>
           </label>
+          ${incomeIndexationField('cash-edit')}
         </div>
         <p class="cash-edit-dialog__source" data-cash-edit-source></p>
         <div class="cash-edit-dialog__actions">
@@ -702,6 +705,7 @@ function newCashItemDialog() {
               <select name="endMode" aria-label="Tipo de término"><option value="date">Data manual acima, opcional</option><option value="none">Sem término</option><option value="retirement">Até a aposentadoria do titular</option><option value="spouse-retirement">Até a aposentadoria do cônjuge</option></select>
               <small>O vínculo acompanha o mês confirmado no orçamento. A data manual só vale quando essa opção está selecionada.</small>
             </label>
+            ${incomeIndexationField('cash-new')}
             <div class="budget-form-actions"><button class="button button--secondary" type="button" data-close-new-cash-item>Cancelar</button><button class="button button--primary" type="submit">Salvar lançamento</button></div>
           </div>
         </form>

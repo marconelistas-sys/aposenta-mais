@@ -1,7 +1,7 @@
 import { monthlyBudgetDialog } from './monthly-budget-detail.js'
 import { state } from '../../app/state.js'
 import { cashFlowTimeline, retirementMonth } from '../../domain/cash-flow-timeline.js'
-import { privateCurrency, escapeHtml, formatMonth } from '../../shared/formatters.js'
+import { privateCurrency, privateProjectedCurrency, escapeHtml, formatMonth } from '../../shared/formatters.js'
 import { openSalaryItems, salaryEndMessage } from '../../domain/cash-flow-checks.js'
 import { renderBudgetInsights } from './budget-insights.js'
 import { planningHorizon, annualCashFlow, cashFlowProjectionState } from '../../domain/planning-horizon.js'
@@ -14,8 +14,16 @@ import { renderFinancialReconciliation } from '../../shared/financial-reconcilia
 import { renderHorizonForm } from '../plan/horizon.js'
 import { finappViability, sanitizeFinappMethod } from '../../domain/finapp-viability.js'
 import { moneyWithMonthly } from '../../shared/monthly-equivalent.js'
+import { fixedIncomeChartNote, fixedIncomeCount, indexationRuleText } from '../../shared/income-indexation.js'
 
 export const timelineView = { period: 'target', selectedYear: null }
+
+// Tone of a projected balance as displayed, in whole units: a balance that rounds to
+// zero is neither positive nor negative (formatProjectedCurrency shows it without sign).
+export function balanceTone(value) {
+  if (!Number.isFinite(value) || Math.abs(value) < 0.5) return 'zero'
+  return value < 0 ? 'negative' : 'positive'
+}
 
 function periodControl() {
   const options = [['target', 'Até a idade-alvo configurada'], ['100', 'Até 100 anos, simulação'], ['12', '12 meses'], ['60', '5 anos'], ['retirement', 'Até 2 anos após a aposentadoria']]
@@ -43,6 +51,7 @@ function projectedCharts(rows, plan, markers, annual) {
   const caption = `${state.currency} · ${basis === 'nominal' ? 'Valores nominais de cada ano' : `Poder de compra de ${baseYear}`}`
   const input = { rows: display, currency: state.currency, markers, selectedYear, linkedSelection: true, interpolation: 'linear', annualReadout: true, readoutCaption: caption }
   const financialView = annual && cashFlowChartView.flow === 'financial'
+  const fixedNote = fixedIncomeChartNote(fixedIncomeCount(state.cashFlow), basis, baseYear)
   const flowSeries = financialView ? [
     { key: 'freeCashFlow', label: 'Saldo do orçamento', color: '#2855c7', monthly: true },
     { key: 'financialReturn', label: basis === 'nominal' ? 'Rendimento nominal implícito' : 'Rendimento real', color: '#7c69a8', dash: '2 3' },
@@ -59,13 +68,13 @@ function projectedCharts(rows, plan, markers, annual) {
     <details class="disclosure"><summary>Comparar patrimônio restrito, bens e dívidas</summary><p>Saldos financeiros restritos não estão disponíveis para despesas até a liberação cadastrada. Bens não geram caixa automaticamente. Patrimônio total é financeiro mais bens, menos dívidas. O patrimônio considerado respeita o filtro de imóveis nas Premissas.</p>
     ${planningChart({ ...input, title: 'Composição patrimonial projetada', series: [{ key: 'restrictedFinancial', label: 'Financeiro restrito', color: '#7c69a8', dash: '6 3' }, { key: 'assets', label: 'Bens e direitos', color: '#64748b', dash: '2 3' }, { key: 'liabilities', label: 'Dívidas', color: '#9a6b00', dash: '8 4' }, { key: 'netWorth', label: 'Patrimônio total líquido de dívidas', color: '#167454' }, { key: 'solvencyNetWorth', label: 'Patrimônio considerado pelo filtro de imóveis', color: '#475569' }] })}</details></section>` : '<p>Este recorte compara fluxos previstos, sem projetar saldos patrimoniais ou rendimentos. Selecione a idade-alvo para avaliar a evolução patrimonial completa.</p>'
   return `<section class="cash-flow-line-view" data-cash-flow-line-view><div class="annual-chart-toolbar"><label class="cash-flow-price-control">Base dos valores <select data-cash-flow-price-basis><option value="real" ${basis === 'real' ? 'selected' : ''}>Poder de compra de ${baseYear}</option><option value="nominal" ${basis === 'nominal' ? 'selected' : ''}>Valores nominais de cada ano</option></select></label><label>Ano selecionado nos gráficos<select data-cash-flow-year>${display.map((row, rowIndex) => `<option value="${rowIndex}" ${rowIndex === index ? 'selected' : ''}>${escapeHtml(row.year)}</option>`).join('')}</select></label></div>
-    <p class="annual-chart-basis">${escapeHtml(caption)}. ${basis === 'nominal' ? 'Cada ano inclui a inflação acumulada do plano.' : 'Todos os anos usam o mesmo poder de compra.'} Inflação anual do plano: ${(plan.annualInflation * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%. Alternar a base não altera os cálculos da viabilidade ou os lançamentos.</p>
+    <p class="annual-chart-basis">${escapeHtml(caption)}. ${basis === 'nominal' ? 'Cada ano inclui a inflação acumulada do plano.' : 'Todos os anos usam o mesmo poder de compra.'} Inflação anual do plano: ${(plan.annualInflation * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%. Alternar a base não altera os cálculos da viabilidade ou os lançamentos.${fixedNote ? ` ${escapeHtml(fixedNote)}` : ''}</p>
     ${financial}
     <details class="disclosure" data-projection-flow-details><summary>Ver receitas, despesas e saldo previstos por ano</summary><p>Receitas menos despesas e metas = saldo do orçamento, antes dos rendimentos. Déficit no orçamento consome patrimônio, mas não significa automaticamente falta de liquidez. Liberações transferem saldo existente e não criam receita.</p>
     ${annual ? `<label>Visão dos fluxos<select data-annual-chart-mode="flow"><option value="budget" ${financialView ? '' : 'selected'}>Orçamento: receitas, despesas e saldo</option><option value="financial" ${financialView ? 'selected' : ''}>Resultado: saldo, rendimentos e previdência</option></select></label>` : ''}
     ${financialView ? '<p>Saldo do orçamento + rendimentos + créditos previdenciários = variação do patrimônio financeiro no ano. A variação descreve a mudança no período, não o patrimônio acumulado. Os créditos previdenciários podem permanecer restritos.</p>' : ''}
     ${planningChart({ ...input, title: financialView ? 'Variação anual do patrimônio financeiro' : 'Fluxos anuais previstos do orçamento', series: flowSeries, details: cashFlowDetailPanels(display, plan, state.currency, false, { wealthTargetAge: state.plan.targetAge }) })}</details>
-    <details class="disclosure"><summary>Como a inflação entra nesta projeção</summary><p>Na visão real, valores e retorno descontam a inflação. Na visão nominal, cada ano recebe a inflação acumulada do plano desde ${baseYear}. O rendimento nominal implícito inclui a atualização do saldo inicial. A conversão usa a inflação da moeda de apresentação após o câmbio fixo, sem prever câmbio de cada país. A composição na moeda original e as demais tabelas continuam na base real do cadastro.</p><a href="/fluxo-caixa?aba=premissas" data-route>Revisar premissas</a></details></section>`
+    <details class="disclosure"><summary>Como a inflação entra nesta projeção</summary><p>Na visão real, valores e retorno descontam a inflação. Na visão nominal, cada ano recebe a inflação acumulada do plano desde ${baseYear}. O rendimento nominal implícito inclui a atualização do saldo inicial. A conversão usa a inflação da moeda de apresentação após o câmbio fixo, sem prever câmbio de cada país. A composição na moeda original e as demais tabelas continuam na base real do cadastro.</p><p>${escapeHtml(indexationRuleText)}</p><a href="/fluxo-caixa?aba=premissas" data-route>Revisar premissas</a></details></section>`
 }
 
 // Annual and monthly projections share calculations. Premises owns the saved controls.
@@ -113,13 +122,13 @@ export function renderCashFlowTimeline({ part = 'all' } = {}) {
     ${undated ? `<p>${undated} lançamento(s) eventual(is) sem data foram excluídos desta série. <a href="/orcamento?aba=lancamentos" data-route>Informar a data</a>.</p>` : ''}
     ${annualTotals}
   </section>`
-  const monthlyRows = points.map(point => `<tr><th scope="row">${formatMonth(point.month)}${point.month === retirement ? ' · Aposentadoria' : ''}${state.valuesHidden ? '' : `<br><button type="button" class="budget-category-entry-link" data-monthly-budget-detail="${point.month}" aria-label="Ver composição de ${escapeHtml(formatMonth(point.month))}">Ver composição</button>`}</th><td>${money(point.income)}</td><td>${money(point.expenses)}</td><td data-tone="${point.balance < 0 ? 'negative' : 'positive'}">${money(point.balance)}</td></tr>`).join('')
+  const monthlyRows = points.map(point => `<tr><th scope="row">${formatMonth(point.month)}${point.month === retirement ? ' · Aposentadoria' : ''}${state.valuesHidden ? '' : `<br><button type="button" class="budget-category-entry-link" data-monthly-budget-detail="${point.month}" aria-label="Ver composição de ${escapeHtml(formatMonth(point.month))}">Ver composição</button>`}</th><td>${money(point.income)}</td><td>${money(point.expenses)}</td><td data-tone="${balanceTone(point.balance)}">${privateProjectedCurrency(point.balance, state.valuesHidden, state.currency)}</td></tr>`).join('')
   const monthlyView = `<section class="panel settings-card" aria-labelledby="timeline-monthly-title">
     <p class="eyebrow">DETALHAMENTO DA PROJEÇÃO</p><h2 id="timeline-monthly-title">Fluxos projetados por mês</h2>
     <div class="timeline-controls timeline-controls--single">${periodControl()}</div>
     <p>Início do recorte mensal: ${formatMonth(start)}. Cobertura até ${formatMonth(points.at(-1).month)}. ${deficit ? `Primeiro mês com saídas acima das entradas previstas: ${formatMonth(deficit.month)}.` : 'Não há déficit nos fluxos previstos deste período.'} <a href="/orcamento?aba=resumo" data-route>Conferir o mês no Orçamento</a>.</p>
     <div class="currency-table monthly-table" tabindex="0" role="region" aria-label="Fluxos mensais projetados"><table><caption>Fluxos mensais projetados em ${state.currency}</caption><thead><tr><th scope="col">Mês</th><th scope="col">Receitas previstas</th><th scope="col">Despesas e metas previstas</th><th scope="col">Saldo previsto</th></tr></thead><tbody>${monthlyRows}</tbody></table></div>
-    <p class="annual-chart-basis">Fluxo mensal equivalente, não saldo bancário: valores anuais divididos por 12, meses de início e fim incluídos integralmente. Câmbio fixo e valores reais, sem rendimentos nesta tabela mensal. Inflação implícita na hipótese de poder de compra constante. Realizados e eventuais sem data não entram. Benefícios de aposentadoria só entram se cadastrados como receita, com início definido. Esta série não ajusta os aportes constantes da projeção patrimonial. O recorte mensal não equivale aos anos completos da avaliação patrimonial.</p>
+    <p class="annual-chart-basis">Fluxo mensal equivalente, não saldo bancário: valores anuais divididos por 12, meses de início e fim incluídos integralmente. Câmbio fixo e valores reais, sem rendimentos nesta tabela mensal. ${fixedIncomeCount(state.cashFlow) ? `Receitas com reajuste "Acompanha a inflação" ficam em poder de compra constante. Receitas com "Valor fixo" aparecem descontadas pela inflação da moeda delas desde ${new Date().getUTCFullYear()}. O valor do contrato fica no Orçamento.` : 'Inflação implícita na hipótese de poder de compra constante.'} Realizados e eventuais sem data não entram. Benefícios de aposentadoria só entram se cadastrados como receita, com início definido. Esta série não ajusta os aportes constantes da projeção patrimonial. O recorte mensal não equivale aos anos completos da avaliação patrimonial.</p>
     ${annualTotals}
   </section>${renderBudgetInsights(state, points)}`
   if (part === 'annual') return annualView
