@@ -1,4 +1,4 @@
-import { createAnnualBreakdown, finishAnnualBreakdown } from './annual-cash-flow-breakdown.js'
+import { createAnnualBreakdown, finishAnnualBreakdown, mergeAnnualBreakdownEntry } from './annual-cash-flow-breakdown.js'
 
 // A display scenario, not a saved change to the user's plan or contracts.
 export function cashFlowProjectionState(state, period) {
@@ -30,7 +30,7 @@ export function annualCashFlow(points) {
       row.breakdown ||= createAnnualBreakdown()
       for (const [group, entries] of Object.entries(point.breakdown)) for (const entry of entries) {
         const previous = row.breakdown[group].get(entry.id)
-        if (previous) { previous.amount += entry.amount; previous.originalAmount += entry.originalAmount; previous.months += entry.months }
+        if (previous) mergeAnnualBreakdownEntry(previous, entry)
         else row.breakdown[group].set(entry.id, { ...entry })
       }
     }

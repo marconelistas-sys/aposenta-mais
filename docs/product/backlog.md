@@ -1,5 +1,35 @@
 # Backlog inicial
 
+## Próxima entrega: reajuste de receitas na projeção (planejada)
+
+Planejada em 2026-11-08, a partir da auditoria da projeção de aposentadoria, e ainda não implementada. Toda receita planejada fica constante em termos reais, então a renda fixa do 2º pilar suíço aparece sem perder poder de compra. Nesta entrega:
+
+- Campo "Reajuste" nas receitas planejadas, com "Acompanha a inflação" e "Valor fixo, sem reajuste".
+- Com valor fixo, as projeções descontam a inflação da moeda do lançamento (ou a do plano) a partir do ano corrente. O orçamento operacional continua com o valor do contrato.
+- Prévia da perda de poder de compra no formulário.
+- Pendência para rendas de "Aposentadoria e benefício" sem reajuste escolhido.
+- Frase que explica por que a mediana do Monte Carlo fica abaixo do cenário base, sem mudar nenhuma probabilidade.
+
+RICE: H1+H2 5,8, H3 6,4, H4 12,8, H5 10,0. Esforço estimado em cerca de 4,25 sessões de agente, a confirmar pelo desenvolvimento. [Decisões, histórias e critérios](indexacao-beneficios.md).
+
+Pendências [validar]: pendência que deixa a viabilidade "incompleta" (D13); escolha obrigatória em lançamento novo de "Aposentadoria e benefício" (D12). Perguntar ao dono, antes de H2, onde está cadastrada a renda BVK e se a caixa reajusta rendas em curso.
+
+Adiados (escala da Sprint 43: R de 1 a 10, I de 0,25 a 3, C em %, E em sessões de agente):
+
+| ID | Item | R | I | C | E | RICE |
+|---|---|---|---|---|---|---|
+| B3 | Reajuste e data de início do benefício de Meu plano (`expectedMonthlyBenefit` e do cônjuge) em `projectRetirement`, vida após a aposentadoria e risco mensal. Sobe se a renda BVK estiver cadastrada lá | 4 | 2 | 50% | 1 | 4,0 |
+| B1 | Monte Carlo com mediana igual ao cenário base. Decisão preparada: `rate-conventions.md` define `annualRealReturn` como taxa efetiva anual, então a média aritmética simulada passaria a ser (1 + r)·e^(σ²/2) − 1. Isso eleva todas as probabilidades, desloca a zona de 75% a 90% e quebra o histórico mensal da confiança. Opções: (a) manter, com a frase de H5; (b) calibrar (recomendação do PO); (c) deixar a pessoa escolher. Depende do dono | 5 | 2 | 50% | 1,5 | 3,3 |
+| B2 | Meta de patrimônio com duração da aposentadoria e período-ponte em `projectRetirement` ("Aporte necessário" em Meu plano, Visão geral, Simulações e Fluxo de caixa). O motor anual oficial já trata o período-ponte quando o benefício está no Orçamento com data de início | 4 | 2 | 80% | 2 | 3,2 |
+| B9 | Apagar `yearsUntilGoal` de `retirement.js` e o teste correspondente. Limpeza oportunística, sem efeito para o usuário | 1 | 0,25 | 100% | 0,1 | 2,5 |
+| B6 | Longevidade: probabilidade de sobrevivência individual e do casal até a idade-alvo, com tábua a definir (BFS ou IBGE) | 5 | 2 | 50% | 3 | 1,7 |
+| B4 | Valor fixo em despesas contratuais, inclusive "Empréstimos e dívidas". Hoje o erro é conservador | 3 | 1 | 50% | 1 | 1,5 |
+| B7 | Gasto real decrescente na aposentadoria, como premissa opcional | 5 | 1 | 50% | 2 | 1,3 |
+| B5 | Reajuste definido em % ao ano; valor indexado informado em moeda de um ano futuro. Sobe se a caixa do dono der reajustes regulares | 2 | 1 | 50% | 1 | 1,0 |
+| B8 | Regras dinâmicas de retirada (guardrails) | 3 | 1 | 50% | 3 | 0,5 |
+
+A2 (base de `inflationByCurrency`) ganha alcance com esta entrega, porque também passa a valer para receitas fixas em moeda estrangeira. Continua com prioridade baixa: a prévia de H3 mostra a inflação usada, o que torna a divergência visível.
+
 ## Entrega: Despesas por categoria
 
 Planejada e implementada em 2026-11-04. Aba com 693 px a 1.440 (antes 5.277) e 1.094 px a 390 (antes 7.640); 1.113 testes e `npm run test:budget-categories-browser`. A aba Categorias do Orçamento deixa de repetir a análise que Conferir o mês (o mês) e o Panorama (o ano) já fazem e vira o livro das categorias: uma lista com Planejado, Realizado, Diferença e uma barra por categoria, um clique para ver os lançamentos (realizado primeiro, do maior para o menor) e editar. Saem os 2 gráficos de barras, as 2 pizzas, o bloco "Gastos acima do planejado" e 4 dos 6 controles de exibição. O mês vem do seletor global; um seletor "Período" oferece "Outubro", "Janeiro a outubro" (o caminho de volta do Acumulado do ano) e "Ano de 2026", com "Usado: N%" no ano em andamento. Com valores ocultos, nomes visíveis e valores mascarados. A análise de Outras despesas fica dentro da categoria, como "Sugestões pela descrição", sem pizzas. Sem matemática nova (`budgetExpenseCategories`, `budgetExpenseAccumulated`, `budgetAnnualQuota`, `otherExpenseAnalysis`). Metas: aba ≤ 2.000 px a 1.440 px (hoje 5.277) e ≤ 3.000 px a 390 px (hoje 7.640), primeira categoria na primeira tela, sem rolagem lateral, ≤ 5 paradas de Tab até a primeira categoria (hoje 57). RICE da lista nova 3,2. [Decisões e histórias](categorias.md). Avaliação de UX em [avaliacao-ux-categorias.md](avaliacao-ux-categorias.md).

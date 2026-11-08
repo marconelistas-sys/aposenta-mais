@@ -3,6 +3,7 @@ import { prepareConsortiumEvents } from './consortium.js'
 import { prepareCommitmentSchedules } from './financial-calendar.js'
 import { sanitizeFinappMethod, finappExchangeRates } from './finapp-viability.js'
 import { createAnnualBreakdown, collectAnnualBudget, finishAnnualBreakdown } from './annual-cash-flow-breakdown.js'
+import { projectionInflation } from './income-indexation.js'
 
 export function retirementMonth(plan, today = new Date()) {
   if (plan.retirementMonth) return plan.retirementMonth
@@ -27,12 +28,13 @@ export function lastIncomeDate(plan, today = new Date()) {
   return date.toISOString().slice(0, 10)
 }
 
-export function cashFlowTimeline(state, startMonth, months, { includeBreakdown = false } = {}) {
+// A projection: fixed incomes lose purchasing power from the year of `today` on.
+export function cashFlowTimeline(state, startMonth, months, { includeBreakdown = false, today = new Date() } = {}) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(startMonth) || !Number.isInteger(months) || months < 1 || months > 1200) throw new RangeError('Período inválido.')
   const start = new Date(`${startMonth}-01T00:00:00Z`)
   state = { ...state, exchangeRates: finappExchangeRates(state) }
   // Monthly budget, not daily cash settlement. Include both boundary months.
-  const cashFlow = { ...state.cashFlow, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia), items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate) }
+  const cashFlow = { ...state.cashFlow, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia), items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), projectionInflation: projectionInflation(state, today) }
   const externalPension = sanitizeFinappMethod(state.plan.finappMethod).pensionMode === 'external'
   return Array.from({ length: months }, (_, index) => {
     const date = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + index, 15))

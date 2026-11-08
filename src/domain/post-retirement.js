@@ -4,6 +4,7 @@ import { addMonths, prepareCommitmentSchedules } from './financial-calendar.js'
 import { prepareConsortiumEvents } from './consortium.js'
 import { spouseRetirementMonth } from './cash-flow-timeline.js'
 import { resolveInvestmentRealReturn } from './investment-returns.js'
+import { projectionInflation } from './income-indexation.js'
 
 export const defaultDecumulation = Object.freeze({ years: 30, expenseMode: 'target', annualFee: 0, withdrawalTax: 0, benefitIncluded: false })
 export function validateDecumulation(settings) {
@@ -19,7 +20,8 @@ export function projectPostRetirement(state, settings = defaultDecumulation, asO
   const plan = state.plan
   const before = retirementMonths(plan, asOfDate)
   const start = addMonths(asOfDate.toISOString().slice(0, 7), before)
-  const schedules = retirementContributionSchedules(state.cashFlow, state.currency, state.exchangeRates, state.customCategories)
+  const indexation = projectionInflation(state, asOfDate)
+  const schedules = retirementContributionSchedules({ ...state.cashFlow, projectionInflation: indexation }, state.currency, state.exchangeRates, state.customCategories)
   const accumulation = projectRetirementWithSchedules(plan, schedules, asOfDate)
   // Preserve each registered return in the retirement phase as well as accumulation.
   const buckets = retirementInvestmentBalances(plan, before, asOfDate)
@@ -27,7 +29,7 @@ export function projectPostRetirement(state, settings = defaultDecumulation, asO
   const feeRate = 1 - (1 - settings.annualFee) ** (1 / 12)
   const spouseMonth = spouseRetirementMonth(plan, asOfDate)
   const rows = []
-  const cashFlow = { ...state.cashFlow, spouseRetirementMonth: plan.spouseEnabled ? plan.spouseRetirementMonth : null, retirementMonth: start, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia) }
+  const cashFlow = { ...state.cashFlow, spouseRetirementMonth: plan.spouseEnabled ? plan.spouseRetirementMonth : null, retirementMonth: start, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia), projectionInflation: indexation }
   let firstShortfall = null
   for (let index = 0; index < settings.years * 12; index++) {
     const month = addMonths(start, index)

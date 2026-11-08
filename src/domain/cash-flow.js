@@ -7,6 +7,7 @@ import { convertCurrency } from '../shared/exchange-rates.js'
 import { commitmentEvents } from './financial-calendar.js'
 import { consortiumEvents } from './consortium.js'
 import { annualGoalEvents } from './annual-planning.js'
+import { fixedIncomeIndexation } from './income-indexation.js'
 
 const monetaryFields = [
   'recurringIncome',
@@ -124,6 +125,10 @@ export function summarizeCashFlowItems(
     reserveBuildMonths: cashFlow.reserveBuildMonths
   }
   const convertedItems = []
+  // Only projection engines set this context, on their own copy of cashFlow.
+  // The operational budget never has it and keeps the registered amounts.
+  const indexationContext = cashFlow.projectionInflation || null
+  const year = Number(dateKey(asOfDate).slice(0, 4))
 
   // A commitment is a payable in this month, including one-off goals.
   const commitmentItems = commitmentEvents(cashFlow.commitments, dateKey(asOfDate).slice(0, 7), cashFlow.commitmentSchedules).map(item => ({ ...item, frequency: 'monthly', endDate: item.startDate }))
@@ -132,12 +137,17 @@ export function summarizeCashFlowItems(
     const found = categoryById(item.categoryId, customCategories)
     const category = (item.annualGoalId || item.commitmentId) && (!found || found.type !== 'expense') ? categoryById('other-expense') : found
     if (!category) continue
-    const budgetAmount = transferBudgetAmount(item)
+    const contractAmount = transferBudgetAmount(item)
+    // A fixed income keeps its nominal contract amount and loses purchasing power
+    // in projections. The factor applies before the currency conversion.
+    const indexation = indexationContext ? fixedIncomeIndexation(item, year, indexationContext) : null
+    const budgetAmount = indexation ? contractAmount / indexation.priceIndex : contractAmount
     const convertedAmount = convertCurrency(budgetAmount, item.currency, baseCurrency, exchangeRates)
     const isActive = isCashFlowItemActive(item, asOfDate, cashFlow.retirementMonth, cashFlow.spouseRetirementMonth)
     const recordKind = recordKindFor(item)
     const isIncluded = budgetAmount > 0 && isActive && (includedRecordKind === 'all' || recordKind === includedRecordKind)
-    convertedItems.push({ ...item, budgetAmount, recordKind, convertedAmount, category, isActive, isIncluded, linkedRetirementMonth: isRetirementEnd(item.endMode) ? incomeEndMonth(item, cashFlow) : null })
+    const indexationFields = indexation ? { contractAmount, convertedContractAmount: convertCurrency(contractAmount, item.currency, baseCurrency, exchangeRates), indexationFactor: indexation.factor, indexationInflation: indexation.inflation, indexationInflationSource: indexation.inflationSource, indexationBaseYear: indexation.baseYear } : {}
+    convertedItems.push({ ...item, budgetAmount, recordKind, convertedAmount, ...indexationFields, category, isActive, isIncluded, linkedRetirementMonth: isRetirementEnd(item.endMode) ? incomeEndMonth(item, cashFlow) : null })
     if (!isIncluded) continue
 
     if (item.type === 'income') {
@@ -185,7 +195,11 @@ export function retirementContributionSchedules(cashFlow, baseCurrency, exchange
     // for an inflow, negative for an outflow. Any category qualifies here, unlike
     // the recurring pension contribution above.
     if (item.frequency === 'occasional' && item.startDate) {
-      const amount = convertCurrency(item.amount, item.currency, baseCurrency, exchangeRates) * (item.type === 'income' ? 1 : -1)
+      // Same projection context as summarizeCashFlowItems: a fixed one-off income
+      // uses the factor of its year. Without the context, the registered amount.
+      const indexation = cashFlow.projectionInflation ? fixedIncomeIndexation(item, Number(item.startDate.slice(0, 4)), cashFlow.projectionInflation) : null
+      const original = indexation ? item.amount / indexation.priceIndex : item.amount
+      const amount = convertCurrency(original, item.currency, baseCurrency, exchangeRates) * (item.type === 'income' ? 1 : -1)
       return [{
         amount,
         startDate: item.startDate,

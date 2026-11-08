@@ -6,6 +6,7 @@ import { retirementMonth, spouseRetirementMonth } from './cash-flow-timeline.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
 import { nonFinancialValue } from './annual-planning.js'
 import { planningHorizon } from './planning-horizon.js'
+import { projectionInflation } from './income-indexation.js'
 import { correlationKeyFor, defaultClassCorrelations, sanitizeClassCorrelations, uniformCorrelations, validateClassCorrelations } from './class-correlation.js'
 
 // Reference annual volatilities by asset class, used only when the person
@@ -47,7 +48,7 @@ export function prepareRiskInput(state, settings, today = new Date()) {
   const debtSchedules = prepareCommitmentSchedules(state.cashFlow.commitments)
   const consortia = sanitizeConsortia(state.cashFlow.consortia)
   for (const item of consortia) validateConsortiumAsOf(item, start)
-  const budgetSource = { ...state.cashFlow, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, consortia: [], commitmentSchedules: debtSchedules, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate) }
+  const budgetSource = { ...state.cashFlow, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, consortia: [], commitmentSchedules: debtSchedules, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), projectionInflation: projectionInflation(state, today) }
   const releaseYears = new Map((state.plan.finappMethod?.releases || []).map(row => [row.investmentId, row.year]))
   const buckets = state.plan.investments.length ? state.plan.investments.map(item => ({ amount: item.amount, ...(item.liquidity !== 'available' && releaseYears.has(item.id) ? { releaseMonth: `${releaseYears.get(item.id)}-12` } : {}), annualRealReturn: resolveInvestmentRealReturn(item, state.plan), annualRealReturns: item.annualRealReturns || [], liquid: item.liquidity === 'available', ...(settings.volatilityModel === 'class' ? { volatility: (settings.classVolatilities || classVolatility)[item.assetClass] ?? settings.annualVolatility, volatilityKey: correlationKeyFor(item.assetClass) } : {}) })) : [{ amount: state.plan.currentAssets, annualRealReturn: state.plan.annualRealReturn, liquid: settings.aggregateLiquid }]
   const debtAt = month => debts.reduce((total, item) => {
