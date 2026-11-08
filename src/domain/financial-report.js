@@ -19,6 +19,8 @@ import { buildBudgetMonths } from './monthly-budget.js'
 import { otherExpenseAnalysis } from './other-expense-analysis.js'
 import { simulateExpenseReduction } from './expense-impact.js'
 import { analyzeGoals, confidenceStatus, confidenceZone, goalRiskSettings } from './goals-planning.js'
+import { fixedIncomeAssumptions } from './income-indexation.js'
+import { volatilityDragNote } from './monte-carlo-note.js'
 import { goalsTrend } from './goal-settings.js'
 import { wealthByCurrency, wealthComposition } from './wealth-composition.js'
 import { diagnosePortfolio, diagnosticThresholds, portfolioMetrics } from './portfolio-diagnostics.js'
@@ -709,7 +711,9 @@ export function buildFinancialReport(state, { today = new Date(), goals, risk = 
     const fan = riskResult
       ? { available: true, source: riskResult.method || 'finapp-annual', simulations: riskResult.simulated.simulations ?? null, series: riskResult.simulated.series.map(row => ({ year: Number(row.year), p10: money(row.afP10), p25: money(row.afP25), p50: money(row.afP50), p75: money(row.afP75), p90: money(row.afP90) })) }
       : { available: false, emptyReason: text('As faixas P10 a P90 vêm da simulação de risco, não fornecida nesta geração.'), series: [] }
-    const common = { retirementMonth: base?.retirement || state.cashFlow.retirementMonth || state.plan.retirementMonth || null, retirementYear: base?.retirement ? Number(base.retirement.slice(0, 4)) : null, targetAge: state.plan.targetAge ?? null, horizon: base ? { startYear: Number(base.rows[0].year), endYear: Number(base.rows.at(-1).year) } : null, deterministic, fan, withdrawal: indicators.withdrawalRate.status === 'unavailable' ? null : indicators.withdrawalRate.details, history: goalsTrend(state.plan.goalsHistory).rows }
+    // H5: why the median of the bands grows less than the base scenario. Text only.
+    const volatilityNote = (() => { try { return volatilityDragNote(goalRiskSettings(state), state.plan.annualRealReturn)?.text || null } catch { return null } })()
+    const common = { volatilityNote, retirementMonth: base?.retirement || state.cashFlow.retirementMonth || state.plan.retirementMonth || null, retirementYear: base?.retirement ? Number(base.retirement.slice(0, 4)) : null, targetAge: state.plan.targetAge ?? null, horizon: base ? { startYear: Number(base.rows[0].year), endYear: Number(base.rows.at(-1).year) } : null, deterministic, fan, withdrawal: indicators.withdrawalRate.status === 'unavailable' ? null : indicators.withdrawalRate.details, history: goalsTrend(state.plan.goalsHistory).rows }
     if (!goalsResult) return { ...empty(goalsSource === 'skipped' ? 'A confiança dos objetivos não foi calculada nesta geração.' : 'Não foi possível calcular os objetivos. Revise o horizonte e as premissas.', 'Aposentadoria e objetivos'), ...common }
     const levers = goalsResult.levers || {}
     return {
@@ -829,7 +833,9 @@ export function buildFinancialReport(state, { today = new Date(), goals, risk = 
     assumptions: {
       basis: 'real', annualRealReturn: state.plan.annualRealReturn, annualInflation: state.plan.annualInflation, targetAge: state.plan.targetAge ?? null, retirementMonth: base?.retirement || null,
       openingYearPeriod: base?.settings?.openingYearPeriod ?? null, pensionMode: base?.settings?.pensionMode ?? null, taxRegime: base?.settings?.taxRegime ?? null,
-      volatility: settings, exchangeRatesDate: state.exchangeRates?.date || null
+      volatility: settings, exchangeRatesDate: state.exchangeRates?.date || null,
+      // Fixed incomes of the projections (H3.5): count, base year and inflation per currency.
+      fixedIncome: (() => { try { return fixedIncomeAssumptions(state, today) } catch { return null } })()
     },
     thresholds: reportThresholds,
     methodology: [

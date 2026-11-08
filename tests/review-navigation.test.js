@@ -50,3 +50,17 @@ test('privacy and unsupported targets do not open editors and missing records re
   assert.equal(openReviewTarget(view.root, investmentReviewLink('deleted'), { onMissing: message => messages.push(message) }), false)
   assert.match(messages[0], /não está mais no cadastro/)
 })
+
+test('indexation link focuses the checked radio, or the first one when nothing is checked', () => {
+  const visits = []
+  const root = {}
+  const radio = (value, checked) => ({ name: 'indexation', type: 'radio', value, checked, parentElement: root, focus: () => visits.push(value), scrollIntoView: () => {} })
+  let radios = [radio('inflation', false), radio('fixed', true)]
+  const editor = { querySelectorAll: () => radios }
+  root.querySelectorAll = () => radios
+  root.querySelector = () => editor
+  assert.equal(openReviewTarget(root, budgetReviewLink('bvg', 'indexation'), { openBudget: () => {} }), true)
+  radios = [radio('inflation', false), radio('fixed', false)]
+  assert.equal(openReviewTarget(root, budgetReviewLink('bvg', 'indexation'), { openBudget: () => {} }), true)
+  assert.deepEqual(visits, ['fixed', 'inflation'])
+})

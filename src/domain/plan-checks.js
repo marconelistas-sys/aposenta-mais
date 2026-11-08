@@ -5,6 +5,7 @@ import { planningHorizon } from './planning-horizon.js'
 import { prepareCommitmentSchedules, sanitizeCommitments } from './financial-calendar.js'
 import { findConsortiumDuplicates, prepareConsortiumEvents } from './consortium.js'
 import { sanitizeAnnualRows } from './annual-planning.js'
+import { benefitsMissingIndexation, benefitIndexationMessage } from './income-indexation.js'
 
 function hasPlannedExpenses(cashFlow, planned) {
   if (planned.some(item => item.type === 'expense')) return true
@@ -24,6 +25,8 @@ export function planChecks(state, today = new Date()) {
   try { endMonth = planningHorizon(state.plan, today.toISOString().slice(0, 7), today).endMonth } catch {}
   const openSalaries = openSalaryItems(state.cashFlow, { endMonth })
   for (const item of openSalaries) add('salary-open', salaryEndMessage([item]), budgetReviewLink(item.id, 'endMode'))
+  // Same rule as the annual viability issue: one entry per retirement income without a choice.
+  for (const item of benefitsMissingIndexation(state.cashFlow, { fromMonth: `${today.getUTCFullYear()}-01`, toMonth: endMonth, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null })) add('benefit-indexation-missing', benefitIndexationMessage(item), budgetReviewLink(item.id, 'indexation'))
   for (const item of planned.filter(item => item.frequency === 'occasional' && !item.startDate)) add('undated', `${reviewItemName(item)}: lançamento único sem data, excluído da evolução temporal.`, budgetReviewLink(item.id))
   if (state.cashFlow.retirementMonth && state.cashFlow.retirementMonth !== retirementMonth(state.plan, today)) add('dates-differ', 'O mês do orçamento difere do mês patrimonial. Confirme o mês novamente para alinhar os prazos.', fieldReviewLink('/construir/objetivo', 'retirementMonth'))
   if (state.plan.retirementMonth && state.plan.retirementMonth <= today.toISOString().slice(0, 7)) add('no-time', 'O mês da aposentadoria já chegou. A projeção não tem período de acumulação nem calcula aporte necessário para recuperar a meta.', fieldReviewLink('/construir/objetivo', 'retirementMonth'))

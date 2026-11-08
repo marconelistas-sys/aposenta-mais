@@ -13,6 +13,7 @@ import { openSalaryItems, salaryEndMessage } from './cash-flow-checks.js'
 import { addConsortiumParts, createAnnualBreakdown, collectAnnualBudget, addAnnualBreakdown, finishAnnualBreakdown } from './annual-cash-flow-breakdown.js'
 import { migrationStatus } from './migration-review.js'
 import { validatePensionInvestment } from './pension-investment-links.js'
+import { projectionInflation, benefitsMissingIndexation, benefitIndexationMessage, benefitIndexationAction } from './income-indexation.js'
 
 const taxRegimes = new Set(['none', 'regressive', 'progressive', 'manual'])
 
@@ -74,6 +75,7 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   if (!retirement) issue('Confirme o mês da aposentadoria para avaliar especificamente a fase posterior.', fieldReviewLink('/construir/objetivo', 'retirementMonth'), 'Informar mês da aposentadoria')
   const openSalaries = openSalaryItems(state.cashFlow, { endMonth: horizon.endMonth })
   for (const item of openSalaries) issue(salaryEndMessage([item]), budgetReviewLink(item.id, 'endMode'), 'Definir término deste salário')
+  for (const item of benefitsMissingIndexation(state.cashFlow, { fromMonth: `${startYear}-01`, toMonth: horizon.endMonth, retirementMonth: retirement, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null })) issue(benefitIndexationMessage(item), budgetReviewLink(item.id, 'indexation'), benefitIndexationAction)
   for (const item of state.cashFlow.items.filter(item => item.recordKind !== 'actual' && item.source !== 'txt' && item.frequency === 'occasional' && !item.startDate)) issue(`${reviewItemName(item)}: lançamento único sem data, excluído da projeção. Informe o mês para incluí-lo.`, budgetReviewLink(item.id), 'Informar data deste lançamento')
   if (!state.plan.investments.length && state.plan.currentAssets > 0) issue('Patrimônio agregado sem disponibilidade comprovada. Detalhe a Carteira.', fieldReviewLink('/carteira', 'investmentName'), 'Detalhar o patrimônio na carteira')
   for (const { row, index } of migrationStatus(state).open) { const detail = migrationReview(row, index); issue(detail.message, detail.href, detail.action) }
@@ -93,7 +95,7 @@ export function finappViability(state, rawSettings = state.plan.finappMethod, to
   const debtSchedules = prepareCommitmentSchedules(state.cashFlow.commitments)
   const consortia = sanitizeConsortia(state.cashFlow.consortia)
   for (const item of consortia) validateConsortiumAsOf(item, today.toISOString().slice(0, 7))
-  const cashFlow = { ...state.cashFlow, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null, retirementMonth: retirement, consortia: [], commitmentSchedules: debtSchedules, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate) }
+  const cashFlow = { ...state.cashFlow, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null, retirementMonth: retirement, consortia: [], commitmentSchedules: debtSchedules, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), projectionInflation: projectionInflation(state, today) }
   // Compute contract trajectories once for both cash costs and net rights.
   const consortiumRows = consortia.map(item => ({ item, rows: consortiumSchedule(item, Math.max(1, (horizon.endYear - Number(item.referenceMonth.slice(0, 4)) + 1) * 12)) }))
   const annualReturn = state.plan.annualRealReturn

@@ -6,6 +6,7 @@ import { sanitizePaymentMatches } from '../domain/calendar-payments.js'
 import { sanitizeStatementHistory } from '../domain/statement-history.js'
 import { defaultPlan } from '../data/mock-plan.js'
 import { sanitizeCurrencyTrends, sanitizeInflationByCurrency, validateAnnualRealReturns } from '../domain/investment-returns.js'
+import { sanitizeIncomeIndexation } from '../domain/income-indexation.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import { normalizeCurrency } from '../shared/currencies.js'
 import { bundledExchangeRates, sanitizeExchangeRates } from '../shared/exchange-rates.js'
@@ -194,6 +195,8 @@ export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fal
     ...(creditCardBill ? { creditCardBill } : {}),
     ...(category.budgetGroup === 'pension' && type === 'expense' && recordKind === 'planned' && item.frequency === 'monthly' && typeof item.pensionCapitalRelease === 'boolean' ? { pensionCapitalRelease: item.pensionCapitalRelease } : {}),
     ...(category.budgetGroup === 'pension' && type === 'expense' && recordKind === 'planned' && item.frequency === 'monthly' && Object.hasOwn(item, 'pensionInvestmentId') ? { pensionInvestmentId: item.pensionInvestmentId === null || item.pensionInvestmentId === '' ? null : safeId(item.pensionInvestmentId, null) } : {}),
+    // Only planned incomes carry an indexation. Missing or unknown values keep the current treatment.
+    ...(type === 'income' && recordKind === 'planned' && sanitizeIncomeIndexation(item.indexation) ? { indexation: item.indexation } : {}),
     ...(['automatic', 'confirmed', 'file'].includes(item.categoryOrigin) ? { categoryOrigin: item.categoryOrigin } : {}),
     ...(typeof item.categoryMerchantKey === 'string' && item.categoryMerchantKey ? { categoryMerchantKey: item.categoryMerchantKey.slice(0, 512) } : {}),
     ...(typeof item.statementImportKey === 'string' && item.statementImportKey ? { statementImportKey: item.statementImportKey.slice(0, 1024) } : {}),

@@ -4,14 +4,26 @@ export function createAnnualBreakdown() {
   return Object.fromEntries(['income', 'costs', 'goals', 'pension', 'releases'].map(key => [key, new Map()]))
 }
 
-export function addAnnualBreakdown(breakdown, group, entry, amount, originalAmount = amount) {
+// contract: optional nominal amounts of a fixed income ({ amount, originalAmount }),
+// kept beside the real amounts so the year detail can show the contract value.
+export function addAnnualBreakdown(breakdown, group, entry, amount, originalAmount = amount, contract = null) {
   if (!breakdown || amount === 0) return
   const previous = breakdown[group].get(entry.id)
-  if (previous) {
-    previous.amount += amount
-    previous.originalAmount += originalAmount
-    previous.months += 1
-  } else breakdown[group].set(entry.id, { ...entry, amount, originalAmount, months: 1 })
+  const next = { ...entry, amount, originalAmount, months: 1, ...(contract ? { contractAmount: contract.amount, contractOriginalAmount: contract.originalAmount } : {}) }
+  if (previous) mergeAnnualBreakdownEntry(previous, next)
+  else breakdown[group].set(entry.id, next)
+}
+
+// Adds one breakdown entry into another with the same id (months of a year).
+export function mergeAnnualBreakdownEntry(previous, entry) {
+  previous.amount += entry.amount
+  previous.originalAmount += entry.originalAmount
+  previous.months += entry.months
+  if (Number.isFinite(entry.contractAmount)) {
+    previous.contractAmount = (previous.contractAmount || 0) + entry.contractAmount
+    previous.contractOriginalAmount = (previous.contractOriginalAmount || 0) + entry.contractOriginalAmount
+  }
+  return previous
 }
 
 export function collectAnnualBudget(breakdown, budget, { pensionMode, costMultiplier, retirement }) {
@@ -24,9 +36,14 @@ export function collectAnnualBudget(breakdown, budget, { pensionMode, costMultip
       currency: item.currency, frequency: item.annualGoalId ? 'Provisão anual' : item.commitmentId || item.consortiumId ? 'Parcela / evento' : item.frequency,
       startDate: item.annualGoalId || item.commitmentId || item.consortiumId ? null : item.startDate,
       endDate: item.annualGoalId || item.commitmentId || item.consortiumId ? null : item.endDate,
-      retirement: item.linkedRetirementMonth || (item.endMode === 'retirement' ? retirement : null) }
-    const amount = item.convertedAmount / (item.frequency === 'annual' ? 12 : 1)
-    const originalAmount = item.amount / (item.frequency === 'annual' ? 12 : 1)
+      retirement: item.linkedRetirementMonth || (item.endMode === 'retirement' ? retirement : null),
+      ...(Number.isFinite(item.indexationFactor) ? { indexation: 'fixed', indexationInflation: item.indexationInflation, indexationInflationSource: item.indexationInflationSource, indexationBaseYear: item.indexationBaseYear } : {}) }
+    const divisor = item.frequency === 'annual' ? 12 : 1
+    const amount = item.convertedAmount / divisor
+    // A fixed income shows its real value in the original currency too; the
+    // nominal contract value travels in contractAmount / contractOriginalAmount.
+    const originalAmount = item.amount * (Number.isFinite(item.indexationFactor) ? item.indexationFactor : 1) / divisor
+    const contract = Number.isFinite(item.indexationFactor) ? { amount: item.convertedContractAmount / divisor, originalAmount: item.contractAmount / divisor } : null
     const pension = item.type === 'expense' && item.frequency === 'monthly' && item.category.budgetGroup === 'pension'
     if (pension && item.pensionCapitalRelease !== false) addAnnualBreakdown(breakdown, 'pension', entry, amount, originalAmount)
     if (pension && pensionMode === 'external') continue
@@ -36,7 +53,7 @@ export function collectAnnualBudget(breakdown, budget, { pensionMode, costMultip
       addConsortiumParts(breakdown, entry, item, amount * scale, originalAmount * scale)
       continue
     }
-    addAnnualBreakdown(breakdown, group, entry, amount * scale, originalAmount * scale)
+    addAnnualBreakdown(breakdown, group, entry, amount * scale, originalAmount * scale, contract)
   }
 }
 

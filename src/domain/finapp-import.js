@@ -80,7 +80,8 @@ function sameFinancialRecord(left, right, collection) {
 function sameImportedRecord(previous, incoming, collection) {
   if (collection === 'items') {
     const legacy = { ...previous }
-    for (const field of ['pensionInvestmentId', 'pensionCapitalRelease']) if (!Object.hasOwn(incoming, field)) delete legacy[field]
+    // Choices made in the app are kept when the source file does not carry them.
+    for (const field of ['pensionInvestmentId', 'pensionCapitalRelease', 'indexation']) if (!Object.hasOwn(incoming, field)) delete legacy[field]
     return equal(legacy, incoming)
   }
   if (collection !== 'investments' || !previous?.currency || !Number.isFinite(previous.nativeAmount)) return equal(previous, incoming)

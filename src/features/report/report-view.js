@@ -7,6 +7,7 @@ import { escapeHtml, formatMonth } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 import { renderTabbedPanels } from '../../shared/page-tabs.js'
 import { allocationRows, bridgeRows, currencyPairs, divergingRows, emptyState, fanChart, figure, historyLine, projectionLine, quotaRows, reserveBullet, segmentedBar, shortMonth, sparkline, statusBadge } from './report-charts.js'
+import { fixedIncomeAssumptionText } from '../../shared/income-indexation.js'
 import { formatReportDate, formatReportMoney, formatReportMonths, formatReportPercent, formatReportPoints, formatReportText, withMaskedMoney } from './report-text.js'
 
 const finite = Number.isFinite
@@ -408,7 +409,7 @@ function retirementBody(report, { fanPending = false } = {}) {
       howToRead: 'A linha é a mediana dos cenários. A faixa escura reúne metade dos cenários; a clara, oito em cada dez. O traço vertical marca a aposentadoria.',
       source: `Simulação de Monte Carlo do aplicativo${fan.simulations ? `, ${fan.simulations} cenários` : ''}.`,
       premise: 'Valores reais, a preços de hoje. Faixas não são garantia nem limite de perda.'
-    })
+    }) + (chapter.volatilityNote ? `<p class="report-note" data-volatility-note>${e(chapter.volatilityNote)}</p>` : '')
     : chapter.deterministic?.length
       ? `${fanPending ? '<p class="report-pending report-screen-only" role="status">Calculando as faixas P10 a P90…</p>' : ''}${figure({
         title: `Cenário base: patrimônio financeiro de ${money(chapter.deterministic.at(-1).financialAssets)} em ${chapter.deterministic.at(-1).year}`,
@@ -450,6 +451,7 @@ function appendixBody(report) {
     assumptions.retirementMonth && ['Aposentadoria', e(formatMonth(assumptions.retirementMonth))],
     finite(assumptions.targetAge) && ['Horizonte', `Até ${assumptions.targetAge} anos`],
     volatility && ['Simulação', `${finite(volatility.annualVolatility) ? `volatilidade de ${e(formatReportPercent(volatility.annualVolatility))} ao ano, ` : ''}${volatility.simulations ?? '—'} cenários, semente ${volatility.seed ?? '—'}`],
+    fixedIncomeAssumptionText(assumptions.fixedIncome) && ['Rendas sem reajuste', e(fixedIncomeAssumptionText(assumptions.fixedIncome).replace(/^Rendas sem reajuste: /, ''))],
     ['Câmbio', e(formatReportDate(assumptions.exchangeRatesDate))]
   ].filter(Boolean)
   const quality = meta.dataQuality.length ? `<ul class="report-diagnostics">${meta.dataQuality.map(row => `<li>${statusBadge(row.severity === 'info' ? 'info' : 'attention')}<p>${t(row.message)}${row.href ? ` <a class="report-screen-only" href="${e(row.href)}" data-route>Revisar</a>` : ''}</p></li>`).join('')}</ul>` : '<p>Sem pontos de qualidade dos dados.</p>'

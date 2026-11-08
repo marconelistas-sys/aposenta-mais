@@ -3,9 +3,11 @@ import { projectRetirementWithSchedules, retirementInvestmentAllocations } from 
 import { resolveInvestmentRealReturn } from './investment-returns.js'
 import { prepareConsortiumEvents } from './consortium.js'
 import { prepareCommitmentSchedules } from './financial-calendar.js'
+import { projectionInflation } from './income-indexation.js'
 
 export function compareVariableContributions(state, asOfDate = new Date(), { withdrawDeficits = false } = {}) {
-  const baseline = projectRetirementWithSchedules(state.plan, retirementContributionSchedules(state.cashFlow, state.currency, state.exchangeRates, state.customCategories), asOfDate)
+  const indexation = projectionInflation(state, asOfDate)
+  const baseline = projectRetirementWithSchedules(state.plan, retirementContributionSchedules({ ...state.cashFlow, projectionInflation: indexation }, state.currency, state.exchangeRates, state.customCategories), asOfDate)
   const source = retirementInvestmentAllocations(state.plan)
   const buckets = source.map(item => ({ investment: item, balance: item.amount, available: item.liquidity === 'available', weight: state.plan.monthlyContribution > 0 ? item.monthlyContribution / state.plan.monthlyContribution : 0 }))
   const reserveTarget = state.cashFlow.emergencyReserveTarget
@@ -19,7 +21,7 @@ export function compareVariableContributions(state, asOfDate = new Date(), { wit
   let unfundedTotal = 0
   let firstUnfundedMonth = null
   const rows = []
-  const preparedCashFlow = { ...state.cashFlow, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia) }
+  const preparedCashFlow = { ...state.cashFlow, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, commitmentSchedules: prepareCommitmentSchedules(state.cashFlow.commitments), consortiumEvents: prepareConsortiumEvents(state.cashFlow.consortia), projectionInflation: indexation }
   for (let index = 0; index < baseline.months; index++) {
     const date = new Date(Date.UTC(asOfDate.getUTCFullYear(), asOfDate.getUTCMonth() + index, 15))
     const budget = calculateMultiCurrencyCashFlow({ ...preparedCashFlow, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), currentEmergencyReserve: reserve, reserveBuildMonths: Math.max(1, state.cashFlow.reserveBuildMonths - index) }, state.currency, state.exchangeRates, 0, state.customCategories, date)

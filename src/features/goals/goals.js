@@ -1,11 +1,12 @@
 import { state, updateCashFlow, updatePlan, recordGoalsSnapshot, setTargetAllocation } from '../../app/state.js'
 import { ownedStorage } from '../../app/owned-storage.js'
 import { riskRevision } from '../plan/risk.js'
-import { analyzeGoals, confidenceZone, goalPriorities, goalPriorityLabels, goalScenario, horizonProfiles, allocationGroups, sanitizeGoalScenario } from '../../domain/goals-planning.js'
+import { analyzeGoals, confidenceZone, goalRiskSettings, goalPriorities, goalPriorityLabels, goalScenario, horizonProfiles, allocationGroups, sanitizeGoalScenario } from '../../domain/goals-planning.js'
 import { goalsTrend, validateLegacyGoal } from '../../domain/goal-settings.js'
 import { defaultRebalanceBand } from '../../domain/target-allocation.js'
 import { escapeHtml, formatMonth, privateProjectedCurrency } from '../../shared/formatters.js'
 import { renderTabbedPanels } from '../../shared/page-tabs.js'
+import { volatilityNoteParagraph } from '../../shared/income-indexation.js'
 
 const emptyScenario = Object.freeze({ extraMonthly: 0, costChange: 0, delayYears: 0, flexibleCut: 0 })
 export const goalsView = { running: false, result: null, error: '', revision: null, scenario: { ...emptyScenario }, scenarioResult: null, scenarioRevision: null }
@@ -157,6 +158,14 @@ function verdict(result) {
   return `${chances} O plano está equilibrado entre segurança e qualidade de vida hoje.`
 }
 
+// H5: same volatility as the confidence result. The result keeps the model and the
+// common volatility; the class volatilities come from the saved risk settings.
+function goalsVolatilityNote(result) {
+  let classVolatilities
+  try { classVolatilities = goalRiskSettings(state).classVolatilities } catch { classVolatilities = undefined }
+  return volatilityNoteParagraph({ classVolatilities, ...result.settings }, result.settings?.annualRealReturn ?? state.plan.annualRealReturn)
+}
+
 function heroPanel(result) {
   const essential = result.tiers[0]
   return `<section class="panel goals-hero" aria-labelledby="goals-confidence-title">
@@ -167,6 +176,7 @@ function heroPanel(result) {
       ${meter(result.probability, 'Confiança do plano completo')}
       <div class="goal-meter__scale" aria-hidden="true"><span>0%</span><span>Zona de confiança ${percent(confidenceZone.low)} a ${percent(confidenceZone.high)} · alvo ${percent(result.target)}</span><span>100%</span></div>
       <p>${verdict(result)}</p>
+      ${goalsVolatilityNote(result)}
       ${essential.probability < confidenceZone.low ? `<p class="goals-alert" role="note"><strong>Atenção às metas essenciais:</strong> mesmo deixando de lado as metas importantes e desejáveis, a confiança fica em ${percent(essential.probability)}. Comece pelos caminhos que reforçam a base do plano.</p>` : ''}
     </div>
     <div class="goals-tiers">
