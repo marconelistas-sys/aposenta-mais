@@ -12,7 +12,9 @@ import { escapeHtml, formatMonth, formatPercent, percentInputValue, privateCurre
 import { currencySymbol } from '../../shared/currencies.js'
 import { icon } from '../../shared/icons.js'
 import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution, isForeignBalance } from '../../domain/investment-currency.js'
-import { budgetReviewLink } from '../../domain/review-targets.js'
+import { budgetReviewLink, fieldReviewLink } from '../../domain/review-targets.js'
+import { activeMarketAssumptions, marketInflationPath, trajectoryRate } from '../../domain/market-assumptions.js'
+import { formatMarketRate } from '../../shared/market-indicators.js'
 
 // Foreign balances show the native value first and the plan-currency equivalent below.
 function foreignBalance(investment, planValue, nativeValue) {
@@ -41,19 +43,34 @@ function schedules() {
   )
 }
 
-function planWithReturns(transform) {
+// Years of the market trajectories from the current year on. CDI and nominal
+// returns vary in these years, so the comparisons keep one rate per year.
+function marketTrajectoryYears() {
+  const market = activeMarketAssumptions(state.plan)
+  if (!market) return []
+  const current = new Date().getUTCFullYear()
+  const years = Object.values(market.byCurrency).flatMap(entry => [entry.inflation, entry.cdi].filter(Boolean).flatMap(path => Object.keys(path.years || {}).map(Number)))
+  return [...new Set(years)].filter(year => year >= current).sort((left, right) => left - right)
+}
+
+export function planWithReturns(transform) {
+  const marketYears = marketTrajectoryYears()
   return {
     ...state.plan,
     annualRealReturn: transform(state.plan.annualRealReturn),
-    investments: (state.plan.investments || []).map((investment) => ({
-      ...investment,
-      returnType: 'real',
-      returnValue: transform(resolveInvestmentRealReturn(investment, state.plan)),
-      annualRealReturns: (investment.annualRealReturns || []).map(row => ({ ...row, rate: transform(row.rate) })),
-      annualFee: 0,
-      exposureCurrency: undefined,
-      indexAnnualRate: null
-    }))
+    investments: (state.plan.investments || []).map((investment) => {
+      const rows = new Map((investment.annualRealReturns || []).map(row => [row.year, transform(row.rate)]))
+      if (['cdi', 'nominal'].includes(investment.returnType)) for (const year of marketYears) if (!rows.has(year)) rows.set(year, transform(resolveInvestmentRealReturn(investment, state.plan, year)))
+      return {
+        ...investment,
+        returnType: 'real',
+        returnValue: transform(resolveInvestmentRealReturn(investment, state.plan)),
+        annualRealReturns: [...rows].map(([year, rate]) => ({ year, rate })).sort((left, right) => left.year - right.year),
+        annualFee: 0,
+        exposureCurrency: undefined,
+        indexAnnualRate: null
+      }
+    })
   }
 }
 
@@ -80,15 +97,43 @@ function currencyTrendsPanel() {
   const inflation = state.plan.inflationByCurrency
   const codes = Object.keys(currencies).filter(code => code !== state.currency)
   const inflationValue = code => inflation?.base === state.currency && Number.isFinite(inflation.rates?.[code]) ? Math.round(inflation.rates[code] * 1000) / 10 : ''
+  const marketCodes = codes.filter(code => marketInflationPath(state.plan, code))
+  const inflationField = code => {
+    const path = marketInflationPath(state.plan, code)
+    if (!path) return `<label class="form-field"><span class="form-field__label">${code} · Inflação anual esperada</span><span class="input-shell"><input type="number" name="inflation:${code}" min="-20" max="20" step="0.1" value="${inflationValue(code)}" placeholder="Do plano" /><span class="input-suffix">% a.a.</span></span></label>`
+    return `<label class="form-field"><span class="form-field__label">${code} · Inflação anual esperada</span><span class="input-shell"><input type="number" name="inflation:${code}" value="${percentInputValue(path.longRun)}" readonly aria-describedby="inflation-${code}-market-help" /><span class="input-suffix">% a.a.</span></span><small id="inflation-${code}-market-help">De mercado, longo prazo. Os próximos anos seguem a trajetória dos bancos centrais.</small></label>`
+  }
   const exposed = (state.plan.investments || []).filter(item => item.exposureCurrency && item.exposureCurrency !== state.currency)
   return `<form class="panel currency-trends" data-currency-trends-form>
     <div class="investment-assumptions__intro"><p class="eyebrow">CÂMBIO NA PROJEÇÃO</p><h2>Tendência cambial real, opcional</h2><p>Variação real ao ano de cada moeda contra ${state.currency}. Positivo significa que a moeda estrangeira ganha poder de compra. Aplica-se só à parcela exposta dos investimentos. ${exposed.length ? `${exposed.length} ${exposed.length === 1 ? 'investimento tem' : 'investimentos têm'} exposição externa.` : 'Nenhum investimento tem exposição externa cadastrada.'}</p></div>
     <div class="currency-trends__fields">${codes.map(code => `<label class="form-field"><span class="form-field__label">${code} · ${currencies[code].label}</span><span class="input-shell"><input type="number" name="trend:${code}" min="-20" max="20" step="0.1" value="${trends?.rates?.[code] ? Math.round(trends.rates[code] * 1000) / 10 : ''}" placeholder="0" /><span class="input-suffix">% a.a.</span></span></label>`).join('')}</div>
-    <p class="form-context">Inflação anual esperada de cada moeda, opcional. Vale para investimentos com saldo nessa moeda e retorno nominal, e para receitas com valor fixo nessa moeda. No investimento, o retorno real passa a ser (1 + nominal) ÷ (1 + inflação da moeda) − 1. Na receita com valor fixo, a projeção desconta essa inflação a cada ano a partir do ano corrente. Vazio usa a inflação do plano. O aplicativo não sugere esse valor.</p>
-    <div class="currency-trends__fields">${codes.map(code => `<label class="form-field"><span class="form-field__label">${code} · Inflação anual esperada</span><span class="input-shell"><input type="number" name="inflation:${code}" min="-20" max="20" step="0.1" value="${inflationValue(code)}" placeholder="Do plano" /><span class="input-suffix">% a.a.</span></span></label>`).join('')}</div>
+    <p class="form-context">Inflação anual esperada de cada moeda, opcional. Vale para investimentos com saldo nessa moeda e retorno nominal, e para receitas com valor fixo nessa moeda. No investimento, o retorno real passa a ser (1 + nominal) ÷ (1 + inflação da moeda) − 1. Na receita com valor fixo, a projeção desconta essa inflação a cada ano a partir do ano corrente. Vazio usa a inflação do plano.${marketCodes.length ? ` ${marketCodes.join(' e ')} ${marketCodes.length > 1 ? 'seguem' : 'segue'} a inflação de mercado e ${marketCodes.length > 1 ? 'ficam' : 'fica'} somente leitura. <a href="${escapeHtml(fieldReviewLink('/plano', 'inflationSource'))}" data-route>Para digitar sua inflação, escolha “Usar minhas premissas” em Meu plano</a>.` : ' O aplicativo não sugere esse valor.'}</p>
+    <div class="currency-trends__fields">${codes.map(inflationField).join('')}</div>
     <div class="investment-form__actions"><button class="button button--secondary" type="submit">Salvar premissas de câmbio</button></div>
     <p class="result-disclaimer">Hipótese de planejamento, não previsão de câmbio. Trocar a moeda do plano apaga as tendências, porque elas deixam de fazer sentido. As inflações por moeda ficam guardadas. Retornos informados por ano não recebem o ajuste.</p>
   </form>`
+}
+
+// Plan inflation: read-only while it follows the market (BRL and CHF only).
+function annualInflationField() {
+  const path = marketInflationPath(state.plan, state.currency)
+  if (!path) return `<label class="form-field">
+        <span class="form-field__label">Inflação anual esperada</span>
+        <span class="input-shell"><input type="number" name="annualInflation" value="${percentInputValue(state.plan.annualInflation)}" min="-99" max="100" step="0.1" required /><span class="input-suffix">%</span></span>
+      </label>`
+  const year = activeMarketAssumptions(state.plan).baseYear
+  return `<label class="form-field">
+        <span class="form-field__label">Inflação anual esperada</span>
+        <span class="input-shell"><input type="number" name="annualInflation" value="${percentInputValue(path.longRun)}" readonly aria-describedby="annual-inflation-market-help" /><span class="input-suffix">%</span></span>
+        <small id="annual-inflation-market-help">De mercado, longo prazo. Os próximos anos seguem a trajetória, de ${formatMarketRate(trajectoryRate(path, year), 2)} em ${year}. <a href="${escapeHtml(fieldReviewLink('/plano', 'inflationSource'))}" data-route>Para digitar sua inflação, escolha “Usar minhas premissas” em Meu plano</a>.</small>
+      </label>`
+}
+
+function cdiIndexHint() {
+  const cdi = activeMarketAssumptions(state.plan)?.byCurrency?.BRL?.cdi
+  if (!cdi) return 'Informe a referência que você escolheu. O sistema não busca a taxa automaticamente.'
+  const year = activeMarketAssumptions(state.plan).baseYear
+  return `Com as premissas de mercado, a projeção usa o CDI de cada ano: ${formatMarketRate(trajectoryRate(cdi, year), 2)} em ${year} até ${formatMarketRate(cdi.longRun, 2)} no longo prazo. Esta taxa fica guardada e vale no modo manual.`
 }
 
 function planWithoutFees() {
@@ -180,7 +225,30 @@ function signedMoney(value) {
   return `${sign}${privateCurrency(Math.abs(value), state.valuesHidden, false, state.currency)}`
 }
 
+// Real return of a CDI or nominal investment that follows market assumptions:
+// next year and long run. Null when the rate does not vary by year.
+function marketReturnTrend(investment, resolve) {
+  const market = activeMarketAssumptions(state.plan)
+  if (!market) return null
+  const code = investmentBalanceCurrency(investment, state.currency)
+  if (investment.returnType === 'cdi' ? !market.byCurrency?.BRL?.cdi : investment.returnType !== 'nominal' || !marketInflationPath(state.plan, code)) return null
+  const year = new Date().getUTCFullYear() + 1
+  return { year, next: resolve(investment, state.plan, year), longRun: resolve(investment, state.plan) }
+}
+
+function trendText(trend) {
+  const next = formatMarketRate(trend.next, 1), longRun = formatMarketRate(trend.longRun, 1)
+  if (next === longRun) return `real de ${next} em ${trend.year} e no longo prazo`
+  return `real de ${next} em ${trend.year}, ${trend.longRun < trend.next ? 'caindo' : 'subindo'} para ${longRun} no longo prazo`
+}
+
 function sourceDetail(investment, realReturn) {
+  const trend = marketReturnTrend(investment, resolveGrossInvestmentRealReturn)
+  if (trend && investment.returnType === 'cdi') return `${formatPercent(investment.returnValue)} do CDI: ${trendText(trend)} (CDI de mercado)`
+  if (trend) {
+    const code = investmentBalanceCurrency(investment, state.currency)
+    return `${formatPercent(investment.returnValue)} nominal${isForeignBalance(investment, state.currency) ? ` em ${code}` : ''}: ${trendText(trend)} (inflação de mercado de ${code})`
+  }
   if (investment.returnType === 'nominal') {
     if (!isForeignBalance(investment, state.currency)) return `${formatPercent(investment.returnValue)} nominal resulta em ${formatPercent(realReturn)} real`
     const code = investmentBalanceCurrency(investment, state.currency)
@@ -213,6 +281,8 @@ function investmentList() {
   return `<div class="investment-list">
     ${investments.map((investment) => {
       const rate = resolveInvestmentRealReturn(investment, state.plan, new Date().getUTCFullYear())
+      const trend = marketReturnTrend(investment, resolveInvestmentRealReturn)
+      const rateText = trend ? `retorno real que varia por ano, de ${formatMarketRate(rate, 1)} em ${trend.year - 1} a ${formatMarketRate(trend.longRun, 1)} no longo prazo,` : `retorno real de ${preciseRate(rate)} ao ano`
       const months = years * 12
       const factors = investmentAccumulationFactors(investment, state.plan, months)
       const futureValue = investment.amount * factors.growth + investment.monthlyContribution * factors.contribution + (scheduled.find(item => item.investmentId === investment.id)?.assets || 0)
@@ -239,7 +309,7 @@ function investmentList() {
             <div><dt>Exposição</dt><dd>${escapeHtml(investment.exposureCurrency || state.currency)}${investment.exposureCurrency && investment.exposureCurrency !== state.currency && investmentExposureShare(investment) < 1 ? ` ${preciseRate(investmentExposureShare(investment))}` : ''} · ${regionLabels[investment.region] || regionLabels.domestic}</dd></div>
             <div><dt>Custo anual</dt><dd>${state.valuesHidden ? 'Oculto' : investmentAnnualFee(investment) ? preciseRate(investmentAnnualFee(investment)) : 'Não informado'}</dd></div>
             <div><dt>Retorno usado em ${new Date().getUTCFullYear()}</dt><dd>${state.valuesHidden ? 'Oculto' : `${preciseRate(rate)} real ao ano`}</dd></div>
-            <div data-investment-projection><dt>Projeção ${state.plan.retirementMonth ? `em ${escapeHtml(formatMonth(state.plan.retirementMonth))}` : 'na aposentadoria'}</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}<small>Não é o saldo de hoje. Saldo atual${investment.monthlyContribution ? ' e aporte mensal' : ''} com retorno real de ${state.valuesHidden ? 'taxa oculta' : preciseRate(rate)} ao ano por ${projectionPeriod(months)}${scheduled.some(item => item.investmentId === investment.id) ? ', mais as contribuições vinculadas no Orçamento' : ''}.</small></dd></div>
+            <div data-investment-projection><dt>Projeção ${state.plan.retirementMonth ? `em ${escapeHtml(formatMonth(state.plan.retirementMonth))}` : 'na aposentadoria'}</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}<small>Não é o saldo de hoje. Saldo atual${investment.monthlyContribution ? ' e aporte mensal' : ''} com ${state.valuesHidden ? 'retorno real de taxa oculta' : rateText} por ${projectionPeriod(months)}${scheduled.some(item => item.investmentId === investment.id) ? ', mais as contribuições vinculadas no Orçamento' : ''}.</small></dd></div>
           </dl>
           ${investment.needsDetails ? '<p class="investment-needs-details" role="note"><strong>Completar detalhes.</strong> Criado a partir de um extrato. Edite para informar nome, classe, liquidez e retorno. Até lá, a projeção usa a taxa habitual do plano.</p>' : ''}
           <p class="investment-return-source">${sourceDetail(investment, resolveGrossInvestmentRealReturn(investment, state.plan))}${investmentAnnualFee(investment) && !state.valuesHidden ? `, antes do custo anual de ${preciseRate(investmentAnnualFee(investment))}` : ''}</p>
@@ -369,7 +439,7 @@ export function renderInvestments() {
           <label class="form-field" data-investment-index-field hidden>
             <span class="form-field__label">Taxa anual do CDI usada</span>
             <span class="input-shell"><input type="number" name="investmentIndexRate" min="0" max="100" step="0.1" /><span class="input-suffix">%</span></span>
-            <small>Informe a referência que você escolheu. O sistema não busca a taxa automaticamente.</small>
+            <small>${cdiIndexHint()}</small>
           </label>
           <label class="form-field">
             <span class="form-field__label">Custo anual do produto</span>
@@ -413,10 +483,7 @@ export function renderInvestments() {
         <span class="form-field__label">Retorno real padrão</span>
         <span class="input-shell"><input type="number" name="defaultRealReturn" value="${percentInputValue(state.plan.annualRealReturn)}" min="-99" max="100" step="0.1" required /><span class="input-suffix">%</span></span>
       </label>
-      <label class="form-field">
-        <span class="form-field__label">Inflação anual esperada</span>
-        <span class="input-shell"><input type="number" name="annualInflation" value="${percentInputValue(state.plan.annualInflation)}" min="-99" max="100" step="0.1" required /><span class="input-suffix">%</span></span>
-      </label>
+      ${annualInflationField()}
       <button class="button button--secondary" type="submit">Salvar premissas</button>
     </form>
 

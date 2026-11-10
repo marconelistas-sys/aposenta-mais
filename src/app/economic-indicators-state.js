@@ -30,3 +30,11 @@ export async function loadEconomicIndicators(fetchImpl = globalThis.fetch, now =
     return false
   }
 }
+
+// Applies the session snapshot again, for example after the plan currency changes
+// or the person goes back to the market mode. Without a snapshot nothing changes.
+// Not a user edit. Returns true only when the plan changed.
+export function reapplyMarketAssumptions(now = () => new Date()) {
+  if (!economicIndicatorsState.snapshot) return false
+  return setMarketAssumptions(economicIndicatorsState.snapshot, now())
+}

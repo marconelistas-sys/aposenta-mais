@@ -7,6 +7,7 @@ import { renderPlanChecks } from './plan-checks.js'
 import { authState } from '../../app/auth-state.js'
 import { syncState } from '../../app/sync-state.js'
 import {
+  escapeHtml,
   formatCurrency,
   formatPercent,
   formatUpdateTime,
@@ -18,6 +19,8 @@ import { renderPremiumPromo } from '../premium/premium.js'
 import { exchangeRate } from '../../shared/exchange-rates.js'
 import { readinessGauge } from '../../shared/readiness-gauge.js'
 import { renderGoalsDashboardCard } from '../goals/goals.js'
+import { marketAssumptionsBadge, marketInflationSummary } from '../../shared/market-indicators.js'
+import { fieldReviewLink } from '../../domain/review-targets.js'
 
 function privacyLabel(value) {
   return state.valuesHidden ? 'Valor oculto' : formatCurrency(value, false, state.currency)
@@ -82,6 +85,8 @@ function privacyStatus() {
 
 export function renderDashboard() {
   const today = new Date()
+  const marketInflation = marketInflationSummary(state.plan, state.currency, today.getUTCFullYear())
+  const marketBadge = marketAssumptionsBadge(state.plan)
   const schedules = retirementContributionSchedules(
     state.cashFlow,
     state.currency,
@@ -144,7 +149,8 @@ export function renderDashboard() {
           <div class="confidence-card__icon">${icon('shield', 22)}</div>
           <div>
             <h3>Premissas da projeção</h3>
-            <p>${state.valuesHidden ? 'Mostre os valores para consultar as premissas.' : `Retorno real padrão de ${formatPercent(state.plan.annualRealReturn)} e inflação de ${formatPercent(state.plan.annualInflation)} ao ano. Taxas individuais da carteira prevalecem quando informadas.`}</p>
+            <p>${state.valuesHidden ? 'Mostre os valores para consultar as premissas.' : `Retorno real padrão de ${formatPercent(state.plan.annualRealReturn)} e ${marketInflation ? marketInflation.text : `inflação de ${formatPercent(state.plan.annualInflation)} ao ano`}. Taxas individuais da carteira prevalecem quando informadas.`}</p>
+            ${marketBadge ? `<p class="market-assumptions-note" data-market-assumptions-note>${marketBadge.text}${marketBadge.stale ? ', desatualizadas' : ''}. <a href="${escapeHtml(fieldReviewLink('/plano', 'inflationSource'))}" data-route>Ver inflação e juros de mercado</a></p>` : ''}
           </div>
           <a href="/simulacoes" data-route aria-label="Ver premissas">${icon('chevronRight', 19)}</a>
         </article>
