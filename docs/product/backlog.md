@@ -68,7 +68,7 @@ Nova tela Objetivos e confiança (`/objetivos`), baseada nas práticas de planej
 
 ## Próximos itens após a Sprint 43
 
-- A1. Painéis de ano das projeções sem centavos (Visão geral, Projeção patrimonial, Viabilidade). frontend-developer. RICE 5,4. Primeira história da próxima sprint.
+- A1. Painéis de ano das projeções sem centavos. **Entregue em 2026-11-10.** Cada painel de ano escolhe o formato pela linha: ano projetado (com resultado do retorno) mostra valores inteiros em todos os blocos, inclusive a comparação, a pressão dos gastos, os totais na moeda original e a linha "Resultado do retorno"; o recorte do orçamento mensal continua com centavos. `renderBudgetComparison` e `renderBudgetPressure` recebem o formatador por parâmetro (`money`), com centavos como padrão. A Visão geral atual é compacta e não abre painel de ano, então o efeito fica na Projeção patrimonial e na Viabilidade. Testes em `tests/a1-paineis-ano-inteiros.test.js` e no `npm run test:indexation-browser`.
 - A2. Base de `inflationByCurrency` e `currencyTrends` alinhada à moeda do estado na carga e na importação. software-developer. RICE 3,2. Prioridade baixa.
 
 Escopo e critérios em [Resultado da Sprint 43](sprint-43-projecao-coerente.md#resultado-da-sprint).

@@ -21,10 +21,10 @@ export function expenseImpactAction(item, row, targetAge) {
   return `<button type="button" class="button button--secondary" data-expense-impact="${escapeHtml(item.budgetItemId)}" data-impact-year="${row.year}" data-impact-age="${targetAge}">Simular redução</button>`
 }
 
-export function renderBudgetPressure(row, currency, { limit = 5, monthly = false, targetAge = null, showSummary = true } = {}) {
+// `money` lets an annual projection panel show whole units (A1); the default keeps cents.
+export function renderBudgetPressure(row, currency, { limit = 5, monthly = false, targetAge = null, showSummary = true, money = value => privateCurrency(value, false, true, currency) } = {}) {
   const model = budgetPressure(row)
   if (!model.reconciled) return '<p>Não foi possível conciliar a composição das saídas deste período.</p>'
-  const money = value => privateCurrency(value, false, true, currency)
   const percent = value => `${(value * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
   const top = model.entries.slice(0, limit)
   const rest = model.entries.slice(limit).reduce((sum, item) => sum + item.amount, 0)

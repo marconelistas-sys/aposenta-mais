@@ -163,6 +163,14 @@ try {
   await go('/viabilidade?aba=premissas')
   // The premises panel may start closed: read the text, not the rendering.
   assert.match(await page.locator('[data-fixed-income-assumption]').first().evaluate(node => node.textContent), new RegExp(`^Rendas sem reajuste: 1 lançamento, descontado pela inflação de CHF 1,0% ao ano a partir de ${year}\\.$`))
+  // A1: the year panels of the annual projections show whole units. The Visão geral is compact
+  // and no longer opens a year panel, so the panels live in Projeção patrimonial and Viabilidade.
+  for (const href of ['/fluxo-caixa?aba=anual', '/viabilidade']) {
+    await go(href)
+    const panels = await page.locator('template[data-chart-detail-template], [data-chart-detail-content]').evaluateAll(nodes => nodes.map(node => (node.content || node).textContent))
+    assert.ok(panels.length > 0, `${href}: painel de ano ausente`)
+    for (const text of panels) assert.doesNotMatch(text.replace(/[  ]/g, ' '), /(?:R\$|CHF)\s*-?[\d.]+,\d{2}/, `${href}: painel de ano com centavos`)
+  }
   await go('/carteira?review=field&field=annualInflation')
   assert.equal(await page.evaluate(() => document.activeElement.name), 'annualInflation')
   assert.deepEqual(errors, [])
