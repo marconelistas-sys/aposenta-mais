@@ -7,6 +7,7 @@ import { defaultRebalanceBand } from '../../domain/target-allocation.js'
 import { escapeHtml, formatMonth, privateProjectedCurrency } from '../../shared/formatters.js'
 import { renderTabbedPanels } from '../../shared/page-tabs.js'
 import { volatilityNoteParagraph } from '../../shared/income-indexation.js'
+import { defaultReturnOrigin, defaultReturnOriginNote } from '../../shared/portfolio-return.js'
 
 const emptyScenario = Object.freeze({ extraMonthly: 0, costChange: 0, delayYears: 0, flexibleCut: 0 })
 export const goalsView = { running: false, result: null, error: '', revision: null, scenario: { ...emptyScenario }, scenarioResult: null, scenarioRevision: null }
@@ -163,7 +164,7 @@ function verdict(result) {
 function goalsVolatilityNote(result) {
   let classVolatilities
   try { classVolatilities = goalRiskSettings(state).classVolatilities } catch { classVolatilities = undefined }
-  return volatilityNoteParagraph({ classVolatilities, ...result.settings }, result.settings?.annualRealReturn ?? state.plan.annualRealReturn)
+  return volatilityNoteParagraph({ classVolatilities, ...result.settings }, result.settings?.annualRealReturn ?? state.plan.annualRealReturn) + defaultReturnOriginNote(state.plan)
 }
 
 function heroPanel(result) {
@@ -406,7 +407,7 @@ function methodPanel(result) {
   return `<details class="panel disclosure goals-method"><summary>Como calculamos e limites</summary>
     <p>Usamos a mesma avaliação anual da <a href="/viabilidade" data-route>Viabilidade</a>: orçamento, carteira, liberações, previdência e impostos cadastrados. Para cada prioridade, retiramos da projeção as metas de prioridade menor e repetimos ${settings.simulations} cenários de retorno real (semente ${settings.seed}).</p>
     <p>Um objetivo conta como realizado só se, em todos os anos, o dinheiro disponível não fica negativo. É um critério mais rigoroso que o da página <a href="/riscos" data-route>Risco</a>, que aceita saldo restrito, como previdência ainda não liberada.</p>
-    <p>Oscilação anual: ${settings.volatilityModel === 'class' ? 'por classe de ativo, conforme configurado em Risco' : `${volatility} ao ano ${settings.source === 'reference' ? ', referência educativa ponderada pelas classes da sua carteira. Para mudar, configure a volatilidade em Risco' : ', conforme configurado em Risco'}`}. Retorno real médio do plano: ${(settings.annualRealReturn * 100).toFixed(1).replace('.', ',')}% ao ano.</p>
+    <p>Oscilação anual: ${settings.volatilityModel === 'class' ? 'por classe de ativo, conforme configurado em Risco' : `${volatility} ao ano ${settings.source === 'reference' ? ', referência educativa ponderada pelas classes da sua carteira. Para mudar, configure a volatilidade em Risco' : ', conforme configurado em Risco'}`}. Retorno real padrão do plano: ${(settings.annualRealReturn * 100).toFixed(1).replace('.', ',').replace('-', '−')}% ao ano, ${escapeHtml(defaultReturnOrigin(state.plan).detail)}.</p>
     <p>A zona de confiança de ${percent(confidenceZone.low)} a ${percent(confidenceZone.high)} é uma convenção de planejamento por objetivos, não uma regra. Valores em moeda de hoje, sem sorteio de inflação ou câmbio. Rentabilidade passada não garante resultado futuro. Este cálculo é educativo e não é recomendação de investimento.</p>
   </details>`
 }

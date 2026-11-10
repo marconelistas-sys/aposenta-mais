@@ -31,6 +31,10 @@ try {
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  // No real network: without market indicators the plan keeps its own inflation,
+  // so the screens can be compared with the plan saved before them.
+  await page.route('**/api/economic-indicators*', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"countries":{}}' }))
+  await page.route('**/api/exchange-rates*', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }))
 
   await page.goto(`http://127.0.0.1:${port}`)
   await page.locator('[data-open-local]').click()

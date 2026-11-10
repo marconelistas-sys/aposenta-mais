@@ -38,6 +38,8 @@ import { categoryById } from '../data/cash-flow-categories.js'
 import { classLabels } from '../data/asset-classes.js'
 import { currencies } from '../shared/currencies.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
+import { portfolioReturnSummary } from './portfolio-return.js'
+import { activeMarketAssumptions } from './market-assumptions.js'
 
 export const reportModelVersion = 1
 
@@ -826,12 +828,32 @@ export function buildFinancialReport(state, { today = new Date(), goals, risk = 
     ...(metrics.unknownLiquidityShare > 0 ? [{ id: 'unknown-liquidity', severity: 'attention', message: text('{share} da carteira sem liquidez informada.', { share: pct(metrics.unknownLiquidityShare) }), href: '/carteira' }] : []),
     ...(base?.pendingIssues?.length ? [{ id: 'projection-pending', severity: 'attention', message: text('A projeção tem {count} pendência(s) de revisão.', { count: { value: base.pendingIssues.length, unit: 'count' } }), href: '/viabilidade' }] : [])
   ]
+  // Portfolio return by instrument (next year and long run) and the origin of the
+  // default return. Rates, names and sources only, never amounts: visible with hidden values.
+  const portfolioReturn = safeRun(errors, 'appendix', () => {
+    const summary = portfolioReturnSummary(state.plan, { year: todayYear + 1, currency })
+    const market = activeMarketAssumptions(state.plan)
+    const basis = summary.derivedDefaultReturn === null ? null : summary.own.longRun.liquid !== null ? 'liquid' : 'total'
+    return {
+      year: summary.year, longRunYear: summary.longRunYear,
+      total: summary.total, liquid: summary.liquid, longRun: { ...summary.longRun },
+      byYear: summary.byYear.map(row => ({ ...row })),
+      defaultReturn: summary.defaultReturn, defaultReturnSource: summary.defaultReturnSource, derived: summary.derivedDefaultReturn !== null, basis,
+      market: market ? { asOf: market.asOf || null, stale: market.stale === true } : null,
+      items: summary.items.map(item => ({
+        id: item.id, name: item.name, returnType: item.returnType, usesDefault: item.usesDefault, liquidity: item.liquidity,
+        realReturn: item.realReturn, longRun: item.longRun,
+        source: item.source ? { label: item.source.label, url: item.source.url || null, asOf: item.source.asOf || null, note: item.source.note || null } : null,
+        sourceKind: item.returnSource ? 'investment' : item.marketSource ? 'market' : null
+      }))
+    }
+  }, null)
   const settings = goalsResult?.settings || (() => { try { const value = goalRiskSettings(state); return { simulations: value.simulations, seed: value.seed, annualVolatility: value.annualVolatility, volatilityModel: value.volatilityModel, source: value.source, annualRealReturn: state.plan.annualRealReturn } } catch { return null } })()
   const appendix = {
     available: true,
     headline: text('Premissas, cobertura dos dados, glossário e avisos'),
     assumptions: {
-      basis: 'real', annualRealReturn: state.plan.annualRealReturn, annualInflation: state.plan.annualInflation, targetAge: state.plan.targetAge ?? null, retirementMonth: base?.retirement || null,
+      basis: 'real', annualRealReturn: state.plan.annualRealReturn, portfolioReturn, annualInflation: state.plan.annualInflation, targetAge: state.plan.targetAge ?? null, retirementMonth: base?.retirement || null,
       openingYearPeriod: base?.settings?.openingYearPeriod ?? null, pensionMode: base?.settings?.pensionMode ?? null, taxRegime: base?.settings?.taxRegime ?? null,
       volatility: settings, exchangeRatesDate: state.exchangeRates?.date || null,
       // Fixed incomes of the projections (H3.5): count, base year and inflation per currency.

@@ -4,10 +4,22 @@ import { escapeHtml, percentInputValue, privateCurrency } from '../../shared/for
 import { renderBudgetStep } from './budget-step.js'
 import { calculateMultiCurrencyCashFlow, retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { projectRetirementWithSchedules } from '../../domain/retirement.js'
+import { defaultReturnOrigin } from '../../shared/portfolio-return.js'
 
 const steps = [['objetivo', 'Objetivo'], ['orcamento', 'Orçamento'], ['patrimonio', 'Patrimônio inicial'], ['revisao', 'Visão completa']]
 const money = value => privateCurrency(value, state.valuesHidden, false, state.currency)
-const input = (name, label, value, min, max, step = 'any') => `<label class="form-field"><span>${label}</span><input name="${name}" type="number" min="${min}" max="${max}" step="${step}" value="${value}" required /></label>`
+const input = (name, label, value, min, max, step = 'any', help = '') => `<label class="form-field"><span>${label}</span><input name="${name}" type="number" min="${min}" max="${max}" step="${step}" value="${value}" required${help ? ` aria-describedby="${name}-help"` : ''} />${help ? `<small id="${name}-help">${help}</small>` : ''}</label>`
+
+// Default real return: derived from the portfolio or typed. Typing another value
+// makes it manual (the state does it in updatePlan).
+function returnField() {
+  const origin = defaultReturnOrigin(state.plan)
+  if (origin.source === 'manual') return input('annualRealReturn', 'Retorno real padrão informado (%)', percentInputValue(state.plan.annualRealReturn), -99, 100, 'any', 'Vale para investimentos sem taxa própria. Para derivar da carteira, use Premissas da carteira.')
+  const help = origin.kind === 'portfolio'
+    ? `Hoje, ${escapeHtml(origin.detail)}. Digitar outro valor passa a usar a sua taxa, informada manualmente.`
+    : 'A carteira ainda não tem investimento com taxa própria: vale o último valor. Digitar outro valor passa a usar a sua taxa, informada manualmente.'
+  return input('annualRealReturn', 'Retorno real padrão (%), derivado da carteira', percentInputValue(state.plan.annualRealReturn), -99, 100, 'any', help)
+}
 
 export function renderGuidedPlan(step = 'objetivo') {
   const index = Math.max(0, steps.findIndex(([key]) => key === step))
@@ -18,7 +30,7 @@ export function renderGuidedPlan(step = 'objetivo') {
     ${input('retirementAge', 'Idade desejada de aposentadoria', state.plan.retirementAge, 17, 100, '1')}
     ${input('targetMonthlyIncome', 'Renda mensal desejada', state.plan.targetMonthlyIncome, 0, 10000000)}
     ${input('expectedMonthlyBenefit', 'Benefício mensal esperado', state.plan.expectedMonthlyBenefit, 0, 1000000)}
-    ${input('annualRealReturn', 'Rendimento real anual informado (%)', percentInputValue(state.plan.annualRealReturn), -99, 100)}
+    ${returnField()}
     <label class="form-field"><span>Mês confirmado para término salarial no orçamento</span><input type="month" name="retirementMonth" min="2000-01" max="2199-12" value="${state.cashFlow.retirementMonth || retirementMonth(state.plan)}" required /></label>
     </div><p>O mês confirmado controla as receitas vinculadas e o prazo patrimonial. Revise o mês antes de salvar. Benefício estimado não entra automaticamente nas receitas do orçamento.</p><div class="wizard-actions"><button class="button button--primary" type="submit">Salvar objetivo e continuar</button></div></form>`
   if (index === 1) content = renderBudgetStep()

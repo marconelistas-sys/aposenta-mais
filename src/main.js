@@ -89,7 +89,8 @@ import {
   setCurrencyTrends,
   setInflationByCurrency,
   setMigrationResolved,
-  setInflationSource
+  setInflationSource,
+  setDefaultReturnSource
 } from './app/state.js'
 import {
   deleteRemoteState,
@@ -146,6 +147,7 @@ import { categoryById } from './data/cash-flow-categories.js'
 import { loadExchangeRates } from './app/exchange-rate-state.js'
 import { economicIndicatorsState, loadEconomicIndicators, reapplyMarketAssumptions, shouldRefresh } from './app/economic-indicators-state.js'
 import { marketIndicatorsView, marketRefreshMessage, renderMarketIndicatorsPanel } from './features/plan/market-indicators.js'
+import { formatMarketRate } from './shared/market-indicators.js'
 import { currencySymbol } from './shared/currencies.js'
 import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution } from './domain/investment-currency.js'
 import { changeStatementMapping } from './domain/statement-import.js'
@@ -1492,6 +1494,11 @@ document.addEventListener('click', async (event) => {
     form.elements.namedItem('investmentIndexRate').value = investment.indexAnnualRate === null ? '' : percentInputValue(investment.indexAnnualRate)
     form.elements.namedItem('investmentAnnualReturns').value = formatAnnualRealReturns(investment.annualRealReturns)
     form.elements.namedItem('investmentAnnualFee').value = investment.annualFee ? percentInputValue(investment.annualFee) : ''
+    form.elements.namedItem('returnSourceLabel').value = investment.returnSource?.label || ''
+    form.elements.namedItem('returnSourceUrl').value = investment.returnSource?.url || ''
+    form.elements.namedItem('returnSourceAsOf').value = investment.returnSource?.asOf || ''
+    form.elements.namedItem('returnSourceNote').value = investment.returnSource?.note || ''
+    form.querySelector('[data-form-error]')?.remove()
     form.querySelector('[data-investment-form-title]').textContent = 'Revise os dados do investimento'
     form.querySelector('[data-investment-submit]').textContent = 'Salvar investimento'
     setInvestmentReturnFields(form)
@@ -1831,6 +1838,14 @@ document.addEventListener('change', async (event) => {
     app.querySelector(`[data-inflation-source][value="${source}"]`)?.focus({ preventScroll: true })
     showToast(source === 'market' ? 'As projeções seguem a inflação e os juros de mercado.' : 'As projeções seguem as suas premissas. Edite a inflação na Carteira.')
     if (fetchNow) refreshMarketIndicators()
+    return
+  }
+  if (event.target.matches('[data-default-return-source]')) {
+    const source = event.target.value
+    try { setDefaultReturnSource(source) } catch (error) { showToast(error.message); return }
+    render()
+    app.querySelector(`[data-default-return-source][value="${source}"]`)?.focus({ preventScroll: true })
+    showToast(source === 'portfolio' ? `O retorno padrão segue a carteira: ${formatMarketRate(state.plan.annualRealReturn, 2)} real ao ano.` : 'O retorno padrão agora é informado por você. Edite o valor em Premissas da carteira.')
     return
   }
   if (event.target.matches('[data-goal-priority]')) {
@@ -2480,9 +2495,12 @@ document.addEventListener('submit', async (event) => {
   if (investmentAssumptionsForm) {
     event.preventDefault()
     const data = new FormData(investmentAssumptionsForm)
-    const patch = { annualRealReturn: parseNumber(data.get('defaultRealReturn')) / 100 }
-    // Market inflation is read-only and is never saved from this form.
+    const patch = {}
+    // Read-only fields follow the portfolio (default return) or the market
+    // (inflation) and are never saved from this form.
+    if (!investmentAssumptionsForm.elements.namedItem('defaultRealReturn')?.readOnly) patch.annualRealReturn = parseNumber(data.get('defaultRealReturn')) / 100
     if (!investmentAssumptionsForm.elements.namedItem('annualInflation')?.readOnly) patch.annualInflation = parseNumber(data.get('annualInflation')) / 100
+    if (!Object.keys(patch).length) { showToast('As premissas seguem a carteira e o mercado. Nada para salvar.'); return }
     try {
       projectRetirementWithSchedules({ ...state.plan, ...patch }, currentRetirementSchedules())
       updatePlan(patch)
@@ -2568,13 +2586,20 @@ document.addEventListener('submit', async (event) => {
         exposureShare: data.get('exposureShare') === '' || data.get('exposureShare') === null ? 1 : parseNumber(data.get('exposureShare')) / 100,
         region: data.get('region') || 'domestic',
         acquiredAt: data.get('investmentAcquiredAt') || null,
-        releaseYear: data.get('investmentReleaseYear') || null
+        releaseYear: data.get('investmentReleaseYear') || null,
+        // Always sent: the form shows the saved source, so empty fields remove it.
+        returnSource: {
+          label: data.get('returnSourceLabel') || '',
+          url: data.get('returnSourceUrl') || '',
+          asOf: data.get('returnSourceAsOf') || '',
+          note: data.get('returnSourceNote') || ''
+        }
       })
       render()
       if (data.get('investmentId')) recordDataOperation('correction')
       showToast(`${saved.name} foi ${data.get('investmentId') ? 'atualizado' : 'adicionado'} na carteira.`)
     } catch (error) {
-      showToast(error.message)
+      showFormError(investmentForm, error.message)
     }
     return
   }

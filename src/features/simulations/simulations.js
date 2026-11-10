@@ -6,6 +6,16 @@ import { escapeHtml, formatPercent, percentInputValue, privateCurrency } from '.
 import { icon } from '../../shared/icons.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { convertCurrency } from '../../shared/exchange-rates.js'
+import { effectiveDefaultReturnSource } from '../../domain/portfolio-return.js'
+import { defaultReturnOrigin } from '../../shared/portfolio-return.js'
+
+// Origin of the return of a scenario. The current plan follows the portfolio;
+// a saved scenario keeps the rate of the day it was saved (scenarios are not
+// derived again).
+function scenarioReturnOrigin(plan, { current = false } = {}) {
+  if (current) return defaultReturnOrigin(plan).short
+  return effectiveDefaultReturnSource(plan) === 'portfolio' ? 'derivado da carteira ao salvar' : 'informado no cenário'
+}
 
 const comparisonColors = ['#167454', '#2855c7', '#64748b', '#7c69a8']
 
@@ -120,7 +130,7 @@ function renderSavedScenarios() {
             <div><dt>Patrimônio</dt><dd>${privateCurrency(result.projectedAssets, state.valuesHidden, false, state.currency)}</dd></div>
             <div><dt>Aporte necessário</dt><dd>${privateCurrency(result.requiredMonthlyContribution, state.valuesHidden, false, state.currency)}</dd></div>
             <div><dt>Idade planejada</dt><dd>${scenario.plan.retirementAge} anos</dd></div>
-            <div><dt>Retorno real</dt><dd>${formatPercent(scenario.plan.annualRealReturn)} ao ano</dd></div>
+            <div><dt>Retorno real</dt><dd>${formatPercent(scenario.plan.annualRealReturn)} ao ano<small>${scenarioReturnOrigin(scenario.plan)}</small></dd></div>
             <div><dt>Moeda original</dt><dd>${scenario.currency}</dd></div>
           </dl>
           <button class="button button--secondary button--full" type="button" data-edit-scenario="${escapeHtml(scenario.id)}">Editar cenário</button>
@@ -203,17 +213,25 @@ function scenarioComparisonChart() {
         </svg>
       </div>
       <div class="comparison-legend">
-        ${prepared.map((scenario) => {
+        ${prepared.map((scenario, index) => {
           const last = scenario.series.at(-1)
           return `<div>
             <span style="--scenario-color:${scenario.color}"></span>
-            <p><strong>${escapeHtml(scenario.name)}</strong><small>${formatPercent(scenario.plan.annualRealReturn)} real ao ano · ${privateCurrency(last.assets, state.valuesHidden, false, state.currency)}</small></p>
+            <p><strong>${escapeHtml(scenario.name)}</strong><small>${formatPercent(scenario.plan.annualRealReturn)} real ao ano, ${scenarioReturnOrigin(scenario.plan, { current: index === 0 })} · ${privateCurrency(last.assets, state.valuesHidden, false, state.currency)}</small></p>
           </div>`
         }).join('')}
       </div>
       <p class="result-disclaimer">As curvas mostram o saldo total projetado. O cálculo considera capital, aportes e rendimento composto, incluindo eventos únicos do fluxo de caixa (compra de casa, faculdade, ano sabático) no mês em que ocorrem. Impostos, taxas e variação cambial futura não são previstos.</p>
     </section>
   `
+}
+
+// Hint of the return field: where today's rate comes from and what typing another does.
+function returnHint(plan) {
+  const current = !scenarioEditor.scenario
+  const origin = scenarioReturnOrigin(plan, { current })
+  const derived = current ? defaultReturnOrigin(plan).kind === 'portfolio' : effectiveDefaultReturnSource(plan) === 'portfolio'
+  return `Hoje, ${origin}. Vale para investimentos sem taxa própria.${derived ? ' Outro valor passa a valer só neste cenário, como taxa informada.' : ''}`
 }
 
 export function renderSimulations() {
@@ -273,7 +291,7 @@ export function renderSimulations() {
         <fieldset class="form-section">
           <legend>Premissas financeiras</legend>
           <div class="form-grid form-grid--two">
-            ${field({ label: 'Retorno real anual', name: 'annualRealReturn', value: percentInputValue(plan.annualRealReturn), min: -99, max: 100, step: 'any', suffix: '%' })}
+            ${field({ label: 'Retorno real padrão anual', name: 'annualRealReturn', value: percentInputValue(plan.annualRealReturn), min: -99, max: 100, step: 'any', suffix: '%', hint: returnHint(plan) })}
             ${field({ label: 'Inflação anual esperada', name: 'annualInflation', value: percentInputValue(plan.annualInflation), min: -99, max: 100, step: 'any', suffix: '%', hint: 'Usada para converter taxas nominais e CDI.' })}
             ${field({ label: 'Taxa de retirada anual', name: 'annualWithdrawalRate', value: percentInputValue(plan.annualWithdrawalRate), min: 0.1, max: 100, step: 'any', suffix: '%' })}
           </div>
