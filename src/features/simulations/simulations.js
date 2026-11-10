@@ -3,6 +3,7 @@ import { state } from '../../app/state.js'
 import { projectAssetSeriesWithSchedules, projectRetirementWithSchedules } from '../../domain/retirement.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { escapeHtml, formatPercent, percentInputValue, privateCurrency } from '../../shared/formatters.js'
+import { retirementTargetBasis } from '../../shared/retirement-target.js'
 import { icon } from '../../shared/icons.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { convertCurrency } from '../../shared/exchange-rates.js'
@@ -98,6 +99,7 @@ export function renderSimulationResult(result, plan = state.plan, currency = sta
       <div>${icon('calendar', 18, 'metric-glyph')}<span>Aporte sugerido</span><strong>${money(result.requiredMonthlyContribution)}</strong></div>
       <div>${icon('trendUp', 18, 'metric-glyph')}<span>Progresso da renda</span><strong>${formatPercent(incomeProgress)}</strong></div>
     </div>
+    <p class="annual-chart-basis" data-retirement-target-basis>${escapeHtml(retirementTargetBasis(result, plan))}</p>
     <div class="simulation-result__actions">
       <button class="button button--primary button--full" type="button" data-apply-simulation>
         Usar como plano principal
@@ -293,7 +295,7 @@ export function renderSimulations() {
           <div class="form-grid form-grid--two">
             ${field({ label: 'Retorno real padrão anual', name: 'annualRealReturn', value: percentInputValue(plan.annualRealReturn), min: -99, max: 100, step: 'any', suffix: '%', hint: returnHint(plan) })}
             ${field({ label: 'Inflação anual esperada', name: 'annualInflation', value: percentInputValue(plan.annualInflation), min: -99, max: 100, step: 'any', suffix: '%', hint: 'Usada para converter taxas nominais e CDI.' })}
-            ${field({ label: 'Taxa de retirada anual', name: 'annualWithdrawalRate', value: percentInputValue(plan.annualWithdrawalRate), min: 0.1, max: 100, step: 'any', suffix: '%' })}
+            ${field({ label: 'Taxa de retirada anual', name: 'annualWithdrawalRate', value: percentInputValue(plan.annualWithdrawalRate), min: 0.1, max: 100, step: 'any', suffix: '%', hint: 'Prudência da meta. Vale para 30 anos de aposentadoria; a meta usa a duração até a idade-alvo.' })}
           </div>
         </fieldset>
 

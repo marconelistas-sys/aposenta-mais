@@ -4,6 +4,7 @@
  */
 
 import { resolveInvestmentRealReturn, investmentAccumulationFactors, validateAnnualRealReturns } from './investment-returns.js'
+import { incomeFromAssets, retirementTarget } from './retirement-target.js'
 
 const numericFields = [
   'currentAge',
@@ -253,13 +254,10 @@ export function projectRetirement(input, asOfDate = new Date()) {
   const projectedAssets = futureCurrentAssets + futureContributions
   const { spouseMonths, spouseMonthlyBenefit, householdExpectedMonthlyBenefit } =
     householdBenefitAtRetirement(input, months, asOfDate)
-  const incomeNeededFromAssets = Math.max(
-    input.targetMonthlyIncome - householdExpectedMonthlyBenefit,
-    0
-  )
-  const targetAssets = (incomeNeededFromAssets * 12) / input.annualWithdrawalRate
-  const projectedInvestmentIncome =
-    (projectedAssets * input.annualWithdrawalRate) / 12
+  // B2: present value of the monthly gap until the horizon, with the spouse benefit from its start.
+  const target = retirementTarget(input, { months, spouseMonths, asOfDate })
+  const targetAssets = target.targetAssets
+  const projectedInvestmentIncome = incomeFromAssets(target, projectedAssets)
   const projectedMonthlyIncome =
     householdExpectedMonthlyBenefit + projectedInvestmentIncome
   const monthlyIncomeGap = input.targetMonthlyIncome - projectedMonthlyIncome
@@ -286,6 +284,7 @@ export function projectRetirement(input, asOfDate = new Date()) {
     spouseMonths,
     spouseMonthlyBenefit,
     householdExpectedMonthlyBenefit,
+    target,
     progress: targetAssets === 0 ? 1 : projectedAssets / targetAssets,
     goalReached: projectedAssets >= targetAssets
   }
@@ -305,7 +304,7 @@ export function projectRetirementWithSchedules(input, schedules = [], asOfDate =
   const projectedAssets = base.futureCurrentAssets + futureBaseContributions + scheduledContributionFutureValue
   const missingAssets = Math.max(base.targetAssets - base.futureCurrentAssets - scheduledContributionFutureValue, 0)
   const requiredMonthlyContribution = contributionFactor === 0 ? 0 : missingAssets / contributionFactor
-  const projectedInvestmentIncome = projectedAssets * input.annualWithdrawalRate / 12
+  const projectedInvestmentIncome = incomeFromAssets(base.target, projectedAssets)
   const projectedMonthlyIncome = base.householdExpectedMonthlyBenefit + projectedInvestmentIncome
 
   return {

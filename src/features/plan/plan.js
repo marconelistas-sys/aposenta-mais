@@ -1,7 +1,9 @@
 import { state } from '../../app/state.js'
 import { projectRetirementWithSchedules } from '../../domain/retirement.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
-import { formatCurrency, formatPercent, privateCurrency } from '../../shared/formatters.js'
+import { escapeHtml, formatCurrency, formatPercent, privateCurrency } from '../../shared/formatters.js'
+import { retirementTargetBasis, retirementTargetBridgeNote } from '../../shared/retirement-target.js'
+import { withdrawalRuleReferenceYears } from '../../domain/retirement-target.js'
 import { icon } from '../../shared/icons.js'
 import { renderHorizonForm } from './horizon.js'
 import { renderSpouseForm } from './spouse.js'
@@ -150,9 +152,10 @@ export function renderPlan() {
         <dl class="assumptions-list">
           ${returnAssumptions()}
           <div><dt>Inflação anual esperada</dt><dd>${marketInflation ? `${formatPercent(marketInflation.longRun)} <small>no longo prazo, de mercado</small>` : formatPercent(state.plan.annualInflation)}</dd></div>
-          <div><dt>Taxa de retirada</dt><dd>${formatPercent(state.plan.annualWithdrawalRate)}</dd></div>
+          <div><dt>Taxa de retirada</dt><dd>${formatPercent(state.plan.annualWithdrawalRate)} <small>prudência da meta, para ${withdrawalRuleReferenceYears} anos</small></dd></div>
+          <div><dt>Meta de patrimônio</dt><dd><span class="money-value">${money(result.targetAssets)}</span> <small data-retirement-target-basis>${escapeHtml(retirementTargetBasis(result, state.plan))}</small></dd></div>
           <div><dt>Benefício estimado</dt><dd class="money-value">${money(state.plan.expectedMonthlyBenefit)}</dd></div>
-          ${state.plan.spouseEnabled ? `<div><dt>Previdência privada do cônjuge</dt><dd class="money-value">${money(state.plan.spouseExpectedMonthlyBenefit)}${result.spouseMonthlyBenefit === 0 ? ' <small>(inicia após a aposentadoria dele(a))</small>' : ''}</dd></div><div><dt>Renda familiar estimada no benefício</dt><dd class="money-value">${money(result.householdExpectedMonthlyBenefit)}</dd></div>` : ''}
+          ${state.plan.spouseEnabled ? `<div><dt>Previdência privada do cônjuge</dt><dd class="money-value">${money(state.plan.spouseExpectedMonthlyBenefit)}${retirementTargetBridgeNote(result) ? ` <small>(${escapeHtml(retirementTargetBridgeNote(result))})</small>` : ''}</dd></div><div><dt>Renda familiar estimada no benefício</dt><dd class="money-value">${money(result.householdExpectedMonthlyBenefit)}</dd></div>` : ''}
           <div><dt>Horizonte</dt><dd>${result.months / 12} anos</dd></div>
         </dl>
         <a class="button button--secondary button--full" href="/simulacoes" data-route>Testar outras premissas</a>

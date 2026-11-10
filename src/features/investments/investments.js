@@ -554,7 +554,7 @@ export function renderInvestments() {
         </div>
         <p class="impact-callout">Efeito estimado dos rendimentos até os ${state.plan.retirementAge} anos: <strong>${signedMoney(returnImpact)}</strong>.</p>
         <p class="impact-sensitivity">Com 1 ponto percentual a menos por ano, a diferença estimada seria ${signedMoney(lowerImpact)}.</p>
-        <p class="result-disclaimer">A renda mensal retirada do patrimônio usa outra regra, a taxa de retirada de ${formatPercent(state.plan.annualWithdrawalRate)} ao ano. Rendimentos e indexadores podem variar.</p>
+        <p class="result-disclaimer">A renda mensal retirada do patrimônio usa outra regra: a meta de Meu plano, pela duração da aposentadoria e pela taxa de retirada de ${formatPercent(state.plan.annualWithdrawalRate)}. Rendimentos e indexadores podem variar.</p>
       </aside>
     </section>
 

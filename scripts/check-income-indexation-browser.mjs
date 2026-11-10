@@ -171,6 +171,13 @@ try {
     assert.ok(panels.length > 0, `${href}: painel de ano ausente`)
     for (const text of panels) assert.doesNotMatch(text.replace(/[  ]/g, ' '), /(?:R\$|CHF)\s*-?[\d.]+,\d{2}/, `${href}: painel de ano com centavos`)
   }
+  // B2: Meu plano and Simulações explain how the wealth target was computed.
+  for (const href of ['/plano', '/simulacoes']) {
+    await go(href)
+    const basis = page.locator('[data-retirement-target-basis]').first()
+    await basis.waitFor({ state: 'visible' })
+    assert.match(await basis.innerText(), /^Meta para \d+ anos de aposentadoria, até dezembro de \d{4}, quando você completa 94 anos\. Descontada a /, `${href}: base da meta`)
+  }
   await go('/carteira?review=field&field=annualInflation')
   assert.equal(await page.evaluate(() => document.activeElement.name), 'annualInflation')
   assert.deepEqual(errors, [])

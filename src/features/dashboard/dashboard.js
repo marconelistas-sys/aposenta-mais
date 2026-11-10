@@ -4,6 +4,7 @@ import { state } from '../../app/state.js'
 import { renderVariableContributions } from './variable-contributions.js'
 import { renderPlanningOverview } from './planning-overview.js'
 import { renderPlanChecks } from './plan-checks.js'
+import { retirementTargetBasis } from '../../shared/retirement-target.js'
 import { authState } from '../../app/auth-state.js'
 import { syncState } from '../../app/sync-state.js'
 import {
@@ -143,7 +144,7 @@ export function renderDashboard() {
         <div data-tone="${result.monthlyIncomeGap > 0 ? 'negative' : 'positive'}"><dt>${icon(result.monthlyIncomeGap > 0 ? 'alertTriangle' : 'check', 18, 'metric-glyph')}${result.monthlyIncomeGap > 0 ? 'Falta por mês' : 'Sobra por mês'}</dt><dd class="money-value">${money(Math.abs(result.monthlyIncomeGap))}<small>/mês</small></dd></div>
         <div><dt>${icon('wallet', 18, 'metric-glyph')}Aporte necessário</dt><dd class="money-value">${money(result.requiredMonthlyContribution)}<small>/mês</small></dd></div>
       </dl>
-      ${state.valuesHidden ? '' : `<div class="retirement-income-strip__progress" role="meter" aria-label="Patrimônio projetado em relação ao necessário" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, Math.round(result.progress * 100))}"><span style="width:${Math.min(100, result.progress * 100).toFixed(1)}%"></span></div><div class="retirement-income-strip__meta"><strong class="retirement-income-strip__pct">${Math.round(result.progress * 100)}%</strong><span>do patrimônio necessário</span><details class="inline-info"><summary aria-label="Como calculamos" title="Como calculamos">${icon('info', 16)}</summary><p class="annual-chart-basis">Patrimônio projetado cobre ${Math.round(result.progress * 100)}% do necessário. Renda projetada = benefício estimado ${money(result.householdExpectedMonthlyBenefit)} + retirada de ${formatPercent(state.plan.annualWithdrawalRate)} ao ano do patrimônio. Aporte atual: ${money(state.plan.monthlyContribution)}/mês. Valores em poder de compra de hoje.</p></details></div>`}
+      ${state.valuesHidden ? '' : `<div class="retirement-income-strip__progress" role="meter" aria-label="Patrimônio projetado em relação ao necessário" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, Math.round(result.progress * 100))}"><span style="width:${Math.min(100, result.progress * 100).toFixed(1)}%"></span></div><div class="retirement-income-strip__meta"><strong class="retirement-income-strip__pct">${Math.round(result.progress * 100)}%</strong><span>do patrimônio necessário</span><details class="inline-info"><summary aria-label="Como calculamos" title="Como calculamos">${icon('info', 16)}</summary><p class="annual-chart-basis">Patrimônio projetado cobre ${Math.round(result.progress * 100)}% do necessário. Renda projetada = benefício estimado ${money(result.householdExpectedMonthlyBenefit)} + retirada do patrimônio até o fim do horizonte. ${escapeHtml(retirementTargetBasis(result, state.plan))} Aporte atual: ${money(state.plan.monthlyContribution)}/mês. Valores em poder de compra de hoje.</p></details></div>`}
     </section>
 
     ${renderGoalsDashboardCard()}
