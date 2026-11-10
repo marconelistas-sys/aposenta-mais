@@ -143,6 +143,7 @@ import { allocationView, renderInvestments } from './features/investments/invest
 import { trackProductEvent } from './app/product-events.js'
 import { categoryById } from './data/cash-flow-categories.js'
 import { loadExchangeRates } from './app/exchange-rate-state.js'
+import { loadEconomicIndicators, shouldRefresh } from './app/economic-indicators-state.js'
 import { currencySymbol } from './shared/currencies.js'
 import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution } from './domain/investment-currency.js'
 import { changeStatementMapping } from './domain/statement-import.js'
@@ -2776,6 +2777,9 @@ loadAuthState().then(async () => {
   await loadPage({ indicateRecalculation: false })
   // Public quotes must not block opening the local plan when the network is slow.
   loadExchangeRates().then(() => { if (['/', '/inicio', '/cambio'].includes(currentPath())) render({ indicateRecalculation: false }) })
+  // Market indicators (inflation, CDI) refresh at most once a day, in the background.
+  // A failure keeps the previous assumptions. Only the dashboard re-renders, so no form loses input.
+  if (shouldRefresh(state.plan)) loadEconomicIndicators().then(changed => { if (changed && ['/', '/inicio'].includes(currentPath())) render({ indicateRecalculation: false }) })
   if (authState.authenticated) {
     await loadSyncState()
     if (['/', '/inicio', '/perfil'].includes(currentPath())) render({ indicateRecalculation: false })

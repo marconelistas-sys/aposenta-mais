@@ -131,16 +131,23 @@ test('H2.4 investimento sem moeda própria ou na moeda do plano não muda', () =
   close(resolveGrossInvestmentRealReturn(chfNominal({ currency: 'BRL' }), withInflation), nominalToRealReturn(0.02, 0.045))
 })
 
-test('H2.5 retornos real, padrão, IPCA e CDI não mudam', () => {
+test('H2.5 retornos real, padrão e IPCA não mudam', () => {
   const withInflation = plan({ inflationByCurrency: chfInflation })
   const cases = [
     chfNominal({ returnType: 'real', returnValue: 0.03 }),
     chfNominal({ returnType: 'default' }),
-    chfNominal({ returnType: 'ipca', returnValue: 0.06 }),
-    chfNominal({ returnType: 'cdi', returnValue: 1, indexAnnualRate: 0.1 })
+    chfNominal({ returnType: 'ipca', returnValue: 0.06 })
   ]
   for (const investment of cases) assert.equal(resolveGrossInvestmentRealReturn(investment, withInflation), resolveGrossInvestmentRealReturn(investment, plan()), investment.returnType)
-  close(resolveGrossInvestmentRealReturn(cases[3], withInflation), nominalToRealReturn(0.1, 0.045))
+})
+
+// Indicadores de mercado (docs/product/indicadores-mercado.md): o CDI deixou de
+// deflacionar pela inflação do plano quando o saldo está em outra moeda. Agora
+// segue a mesma regra do retorno nominal.
+test('H2.5 CDI em outra moeda usa a inflação da moeda do saldo, como o nominal', () => {
+  const cdi = chfNominal({ returnType: 'cdi', returnValue: 1, indexAnnualRate: 0.1 })
+  close(resolveGrossInvestmentRealReturn(cdi, plan({ inflationByCurrency: chfInflation })), nominalToRealReturn(0.1, 0.01))
+  close(resolveGrossInvestmentRealReturn(cdi, plan()), nominalToRealReturn(0.1, 0.045))
 })
 
 test('H2.6 trocar a moeda do plano para CHF guarda a inflação de CHF sem uso', () => {

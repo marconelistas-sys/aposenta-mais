@@ -28,6 +28,7 @@ import { validateTargetAllocation } from '../domain/target-allocation.js'
 import { validatePensionInvestment } from '../domain/pension-investment-links.js'
 import { upsertGoalsHistory } from '../domain/goal-settings.js'
 import { upsertWealthHistory, wealthSnapshot } from '../domain/wealth-history.js'
+import { applyMarketAssumptions } from '../domain/market-assumptions.js'
 
 const unavailableStorage = {
   getItem: () => null,
@@ -483,6 +484,24 @@ export function setExchangeRates(exchangeRates) {
   }
   saveState({ wealth: false })
   return true
+}
+
+// Market indicators refresh: not a user edit. Keeps the demo flag and the last
+// update time, does not take a balance-sheet photo, and leaves a manual plan as is.
+export function setMarketAssumptions(snapshot, today = new Date()) {
+  if (state.dataDeleted) return false
+  const next = applyMarketAssumptions(state.plan, snapshot, today, { currency: state.currency })
+  if (next === state.plan || JSON.stringify(next) === JSON.stringify(state.plan)) return false
+  state.plan = next
+  saveState({ wealth: false })
+  return true
+}
+
+// Chooses whether projections follow market indicators ('market') or the rates
+// typed by the person ('manual'). A user edit.
+export function setInflationSource(source) {
+  if (!['market', 'manual'].includes(source)) throw new RangeError('Escolha indicadores de mercado ou taxas manuais.')
+  updatePlan({ inflationSource: source })
 }
 
 // The balance-sheet history stays with the live plan, never copied into a scenario.

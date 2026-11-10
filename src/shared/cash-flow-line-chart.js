@@ -1,4 +1,4 @@
-import { annualRowsInPriceBasis } from '../domain/inflation-display.js'
+import { annualRowsInPriceBasis, priceBasisInflation } from '../domain/inflation-display.js'
 import { escapeHtml } from './formatters.js'
 import { planningChart } from './planning-chart.js'
 import { cashFlowDetailIndex, cashFlowDetailPanels } from './cash-flow-detail.js'
@@ -17,7 +17,7 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
   selectedYear ??= cashFlowChartView.selectedYear
   const basis = cashFlowChartView.basis === 'nominal' ? 'nominal' : 'real'
   let display
-  try { display = annualRowsInPriceBasis(rows, { basis, annualInflation: plan.annualInflation, baseYear }) }
+  try { display = annualRowsInPriceBasis(rows, { basis, baseYear, ...priceBasisInflation(plan, currency) }) }
   catch (error) { return `<p role="status">${escapeHtml(error.message)}</p>` }
   display = display.map(row => ({ ...row, ...remainingWealth(row) }))
   const nominal = basis === 'nominal'

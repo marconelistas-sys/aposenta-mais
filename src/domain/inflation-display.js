@@ -1,3 +1,5 @@
+import { cumulativePriceIndex, marketInflationPath } from './market-assumptions.js'
+
 // Annual price basis, matching finapp's index = (1 + inflation)^(year - baseYear).
 // Pure presentation conversion. The real projection and its risk do not change.
 export function annualPriceFactor(year, baseYear, annualInflation) {
@@ -9,13 +11,28 @@ export function annualPriceFactor(year, baseYear, annualInflation) {
 
 const monetaryKeys = ['income', 'costs', 'goals', 'pensionCredits', 'releases', 'freeCashFlow', 'financialAssets', 'liquidAssets', 'restrictedFinancial', 'netFinancial', 'netWorth', 'assets', 'liabilities', 'realEstateAssets', 'excludedRealEstateAssets', 'solvencyNetWorth', 'netWorthWithoutRealEstate']
 
-export function annualRowsInPriceBasis(rows, { basis = 'real', annualInflation, baseYear }) {
+// Price index of a year. With a market trajectory (inflationPath) it is the
+// accumulated index Π(1 + π(y)), the same one used by fixed incomes, so a fixed
+// income in the plan currency shows exactly its contract amount in the nominal view.
+export function priceIndexFor(year, baseYear, { annualInflation, inflationPath = null }) {
+  return inflationPath ? cumulativePriceIndex(inflationPath, baseYear, year) : annualPriceFactor(year, baseYear, annualInflation)
+}
+
+// Options for annualRowsInPriceBasis from the plan: the market trajectory of the
+// plan currency when market assumptions are active, otherwise the plan inflation.
+export function priceBasisInflation(plan, currency) {
+  return { annualInflation: plan?.annualInflation, inflationPath: marketInflationPath(plan, currency) }
+}
+
+export function annualRowsInPriceBasis(rows, { basis = 'real', annualInflation, baseYear, inflationPath = null }) {
   if (!['real', 'nominal'].includes(basis)) throw new Error('Escolha valores reais ou nominais.')
-  annualPriceFactor(baseYear, baseYear, annualInflation)
+  if (inflationPath) cumulativePriceIndex(inflationPath, baseYear, baseYear)
+  else annualPriceFactor(baseYear, baseYear, annualInflation)
+  const options = { annualInflation, inflationPath }
   return rows.map(row => {
     const year = Number(row.year)
-    const factor = annualPriceFactor(year, baseYear, annualInflation)
-    const previousFactor = annualPriceFactor(Math.max(baseYear, year - 1), baseYear, annualInflation)
+    const factor = priceIndexFor(year, baseYear, options)
+    const previousFactor = priceIndexFor(Math.max(baseYear, year - 1), baseYear, options)
     const next = { ...row, priceBasis: basis, priceBaseYear: baseYear, priceFactor: factor, realFinancialChange: row.financialChange }
     if (basis === 'nominal') {
       for (const key of monetaryKeys) if (Number.isFinite(row[key])) next[key] = row[key] * factor

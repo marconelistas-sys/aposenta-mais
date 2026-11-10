@@ -2,6 +2,7 @@ import { calculateMultiCurrencyCashFlow } from './cash-flow.js'
 import { prepareCommitmentSchedules, commitmentEvents } from './financial-calendar.js'
 import { sanitizeConsortia, consortiumSchedule, monthOffset, shiftMonth, validateConsortiumAsOf } from './consortium.js'
 import { resolveInvestmentRealReturn } from './investment-returns.js'
+import { activeMarketAssumptions } from './market-assumptions.js'
 import { retirementMonth, spouseRetirementMonth } from './cash-flow-timeline.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
 import { nonFinancialValue } from './annual-planning.js'
@@ -50,7 +51,11 @@ export function prepareRiskInput(state, settings, today = new Date()) {
   for (const item of consortia) validateConsortiumAsOf(item, start)
   const budgetSource = { ...state.cashFlow, spouseRetirementMonth: state.plan.spouseEnabled ? state.plan.spouseRetirementMonth : null, retirementMonth: state.cashFlow.retirementMonth || state.plan.retirementMonth, consortia: [], commitmentSchedules: debtSchedules, items: state.cashFlow.items.filter(item => item.frequency !== 'occasional' || item.startDate), projectionInflation: projectionInflation(state, today) }
   const releaseYears = new Map((state.plan.finappMethod?.releases || []).map(row => [row.investmentId, row.year]))
-  const buckets = state.plan.investments.length ? state.plan.investments.map(item => ({ amount: item.amount, ...(item.liquidity !== 'available' && releaseYears.has(item.id) ? { releaseMonth: `${releaseYears.get(item.id)}-12` } : {}), annualRealReturn: resolveInvestmentRealReturn(item, state.plan), annualRealReturns: item.annualRealReturns || [], liquid: item.liquidity === 'available', ...(settings.volatilityModel === 'class' ? { volatility: (settings.classVolatilities || classVolatility)[item.assetClass] ?? settings.annualVolatility, volatilityKey: correlationKeyFor(item.assetClass) } : {}) })) : [{ amount: state.plan.currentAssets, annualRealReturn: state.plan.annualRealReturn, liquid: settings.aggregateLiquid }]
+  // With market assumptions the return changes by year ('nominal' and 'cdi'), so
+  // every simulated year gets its own rate, overrides included.
+  const simulatedYears = activeMarketAssumptions(state.plan) ? Array.from({ length: Number(shiftMonth(start, settings.months - 1).slice(0, 4)) - Number(start.slice(0, 4)) + 1 }, (_, index) => Number(start.slice(0, 4)) + index) : null
+  const yearlyReturns = item => simulatedYears ? simulatedYears.map(year => ({ year, rate: resolveInvestmentRealReturn(item, state.plan, year) })) : item.annualRealReturns || []
+  const buckets = state.plan.investments.length ? state.plan.investments.map(item => ({ amount: item.amount, ...(item.liquidity !== 'available' && releaseYears.has(item.id) ? { releaseMonth: `${releaseYears.get(item.id)}-12` } : {}), annualRealReturn: resolveInvestmentRealReturn(item, state.plan), annualRealReturns: yearlyReturns(item), liquid: item.liquidity === 'available', ...(settings.volatilityModel === 'class' ? { volatility: (settings.classVolatilities || classVolatility)[item.assetClass] ?? settings.annualVolatility, volatilityKey: correlationKeyFor(item.assetClass) } : {}) })) : [{ amount: state.plan.currentAssets, annualRealReturn: state.plan.annualRealReturn, liquid: settings.aggregateLiquid }]
   const debtAt = month => debts.reduce((total, item) => {
     const last = debtSchedules.get(item.id).findLast(row => row.month <= month)
     return total + convert(last?.balance ?? item.amount, item.currency)

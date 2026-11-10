@@ -1,3 +1,5 @@
+import { activeMarketAssumptions, cdiFor, inflationFor, planCurrencyOf } from './market-assumptions.js'
+
 export const investmentReturnTypes = Object.freeze(['default', 'real', 'nominal', 'cdi', 'ipca'])
 
 export function validateAnnualRealReturns(rows = []) {
@@ -68,7 +70,7 @@ export function currencyTrendAdjustment(investment, plan) {
 export function resolveInvestmentRealReturn(investment, plan, year) {
   const override = investment?.annualRealReturns?.find(row => row.year === Number(year))
   if (override) return override.rate
-  const net = applyAnnualFee(resolveGrossInvestmentRealReturn(investment, plan), investmentAnnualFee(investment))
+  const net = applyAnnualFee(resolveGrossInvestmentRealReturn(investment, plan, year), investmentAnnualFee(investment))
   const trend = currencyTrendAdjustment(investment, plan)
   return trend ? (1 + net) * (1 + trend) - 1 : net
 }
@@ -107,9 +109,24 @@ export function balanceCurrencyInflation(investment, plan) {
   return typeof rate === 'number' && Number.isFinite(rate) ? rate : null
 }
 
-export function resolveGrossInvestmentRealReturn(investment, plan) {
-  const defaultReturn = Number(plan?.annualRealReturn)
+// Inflation that deflates a nominal return: the balance currency. With market
+// assumptions, the trajectory of that currency in the year. Without them, the
+// saved inflation of a foreign currency or the plan inflation.
+export function investmentInflation(investment, plan, year) {
+  if (activeMarketAssumptions(plan)) return inflationFor(plan, investment?.currency || planCurrencyOf(plan), year)
   const inflation = Number.isFinite(plan?.annualInflation) ? plan.annualInflation : 0
+  return balanceCurrencyInflation(investment, plan) ?? inflation
+}
+
+// Nominal CDI-linked return before fees: share of the CDI of the year.
+export function investmentCdiNominalReturn(investment, plan, year) {
+  return cdiFor(plan, year, Number(investment?.indexAnnualRate)) * Number(investment?.returnValue)
+}
+
+// The year only matters with market assumptions ('nominal' and 'cdi'). Without a
+// year, the long-run assumption applies.
+export function resolveGrossInvestmentRealReturn(investment, plan, year) {
+  const defaultReturn = Number(plan?.annualRealReturn)
   const legacyReturn = investment?.annualRealReturn
   const returnType = investmentReturnTypes.includes(investment?.returnType)
     ? investment.returnType
@@ -118,18 +135,18 @@ export function resolveGrossInvestmentRealReturn(investment, plan) {
 
   if (returnType === 'default') return defaultReturn
   if (returnType === 'real' || returnType === 'ipca') return returnValue
-  if (returnType === 'nominal') return nominalToRealReturn(returnValue, balanceCurrencyInflation(investment, plan) ?? inflation)
-  const cdiRate = Number(investment?.indexAnnualRate)
-  return nominalToRealReturn(cdiRate * returnValue, inflation)
+  if (returnType === 'nominal') return nominalToRealReturn(returnValue, investmentInflation(investment, plan, year))
+  // CDI is deflated by the inflation of the balance currency, like 'nominal'.
+  return nominalToRealReturn(investmentCdiNominalReturn(investment, plan, year), investmentInflation(investment, plan, year))
 }
 
 export function resolveInvestmentNominalReturn(investment, plan, year) {
-  const inflation = Number.isFinite(plan?.annualInflation) ? plan.annualInflation : 0
+  const inflation = inflationFor(plan, planCurrencyOf(plan), year)
   const realReturn = resolveInvestmentRealReturn(investment, plan, year)
   if (investment?.annualRealReturns?.some(row => row.year === Number(year))) return realToNominalReturn(realReturn, inflation)
   const fee = investmentAnnualFee(investment)
   if (investment?.returnType === 'nominal') return applyAnnualFee(investment.returnValue, fee)
-  if (investment?.returnType === 'cdi') return applyAnnualFee(investment.indexAnnualRate * investment.returnValue, fee)
+  if (investment?.returnType === 'cdi') return applyAnnualFee(investmentCdiNominalReturn(investment, plan, year), fee)
   return realToNominalReturn(realReturn, inflation)
 }
 
