@@ -1,6 +1,6 @@
 # Indicadores de mercado: inflação e juros nas projeções
 
-Status: backend e domínio entregues no branch `feat/indicadores-inflacao` (2026-11-10). A interface fica para a etapa seguinte.
+Status: backend e domínio entregues no branch `feat/indicadores-inflacao` (2026-11-10). Retorno real padrão derivado da carteira: domínio e persistência no branch `feat/rendimento-fontes-oficiais` (2026-11-10). A interface fica para a etapa seguinte.
 
 ## Objetivo
 
@@ -38,6 +38,7 @@ Notação: π(moeda, ano) é a inflação do ano. `baseYear` é o ano corrente (
 - Anos do Focus, como estão: π(BRL, Y) = mediana do Focus para Y, para os anos a partir do ano corrente.
 - longRun = mediana do último ano do Focus.
 - Referência: a meta contínua do CMN é **3,0%** (constante `brazilInflationTarget`). O mercado está acima dela: em 06/11/2026 a mediana para 2030 é 3,935%. O app usa a mediana do mercado, não a meta, porque ela é a melhor estimativa pública do que vai acontecer. A meta fica registrada para comparação.
+- **Decisão validada pelo dono em 2026-11-10:** a inflação de longo prazo do Brasil usa a mediana de mercado do Focus, não a meta do CMN.
 
 ### CDI (BRL)
 
@@ -103,6 +104,36 @@ O ano-base nunca entra (fator 1), a mesma convenção de `(1 + π)^(Y − baseYe
 
 No modo manual, as premissas de mercado já salvas ficam guardadas e são ignoradas pelos cálculos.
 
+## Retorno real padrão derivado da carteira
+
+`plan.annualRealReturn` ("retorno real padrão") valia 5%, herdado do FinApp. Ele vale para os investimentos sem taxa própria (`returnType: 'default'`), para o caixa acumulado do planejamento (`projected-cash` na projeção anual), para as contribuições sem investimento vinculado (`retirement.js`), para o desconto a valor presente dos objetivos (`goals-planning`) e como referência do Monte Carlo (`goalReturnPaths` e o deslocamento em `projectAnnualInvestments`). Decisão do dono: o rendimento exibido e usado vem das fontes oficiais, não do valor herdado. Os motores continuam lendo `plan.annualRealReturn`; o que muda é quem grava o valor.
+
+### Regra (`src/domain/portfolio-return.js`)
+
+- `portfolioReturnSummary(plan, { year, currency })`: médias reais ponderadas pelo saldo (na moeda do plano), com `resolveInvestmentRealReturn(investimento, plano, ano)`, a mesma função dos motores.
+  - `total`: todos os investimentos com saldo maior que zero; `liquid`: só os de liquidez `available`.
+  - `byYear`: de `year` (padrão: ano corrente) até `longRunYear` = último ano das trajetórias de mercado em uso (inflação de todas as moedas e CDI) + 1. Esse último ano representa o longo prazo. Sem dados de mercado, `longRunYear` = `year` + 1.
+  - Investimentos `default` entram com a taxa padrão em uso, como os motores os veem. `own` repete as médias sem eles.
+  - `items`: `{ id, name, amount, liquidity, returnType, usesDefault, realReturn, longRun, returnSource, marketSource, source }`. `source` é a fonte informada no investimento ou, sem ela, a fonte do índice.
+- `derivedDefaultReturn(plan)`: longo prazo de `own.liquid`; sem investimento líquido com taxa própria, longo prazo de `own.total`; senão `null`. Os `default` ficam de fora para não haver circularidade: se todos forem `default`, o resultado é `null`. Valor com 10 casas decimais (`cleanRate`, só para tirar ruído binário).
+- Exemplo com o Focus de 06/11/2026 e a carteira de teste: longo prazo dos líquidos = 2,694% real ao ano (CDB a 76,5% do CDI de 9,90% deflacionado por 3,935% = 3,50%).
+
+### Fonte do retorno padrão (`plan.defaultReturnSource`)
+
+- `'portfolio'` ou `'manual'`. Ausente: `'portfolio'` se o plano estiver em modo mercado (`inflationSource !== 'manual'` e `marketAssumptions` presente), senão `'manual'` (o comportamento de antes).
+- `applyPortfolioDefaultReturn(plan)`: com a fonte `'portfolio'`, grava `annualRealReturn = derivedDefaultReturn(plan)`. Sem nenhum investimento com taxa própria, mantém o valor atual. Nunca sobrescreve no modo `'manual'`. É idempotente, porque a média própria não depende da taxa padrão.
+- No estado (`src/app/state.js`) é aplicada depois da atualização de mercado (`setMarketAssumptions`), de toda alteração do plano (`updatePlan`, que cobre criar, editar e remover investimento, importar saldo de previdência e trocar o modo de inflação), dos extratos que mudam saldos, da troca de moeda do plano, da atualização de câmbio e ao abrir o plano (`syncPortfolioDefaultReturn`, chamada em `switchSessionPlan`). A atualização de mercado, o câmbio e a abertura não contam como edição.
+- `setDefaultReturnSource('portfolio' | 'manual')` conta como edição. Ao voltar para `'portfolio'`, a taxa derivada substitui a digitada na hora; ao ir para `'manual'`, fica o último valor.
+- Digitar outro valor de retorno padrão (formulário da Carteira, plano guiado) enquanto a fonte é `'portfolio'` grava `defaultReturnSource: 'manual'`. O mesmo valor devolvido pelo formulário (diferença de até 1e-9) não muda a fonte.
+- Não é aplicada em `replaceFinancialData` (importação, cópia da conta, aplicar cenário) nem em `loadScenario`: os dados entram como estão e a próxima atualização deriva de novo.
+
+### Fonte do rendimento de cada investimento
+
+- `investment.returnSource = { label (até 120), url (https, até 300, opcional), asOf ('AAAA-MM-DD', opcional), note (até 240, opcional) }`.
+- Sanitização (`sanitizeReturnSource`, usada em `sanitizeInvestment`): textos sem caracteres de controle e cortados no limite; `url` descartada se não for https, tiver usuário ou senha, espaços ou mais de 300 caracteres; data inválida descartada; sem `label` não há fonte. Passa por exportação, importação, cenários e sincronização.
+- Formulário (`validateReturnSource`, chamada em `upsertInvestment`): recusa com mensagem `url` que não seja https, textos acima do limite e data inválida. Sem a chave `returnSource` no formulário, a fonte salva é mantida; `null` remove.
+- `marketSourceFor(plan, investment)` → `{ label, url, asOf } | null`: para `cdi` e `nominal` com saldo em BRL ou CHF e dados de mercado em uso. BRL: Banco Central do Brasil (CDI SGS 4389, Selic e IPCA do Focus). CHF: Banco Nacional Suíço (IPC) para a inflação, e BCB para o CDI. Os rótulos estão em `marketSourceLabels`.
+
 ## Servidor
 
 `GET /api/economic-indicators` (`src/server/economic-indicators.mjs`, registrado em `scripts/dev-server.mjs`):
@@ -136,3 +167,6 @@ No modo manual, as premissas de mercado já salvas ficam guardadas e são ignora
 - Ao trocar a moeda do plano para EUR ou USD, `annualInflation` guarda o longRun da moeda anterior até a próxima aplicação.
 - Carregar um cenário antigo traz as premissas daquele dia; a próxima atualização (24 h) as substitui.
 - `post-retirement.js` calcula `nominalAssets` com a inflação constante do plano. O campo não é usado em nenhuma tela.
+- O retorno padrão derivado é um único número de longo prazo: nos anos com CDI alto, o caixa acumulado e os investimentos `default` rendem menos do que os CDBs daquele ano.
+- Ao aplicar o retorno derivado pela primeira vez, o valor herdado (5%) não é guardado. Voltar para `'manual'` mantém o valor derivado.
+- Um cenário editado com outro retorno padrão e aplicado ao plano, com a fonte `'portfolio'`, volta à taxa derivada na próxima atualização. O editor de cenários deve gravar `defaultReturnSource: 'manual'` quando a pessoa mudar o retorno.

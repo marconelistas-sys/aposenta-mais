@@ -440,13 +440,59 @@ function checklistBody(report) {
   return `<ul class="report-checklist">${relevant.map(item => `<li><span class="report-checkbox" aria-hidden="true"></span><p><strong>${e(item.topic)}.</strong> ${e(item.question)}</p></li>`).join('')}</ul>${other.length ? `<p class="report-note">Sem relação com os dados cadastrados: ${other.map(item => e(item.topic)).join(', ')}.</p>` : ''}`
 }
 
+// Rate with sign and tone: zero is neutral, a negative real return is never neutral.
+function toneRate(value) {
+  const text = formatReportPercent(value)
+  const tone = !finite(value) || text === '0%' ? '' : text.startsWith('−') ? 'unfavorable' : 'favorable'
+  return tone ? `<span class="report-num--${tone}">${e(text)}</span>` : e(text)
+}
+
+const returnTypeLabels = { default: 'Padrão do plano', real: 'Taxa real', nominal: 'Nominal', cdi: '% do CDI', ipca: 'IPCA + taxa' }
+
+function defaultReturnOriginText(portfolio) {
+  if (!portfolio || portfolio.defaultReturnSource === 'manual') return 'informado manualmente'
+  if (!portfolio.derived) return 'último valor salvo, porque nenhum investimento com saldo tem taxa própria para derivar o retorno da carteira'
+  return portfolio.basis === 'total' ? 'derivado da carteira (média dos investimentos com taxa própria, longo prazo)' : 'derivado da carteira (média dos investimentos líquidos, longo prazo)'
+}
+
+function returnRows(assumptions) {
+  const portfolio = assumptions.portfolioReturn
+  const origin = defaultReturnOriginText(portfolio)
+  if (!portfolio || !finite(portfolio.total)) return [finite(assumptions.annualRealReturn) && ['Retorno real padrão', `${toneRate(assumptions.annualRealReturn)} ao ano, ${e(origin)}`]]
+  const liquid = finite(portfolio.liquid) ? `; só os líquidos: ${toneRate(portfolio.liquid)} e ${toneRate(portfolio.longRun.liquid)}` : ''
+  return [
+    ['Retorno da carteira', `${toneRate(portfolio.total)} em ${portfolio.year} e ${toneRate(portfolio.longRun.total)} no longo prazo, real ao ano, ponderado pelo saldo${liquid}`],
+    finite(assumptions.annualRealReturn) && ['Retorno padrão', `${toneRate(assumptions.annualRealReturn)} ao ano, ${e(origin)}; vale para investimentos sem taxa própria`],
+    portfolio.market && ['Premissas de mercado', `De ${e(formatReportDate(portfolio.market.asOf))}${portfolio.market.stale ? ', desatualizadas' : ''}. CDI e inflação do Banco Central do Brasil e do Banco Nacional Suíço`]
+  ]
+}
+
+// Source of one instrument: typed in the investment or the official index.
+function sourceCell(item) {
+  const source = item.source
+  if (!source?.label) return item.usesDefault ? 'Retorno padrão do plano' : 'Não informada'
+  const label = e(source.label)
+  const name = source.url ? `<a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${label}<span class="sr-only">, abre em nova aba</span></a>` : label
+  return `${item.sourceKind === 'market' ? 'Índice: ' : ''}${name}${source.asOf ? `, de ${e(formatReportDate(source.asOf))}` : ''}${source.note ? `. ${e(source.note)}` : ''}`
+}
+
+function returnTable(portfolio) {
+  if (!portfolio?.items?.length) return ''
+  return `<h3 class="report-subtitle">Rendimento por investimento</h3>${table({
+    caption: `Retorno real de cada investimento em ${portfolio.year} e no longo prazo (a partir de ${portfolio.longRunYear}), com a fonte da taxa`,
+    head: ['Investimento', 'Tipo', `Real em ${portfolio.year}`, 'Real no longo prazo', 'Fonte'],
+    rows: portfolio.items.map(item => [e(item.name), e(returnTypeLabels[item.returnType] || 'Padrão do plano'), toneRate(item.realReturn), toneRate(item.longRun), { wrap: sourceCell(item) }]),
+    className: 'report-table--compact report-table--returns'
+  })}`
+}
+
 function appendixBody(report) {
   const { appendix, meta } = report
   const assumptions = appendix.assumptions
   const volatility = assumptions.volatility
   const rows = [
     ['Base das projeções', 'Valores reais, a preços de hoje'],
-    finite(assumptions.annualRealReturn) && ['Retorno real padrão', `${e(formatReportPercent(assumptions.annualRealReturn))} ao ano`],
+    ...returnRows(assumptions),
     finite(assumptions.annualInflation) && ['Inflação', `${e(formatReportPercent(assumptions.annualInflation))} ao ano`],
     assumptions.retirementMonth && ['Aposentadoria', e(formatMonth(assumptions.retirementMonth))],
     finite(assumptions.targetAge) && ['Horizonte', `Até ${assumptions.targetAge} anos`],
@@ -457,7 +503,7 @@ function appendixBody(report) {
   const quality = meta.dataQuality.length ? `<ul class="report-diagnostics">${meta.dataQuality.map(row => `<li>${statusBadge(row.severity === 'info' ? 'info' : 'attention')}<p>${t(row.message)}${row.href ? ` <a class="report-screen-only" href="${e(row.href)}" data-route>Revisar</a>` : ''}</p></li>`).join('')}</ul>` : '<p>Sem pontos de qualidade dos dados.</p>'
   const coverage = meta.coverage.yearToDate
   const errors = meta.errors.length ? `<div class="report-callout report-callout--risk"><p><strong>Partes não calculadas:</strong> ${meta.errors.map(row => `${e(chapterTitles[row.chapter] || row.chapter)} (${e(row.message)})`).join('; ')}.</p></div>` : ''
-  return `<p class="report-note">Os avisos sobre o uso deste relatório estão no capítulo 1, ao lado das ações.</p><div class="report-columns"><div><h3 class="report-subtitle">Premissas</h3><dl class="report-deflist">${rows.map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('')}</dl><h3 class="report-subtitle">Cobertura e qualidade dos dados</h3>${coverage ? `<p class="report-note">Despesas realizadas em ${coverage.expenses.monthsWithActual.length} de ${coverage.months} meses; receitas realizadas em ${coverage.income.monthsWithActual.length} de ${coverage.months}.</p>` : ''}${quality}${errors}<h3 class="report-subtitle">Metodologia</h3><ul class="report-list report-list--notes">${appendix.methodology.map(row => `<li>${t(row)}</li>`).join('')}</ul></div><div><h3 class="report-subtitle">Limites dos indicadores</h3><dl class="report-deflist report-deflist--stacked">${report.indicators.map(item => `<div><dt>${e(item.label)}</dt><dd>${e(item.reference)}</dd></div>`).join('')}</dl></div></div><h3 class="report-subtitle">Glossário</h3><dl class="report-deflist report-deflist--glossary">${appendix.glossary.map(row => `<div><dt>${e(row.term)}</dt><dd>${e(row.definition)}</dd></div>`).join('')}</dl>`
+  return `<p class="report-note">Os avisos sobre o uso deste relatório estão no capítulo 1, ao lado das ações.</p><div class="report-columns"><div><h3 class="report-subtitle">Premissas</h3><dl class="report-deflist">${rows.map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('')}</dl><h3 class="report-subtitle">Cobertura e qualidade dos dados</h3>${coverage ? `<p class="report-note">Despesas realizadas em ${coverage.expenses.monthsWithActual.length} de ${coverage.months} meses; receitas realizadas em ${coverage.income.monthsWithActual.length} de ${coverage.months}.</p>` : ''}${quality}${errors}<h3 class="report-subtitle">Metodologia</h3><ul class="report-list report-list--notes">${appendix.methodology.map(row => `<li>${t(row)}</li>`).join('')}</ul></div><div><h3 class="report-subtitle">Limites dos indicadores</h3><dl class="report-deflist report-deflist--stacked">${report.indicators.map(item => `<div><dt>${e(item.label)}</dt><dd>${e(item.reference)}</dd></div>`).join('')}</dl></div></div>${returnTable(assumptions.portfolioReturn)}<h3 class="report-subtitle">Glossário</h3><dl class="report-deflist report-deflist--glossary">${appendix.glossary.map(row => `<div><dt>${e(row.term)}</dt><dd>${e(row.definition)}</dd></div>`).join('')}</dl>`
 }
 
 const bodies = { cashFlow: cashFlowBody, spending: spendingBody, balanceSheet: balanceSheetBody, wealth: wealthBody, portfolio: portfolioBody, liquidity: liquidityBody, debts: debtsBody, currency: currencyBody, retirement: retirementBody, checklist: checklistBody, appendix: appendixBody }

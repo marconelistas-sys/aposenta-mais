@@ -7,6 +7,16 @@ import { renderHorizonForm } from './horizon.js'
 import { renderSpouseForm } from './spouse.js'
 import { renderMarketIndicatorsPanel } from './market-indicators.js'
 import { marketInflationSummary } from '../../shared/market-indicators.js'
+import { defaultReturnOrigin, portfolioReturnView, portfolioSourcesClause, rateHtml } from '../../shared/portfolio-return.js'
+
+// Portfolio return (next year and long run) and the origin of the default return.
+function returnAssumptions() {
+  const view = portfolioReturnView(state.plan)
+  const origin = defaultReturnOrigin(state.plan)
+  const defaultRow = `<div data-plan-default-return><dt>${view ? 'Retorno padrão' : 'Retorno real padrão'}</dt><dd>${rateHtml(origin.rate)} <small>${origin.short}${view ? ', para investimentos sem taxa própria' : ''}</small></dd></div>`
+  if (!view) return defaultRow
+  return `<div data-plan-portfolio-return><dt>Retorno da carteira</dt><dd>${rateHtml(view.byYear[0].total)} em ${view.byYear[0].year} · ${rateHtml(view.longRun.total)} no longo prazo <small>real ao ano, ${portfolioSourcesClause(view)}</small></dd></div>${defaultRow}`
+}
 
 export function renderPlan() {
   const schedules = retirementContributionSchedules(
@@ -138,7 +148,7 @@ export function renderPlan() {
           ${icon('info', 21, 'panel__header-icon')}
         </div>
         <dl class="assumptions-list">
-          <div><dt>Retorno real anual</dt><dd>${formatPercent(state.plan.annualRealReturn)}</dd></div>
+          ${returnAssumptions()}
           <div><dt>Inflação anual esperada</dt><dd>${marketInflation ? `${formatPercent(marketInflation.longRun)} <small>no longo prazo, de mercado</small>` : formatPercent(state.plan.annualInflation)}</dd></div>
           <div><dt>Taxa de retirada</dt><dd>${formatPercent(state.plan.annualWithdrawalRate)}</dd></div>
           <div><dt>Benefício estimado</dt><dd class="money-value">${money(state.plan.expectedMonthlyBenefit)}</dd></div>

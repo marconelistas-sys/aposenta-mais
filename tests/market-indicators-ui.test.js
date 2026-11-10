@@ -206,7 +206,9 @@ test('moeda EUR: o plano mantém a premissa digitada e o painel explica', () => 
     setMarketAssumptions(fresh, today)
     assert.equal(state.plan.annualInflation, 0.02)
     assert.match(textOf(panelOf(renderPlan())), /Não há dados de mercado para EUR\. A inflação do plano continua sendo a sua premissa, de 2,0% ao ano/)
-    assert.doesNotMatch(assumptionsForm(renderInvestments()), /readonly/)
+    // The plan inflation stays editable. The default return follows the portfolio
+    // (read-only), which is a separate choice (tests/portfolio-return-ui.test.js).
+    assert.doesNotMatch(assumptionsForm(renderInvestments()), /name="annualInflation"[^>]*readonly/)
   }, { snapshot: fresh })
 })
 

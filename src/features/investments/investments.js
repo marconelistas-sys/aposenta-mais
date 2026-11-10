@@ -15,6 +15,8 @@ import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeCont
 import { budgetReviewLink, fieldReviewLink } from '../../domain/review-targets.js'
 import { activeMarketAssumptions, marketInflationPath, trajectoryRate } from '../../domain/market-assumptions.js'
 import { formatMarketRate } from '../../shared/market-indicators.js'
+import { marketSourceFor, returnSourceLimits } from '../../domain/portfolio-return.js'
+import { defaultReturnOrigin, portfolioReturnView, rateHtml, rateTone, returnSourceHtml } from '../../shared/portfolio-return.js'
 
 // Foreign balances show the native value first and the plan-currency equivalent below.
 function foreignBalance(investment, planValue, nativeValue) {
@@ -89,7 +91,12 @@ function projectionPeriod(months) {
 }
 
 function preciseRate(value) {
-  return `${(value * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`
+  return `${(value * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 }).replace('-', '−')}%`
+}
+
+// Real return with its sign and tone (negative is never neutral, zero never positive).
+function toneRate(value) {
+  return `<span class="rate-value" data-tone="${rateTone(value, 2)}">${preciseRate(value)}</span>`
 }
 
 function currencyTrendsPanel() {
@@ -127,6 +134,46 @@ function annualInflationField() {
         <span class="input-shell"><input type="number" name="annualInflation" value="${percentInputValue(path.longRun)}" readonly aria-describedby="annual-inflation-market-help" /><span class="input-suffix">%</span></span>
         <small id="annual-inflation-market-help">De mercado, longo prazo. Os próximos anos seguem a trajetória, de ${formatMarketRate(trajectoryRate(path, year), 2)} em ${year}. <a href="${escapeHtml(fieldReviewLink('/plano', 'inflationSource'))}" data-route>Para digitar sua inflação, escolha “Usar minhas premissas” em Meu plano</a>.</small>
       </label>`
+}
+
+// Default real return of the plan: derived from the portfolio or typed by the
+// person. Same pattern as the inflation choice in Meu plano (market-indicators.js).
+function defaultReturnSourceFieldset(origin) {
+  const option = (value, label, help) => `<div class="market-source__option"><label><input type="radio" name="defaultReturnSource" value="${value}" data-default-return-source ${origin.source === value ? 'checked' : ''} aria-describedby="default-return-${value}-help" /> ${label}</label><small id="default-return-${value}-help">${help}</small></div>`
+  return `<fieldset class="market-source investment-assumptions__source">
+        <legend>Retorno real padrão do plano</legend>
+        ${option('portfolio', 'Derivar da carteira (recomendado)', 'Média de longo prazo dos investimentos líquidos com taxa própria, ponderada pelo saldo. Acompanha a carteira e as premissas de mercado.')}
+        ${option('manual', 'Informar manualmente', 'Você digita a taxa, que não muda com a carteira. O campo começa com o último valor.')}
+      </fieldset>`
+}
+
+function defaultReturnHelp(origin) {
+  const rate = formatMarketRate(origin.rate, 2)
+  if (origin.kind === 'pending') return `Retorno padrão: ${rate} real. Nenhum investimento com saldo tem taxa própria para derivar o retorno da carteira, então vale o último valor salvo. Para digitar outra taxa, escolha “Informar manualmente”.`
+  return `Retorno padrão: ${rate} real, ${escapeHtml(origin.detail)}. Para digitar outra taxa, escolha “Informar manualmente”.`
+}
+
+function defaultReturnField(origin) {
+  if (origin.source === 'manual') return `<label class="form-field">
+        <span class="form-field__label">Retorno real padrão</span>
+        <span class="input-shell"><input type="number" name="defaultRealReturn" value="${percentInputValue(state.plan.annualRealReturn)}" min="-99" max="100" step="0.1" required /><span class="input-suffix">%</span></span>
+      </label>`
+  return `<label class="form-field">
+        <span class="form-field__label">Retorno real padrão</span>
+        <span class="input-shell"><input type="number" name="defaultRealReturn" value="${Number.isFinite(state.plan.annualRealReturn) ? Number((state.plan.annualRealReturn * 100).toFixed(2)) : ''}" readonly aria-describedby="default-return-help" /><span class="input-suffix">%</span></span>
+      </label>`
+}
+
+// Optional source of the rate (contract, fund sheet, issuer page). Limits of the domain.
+function returnSourceFieldset() {
+  return `<fieldset class="investment-return-source-fields" data-return-source-fields>
+            <legend>Fonte do rendimento, opcional</legend>
+            <p class="form-context" id="return-source-help">Onde a taxa foi obtida: contrato, lâmina do fundo ou página do emissor. Sem fonte, CDI e taxas nominais em BRL ou CHF mostram a fonte do índice oficial.</p>
+            <label class="form-field"><span class="form-field__label">Nome da fonte</span><span class="input-shell"><input name="returnSourceLabel" maxlength="${returnSourceLimits.label}" autocomplete="off" aria-describedby="return-source-help" /></span></label>
+            <label class="form-field"><span class="form-field__label">Link da fonte</span><span class="input-shell"><input type="url" name="returnSourceUrl" maxlength="${returnSourceLimits.url}" placeholder="https://" autocomplete="off" inputmode="url" aria-describedby="return-source-url-help" /></span><small id="return-source-url-help">Só endereços que começam com https://.</small></label>
+            <label class="form-field"><span class="form-field__label">Data da fonte</span><span class="input-shell"><input type="date" name="returnSourceAsOf" /></span></label>
+            <label class="form-field"><span class="form-field__label">Observação</span><textarea name="returnSourceNote" rows="2" maxlength="${returnSourceLimits.note}" aria-describedby="return-source-note-help"></textarea><small id="return-source-note-help">Até ${returnSourceLimits.note} caracteres.</small></label>
+          </fieldset>`
 }
 
 function cdiIndexHint() {
@@ -261,7 +308,41 @@ function sourceDetail(investment, realReturn) {
   }
   if (investment.returnType === 'ipca') return `IPCA + ${formatPercent(investment.returnValue)}, equivalente a ${formatPercent(realReturn)} real`
   if (investment.returnType === 'real') return `${formatPercent(realReturn)} real informado neste investimento`
-  return `${formatPercent(realReturn)} real herdado do plano`
+  return `${formatPercent(realReturn)} real, o retorno padrão do plano (${defaultReturnOrigin(state.plan).short})`
+}
+
+// Source of the rate of one investment: the one typed in the investment or,
+// for CDI and nominal returns, the official index in use.
+function investmentSourceItem(investment) {
+  const returnSource = investment.returnSource || null
+  return { returnSource, source: returnSource || marketSourceFor(state.plan, investment), usesDefault: investment.returnType === 'default' }
+}
+
+// Panel "Rendimento da carteira (fontes oficiais)". Rates and dates only: it
+// stays complete with hidden values.
+function portfolioReturnPanel() {
+  const view = portfolioReturnView(state.plan)
+  const origin = defaultReturnOrigin(state.plan)
+  const defaultLine = `<p class="portfolio-return__default" data-portfolio-default-return>Retorno padrão do plano: ${rateHtml(origin.rate)} real ao ano, ${escapeHtml(origin.detail)}. Vale para investimentos sem taxa própria, o caixa acumulado e o desconto dos objetivos. A origem se escolhe em Premissas da carteira, no fim desta página.</p>`
+  const header = `<div class="panel__header"><div><p class="eyebrow">RENDIMENTO</p><h2 id="portfolio-return-title">Rendimento da carteira (fontes oficiais)</h2><p class="portfolio-return__summary">Retorno real médio ao ano, ponderado pelo saldo, já descontados a inflação e os custos.</p></div>${icon('trendUp', 21, 'panel__header-icon')}</div>`
+  if (!view) return `<section class="panel portfolio-return" aria-labelledby="portfolio-return-title" data-portfolio-return>${header}<p class="portfolio-return__empty">Cadastre investimentos com saldo para ver o rendimento da carteira e a fonte de cada taxa.</p>${defaultLine}</section>`
+  const first = view.byYear[0], longRunYear = view.byYear.at(-1).year
+  const cell = rate => rate === null ? '<td>Sem investimentos líquidos</td>' : `<td>${rateHtml(rate)}</td>`
+  const table = `<div class="table-scroll" role="region" tabindex="0" aria-labelledby="portfolio-return-caption"><table class="market-table portfolio-return__table"><caption id="portfolio-return-caption">Retorno real médio, ponderado pelo saldo. Longo prazo: a partir de ${longRunYear}</caption><thead><tr><th scope="col">Investimentos</th><th scope="col">Em ${first.year}</th><th scope="col">Longo prazo</th></tr></thead><tbody><tr><th scope="row">Toda a carteira</th>${cell(first.total)}${cell(view.longRun.total)}</tr><tr><th scope="row">Só os líquidos</th>${cell(first.liquid)}${cell(view.longRun.liquid)}</tr></tbody></table></div>`
+  const path = view.byYear.map((row, index) => `${index === view.byYear.length - 1 ? 'longo prazo' : row.year}: ${rateHtml(row.total)}`).join(' <span aria-hidden="true">·</span> ')
+  const badge = view.marketBadge
+  const dates = badge
+    ? `${escapeHtml(badge.text)}${badge.stale ? ', desatualizadas' : ''}. CDI e inflação vêm do Banco Central do Brasil (Focus) e do Banco Nacional Suíço; as demais taxas, da fonte informada em cada investimento. <a href="${escapeHtml(fieldReviewLink('/plano', 'inflationSource'))}" data-route>Ver inflação e juros de mercado</a>`
+    : `Sem premissas de mercado em uso: CDI e inflação seguem as taxas informadas nesta página. <a href="${escapeHtml(fieldReviewLink('/plano', 'inflationSource'))}" data-route>Ver inflação e juros de mercado</a>`
+  const missing = view.items.filter(item => !item.source && !item.usesDefault).length
+  return `<section class="panel portfolio-return" aria-labelledby="portfolio-return-title" data-portfolio-return>
+    ${header}
+    ${table}
+    <p class="portfolio-return__path" data-portfolio-return-path><span class="portfolio-return__label">Trajetória da carteira toda:</span> ${path}.</p>
+    <p class="portfolio-return__dates" data-portfolio-return-dates>${dates}.</p>
+    ${defaultLine}
+    ${missing ? `<p class="portfolio-return__missing">${missing} ${missing === 1 ? 'investimento está' : 'investimentos estão'} sem fonte informada. Edite para registrar o contrato, a lâmina do fundo ou a página do emissor.</p>` : ''}
+  </section>`
 }
 
 function investmentList() {
@@ -308,11 +389,11 @@ function investmentList() {
             ${movements.length ? `<div data-investment-movements><dt>Aplicações e resgates no Orçamento</dt><dd>${movements.slice(0, 3).map(item => `${escapeHtml(item.startDate.split('-').reverse().join('/'))} · ${item.type === 'expense' ? 'Aplicação' : 'Resgate'} · ${privateCurrency(item.amount, state.valuesHidden, true, item.currency)}`).join('<br>')}${movements.length > 3 ? `<br>e mais ${movements.length - 3}` : ''}<small>Fora das receitas e despesas. Entram no saldo os posteriores ao último saldo informado manualmente ou por extrato de saldo.</small></dd></div>` : ''}
             <div><dt>Exposição</dt><dd>${escapeHtml(investment.exposureCurrency || state.currency)}${investment.exposureCurrency && investment.exposureCurrency !== state.currency && investmentExposureShare(investment) < 1 ? ` ${preciseRate(investmentExposureShare(investment))}` : ''} · ${regionLabels[investment.region] || regionLabels.domestic}</dd></div>
             <div><dt>Custo anual</dt><dd>${state.valuesHidden ? 'Oculto' : investmentAnnualFee(investment) ? preciseRate(investmentAnnualFee(investment)) : 'Não informado'}</dd></div>
-            <div><dt>Retorno usado em ${new Date().getUTCFullYear()}</dt><dd>${state.valuesHidden ? 'Oculto' : `${preciseRate(rate)} real ao ano`}</dd></div>
+            <div><dt>Retorno usado em ${new Date().getUTCFullYear()}</dt><dd>${state.valuesHidden ? 'Oculto' : `${toneRate(rate)} real ao ano`}</dd></div>
             <div data-investment-projection><dt>Projeção ${state.plan.retirementMonth ? `em ${escapeHtml(formatMonth(state.plan.retirementMonth))}` : 'na aposentadoria'}</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}<small>Não é o saldo de hoje. Saldo atual${investment.monthlyContribution ? ' e aporte mensal' : ''} com ${state.valuesHidden ? 'retorno real de taxa oculta' : rateText} por ${projectionPeriod(months)}${scheduled.some(item => item.investmentId === investment.id) ? ', mais as contribuições vinculadas no Orçamento' : ''}.</small></dd></div>
           </dl>
           ${investment.needsDetails ? '<p class="investment-needs-details" role="note"><strong>Completar detalhes.</strong> Criado a partir de um extrato. Edite para informar nome, classe, liquidez e retorno. Até lá, a projeção usa a taxa habitual do plano.</p>' : ''}
-          <p class="investment-return-source">${sourceDetail(investment, resolveGrossInvestmentRealReturn(investment, state.plan))}${investmentAnnualFee(investment) && !state.valuesHidden ? `, antes do custo anual de ${preciseRate(investmentAnnualFee(investment))}` : ''}</p>
+          <div class="investment-return-source"><p>${sourceDetail(investment, resolveGrossInvestmentRealReturn(investment, state.plan))}${investmentAnnualFee(investment) && !state.valuesHidden ? `, antes do custo anual de ${preciseRate(investmentAnnualFee(investment))}` : ''}</p><p class="investment-return-source__origin" data-investment-return-source>${returnSourceHtml(investmentSourceItem(investment))}</p></div>
           ${investment.annualRealReturns?.length ? `<details class="disclosure"><summary>Retornos reais por ano (${investment.annualRealReturns.length})</summary>${state.valuesHidden ? '<p>Retornos ocultos.</p>' : `<dl>${investment.annualRealReturns.map(row => `<div><dt>${row.year}</dt><dd>${formatPercent(row.rate)}</dd></div>`).join('')}</dl>`}<p>Anos sem ajuste usam a taxa habitual deste investimento.</p></details>` : ''}
           <div class="investment-card__actions">
             <button class="button button--secondary" type="button" data-edit-investment="${escapeHtml(investment.id)}">Editar</button>
@@ -345,6 +426,7 @@ export function renderInvestments() {
   const feeImpact = withoutFees.projectedAssets - projection.projectedAssets
   const weightedFee = state.plan.currentAssets > 0 ? investments.reduce((total, investment) => total + investment.amount * investmentAnnualFee(investment), 0) / state.plan.currentAssets : 0
   const defaultRate = formatPercent(state.plan.annualRealReturn)
+  const defaultOrigin = defaultReturnOrigin(state.plan)
   const firstInvestment = investments.length === 0
   const moneySymbol = currencySymbol(state.currency)
 
@@ -362,9 +444,11 @@ export function renderInvestments() {
     <section class="investment-summary" aria-label="Resumo da carteira">
       <article class="panel"><i class="summary-glyph">${icon('pie', 20)}</i><span>Patrimônio cadastrado</span><strong>${privateCurrency(state.plan.currentAssets, state.valuesHidden, false, state.currency)}</strong><small>${investments.length} ${investments.length === 1 ? 'investimento' : 'investimentos'}</small></article>
       <article class="panel"><i class="summary-glyph">${icon('calendar', 20)}</i><span>Aportes mensais</span><strong>${privateCurrency(state.plan.monthlyContribution, state.valuesHidden, false, state.currency)}</strong><small>${state.valuesHidden ? 'Somados pela carteira' : `${privateCurrency(state.plan.monthlyContribution * 12, false, false, state.currency)}/ano, somados pela carteira`}</small></article>
-      <article class="panel"><i class="summary-glyph">${icon('trendUp', 20)}</i><span>Retorno médio em ${new Date().getUTCFullYear()}</span><strong>${state.valuesHidden ? 'Oculto' : preciseRate(portfolioReturn())}</strong><small>Real ao ano, líquido de custos, ponderado pelo saldo</small></article>
+      <article class="panel"><i class="summary-glyph">${icon('trendUp', 20)}</i><span>Retorno médio em ${new Date().getUTCFullYear()}</span><strong>${state.valuesHidden ? 'Oculto' : toneRate(portfolioReturn())}</strong><small>Real ao ano, líquido de custos, ponderado pelo saldo</small></article>
       <article class="panel"><i class="summary-glyph">${icon('percent', 20)}</i><span>Custo médio anual</span><strong>${state.valuesHidden ? 'Oculto' : hasFees ? preciseRate(weightedFee) : 'Não informado'}</strong><small>${hasFees && !state.valuesHidden ? `Reduz o patrimônio projetado em ${privateCurrency(feeImpact, false, false, state.currency)}` : 'Informe a taxa de cada produto'}</small></article>
     </section>
+
+    ${portfolioReturnPanel()}
 
     ${portfolioDiagnostics()}
 
@@ -423,7 +507,7 @@ export function renderInvestments() {
           <label class="form-field">
             <span class="form-field__label">Como o rendimento foi informado</span>
             <span class="input-shell"><select name="returnType" required>
-              <option value="default">Padrão do plano, ${defaultRate} real ao ano</option>
+              <option value="default">Padrão do plano, ${defaultRate} real ao ano (${defaultOrigin.short})</option>
               <option value="real">Taxa real anual</option>
               <option value="nominal">Taxa nominal anual</option>
               <option value="cdi">Percentual do CDI</option>
@@ -451,6 +535,7 @@ export function renderInvestments() {
             <label class="form-field"><span>Ano e retorno real (%)</span><textarea name="investmentAnnualReturns" rows="5" maxlength="6000" placeholder="2027: 4,5%&#10;2028: 3%" aria-describedby="annual-returns-help"></textarea></label>
             <p id="annual-returns-help">Uma linha por ano. O ajuste vale apenas no ano informado. Nos demais anos, usamos a taxa habitual acima. Remova a linha para voltar à taxa habitual. Atualizar retornos muda as projeções, sem alterar o saldo atual cadastrado.</p>
           </details>
+          ${returnSourceFieldset()}
           <div class="investment-form__actions">
             <button class="button button--secondary" type="button" data-previous-investment-step>Voltar</button>
             <button class="button button--primary" type="submit" data-investment-submit>Adicionar à carteira</button>
@@ -476,15 +561,14 @@ export function renderInvestments() {
     <form class="panel investment-assumptions" data-investment-assumptions-form>
       <div class="investment-assumptions__intro">
         <p class="eyebrow">PREMISSAS DA CARTEIRA</p>
-        <h2>Defina a base das conversões</h2>
-        <p>O retorno real é o padrão. A inflação converte taxas nominais e percentuais do CDI para valores de hoje.</p>
+        <h2 id="investment-assumptions-title">Defina a base das conversões</h2>
+        <p>O retorno real padrão vale para investimentos sem taxa própria, o caixa acumulado e o desconto dos objetivos. A inflação converte taxas nominais e percentuais do CDI para valores de hoje.</p>
       </div>
-      <label class="form-field">
-        <span class="form-field__label">Retorno real padrão</span>
-        <span class="input-shell"><input type="number" name="defaultRealReturn" value="${percentInputValue(state.plan.annualRealReturn)}" min="-99" max="100" step="0.1" required /><span class="input-suffix">%</span></span>
-      </label>
+      ${defaultReturnSourceFieldset(defaultOrigin)}
+      ${defaultReturnField(defaultOrigin)}
       ${annualInflationField()}
-      <button class="button button--secondary" type="submit">Salvar premissas</button>
+      ${defaultOrigin.source === 'manual' || !marketInflationPath(state.plan, state.currency) ? '<button class="button button--secondary" type="submit">Salvar premissas</button>' : ''}
+      ${defaultOrigin.source === 'manual' ? '' : `<p class="investment-assumptions__note" id="default-return-help">${defaultReturnHelp(defaultOrigin)}</p>`}
     </form>
 
     ${currencyTrendsPanel()}

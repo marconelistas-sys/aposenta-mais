@@ -150,6 +150,10 @@ try {
   assert.equal(await page.locator('[name="inflation:CHF"]').evaluate(node => node.readOnly), true)
   assert.equal(await page.locator('[name="inflation:EUR"]').evaluate(node => node.readOnly), false)
   assert.match(await page.locator('.investment-return-source').first().innerText(), new RegExp(`^76,5% do CDI: real de [\\d,]+% em ${year + 1}, caindo para [\\d,]+% no longo prazo \\(CDI de mercado\\)`))
+  // The default return follows the portfolio (read-only) until the person chooses to type it.
+  assert.equal(await page.locator('[name="defaultRealReturn"]').evaluate(node => node.readOnly), true)
+  await page.locator('[name="defaultReturnSource"][value="manual"]').check()
+  await page.waitForFunction(async () => (await import('/src/app/state.js')).state.plan.defaultReturnSource === 'manual')
   await page.locator('[name="defaultRealReturn"]').fill('3.5')
   await page.locator('[data-investment-assumptions-form] [type="submit"]').click()
   await page.waitForFunction(async () => (await import('/src/app/state.js')).state.plan.annualRealReturn === 0.035)

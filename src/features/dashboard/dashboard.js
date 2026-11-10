@@ -21,6 +21,8 @@ import { readinessGauge } from '../../shared/readiness-gauge.js'
 import { renderGoalsDashboardCard } from '../goals/goals.js'
 import { marketAssumptionsBadge, marketInflationSummary } from '../../shared/market-indicators.js'
 import { fieldReviewLink } from '../../domain/review-targets.js'
+import { defaultReturnOrigin, portfolioReturnRange, portfolioReturnView, portfolioSourcesClause } from '../../shared/portfolio-return.js'
+import { formatMarketRate } from '../../shared/market-indicators.js'
 
 function privacyLabel(value) {
   return state.valuesHidden ? 'Valor oculto' : formatCurrency(value, false, state.currency)
@@ -87,6 +89,11 @@ export function renderDashboard() {
   const today = new Date()
   const marketInflation = marketInflationSummary(state.plan, state.currency, today.getUTCFullYear())
   const marketBadge = marketAssumptionsBadge(state.plan)
+  const portfolioReturn = portfolioReturnView(state.plan, { year: today.getUTCFullYear() + 1 })
+  const defaultOrigin = defaultReturnOrigin(state.plan, { year: today.getUTCFullYear() + 1 })
+  const returnText = portfolioReturn
+    ? `Retorno da carteira de ${portfolioReturnRange(portfolioReturn)}, ${portfolioSourcesClause(portfolioReturn)}. Retorno padrão de ${formatMarketRate(defaultOrigin.rate, 1)}, ${defaultOrigin.short}, para investimentos sem taxa própria`
+    : `Retorno real padrão de ${formatMarketRate(defaultOrigin.rate, 1)}, ${defaultOrigin.short}`
   const schedules = retirementContributionSchedules(
     state.cashFlow,
     state.currency,
@@ -149,7 +156,7 @@ export function renderDashboard() {
           <div class="confidence-card__icon">${icon('shield', 22)}</div>
           <div>
             <h3>Premissas da projeção</h3>
-            <p>${state.valuesHidden ? 'Mostre os valores para consultar as premissas.' : `Retorno real padrão de ${formatPercent(state.plan.annualRealReturn)} e ${marketInflation ? marketInflation.text : `inflação de ${formatPercent(state.plan.annualInflation)} ao ano`}. Taxas individuais da carteira prevalecem quando informadas.`}</p>
+            <p data-dashboard-return>${state.valuesHidden ? 'Mostre os valores para consultar as premissas.' : `${returnText}; ${marketInflation ? marketInflation.text : `inflação de ${formatPercent(state.plan.annualInflation)} ao ano`}. <a href="/carteira" data-route>Ver o rendimento na Carteira</a>`}</p>
             ${marketBadge ? `<p class="market-assumptions-note" data-market-assumptions-note>${marketBadge.text}${marketBadge.stale ? ', desatualizadas' : ''}. <a href="${escapeHtml(fieldReviewLink('/plano', 'inflationSource'))}" data-route>Ver inflação e juros de mercado</a></p>` : ''}
           </div>
           <a href="/simulacoes" data-route aria-label="Ver premissas">${icon('chevronRight', 19)}</a>

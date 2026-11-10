@@ -8,6 +8,7 @@ import { defaultPlan } from '../data/mock-plan.js'
 import { sanitizeCurrencyTrends, sanitizeInflationByCurrency, validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { sanitizeIncomeIndexation } from '../domain/income-indexation.js'
 import { sanitizeInflationSource, sanitizeMarketAssumptions } from '../domain/market-assumptions.js'
+import { sanitizeDefaultReturnSource, sanitizeReturnSource } from '../domain/portfolio-return.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import { normalizeCurrency } from '../shared/currencies.js'
 import { bundledExchangeRates, sanitizeExchangeRates } from '../shared/exchange-rates.js'
@@ -115,6 +116,7 @@ export function sanitizeInvestment(investment, index = 0) {
   const annualFee = Number(investment.annualFee || 0)
   let annualRealReturns = []
   try { annualRealReturns = validateAnnualRealReturns(investment.annualRealReturns) } catch {}
+  const returnSource = sanitizeReturnSource(investment.returnSource)
   return {
     id: safeId(investment.id, `investment-${index + 1}`),
     name,
@@ -133,6 +135,8 @@ export function sanitizeInvestment(investment, index = 0) {
     indexAnnualRate,
     ...(annualRealReturns.length ? { annualRealReturns } : {}),
     ...(validNumber(annualFee, [0.0001, 0.1]) ? { annualFee } : {}),
+    // Where the rate comes from (contract, fund page, official index). Optional, display only.
+    ...(returnSource ? { returnSource } : {}),
     ...(currencies[investment.currency] ? { currency: investment.currency } : {}),
     ...(currencies[investment.currency] && validNumber(Number(investment.nativeAmount), [0, 1000000000]) ? { nativeAmount: Number(investment.nativeAmount) } : {}),
     ...(currencies[investment.currency] && validNumber(Number(investment.nativeMonthlyContribution), [0, 10000000]) ? { nativeMonthlyContribution: Number(investment.nativeMonthlyContribution) } : {}),
@@ -270,6 +274,9 @@ export function sanitizePlan(candidate = {}) {
   if (marketAssumptions) plan.marketAssumptions = marketAssumptions
   const inflationSource = sanitizeInflationSource(source.inflationSource)
   if (inflationSource) plan.inflationSource = inflationSource
+  // Default real return derived from the portfolio or typed by the person. Stored only when present.
+  const defaultReturnSource = sanitizeDefaultReturnSource(source.defaultReturnSource)
+  if (defaultReturnSource) plan.defaultReturnSource = defaultReturnSource
   plan.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
   plan.spouseEnabled = source.spouseEnabled === true
   plan.spouseRetirementMonth = typeof source.spouseRetirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.spouseRetirementMonth) ? source.spouseRetirementMonth : null

@@ -34,6 +34,9 @@ export function simulationInputFromData(data, base = simulationContext().plan) {
     plan.retirementMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + Math.round((plan.retirementAge - plan.currentAge) * 12), 1)).toISOString().slice(0, 7)
   }
   validateProjectionInput(plan)
+  // Another default return typed here belongs to this scenario: it becomes a
+  // manual rate, since scenarios are never derived again from the portfolio.
+  if (Math.abs(plan.annualRealReturn - base.annualRealReturn) > 1e-9 || !Number.isFinite(base.annualRealReturn)) plan.defaultReturnSource = 'manual'
   if (plan.investments?.length) {
     distribute(plan.investments, 'amount', plan.currentAssets)
     const existingContributions = plan.investments.reduce((sum, item) => sum + item.monthlyContribution, 0)
