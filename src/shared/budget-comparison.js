@@ -4,10 +4,10 @@ import { icon } from './icons.js'
 import { moneyWithMonthly, moneyWithMonthlyText } from './monthly-equivalent.js'
 
 // Only presents totals already included in the selected projection row.
-export function renderBudgetComparison(row, currency) {
+// `money` lets an annual projection panel show whole units (A1); the default keeps cents.
+export function renderBudgetComparison(row, currency, { money = value => privateCurrency(value, false, true, currency) } = {}) {
   const model = budgetPressure(row)
   if (!model.reconciled || [model.income, row.costs, row.goals].some(value => !Number.isFinite(value) || value < 0)) return ''
-  const money = value => privateCurrency(value, false, true, currency)
   const year = escapeHtml(row.year)
   const balanceCents = Math.round(model.balance * 100)
   const expenseBalanceCents = Math.round((model.income - row.costs) * 100)
