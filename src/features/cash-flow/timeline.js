@@ -6,7 +6,8 @@ import { openSalaryItems, salaryEndMessage } from '../../domain/cash-flow-checks
 import { renderBudgetInsights } from './budget-insights.js'
 import { planningHorizon, annualCashFlow, cashFlowProjectionState } from '../../domain/planning-horizon.js'
 import { cashFlowChartView } from '../../shared/cash-flow-line-chart.js'
-import { annualRowsInPriceBasis } from '../../domain/inflation-display.js'
+import { annualRowsInPriceBasis, priceBasisInflation } from '../../domain/inflation-display.js'
+import { inflationRateLabel, nominalBasisSentence, nominalIndexExplanation } from '../../shared/market-indicators.js'
 import { planningChart } from '../../shared/planning-chart.js'
 import { renderPropertyFilter } from '../../shared/property-solvency.js'
 import { cashFlowDetailIndex, cashFlowDetailPanels } from '../../shared/cash-flow-detail.js'
@@ -44,7 +45,7 @@ function projectedCharts(rows, plan, markers, annual) {
   const baseYear = new Date().getUTCFullYear()
   const basis = cashFlowChartView.basis === 'nominal' ? 'nominal' : 'real'
   let display
-  try { display = annualRowsInPriceBasis(rows, { basis, annualInflation: plan.annualInflation, baseYear }) }
+  try { display = annualRowsInPriceBasis(rows, { basis, baseYear, ...priceBasisInflation(plan, state.currency) }) }
   catch (error) { return `<p role="status">${escapeHtml(error.message)}</p>` }
   const index = cashFlowDetailIndex(display.map(row => ({ label: String(row.year) })), timelineView.selectedYear ?? cashFlowChartView.selectedYear)
   const selectedYear = String(display[index].year)
@@ -68,13 +69,13 @@ function projectedCharts(rows, plan, markers, annual) {
     <details class="disclosure"><summary>Comparar patrimônio restrito, bens e dívidas</summary><p>Saldos financeiros restritos não estão disponíveis para despesas até a liberação cadastrada. Bens não geram caixa automaticamente. Patrimônio total é financeiro mais bens, menos dívidas. O patrimônio considerado respeita o filtro de imóveis nas Premissas.</p>
     ${planningChart({ ...input, title: 'Composição patrimonial projetada', series: [{ key: 'restrictedFinancial', label: 'Financeiro restrito', color: '#7c69a8', dash: '6 3' }, { key: 'assets', label: 'Bens e direitos', color: '#64748b', dash: '2 3' }, { key: 'liabilities', label: 'Dívidas', color: '#9a6b00', dash: '8 4' }, { key: 'netWorth', label: 'Patrimônio total líquido de dívidas', color: '#167454' }, { key: 'solvencyNetWorth', label: 'Patrimônio considerado pelo filtro de imóveis', color: '#475569' }] })}</details></section>` : '<p>Este recorte compara fluxos previstos, sem projetar saldos patrimoniais ou rendimentos. Selecione a idade-alvo para avaliar a evolução patrimonial completa.</p>'
   return `<section class="cash-flow-line-view" data-cash-flow-line-view><div class="annual-chart-toolbar"><label class="cash-flow-price-control">Base dos valores <select data-cash-flow-price-basis><option value="real" ${basis === 'real' ? 'selected' : ''}>Poder de compra de ${baseYear}</option><option value="nominal" ${basis === 'nominal' ? 'selected' : ''}>Valores nominais de cada ano</option></select></label><label>Ano selecionado nos gráficos<select data-cash-flow-year>${display.map((row, rowIndex) => `<option value="${rowIndex}" ${rowIndex === index ? 'selected' : ''}>${escapeHtml(row.year)}</option>`).join('')}</select></label></div>
-    <p class="annual-chart-basis">${escapeHtml(caption)}. ${basis === 'nominal' ? 'Cada ano inclui a inflação acumulada do plano.' : 'Todos os anos usam o mesmo poder de compra.'} Inflação anual do plano: ${(plan.annualInflation * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%. Alternar a base não altera os cálculos da viabilidade ou os lançamentos.${fixedNote ? ` ${escapeHtml(fixedNote)}` : ''}</p>
+    <p class="annual-chart-basis">${escapeHtml(caption)}. ${basis === 'nominal' ? nominalBasisSentence(plan, state.currency) : 'Todos os anos usam o mesmo poder de compra.'} ${escapeHtml(inflationRateLabel(plan, state.currency, baseYear))}. Alternar a base não altera os cálculos da viabilidade ou os lançamentos.${fixedNote ? ` ${escapeHtml(fixedNote)}` : ''}</p>
     ${financial}
     <details class="disclosure" data-projection-flow-details><summary>Ver receitas, despesas e saldo previstos por ano</summary><p>Receitas menos despesas e metas = saldo do orçamento, antes dos rendimentos. Déficit no orçamento consome patrimônio, mas não significa automaticamente falta de liquidez. Liberações transferem saldo existente e não criam receita.</p>
     ${annual ? `<label>Visão dos fluxos<select data-annual-chart-mode="flow"><option value="budget" ${financialView ? '' : 'selected'}>Orçamento: receitas, despesas e saldo</option><option value="financial" ${financialView ? 'selected' : ''}>Resultado: saldo, rendimentos e previdência</option></select></label>` : ''}
     ${financialView ? '<p>Saldo do orçamento + rendimentos + créditos previdenciários = variação do patrimônio financeiro no ano. A variação descreve a mudança no período, não o patrimônio acumulado. Os créditos previdenciários podem permanecer restritos.</p>' : ''}
     ${planningChart({ ...input, title: financialView ? 'Variação anual do patrimônio financeiro' : 'Fluxos anuais previstos do orçamento', series: flowSeries, details: cashFlowDetailPanels(display, plan, state.currency, false, { wealthTargetAge: state.plan.targetAge }) })}</details>
-    <details class="disclosure"><summary>Como a inflação entra nesta projeção</summary><p>Na visão real, valores e retorno descontam a inflação. Na visão nominal, cada ano recebe a inflação acumulada do plano desde ${baseYear}. O rendimento nominal implícito inclui a atualização do saldo inicial. A conversão usa a inflação da moeda de apresentação após o câmbio fixo, sem prever câmbio de cada país. A composição na moeda original e as demais tabelas continuam na base real do cadastro.</p><p>${escapeHtml(indexationRuleText)}</p><a href="/fluxo-caixa?aba=premissas" data-route>Revisar premissas</a></details></section>`
+    <details class="disclosure"><summary>Como a inflação entra nesta projeção</summary><p>Na visão real, valores e retorno descontam a inflação. ${escapeHtml(nominalIndexExplanation(plan, state.currency, baseYear))} A conversão usa a inflação da moeda de apresentação após o câmbio fixo, sem prever câmbio de cada país. A composição na moeda original e as demais tabelas continuam na base real do cadastro.</p><p>${escapeHtml(indexationRuleText)}</p><a href="/fluxo-caixa?aba=premissas" data-route>Revisar premissas</a></details></section>`
 }
 
 // Annual and monthly projections share calculations. Premises owns the saved controls.

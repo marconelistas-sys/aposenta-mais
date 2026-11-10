@@ -88,7 +88,8 @@ import {
   setTargetAllocation,
   setCurrencyTrends,
   setInflationByCurrency,
-  setMigrationResolved
+  setMigrationResolved,
+  setInflationSource
 } from './app/state.js'
 import {
   deleteRemoteState,
@@ -143,6 +144,8 @@ import { allocationView, renderInvestments } from './features/investments/invest
 import { trackProductEvent } from './app/product-events.js'
 import { categoryById } from './data/cash-flow-categories.js'
 import { loadExchangeRates } from './app/exchange-rate-state.js'
+import { economicIndicatorsState, loadEconomicIndicators, reapplyMarketAssumptions, shouldRefresh } from './app/economic-indicators-state.js'
+import { marketIndicatorsView, marketRefreshMessage, renderMarketIndicatorsPanel } from './features/plan/market-indicators.js'
 import { currencySymbol } from './shared/currencies.js'
 import { investmentBalanceCurrency, investmentNativeAmount, investmentNativeContribution } from './domain/investment-currency.js'
 import { changeStatementMapping } from './domain/statement-import.js'
@@ -345,6 +348,55 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
     lastReviewLocation = window.location.href
     openReviewTarget(app, window.location.href, { openBudget: openCashItemDialog, onMissing: showToast })
   }
+  // Meu plano shows the latest monthly data, which only the session snapshot has.
+  if (!economicIndicatorsState.snapshot && marketIndicatorsView.status === 'idle' && app.querySelector('[data-market-indicators]')) refreshMarketIndicators()
+}
+
+// Progress of a market refresh without redrawing the page: only the button and the status.
+function showMarketRefreshProgress() {
+  const button = app.querySelector('[data-market-refresh]')
+  if (button) {
+    button.setAttribute('aria-disabled', 'true')
+    const label = button.querySelector('span')
+    if (label) label.textContent = 'Atualizando…'
+  }
+  const status = app.querySelector('[data-market-status]')
+  if (status) status.textContent = marketRefreshMessage()
+}
+
+// Replaces the market panel in place, so forms elsewhere in Meu plano keep their input.
+function replaceMarketPanel() {
+  const panel = app.querySelector('[data-market-indicators]')
+  if (!panel) return
+  const active = panel.contains(document.activeElement) ? document.activeElement : null
+  const selector = active?.matches('[data-market-refresh]') ? '[data-market-refresh]' : active?.matches('[data-inflation-source]') ? `[data-inflation-source][value="${active.value}"]` : null
+  const template = document.createElement('template')
+  template.innerHTML = renderMarketIndicatorsPanel().trim()
+  panel.replaceWith(template.content)
+  if (selector) app.querySelector(selector)?.focus({ preventScroll: true })
+}
+
+// Market indicators (inflation, CDI): one request at a time. A failure keeps the
+// previous assumptions. Automatic refreshes redraw only the dashboard, when the plan
+// changed, and the market panel of Meu plano, so no form loses input.
+async function refreshMarketIndicators({ announce = false } = {}) {
+  if (marketIndicatorsView.status === 'loading') return false
+  const previous = economicIndicatorsState.snapshot
+  const generation = ownedStorage.generation
+  marketIndicatorsView.status = 'loading'
+  showMarketRefreshProgress()
+  const changed = await loadEconomicIndicators()
+  if (generation !== ownedStorage.generation) { marketIndicatorsView.status = 'idle'; return false }
+  marketIndicatorsView.status = economicIndicatorsState.snapshot !== previous ? 'success' : 'error'
+  marketIndicatorsView.changed = changed
+  const pathname = currentPath()
+  if (pathname === '/plano') {
+    if (announce || changed) render({ indicateRecalculation: changed })
+    else replaceMarketPanel()
+    if (announce) app.querySelector('[data-market-refresh]')?.focus({ preventScroll: true })
+  } else if (changed && ['/', '/inicio'].includes(pathname)) render({ indicateRecalculation: false })
+  if (announce) showToast(marketRefreshMessage())
+  return changed
 }
 
 const trackedProductImpressions = new Set()
@@ -1253,6 +1305,11 @@ document.addEventListener('click', async (event) => {
     await navigate(routeLink.getAttribute('href'))
     return
   }
+  const marketRefresh = event.target.closest('[data-market-refresh]')
+  if (marketRefresh) {
+    if (marketRefresh.getAttribute('aria-disabled') !== 'true') await refreshMarketIndicators({ announce: true })
+    return
+  }
 
   if (event.target.closest('[data-toggle-values]')) {
     toggleValues()
@@ -1762,6 +1819,18 @@ document.addEventListener('input', (event) => {
 
 document.addEventListener('change', async (event) => {
   if (event.target.closest('[data-goals-scenario]')) return
+  if (event.target.matches('[data-inflation-source]')) {
+    const source = event.target.value
+    try { setInflationSource(source) } catch (error) { showToast(error.message); return }
+    // Back to the market: the session snapshot rewrites the plan and currency inflation.
+    const fetchNow = source === 'market' && !economicIndicatorsState.snapshot
+    if (source === 'market') reapplyMarketAssumptions()
+    render()
+    app.querySelector(`[data-inflation-source][value="${source}"]`)?.focus({ preventScroll: true })
+    showToast(source === 'market' ? 'As projeções seguem a inflação e os juros de mercado.' : 'As projeções seguem as suas premissas. Edite a inflação na Carteira.')
+    if (fetchNow) refreshMarketIndicators()
+    return
+  }
   if (event.target.matches('[data-goal-priority]')) {
     const id = event.target.dataset.goalPriority
     try { setGoalPriority(id, event.target.value) }
@@ -1998,6 +2067,8 @@ document.addEventListener('change', async (event) => {
     const previousCurrency = state.currency
     const globalSelector = event.target.matches('[data-global-currency]')
     setCurrency(event.target.value)
+    // Market inflation follows the new plan currency (plan and other currencies).
+    reapplyMarketAssumptions()
     render()
     app.querySelector(globalSelector ? '[data-global-currency]' : '.currency-selector [data-currency]')?.focus({ preventScroll: true })
     showToast(`Moeda do plano alterada de ${previousCurrency} para ${state.currency} em todas as telas. Valores convertidos pelas cotações do plano.`)
@@ -2386,7 +2457,13 @@ document.addEventListener('submit', async (event) => {
     const rates = {}, inflation = {}
     for (const [name, value] of new FormData(currencyTrendsForm).entries()) {
       if (name.startsWith('trend:') && value !== '') rates[name.slice(6)] = parseNumber(value) / 100
-      if (name.startsWith('inflation:') && value !== '') inflation[name.slice(10)] = parseNumber(value) / 100
+      if (name.startsWith('inflation:') && value !== '') {
+        const code = name.slice(10)
+        // Market inflation is read-only: keep the saved rate, without rounding drift.
+        const saved = state.plan.inflationByCurrency?.base === state.currency ? state.plan.inflationByCurrency.rates?.[code] : undefined
+        if (currencyTrendsForm.elements.namedItem(name)?.readOnly) { if (Number.isFinite(saved)) inflation[code] = saved }
+        else inflation[code] = parseNumber(value) / 100
+      }
     }
     if (Object.values(rates).some(value => !Number.isFinite(value) || value < -0.2 || value > 0.2)) { showToast('Informe tendências entre −20% e 20% ao ano.'); return }
     if (Object.values(inflation).some(value => !Number.isFinite(value) || value < -0.2 || value > 0.2)) { showToast('Informe inflações entre −20% e 20% ao ano.'); return }
@@ -2401,10 +2478,9 @@ document.addEventListener('submit', async (event) => {
   if (investmentAssumptionsForm) {
     event.preventDefault()
     const data = new FormData(investmentAssumptionsForm)
-    const patch = {
-      annualRealReturn: parseNumber(data.get('defaultRealReturn')) / 100,
-      annualInflation: parseNumber(data.get('annualInflation')) / 100
-    }
+    const patch = { annualRealReturn: parseNumber(data.get('defaultRealReturn')) / 100 }
+    // Market inflation is read-only and is never saved from this form.
+    if (!investmentAssumptionsForm.elements.namedItem('annualInflation')?.readOnly) patch.annualInflation = parseNumber(data.get('annualInflation')) / 100
     try {
       projectRetirementWithSchedules({ ...state.plan, ...patch }, currentRetirementSchedules())
       updatePlan(patch)
@@ -2776,6 +2852,9 @@ loadAuthState().then(async () => {
   await loadPage({ indicateRecalculation: false })
   // Public quotes must not block opening the local plan when the network is slow.
   loadExchangeRates().then(() => { if (['/', '/inicio', '/cambio'].includes(currentPath())) render({ indicateRecalculation: false }) })
+  // Market indicators (inflation, CDI) refresh at most once a day, in the background.
+  // A failure keeps the previous assumptions. Only the dashboard re-renders, so no form loses input.
+  if (shouldRefresh(state.plan)) refreshMarketIndicators()
   if (authState.authenticated) {
     await loadSyncState()
     if (['/', '/inicio', '/perfil'].includes(currentPath())) render({ indicateRecalculation: false })

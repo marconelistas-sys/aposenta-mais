@@ -6,7 +6,7 @@ const fields = {
   '/orcamento': ['startDate', 'endDate', 'endMode', 'categoryId', 'description', 'pensionInvestmentId', 'pensionCapitalRelease', 'indexation'],
   '/viabilidade': ['openingConfirmed', 'pensionConfirmed', 'pensionMode', 'taxRegime'],
   '/construir/objetivo': ['retirementMonth'],
-  '/plano': ['targetAge', 'spouseRetirementMonth', 'spouseExpectedMonthlyBenefit']
+  '/plano': ['targetAge', 'spouseRetirementMonth', 'spouseExpectedMonthlyBenefit', 'inflationSource']
 }
 
 export function openReviewTarget(root, location, { hidden = false, openBudget, onMissing = () => {} } = {}) {

@@ -6,6 +6,7 @@ import { securityHeaders } from './security-headers.mjs'
 import { createAuthHandler } from '../src/server/auth/auth-handler.mjs'
 import { createExchangeRateHandler } from '../src/server/exchange-rates.mjs'
 import { createExchangeHistoryHandler } from '../src/server/exchange-history.mjs'
+import { createEconomicIndicatorsHandler } from '../src/server/economic-indicators.mjs'
 
 const projectRoot = normalize(join(fileURLToPath(new URL('.', import.meta.url)), '..'))
 const requestedPort = Number(process.env.PORT || 4173)
@@ -13,6 +14,7 @@ const localStore = (await import('../src/server/data/local-store.mjs')).createLo
 const handleAuth = createAuthHandler({ localStore })
 const handleExchangeRates = createExchangeRateHandler()
 const handleExchangeHistory = createExchangeHistoryHandler()
+const handleEconomicIndicators = createEconomicIndicatorsHandler()
 
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -62,6 +64,7 @@ const server = createServer(async (request, response) => {
     if (await handleAuth(request, response, requestUrl)) return
     if (await handleExchangeRates(request, response, requestUrl)) return
     if (await handleExchangeHistory(request, response, requestUrl)) return
+    if (await handleEconomicIndicators(request, response, requestUrl)) return
 
     const filePath = await resolveFile(request.url || '/')
     if (!filePath) { response.writeHead(404); response.end('Não encontrado.'); return }

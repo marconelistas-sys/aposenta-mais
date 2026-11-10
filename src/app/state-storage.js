@@ -7,6 +7,7 @@ import { sanitizeStatementHistory } from '../domain/statement-history.js'
 import { defaultPlan } from '../data/mock-plan.js'
 import { sanitizeCurrencyTrends, sanitizeInflationByCurrency, validateAnnualRealReturns } from '../domain/investment-returns.js'
 import { sanitizeIncomeIndexation } from '../domain/income-indexation.js'
+import { sanitizeInflationSource, sanitizeMarketAssumptions } from '../domain/market-assumptions.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import { normalizeCurrency } from '../shared/currencies.js'
 import { bundledExchangeRates, sanitizeExchangeRates } from '../shared/exchange-rates.js'
@@ -264,6 +265,11 @@ export function sanitizePlan(candidate = {}) {
   if (wealthHistory.length) plan.wealthHistory = wealthHistory
   plan.currencyTrends = sanitizeCurrencyTrends(source.currencyTrends)
   plan.inflationByCurrency = sanitizeInflationByCurrency(source.inflationByCurrency)
+  // Market indicators: stored only when present, so older plans round-trip unchanged.
+  const marketAssumptions = sanitizeMarketAssumptions(source.marketAssumptions)
+  if (marketAssumptions) plan.marketAssumptions = marketAssumptions
+  const inflationSource = sanitizeInflationSource(source.inflationSource)
+  if (inflationSource) plan.inflationSource = inflationSource
   plan.retirementMonth = typeof source.retirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.retirementMonth) ? source.retirementMonth : null
   plan.spouseEnabled = source.spouseEnabled === true
   plan.spouseRetirementMonth = typeof source.spouseRetirementMonth === 'string' && /^(20|21)\d{2}-(0[1-9]|1[0-2])$/.test(source.spouseRetirementMonth) ? source.spouseRetirementMonth : null

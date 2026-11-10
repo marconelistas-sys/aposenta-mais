@@ -25,6 +25,9 @@ try {
   })
   browser = await chromium.launch({ headless: true })
   const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } })
+  // Market indicators are simulated as unavailable: no request to BCB or SNB, and the
+  // plan keeps the inflation of the fixture (docs/product/indicadores-mercado.md).
+  await page.route('**/api/economic-indicators*', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"countries":{}}' }))
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   await page.goto(`http://127.0.0.1:${port}`)

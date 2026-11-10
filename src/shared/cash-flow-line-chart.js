@@ -1,4 +1,4 @@
-import { annualRowsInPriceBasis } from '../domain/inflation-display.js'
+import { annualRowsInPriceBasis, priceBasisInflation } from '../domain/inflation-display.js'
 import { escapeHtml } from './formatters.js'
 import { planningChart } from './planning-chart.js'
 import { cashFlowDetailIndex, cashFlowDetailPanels } from './cash-flow-detail.js'
@@ -7,6 +7,7 @@ import { renderPropertyFilter, renderSolvencyAssessment, renderSolvencyShortcuts
 import { remainingWealth } from './remaining-wealth.js'
 import { solvencyWealthLabel } from '../domain/property-solvency.js'
 import { fixedIncomeChartNote, fixedIncomeCount, indexationRuleText } from './income-indexation.js'
+import { inflationRateLabel, nominalBasisSentence, nominalIndexExplanation } from './market-indicators.js'
 
 // View preference only. It never changes saved amounts or real risk assumptions.
 export const cashFlowChartView = { basis: 'real', selectedYear: null, wealth: 'essential', flow: 'budget' }
@@ -17,7 +18,7 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
   selectedYear ??= cashFlowChartView.selectedYear
   const basis = cashFlowChartView.basis === 'nominal' ? 'nominal' : 'real'
   let display
-  try { display = annualRowsInPriceBasis(rows, { basis, annualInflation: plan.annualInflation, baseYear }) }
+  try { display = annualRowsInPriceBasis(rows, { basis, baseYear, ...priceBasisInflation(plan, currency) }) }
   catch (error) { return `<p role="status">${escapeHtml(error.message)}</p>` }
   display = display.map(row => ({ ...row, ...remainingWealth(row) }))
   const nominal = basis === 'nominal'
@@ -28,7 +29,7 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
   const wealthComparison = cashFlowChartView.wealth === 'comparison'
   const financialView = hasReturn && cashFlowChartView.flow === 'financial'
   const readoutCaption = `${currency} · ${basisLabel}`
-  const rate = (plan.annualInflation * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+  const rateLabel = inflationRateLabel(plan, currency, baseYear)
   const fixedNote = fixedIncomeChartNote(fixedIncomeCount(cashFlow), basis, baseYear)
   const series = financialView ? [
     { key: 'freeCashFlow', label: 'Saldo do orçamento', color: '#2855c7', monthly: true },
@@ -57,7 +58,7 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
     <p class="annual-chart-basis">Esta avaliação usa receitas, despesas e metas cadastradas para calcular o saldo do orçamento. O aporte mensal fixo de Meu plano não é somado a esse saldo. <a href="/plano" data-route>Entender a diferença entre as projeções</a>.</p>
     ${hasReturn ? renderPropertyFilter(cashFlow) : ''}
     <div class="annual-chart-toolbar"><label class="cash-flow-price-control">Base dos valores <select data-cash-flow-price-basis><option value="real" ${nominal ? '' : 'selected'}>Poder de compra de ${baseYear}</option><option value="nominal" ${nominal ? 'selected' : ''}>Valores nominais de cada ano</option></select></label><label>Ano selecionado nos dois gráficos<select data-cash-flow-year>${display.map((row, index) => `<option value="${index}" ${index === selectedIndex ? 'selected' : ''}>${escapeHtml(row.year)}</option>`).join('')}</select></label></div>
-    <p class="annual-chart-basis">${escapeHtml(readoutCaption)}. ${nominal ? 'Cada ano inclui a inflação acumulada do plano.' : 'Todos os anos usam o mesmo poder de compra, permitindo comparar valores ao longo do tempo.'} Inflação anual do plano: ${rate}%. A base e o ano selecionado valem para ambos os gráficos e para a composição.${fixedNote ? ` ${escapeHtml(fixedNote)}` : ''}</p>
+    <p class="annual-chart-basis">${escapeHtml(readoutCaption)}. ${nominal ? nominalBasisSentence(plan, currency) : 'Todos os anos usam o mesmo poder de compra, permitindo comparar valores ao longo do tempo.'} ${escapeHtml(rateLabel)}. A base e o ano selecionado valem para ambos os gráficos e para a composição.${fixedNote ? ` ${escapeHtml(fixedNote)}` : ''}</p>
     ${renderCashFlowResult(display.at(-1), currency, { final: true })}
     ${renderSolvencyAssessment(display, currency)}
     ${renderSolvencyShortcuts(display)}
@@ -67,6 +68,6 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
     <p>${financialView ? 'A variação indica quanto os ativos financeiros aumentam ou diminuem durante o ano. Não é o patrimônio acumulado. Créditos previdenciários podem permanecer restritos.' : `Receitas e despesas aparecem como valores positivos para comparação. Quando as despesas superam as receitas, o saldo fica abaixo de zero. ${hasReturn ? 'Rendimentos e créditos previdenciários estão na visão Resultado.' : 'Este recorte não projeta rendimentos.'}`} ${financialView ? 'Variação abaixo de zero indica redução dos ativos financeiros no ano.' : 'Saldo abaixo de zero indica déficit no orçamento.'} Liberações transferem saldo existente, sem criar receita.</p>
     <p class="annual-chart-basis">${escapeHtml(readoutCaption)} · Totais dos meses incluídos em cada ano, com a média mensal ao lado · Escala independente do patrimônio.</p>
     ${planningChart({ title: financialView ? 'Variação anual do patrimônio financeiro' : title || 'Fluxos anuais do orçamento', rows: display, series, currency, markers, selectedYear, interpolation: 'linear', annualReadout: true, readoutCaption: `${readoutCaption} · Total anual e média mensal`, details: cashFlowDetailPanels(display, plan, currency, false, { wealthTargetAge }) })}</section>
-    <details class="disclosure"><summary>Como a inflação entra nesta projeção</summary><p>Na visão real, os valores já estão em poder de compra de ${baseYear} e o retorno já desconta inflação. Não se deve aumentar apenas as despesas pela inflação e manter receitas e rendimento em valores reais.</p><p>Na visão nominal, o índice acumulado é (1 + inflação anual) elevado ao número de anos desde ${baseYear}. O ano-base tem índice 1. O rendimento nominal implícito também inclui a atualização do saldo inicial, para conciliar aberturas e fechamentos. A hipótese de inflação é constante, não uma previsão.</p><p>${escapeHtml(indexationRuleText)}</p><p>A conversão usa a inflação da moeda de apresentação após o câmbio fixo. Não projeta inflação ou câmbio de cada país. Dados originais na composição e os demais gráficos, tabelas e riscos continuam em valores reais. Alternar a visão não altera a viabilidade, não acrescenta receita e não duplica inflação.</p><a href="/plano" data-route>Revisar inflação e retorno do plano</a></details>
+    <details class="disclosure"><summary>Como a inflação entra nesta projeção</summary><p>Na visão real, os valores já estão em poder de compra de ${baseYear} e o retorno já desconta inflação. Não se deve aumentar apenas as despesas pela inflação e manter receitas e rendimento em valores reais.</p><p>${escapeHtml(nominalIndexExplanation(plan, currency, baseYear))}</p><p>${escapeHtml(indexationRuleText)}</p><p>A conversão usa a inflação da moeda de apresentação após o câmbio fixo. Não projeta inflação ou câmbio de cada país. Dados originais na composição e os demais gráficos, tabelas e riscos continuam em valores reais. Alternar a visão não altera a viabilidade, não acrescenta receita e não duplica inflação.</p><a href="/plano" data-route>Revisar inflação e retorno do plano</a></details>
   </section>`
 }

@@ -5,6 +5,8 @@ import { formatCurrency, formatPercent, privateCurrency } from '../../shared/for
 import { icon } from '../../shared/icons.js'
 import { renderHorizonForm } from './horizon.js'
 import { renderSpouseForm } from './spouse.js'
+import { renderMarketIndicatorsPanel } from './market-indicators.js'
+import { marketInflationSummary } from '../../shared/market-indicators.js'
 
 export function renderPlan() {
   const schedules = retirementContributionSchedules(
@@ -15,6 +17,7 @@ export function renderPlan() {
   )
   const result = projectRetirementWithSchedules(state.plan, schedules)
   const money = (value) => privateCurrency(value, state.valuesHidden, false, state.currency)
+  const marketInflation = marketInflationSummary(state.plan, state.currency)
 
   return `
     <section class="page-heading page-heading--inner">
@@ -136,7 +139,7 @@ export function renderPlan() {
         </div>
         <dl class="assumptions-list">
           <div><dt>Retorno real anual</dt><dd>${formatPercent(state.plan.annualRealReturn)}</dd></div>
-          <div><dt>Inflação anual esperada</dt><dd>${formatPercent(state.plan.annualInflation)}</dd></div>
+          <div><dt>Inflação anual esperada</dt><dd>${marketInflation ? `${formatPercent(marketInflation.longRun)} <small>no longo prazo, de mercado</small>` : formatPercent(state.plan.annualInflation)}</dd></div>
           <div><dt>Taxa de retirada</dt><dd>${formatPercent(state.plan.annualWithdrawalRate)}</dd></div>
           <div><dt>Benefício estimado</dt><dd class="money-value">${money(state.plan.expectedMonthlyBenefit)}</dd></div>
           ${state.plan.spouseEnabled ? `<div><dt>Previdência privada do cônjuge</dt><dd class="money-value">${money(state.plan.spouseExpectedMonthlyBenefit)}${result.spouseMonthlyBenefit === 0 ? ' <small>(inicia após a aposentadoria dele(a))</small>' : ''}</dd></div><div><dt>Renda familiar estimada no benefício</dt><dd class="money-value">${money(result.householdExpectedMonthlyBenefit)}</dd></div>` : ''}
@@ -146,6 +149,8 @@ export function renderPlan() {
         <a class="text-link" href="/carteira" data-route>Revisar investimentos e rendimentos</a>
       </article>
     </section>
+
+    ${renderMarketIndicatorsPanel()}
 
     <h2 class="plan-settings-title">Ajustes do plano</h2>
     <div class="plan-settings">

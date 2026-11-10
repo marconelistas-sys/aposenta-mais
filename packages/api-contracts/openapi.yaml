@@ -73,6 +73,62 @@ paths:
                   rates:
                     type: object
                     required: [BRL, EUR, USD, CHF]
+  /economic-indicators:
+    get:
+      summary: Obtém inflação e juros públicos do Brasil (BCB) e da Suíça (SNB)
+      description: Cada país é buscado, guardado por 12 horas e degradado de forma independente. Um país indisponível usa o último dado obtido ou o snapshot embutido, com stale verdadeiro. Taxas em decimal.
+      responses:
+        '200':
+          description: Indicadores por país. fetchedAt é a busca mais antiga entre os países, nulo se algum usa o snapshot embutido
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [fetchedAt, countries]
+                properties:
+                  fetchedAt:
+                    type: [string, 'null']
+                    format: date-time
+                  countries:
+                    type: object
+                    properties:
+                      BR:
+                        type: object
+                        required: [currency, cpi, policyRate, cdi, expectations, source, sourceUrl, stale]
+                        properties:
+                          currency:
+                            const: BRL
+                          cpi:
+                            type: object
+                            required: [lastMonth, monthly, yoy]
+                          policyRate:
+                            type: number
+                          cdi:
+                            type: number
+                          expectations:
+                            type: object
+                            required: [asOf, inflation, policyRateYearEnd]
+                          source:
+                            const: Banco Central do Brasil
+                          stale:
+                            type: boolean
+                      CH:
+                        type: object
+                        required: [currency, cpi, policyRate, saron, source, sourceUrl, stale]
+                        properties:
+                          currency:
+                            const: CHF
+                          cpi:
+                            type: object
+                            required: [lastMonth, monthly, yoy]
+                          policyRate:
+                            type: number
+                          saron:
+                            type: number
+                          source:
+                            const: Banco Nacional Suíço
+                          stale:
+                            type: boolean
   /auth/status:
     get:
       summary: Consulta a configuração e a sessão atual

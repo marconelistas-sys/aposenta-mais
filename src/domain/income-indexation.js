@@ -1,5 +1,6 @@
 import { annualPriceFactor } from './inflation-display.js'
 import { balanceCurrencyInflation } from './investment-returns.js'
+import { activeMarketAssumptions, cumulativePriceIndex, trajectoryRate } from './market-assumptions.js'
 import { isRetirementEnd, incomeEndMonth } from './income-end.js'
 import { reviewItemName } from './review-targets.js'
 
@@ -21,19 +22,29 @@ export function sanitizeIncomeIndexation(value) {
 // Context passed by the projection engines on their own copy of cashFlow
 // (cashFlow.projectionInflation). Without it, summarizeCashFlowItems keeps the
 // registered amounts, which is what the operational budget needs.
+// With active market assumptions the context also carries them, and fixed
+// incomes use the accumulated index of the trajectory of their currency.
 export function projectionInflation(state, today = new Date()) {
   if (!(today instanceof Date) || Number.isNaN(today.getTime())) throw new TypeError('A data de referência não é válida.')
+  const market = activeMarketAssumptions(state.plan)
   return {
     baseYear: today.getUTCFullYear(),
     currency: state.currency,
     annualInflation: state.plan?.annualInflation,
-    inflationByCurrency: state.plan?.inflationByCurrency ?? null
+    inflationByCurrency: state.plan?.inflationByCurrency ?? null,
+    ...(market ? { marketAssumptions: market } : {})
   }
 }
 
 // Same rule as balanceCurrencyInflation in the Carteira: the saved inflation of the
 // item currency when it differs from the plan currency, otherwise the plan inflation.
+// With a market trajectory for the item currency, rate is its long run and
+// path is the trajectory (market: true). source keeps its meaning: 'currency'
+// for a currency other than the plan's, 'plan' otherwise.
 export function incomeInflation(item, context) {
+  const marketCurrency = item?.currency || context.currency
+  const path = context.marketAssumptions?.byCurrency?.[marketCurrency]?.inflation
+  if (path) return { rate: path.longRun, source: marketCurrency === context.currency ? 'plan' : 'currency', currency: marketCurrency, market: true, path }
   const own = item?.currency && item.currency !== context.currency
     ? balanceCurrencyInflation(item, { inflationByCurrency: context.inflationByCurrency })
     : null
@@ -44,11 +55,15 @@ export function incomeInflation(item, context) {
 
 // Annual step, the same convention as annualPriceFactor and the nominal view.
 // Months before the base year use factor 1: the past does not lose value.
+// With a market trajectory: index Π(1 + π(y)) for the years after the base year,
+// and inflation is the rate of that year.
 export function fixedIncomeIndexation(item, year, context) {
   if (!context || item?.indexation !== 'fixed' || !isIndexableIncome(item)) return null
   const inflation = incomeInflation(item, context)
-  const priceIndex = annualPriceFactor(Math.max(year, context.baseYear), context.baseYear, inflation.rate)
-  return { factor: 1 / priceIndex, priceIndex, inflation: inflation.rate, inflationSource: inflation.source, inflationCurrency: inflation.currency, baseYear: context.baseYear }
+  const indexYear = Math.max(year, context.baseYear)
+  const priceIndex = inflation.path ? cumulativePriceIndex(inflation.path, context.baseYear, indexYear) : annualPriceFactor(indexYear, context.baseYear, inflation.rate)
+  const rate = inflation.path ? trajectoryRate(inflation.path, indexYear) : inflation.rate
+  return { factor: 1 / priceIndex, priceIndex, inflation: rate, inflationSource: inflation.source, inflationCurrency: inflation.currency, baseYear: context.baseYear, ...(inflation.market ? { inflationPath: 'market' } : {}) }
 }
 
 // Real value of a contract amount in a given year, in the item currency.
@@ -61,10 +76,10 @@ export function realContractAmount(amount, year, context, currency = context.cur
 // Pure data for the purchasing-power preview of a fixed income (H3). Amounts in
 // the item currency, without rounding. The first year is never before the base
 // year; the last one is the item end or the horizon end, whichever comes first.
-export function fixedIncomePurchasingPower({ amount, currency, startDate = null, endDate = null }, { baseYear, currency: planCurrency, annualInflation, inflationByCurrency = null, horizonEndYear }) {
+export function fixedIncomePurchasingPower({ amount, currency, startDate = null, endDate = null }, { baseYear, currency: planCurrency, annualInflation, inflationByCurrency = null, marketAssumptions = null, horizonEndYear }) {
   if (!Number.isFinite(amount) || amount <= 0) return null
   if (!Number.isInteger(horizonEndYear)) throw new Error('Horizonte inválido.')
-  const context = { baseYear, currency: planCurrency, annualInflation, inflationByCurrency }
+  const context = { baseYear, currency: planCurrency, annualInflation, inflationByCurrency, ...(marketAssumptions ? { marketAssumptions } : {}) }
   const startYear = startDate ? Number(String(startDate).slice(0, 4)) : baseYear
   const endYear = endDate ? Number(String(endDate).slice(0, 4)) : null
   const firstYear = Math.max(startYear, baseYear)
@@ -77,7 +92,8 @@ export function fixedIncomePurchasingPower({ amount, currency, startDate = null,
     baseYear, firstYear, lastYear, lastIsItemEnd: endYear !== null && endYear < horizonEndYear,
     amount, currency, firstValue, lastValue,
     firstLoss: 1 - firstValue / amount, lastLoss: 1 - lastValue / amount,
-    inflation: inflation.rate, inflationSource: inflation.source, inflationCurrency: inflation.currency
+    inflation: inflation.rate, inflationSource: inflation.source, inflationCurrency: inflation.currency,
+    ...(inflation.market ? { inflationPath: 'market' } : {})
   }
 }
 
@@ -88,7 +104,7 @@ export function fixedIncomeAssumptions(state, today = new Date()) {
   const rates = new Map()
   for (const item of items) {
     const inflation = incomeInflation(item, context)
-    rates.set(inflation.currency, { currency: inflation.currency, rate: inflation.rate, source: inflation.source })
+    rates.set(inflation.currency, { currency: inflation.currency, rate: inflation.rate, source: inflation.source, ...(inflation.market ? { market: true } : {}) })
   }
   return { count: items.length, baseYear: context.baseYear, rates: [...rates.values()].sort((left, right) => (left.currency === context.currency ? -1 : right.currency === context.currency ? 1 : left.currency.localeCompare(right.currency))) }
 }
