@@ -154,7 +154,7 @@ import { configureLocalAccess, selectStorageProvider } from './app/auth-state.js
 import { syncConsentVersion } from './shared/sync-contract.js'
 import { scenarioEditor, simulationContext, simulationCashFlow, simulationInputFromData, clearScenarioEditor, editScenario } from './features/simulations/scenario-editor.js'
 import { simulationSchedules } from './features/simulations/simulations.js'
-import { updateScenario } from './app/state.js'
+import { syncPortfolioDefaultReturn, updateScenario } from './app/state.js'
 import { inspectSavedPlan, clearSyncComparison } from './features/profile/sync-comparison.js'
 import { confirmProjectionAssumption } from './app/projection-confirmations.js'
 import { statementHistoryView, resetStatementHistoryView } from './features/statements/history.js'
@@ -210,6 +210,8 @@ function switchSessionPlan() {
   clearPortfolioScenarios()
   app.replaceChildren()
   selectPlanOwner(authState.authenticated ? authState.user.id : null)
+  // Default real return from the portfolio, for plans saved before it existed. Not a user edit.
+  syncPortfolioDefaultReturn()
   resetSyncState()
 }
 

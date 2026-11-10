@@ -29,6 +29,7 @@ import { validatePensionInvestment } from '../domain/pension-investment-links.js
 import { upsertGoalsHistory } from '../domain/goal-settings.js'
 import { upsertWealthHistory, wealthSnapshot } from '../domain/wealth-history.js'
 import { applyMarketAssumptions } from '../domain/market-assumptions.js'
+import { applyPortfolioDefaultReturn, defaultReturnSources, effectiveDefaultReturnSource, validateReturnSource } from '../domain/portfolio-return.js'
 
 const unavailableStorage = {
   getItem: () => null,
@@ -111,8 +112,30 @@ export function toggleValues() {
   saveState({ wealth: false })
 }
 
+// Default real return from the portfolio (plan.defaultReturnSource 'portfolio').
+// Applied after every change that can move it: portfolio, market assumptions,
+// inflation mode, plan currency and exchange rates. A failure keeps the plan.
+function withPortfolioDefaultReturn(plan, options) {
+  try {
+    return applyPortfolioDefaultReturn(plan, options)
+  } catch {
+    return plan
+  }
+}
+
+// Same value within the precision of the percent fields (10 decimal places).
+function sameRate(left, right) {
+  return Number.isFinite(left) && Number.isFinite(right) && Math.abs(left - right) <= 1e-9
+}
+
 export function updatePlan(patch) {
   const nextPlan = { ...state.plan, ...patch }
+  // Typing another default return while it follows the portfolio means the
+  // person chose a manual value. The same value sent back by a form changes nothing.
+  if (Object.hasOwn(patch, 'annualRealReturn') && !Object.hasOwn(patch, 'defaultReturnSource')
+    && effectiveDefaultReturnSource(state.plan) === 'portfolio' && !sameRate(patch.annualRealReturn, state.plan.annualRealReturn)) {
+    nextPlan.defaultReturnSource = 'manual'
+  }
   if ((patch.retirementAge !== undefined && patch.retirementAge !== state.plan.retirementAge) || (patch.currentAge !== undefined && patch.currentAge !== state.plan.currentAge)) {
     const now = new Date()
     nextPlan.retirementMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + Math.round((nextPlan.retirementAge - nextPlan.currentAge) * 12), 1)).toISOString().slice(0, 7)
@@ -144,7 +167,7 @@ export function updatePlan(patch) {
     nextPlan.monthlyContribution = nextPlan.investments.reduce((total, investment) => total + investment.monthlyContribution, 0)
   }
   state.cashFlow.spouseRetirementMonth = nextPlan.spouseEnabled ? nextPlan.spouseRetirementMonth || null : null
-  state.plan = nextPlan
+  state.plan = withPortfolioDefaultReturn(nextPlan)
   state.isDemo = false
   state.lastUpdatedAt = new Date().toISOString()
   saveState()
@@ -173,6 +196,7 @@ export function setTargetAllocation(candidate) {
 
 export function upsertInvestment(candidate) {
   validateAnnualRealReturns(candidate.annualRealReturns)
+  if (Object.hasOwn(candidate, 'returnSource')) candidate = { ...candidate, returnSource: validateReturnSource(candidate.returnSource) }
   if (candidate.annualFee !== undefined && candidate.annualFee !== null && (!Number.isFinite(candidate.annualFee) || candidate.annualFee < 0 || candidate.annualFee > 0.1)) throw new RangeError('Informe um custo anual entre 0% e 10%.')
   const releaseYear = candidate.releaseYear === '' || candidate.releaseYear == null ? null : Number(candidate.releaseYear)
   if (Object.hasOwn(candidate, 'releaseYear') && releaseYear !== null) {
@@ -189,7 +213,8 @@ export function upsertInvestment(candidate) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(balanceAsOf) || !Number.isFinite(Date.parse(balanceAsOf)) || new Date(balanceAsOf).toISOString().slice(0, 10) !== balanceAsOf) throw new TypeError('Informe uma data válida para o saldo.')
   const previousRecord = { ...(existingIndex >= 0 ? current[existingIndex] : {}) }
   // Completing details keeps the movement base. A changed balance replaces it on the next recompute.
-  candidate = { ...(previousRecord.statementAccount ? { statementAccount: previousRecord.statementAccount, statementInvestmentName: previousRecord.statementInvestmentName } : {}), ...(previousRecord.movementBase ? { movementBase: previousRecord.movementBase } : {}), ...candidate, balanceAsOf, balanceSource: 'manual' }
+  // A form without the return source keeps the saved one. null removes it.
+  candidate = { ...(previousRecord.returnSource ? { returnSource: previousRecord.returnSource } : {}), ...(previousRecord.statementAccount ? { statementAccount: previousRecord.statementAccount, statementInvestmentName: previousRecord.statementInvestmentName } : {}), ...(previousRecord.movementBase ? { movementBase: previousRecord.movementBase } : {}), ...candidate, balanceAsOf, balanceSource: 'manual' }
   const record = foreign
     ? { ...candidate, id, nativeAmount: round2(Number(candidate.amount)), nativeMonthlyContribution: round2(Number(candidate.monthlyContribution) || 0), amount: convertCurrency(Number(candidate.amount) || 0, candidate.currency, state.currency, state.exchangeRates), monthlyContribution: convertCurrency(Number(candidate.monthlyContribution) || 0, candidate.currency, state.currency, state.exchangeRates) }
     : { ...candidate, id }
@@ -308,7 +333,7 @@ export function upsertStatementItems(items, { investmentBalances = [], accountBa
   const portfolioChanged = balances.updates.length || accountChanges || linking.created || portfolio.changed.size
   const investments = sanitizeInvestments(portfolio.investments)
   if (portfolioChanged && investments.length !== portfolio.investments.length) throw new TypeError('Saldo de investimento inválido. Nenhuma alteração foi salva.')
-  const nextPlan = portfolioChanged ? { ...state.plan, investments, ...investmentTotals(investments) } : state.plan
+  const nextPlan = portfolioChanged ? withPortfolioDefaultReturn({ ...state.plan, investments, ...investmentTotals(investments) }) : state.plan
   const next = { ...state, plan: nextPlan, cashFlow: { ...state.cashFlow, items: reconcileOwnTransfers(plan.items, state.cashFlow.ownStatementAccounts) }, isDemo: false, lastUpdatedAt: new Date().toISOString() }
   next.plan = planWithWealthSnapshot(next)
   appStorage.setItem(storageKeys.current, JSON.stringify(next))
@@ -324,7 +349,7 @@ function recomputeLinkedInvestments(items, ids, investments = state.plan.investm
   const portfolio = recomputeInvestmentMovements(investments, items, { currency: state.currency, exchangeRates: state.exchangeRates, ids: scope })
   const next = sanitizeInvestments(portfolio.investments)
   if (next.length !== portfolio.investments.length) throw new TypeError('Saldo de investimento inválido. Nenhuma alteração foi salva.')
-  state.plan = { ...state.plan, investments: next, ...investmentTotals(next) }
+  state.plan = withPortfolioDefaultReturn({ ...state.plan, investments: next, ...investmentTotals(next) })
   return portfolio
 }
 
@@ -468,6 +493,7 @@ export function setCurrency(currency) {
   state.plan.currencyTrends = null
   // Inflation by currency keeps its meaning: only the currency it no longer applies to changes.
   if (state.plan.inflationByCurrency) state.plan.inflationByCurrency = { ...state.plan.inflationByCurrency, base: nextCurrency }
+  state.plan = withPortfolioDefaultReturn(state.plan)
   state.currency = nextCurrency
   state.lastUpdatedAt = new Date().toISOString()
   saveState()
@@ -481,6 +507,7 @@ export function setExchangeRates(exchangeRates) {
   if (state.plan.investments?.length) {
     state.plan.investments = syncInvestmentCurrencies(state.plan.investments, state.currency, state.exchangeRates)
     Object.assign(state.plan, investmentTotals(state.plan.investments))
+    state.plan = withPortfolioDefaultReturn(state.plan)
   }
   saveState({ wealth: false })
   return true
@@ -490,11 +517,31 @@ export function setExchangeRates(exchangeRates) {
 // update time, does not take a balance-sheet photo, and leaves a manual plan as is.
 export function setMarketAssumptions(snapshot, today = new Date()) {
   if (state.dataDeleted) return false
-  const next = applyMarketAssumptions(state.plan, snapshot, today, { currency: state.currency })
+  const next = withPortfolioDefaultReturn(applyMarketAssumptions(state.plan, snapshot, today, { currency: state.currency }), { year: today.getUTCFullYear() })
   if (next === state.plan || JSON.stringify(next) === JSON.stringify(state.plan)) return false
   state.plan = next
   saveState({ wealth: false })
   return true
+}
+
+// Derives the default return again without a market refresh, for example when
+// the plan is opened. Not a user edit, like setMarketAssumptions. Returns true
+// only when the plan changed.
+export function syncPortfolioDefaultReturn() {
+  if (state.dataDeleted || !state.plan) return false
+  const next = withPortfolioDefaultReturn(state.plan)
+  if (next === state.plan) return false
+  state.plan = next
+  saveState({ wealth: false })
+  return true
+}
+
+// Chooses whether the default real return follows the portfolio ('portfolio')
+// or the rate typed by the person ('manual'). A user edit. Back to 'portfolio',
+// the derived rate replaces the typed one at once.
+export function setDefaultReturnSource(source) {
+  if (!defaultReturnSources.includes(source)) throw new RangeError('Escolha o rendimento da carteira ou uma taxa manual.')
+  updatePlan({ defaultReturnSource: source })
 }
 
 // Chooses whether projections follow market indicators ('market') or the rates
