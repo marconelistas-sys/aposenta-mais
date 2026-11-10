@@ -354,6 +354,15 @@ export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategor
   return cashFlow
 }
 
+// A2: currency premises are relative to the plan currency. A file edited by hand or an old state can
+// carry another base. Inflation rates stay, because each one belongs to its own currency, and only the
+// base moves. A trend relative to another currency would change meaning, so it is dropped, as in setCurrency.
+export function alignCurrencyBases(plan, currency) {
+  if (plan.inflationByCurrency && plan.inflationByCurrency.base !== currency) plan.inflationByCurrency = { ...plan.inflationByCurrency, base: currency }
+  if (plan.currencyTrends && plan.currencyTrends.base !== currency) plan.currencyTrends = null
+  return plan
+}
+
 function sanitizeScenario(scenario, customCategories, exchangeRates = bundledExchangeRates) {
   if (!scenario || typeof scenario !== 'object') return null
   const name = typeof scenario.name === 'string' ? scenario.name.trim().slice(0, 40) : ''
@@ -365,7 +374,7 @@ function sanitizeScenario(scenario, customCategories, exchangeRates = bundledExc
     createdAt: typeof scenario.createdAt === 'string' ? scenario.createdAt : null,
     currency: normalizeCurrency(scenario.currency),
     // The balance-sheet history belongs to the live plan, not to a what-if copy.
-    plan: syncPlanInvestments(sanitizePlan({ ...scenario.plan, wealthHistory: undefined, retirementMonth: scenario.cashFlow?.retirementMonth || scenario.plan?.retirementMonth }), normalizeCurrency(scenario.currency), exchangeRates, { inferLegacy: true }),
+    plan: alignCurrencyBases(syncPlanInvestments(sanitizePlan({ ...scenario.plan, wealthHistory: undefined, retirementMonth: scenario.cashFlow?.retirementMonth || scenario.plan?.retirementMonth }), normalizeCurrency(scenario.currency), exchangeRates, { inferLegacy: true }), normalizeCurrency(scenario.currency)),
     cashFlow: scenario.cashFlow
       ? sanitizeCashFlow({ ...scenario.cashFlow, spouseRetirementMonth: scenario.plan?.spouseEnabled ? scenario.plan.spouseRetirementMonth : null, retirementMonth: scenario.cashFlow.retirementMonth || scenario.plan?.retirementMonth }, scenario.currency, customCategories)
       : null
@@ -386,6 +395,7 @@ export function sanitizeStoredState(candidate) {
     ? { ...source.plan, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }
     : { ...defaultPlan, retirementMonth: source.cashFlow?.retirementMonth })
   Object.assign(plan, syncPlanInvestments(plan, currency, exchangeRates, { inferLegacy: true }))
+  alignCurrencyBases(plan, currency)
   const cashFlow = sanitizeCashFlow({ ...source.cashFlow, spouseRetirementMonth: source.plan?.spouseEnabled ? source.plan.spouseRetirementMonth : null, retirementMonth: source.cashFlow?.retirementMonth || source.plan?.retirementMonth }, currency, customCategories)
   recoverFinappSourceRelationships(plan, cashFlow)
   // Repairs balances saved before movements were recomputed from their base.

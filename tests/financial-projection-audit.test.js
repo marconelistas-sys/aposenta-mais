@@ -154,7 +154,9 @@ test('capitalização mensal e aporte necessário conferem com recorrência inde
     for (let month = 0; month < 12; month++) reference = reference * growth + 100
     close(result.projectedAssets, reference)
     const funded = projectRetirement({ ...state.plan, monthlyContribution: result.requiredMonthlyContribution }, today)
-    close(funded.projectedAssets, result.targetAssets)
+    // B2: with a short horizon the target can be below the growth of current assets; then nothing is required.
+    if (result.requiredMonthlyContribution > 0) close(funded.projectedAssets, result.targetAssets)
+    else assert.ok(result.futureCurrentAssets >= result.targetAssets)
     const schedules = [{ amount: 75, startDate: '2026-03-01', endDate: '2026-06-30' }]
     let scheduledReference = state.plan.currentAssets
     for (let month = 0; month < 12; month++) scheduledReference = scheduledReference * growth + 100 + (month >= 2 && month <= 5 ? 75 : 0)

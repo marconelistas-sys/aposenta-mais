@@ -50,7 +50,10 @@ test('calcula aportes sem retorno real', () => {
 
   assert.equal(result.projectedAssets, 360000)
   assert.equal(result.monthlyRate, 0)
-  assert.equal(result.requiredMonthlyContribution, 3750)
+  // B2: with 0% real return, a 4% withdrawal lasts 25 years, not 30. The target discounts at the
+  // lower of the plan return and the rate implied by the rule, so it covers 360 months: 4.500 × 360.
+  assert.equal(result.targetAssets, 1620000)
+  assert.equal(result.requiredMonthlyContribution, 4500)
 })
 
 test('identifica meta atingida', () => {

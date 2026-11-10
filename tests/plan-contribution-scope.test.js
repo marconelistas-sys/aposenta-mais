@@ -33,7 +33,9 @@ test('changing the plan contribution changes retirement income and portfolio con
     const after = projectRetirementWithSchedules(state.plan, schedules, today)
     assert.deepEqual(state.plan.investments.map(item => item.monthlyContribution), [200, 600])
     assert.equal(after.projectedAssets - before.projectedAssets, 4800)
-    assert.ok(Math.abs(after.projectedMonthlyIncome - before.projectedMonthlyIncome - 16) < 1e-8)
+    // B2: retirement from 2027-01 to the end of age 43 (2029-12) is 36 months at 0% real return,
+    // so 4.800 more at retirement pay 4.800 / 36 more per month.
+    assert.ok(Math.abs(after.projectedMonthlyIncome - before.projectedMonthlyIncome - 4800 / 36) < 1e-8)
     assert.deepEqual(state.cashFlow.items, items)
     assert.deepEqual(buildBudgetYear(state, 2026), budget)
     assert.deepEqual(finappViability(state, undefined, today).rows, annual.rows)
