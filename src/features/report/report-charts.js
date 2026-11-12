@@ -205,6 +205,25 @@ export function historyLine({ series, currency, label }) {
   return `<svg class="report-svg" viewBox="0 0 ${frame.width} ${frame.height}" role="img" aria-label="${escapeHtml(label)}">${lineAxes({ ticks, y, xLabels, frame })}<path class="report-svg-line" d="${planningChartLine(points)}"/>${points.map(([px, py]) => `<circle class="report-svg-dot" cx="${round(px)}" cy="${round(py)}" r="4"/>`).join('')}<text class="report-svg-label" x="${round(points[0][0] + 8)}" y="${round(points[0][1] + (series.length > 1 && series[1].netWorth >= series[0].netWorth ? 18 : -10))}" text-anchor="start">${escapeHtml(formatReportMoney(series[0].netWorth, currency))}</text><text class="report-svg-label report-svg-label--strong" x="${frame.right + 10}" y="${round(points.at(-1)[1] + 4)}">${escapeHtml(formatReportMoney(last.netWorth, currency))}</text></svg>`
 }
 
+// Balance x amount invested of the whole portfolio. Same scale for both lines.
+// Dates are real balance dates, so the x axis is by order, not by calendar.
+export function balanceInvestedLine({ series, currency, label }) {
+  const frame = lineFrame
+  const values = series.flatMap(row => [row.balance, row.invested])
+  const low = Math.min(0, ...values), high = Math.max(...values)
+  const tickValues = niceTicks(low, high + (high - low) * 0.08)
+  const min = tickValues[0], max = tickValues.at(-1)
+  const x = index => frame.left + (series.length === 1 ? 0.5 : index / (series.length - 1)) * (frame.right - frame.left)
+  const y = value => frame.bottom - (value - min) / (max - min) * (frame.bottom - frame.top)
+  const ticks = tickValues.map(value => ({ value, text: axisMoney(value, currency) }))
+  const step = Math.max(1, Math.ceil(series.length / 6))
+  const xLabels = series.map((row, index) => (index % step === 0 && series.length - 1 - index >= step / 2) || index === series.length - 1 ? { x: x(index), text: shortMonth(row.date.slice(0, 7)) } : null).filter(Boolean)
+  const balance = series.map((row, index) => [x(index), y(row.balance)])
+  const invested = series.map((row, index) => `${index ? `H${round(x(index))} V` : 'M'}${index ? '' : `${round(x(index))} `}${round(y(row.invested))}`).join(' ')
+  const last = series.at(-1)
+  return `<svg class="report-svg" viewBox="0 0 ${frame.width} ${frame.height}" role="img" aria-label="${escapeHtml(label)}">${lineAxes({ ticks, y, xLabels, frame })}<path class="report-svg-line report-svg-line--muted" d="${invested}" fill="none"/><path class="report-svg-line" d="${planningChartLine(balance)}"/>${balance.map(([px, py]) => `<circle class="report-svg-dot" cx="${round(px)}" cy="${round(py)}" r="4"/>`).join('')}<text class="report-svg-label report-svg-label--strong" x="${frame.right + 10}" y="${round(y(last.balance) + 4)}">Saldo</text><text class="report-svg-label" x="${frame.right + 10}" y="${round(y(last.invested) + 16)}">Aportado</text></svg>`
+}
+
 export function shortMonth(month) {
   const names = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
   const match = /^(\d{4})-(\d{2})$/.exec(String(month || ''))

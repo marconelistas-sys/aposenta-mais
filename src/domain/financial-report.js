@@ -39,6 +39,7 @@ import { classLabels } from '../data/asset-classes.js'
 import { currencies } from '../shared/currencies.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
 import { portfolioReturnSummary } from './portfolio-return.js'
+import { portfolioBalanceHistory } from './portfolio-balance-history.js'
 import { activeMarketAssumptions } from './market-assumptions.js'
 
 export const reportModelVersion = 1
@@ -643,6 +644,7 @@ export function buildFinancialReport(state, { today = new Date(), goals, risk = 
       metrics: { total: money(metrics.total), count: metrics.count, weightedFee: metrics.weightedFee, weightedRealReturn: metrics.weightedRealReturn, assumedRealReturn: metrics.assumedRealReturn, equityShare: metrics.equityShare, availableShare: metrics.availableShare, unknownLiquidityShare: metrics.unknownLiquidityShare, largestClass: largest ? { key: largest.assetClass, label: classLabels[largest.assetClass] || largest.assetClass, share: largest.share } : null, largestInvestment: metrics.largestInvestment },
       classes: metrics.classes.map(row => ({ key: row.assetClass, label: classLabels[row.assetClass] || row.assetClass, amount: money(row.amount), share: row.share })),
       allocation: { available: allocation.length > 0, emptyReason: allocation.length ? null : text('Sem alocação-alvo definida. Defina o alvo por classe na Carteira.'), dimensions: allocation },
+      balanceHistory: (() => { const view = portfolioBalanceHistory(state.plan.investments, { currency, exchangeRates: state.exchangeRates }); return { ...view, series: view.series.map(point => ({ date: point.date, balance: money(point.balance), invested: money(point.invested), estimated: point.estimated })) } })(),
       suggestedContribution: classAnalysis ? { monthly: money(state.plan.monthlyContribution || 0), byKey: classAnalysis.rows.filter(row => row.monthlyContribution > 0.005).map(row => ({ key: row.key, label: row.label, monthly: row.monthlyContribution })) } : null,
       feeImpact,
       diagnostics: (diagnosis?.findings || []).map(item => ({ id: item.id, level: item.level, title: item.title, detail: item.detail, action: item.action }))
