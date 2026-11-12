@@ -154,6 +154,7 @@ import { changeStatementMapping } from './domain/statement-import.js'
 
 import { configureLocalAccess, selectStorageProvider } from './app/auth-state.js'
 import { syncConsentVersion } from './shared/sync-contract.js'
+import { installBalanceChartInteractions } from './shared/balance-history-chart.js'
 import { scenarioEditor, simulationContext, simulationCashFlow, simulationInputFromData, clearScenarioEditor, editScenario } from './features/simulations/scenario-editor.js'
 import { simulationSchedules } from './features/simulations/simulations.js'
 import { syncPortfolioDefaultReturn, updateScenario } from './app/state.js'
@@ -827,6 +828,8 @@ function updateBudgetReferenceMonth(month, focusSelector = '[data-reference-mont
   target?.focus({ preventScroll: true })
   showToast('Mês de comparação atualizado.')
 }
+
+installBalanceChartInteractions(document)
 
 document.addEventListener('click', async (event) => {
   if (!sessionReady) { event.preventDefault(); return }

@@ -2,6 +2,7 @@ import { state } from '../../app/state.js'
 import { renderPensionImport } from './pension-import.js'
 import { renderLiquidity, liquidityLabels } from './liquidity.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
+import { renderBalanceHistory } from '../../shared/balance-history-chart.js'
 import { activeCalculatedReturn, calculatedReturn, minimumWindowDays, returnModeOf } from '../../domain/calculated-return.js'
 import { balanceCurrencyInflation, resolveInvestmentRealReturn, resolveGrossInvestmentRealReturn, investmentAccumulationFactors, investmentAnnualFee, investmentExposureShare } from '../../domain/investment-returns.js'
 import { diagnosePortfolio } from '../../domain/portfolio-diagnostics.js'
@@ -407,6 +408,7 @@ function investmentList() {
           </dl>
           ${investment.needsDetails ? '<p class="investment-needs-details" role="note"><strong>Completar detalhes.</strong> Criado a partir de um extrato. Edite para informar nome, classe, liquidez e retorno. Até lá, a projeção usa a taxa habitual do plano.</p>' : ''}
           <div class="investment-return-source"><p>${usesCalculated ? `Rendimento manual de referência: ${sourceDetail(investment, resolveGrossInvestmentRealReturn(investment, state.plan))}` : sourceDetail(investment, resolveGrossInvestmentRealReturn(investment, state.plan))}${investmentAnnualFee(investment) && !state.valuesHidden && !usesCalculated ? `, antes do custo anual de ${preciseRate(investmentAnnualFee(investment))}` : ''}</p><p class="investment-return-source__origin" data-investment-return-source>${returnSourceHtml(investmentSourceItem(investment))}</p></div>
+          ${renderBalanceHistory(investment.balanceHistory, { currency: investment.currency || state.currency, hidden: state.valuesHidden })}
           ${investment.annualRealReturns?.length ? `<details class="disclosure"><summary>Retornos reais por ano (${investment.annualRealReturns.length})</summary>${state.valuesHidden ? '<p>Retornos ocultos.</p>' : `<dl>${investment.annualRealReturns.map(row => `<div><dt>${row.year}</dt><dd>${formatPercent(row.rate)}</dd></div>`).join('')}</dl>`}<p>Anos sem ajuste usam a taxa habitual deste investimento.</p></details>` : ''}
           <div class="investment-card__actions">
             <button class="button button--secondary" type="button" data-edit-investment="${escapeHtml(investment.id)}">Editar</button>
