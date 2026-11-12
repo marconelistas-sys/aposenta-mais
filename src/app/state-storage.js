@@ -9,6 +9,7 @@ import { sanitizeCurrencyTrends, sanitizeInflationByCurrency, validateAnnualReal
 import { sanitizeIncomeIndexation } from '../domain/income-indexation.js'
 import { sanitizeInflationSource, sanitizeMarketAssumptions } from '../domain/market-assumptions.js'
 import { sanitizeDefaultReturnSource, sanitizeReturnSource } from '../domain/portfolio-return.js'
+import { sanitizeBalanceHistory, sanitizeReturnMode } from '../domain/calculated-return.js'
 import { defaultCashFlow } from '../data/mock-cash-flow.js'
 import { normalizeCurrency } from '../shared/currencies.js'
 import { bundledExchangeRates, sanitizeExchangeRates } from '../shared/exchange-rates.js'
@@ -117,6 +118,8 @@ export function sanitizeInvestment(investment, index = 0) {
   let annualRealReturns = []
   try { annualRealReturns = validateAnnualRealReturns(investment.annualRealReturns) } catch {}
   const returnSource = sanitizeReturnSource(investment.returnSource)
+  const returnMode = sanitizeReturnMode(investment.returnMode)
+  const balanceHistory = sanitizeBalanceHistory(investment.balanceHistory)
   return {
     id: safeId(investment.id, `investment-${index + 1}`),
     name,
@@ -137,6 +140,9 @@ export function sanitizeInvestment(investment, index = 0) {
     ...(validNumber(annualFee, [0.0001, 0.1]) ? { annualFee } : {}),
     // Where the rate comes from (contract, fund page, official index). Optional, display only.
     ...(returnSource ? { returnSource } : {}),
+    // Calculated from balances unless the person chose the manual return. Absent means calculated.
+    ...(returnMode ? { returnMode } : {}),
+    ...(balanceHistory.length ? { balanceHistory } : {}),
     ...(currencies[investment.currency] ? { currency: investment.currency } : {}),
     ...(currencies[investment.currency] && validNumber(Number(investment.nativeAmount), [0, 1000000000]) ? { nativeAmount: Number(investment.nativeAmount) } : {}),
     ...(currencies[investment.currency] && validNumber(Number(investment.nativeMonthlyContribution), [0, 10000000]) ? { nativeMonthlyContribution: Number(investment.nativeMonthlyContribution) } : {}),

@@ -1489,6 +1489,7 @@ document.addEventListener('click', async (event) => {
     setInvestmentConditionalFields(form)
     form.elements.namedItem('investmentAcquiredAt').value = investment.acquiredAt || ''
     form.elements.namedItem('investmentReleaseYear').value = state.plan.finappMethod?.releases?.find(row => row.investmentId === investment.id)?.year ?? ''
+    form.elements.namedItem('returnMode').value = investment.returnMode === 'manual' ? 'manual' : 'calculated'
     form.elements.namedItem('returnType').value = investment.returnType
     form.elements.namedItem('investmentReturn').value = investment.returnValue === null ? '' : percentInputValue(investment.returnValue)
     form.elements.namedItem('investmentIndexRate').value = investment.indexAnnualRate === null ? '' : percentInputValue(investment.indexAnnualRate)
@@ -2576,6 +2577,7 @@ document.addEventListener('submit', async (event) => {
         liquidity: data.get('liquidity'),
         amount: parseNumber(data.get('investmentAmount')),
         monthlyContribution: parseNumber(data.get('investmentContribution')),
+        returnMode: data.get('returnMode') === 'manual' ? 'manual' : 'calculated',
         returnType,
         returnValue: returnType === 'default' ? null : parseNumber(data.get('investmentReturn')) / 100,
         indexAnnualRate: returnType === 'cdi' ? parseNumber(data.get('investmentIndexRate')) / 100 : null,
