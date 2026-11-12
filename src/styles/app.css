@@ -4384,3 +4384,37 @@ details:where(:not(.disclosure, .navigation-menu))[open] > summary::before { tra
   cursor: pointer;
   font-weight: 650;
 }
+
+/* Histórico do saldo do investimento. Ver docs/product/avaliacao-ux-grafico-saldo.md */
+.balance-history { margin-top: var(--space-3, 12px); }
+.balance-chart { margin: 12px 0 0; }
+.balance-chart figcaption { display: grid; gap: 2px; font-size: var(--text-sm); }
+.balance-chart figcaption span { color: var(--color-text-muted, #52607a); }
+.balance-chart__svg { width: 100%; max-width: 440px; height: auto; display: block; overflow: visible; }
+.balance-chart__grid { stroke: var(--color-border); stroke-width: 1; }
+.balance-chart__zero { stroke: var(--color-border-strong); stroke-width: 1.5; }
+.balance-chart__tick, .balance-chart__direct { font-size: 12.5px; fill: currentColor; }
+.balance-chart__direct { font-weight: 600; }
+.balance-chart__balance { stroke: var(--chart-blue); stroke-width: 2; }
+.balance-chart__invested { stroke: var(--chart-green); stroke-width: 2; }
+.balance-chart__invested.is-estimated { stroke: var(--chart-gold-line); }
+.balance-chart__diamond { fill: none; stroke: var(--chart-gold-line); stroke-width: 2; }
+.balance-chart__dot { fill: var(--chart-blue); stroke: var(--color-surface, #fff); stroke-width: 2; }
+.balance-chart__dot.is-drop { fill: var(--color-danger); }
+.balance-chart__area { fill: var(--color-danger); fill-opacity: .18; }
+.balance-chart__drop { stroke: var(--color-danger); stroke-width: 2; }
+.balance-chart__hit { fill: transparent; }
+.balance-chart__point { cursor: pointer; outline: none; }
+.balance-chart__point:focus-visible .balance-chart__dot { stroke: currentColor; stroke-width: 3; }
+.balance-chart__legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--text-sm); margin: 6px 0 0; }
+.balance-chart__legend span::before { content: ''; display: inline-block; width: 16px; border-top: 2px solid; margin-right: 6px; vertical-align: middle; }
+.balance-chart__legend .is-balance::before { border-color: var(--chart-blue); }
+.balance-chart__legend .is-invested::before { border-color: var(--chart-green); }
+.balance-chart__legend .is-estimated::before { border-color: var(--chart-gold-line); border-top-style: dashed; }
+.balance-chart__readout { min-height: 1.4em; font-size: var(--text-sm); margin: 4px 0 0; }
+.balance-chart__note { font-size: var(--text-sm); color: var(--color-text-muted, #52607a); margin: 4px 0 0; }
+.balance-chart__table { overflow-x: auto; max-width: 100%; }
+.balance-chart__table table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.balance-chart__table th, .balance-chart__table td { padding: 4px 8px; text-align: right; white-space: nowrap; }
+.balance-chart__table th:first-child, .balance-chart__table tbody th { text-align: left; }
+@media (prefers-reduced-motion: no-preference) { .balance-chart__point .balance-chart__dot { transition: r .15s; } }

@@ -154,6 +154,7 @@ import { changeStatementMapping } from './domain/statement-import.js'
 
 import { configureLocalAccess, selectStorageProvider } from './app/auth-state.js'
 import { syncConsentVersion } from './shared/sync-contract.js'
+import { installBalanceChartInteractions } from './shared/balance-history-chart.js'
 import { scenarioEditor, simulationContext, simulationCashFlow, simulationInputFromData, clearScenarioEditor, editScenario } from './features/simulations/scenario-editor.js'
 import { simulationSchedules } from './features/simulations/simulations.js'
 import { syncPortfolioDefaultReturn, updateScenario } from './app/state.js'
@@ -828,6 +829,8 @@ function updateBudgetReferenceMonth(month, focusSelector = '[data-reference-mont
   showToast('Mês de comparação atualizado.')
 }
 
+installBalanceChartInteractions(document)
+
 document.addEventListener('click', async (event) => {
   if (!sessionReady) { event.preventDefault(); return }
   const monthStep = event.target.closest('[data-budget-month-step]')
@@ -1489,6 +1492,7 @@ document.addEventListener('click', async (event) => {
     setInvestmentConditionalFields(form)
     form.elements.namedItem('investmentAcquiredAt').value = investment.acquiredAt || ''
     form.elements.namedItem('investmentReleaseYear').value = state.plan.finappMethod?.releases?.find(row => row.investmentId === investment.id)?.year ?? ''
+    form.elements.namedItem('returnMode').value = investment.returnMode === 'manual' ? 'manual' : 'calculated'
     form.elements.namedItem('returnType').value = investment.returnType
     form.elements.namedItem('investmentReturn').value = investment.returnValue === null ? '' : percentInputValue(investment.returnValue)
     form.elements.namedItem('investmentIndexRate').value = investment.indexAnnualRate === null ? '' : percentInputValue(investment.indexAnnualRate)
@@ -2576,6 +2580,7 @@ document.addEventListener('submit', async (event) => {
         liquidity: data.get('liquidity'),
         amount: parseNumber(data.get('investmentAmount')),
         monthlyContribution: parseNumber(data.get('investmentContribution')),
+        returnMode: data.get('returnMode') === 'manual' ? 'manual' : 'calculated',
         returnType,
         returnValue: returnType === 'default' ? null : parseNumber(data.get('investmentReturn')) / 100,
         indexAnnualRate: returnType === 'cdi' ? parseNumber(data.get('investmentIndexRate')) / 100 : null,

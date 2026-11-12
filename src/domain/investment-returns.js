@@ -1,4 +1,5 @@
 import { activeMarketAssumptions, cdiFor, inflationFor, planCurrencyOf } from './market-assumptions.js'
+import { activeCalculatedReturn } from './calculated-return.js'
 
 export const investmentReturnTypes = Object.freeze(['default', 'real', 'nominal', 'cdi', 'ipca'])
 
@@ -70,7 +71,11 @@ export function currencyTrendAdjustment(investment, plan) {
 export function resolveInvestmentRealReturn(investment, plan, year) {
   const override = investment?.annualRealReturns?.find(row => row.year === Number(year))
   if (override) return override.rate
-  const net = applyAnnualFee(resolveGrossInvestmentRealReturn(investment, plan, year), investmentAnnualFee(investment))
+  // The calculated return comes from balances, so it is already net of the product cost.
+  const calculated = activeCalculatedReturn(investment)
+  const net = calculated
+    ? nominalToRealReturn(calculated.nominal, investmentInflation(investment, plan, year))
+    : applyAnnualFee(resolveGrossInvestmentRealReturn(investment, plan, year), investmentAnnualFee(investment))
   const trend = currencyTrendAdjustment(investment, plan)
   return trend ? (1 + net) * (1 + trend) - 1 : net
 }
@@ -144,6 +149,8 @@ export function resolveInvestmentNominalReturn(investment, plan, year) {
   const inflation = inflationFor(plan, planCurrencyOf(plan), year)
   const realReturn = resolveInvestmentRealReturn(investment, plan, year)
   if (investment?.annualRealReturns?.some(row => row.year === Number(year))) return realToNominalReturn(realReturn, inflation)
+  const calculated = activeCalculatedReturn(investment)
+  if (calculated) return calculated.nominal
   const fee = investmentAnnualFee(investment)
   if (investment?.returnType === 'nominal') return applyAnnualFee(investment.returnValue, fee)
   if (investment?.returnType === 'cdi') return applyAnnualFee(investmentCdiNominalReturn(investment, plan, year), fee)

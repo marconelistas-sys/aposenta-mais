@@ -2,6 +2,8 @@ import { state } from '../../app/state.js'
 import { renderPensionImport } from './pension-import.js'
 import { renderLiquidity, liquidityLabels } from './liquidity.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
+import { renderBalanceHistory } from '../../shared/balance-history-chart.js'
+import { activeCalculatedReturn, calculatedReturn, minimumWindowDays, returnModeOf } from '../../domain/calculated-return.js'
 import { balanceCurrencyInflation, resolveInvestmentRealReturn, resolveGrossInvestmentRealReturn, investmentAccumulationFactors, investmentAnnualFee, investmentExposureShare } from '../../domain/investment-returns.js'
 import { diagnosePortfolio } from '../../domain/portfolio-diagnostics.js'
 import { allocationDimensions, defaultRebalanceBand, exposureDistribution, rebalanceAnalysis, regionLabels } from '../../domain/target-allocation.js'
@@ -27,6 +29,16 @@ import { renderAssetAllocation } from '../../shared/asset-allocation.js'
 import { classLabels } from '../../data/asset-classes.js'
 export { classLabels } from '../../data/asset-classes.js'
 
+
+const calculatedStatusText = (investment) => {
+  const result = calculatedReturn(investment.balanceHistory)
+  const date = value => value.split('-').reverse().join('/')
+  if (returnModeOf(investment) === 'manual') return 'Rendimento informado por você. O cálculo pelos saldos está desligado.'
+  if (result.status === 'ok') return state.valuesHidden ? 'Calculado pelos saldos informados. Taxa oculta.' : `${preciseRate(result.nominal)} ao ano nominal, entre ${date(result.from)} e ${date(result.to)} (${result.days} dias), já líquido de custos.${result.estimated ? ' Inclui aportes estimados pelo valor mensal informado.' : ''}`
+  if (result.status === 'insufficient') return `Intervalo de ${result.days} dias entre saldos é curto demais (mínimo ${minimumWindowDays}). Usando o rendimento informado por você.`
+  if (result.status === 'implausible') return 'A variação entre saldos não parece rendimento, talvez haja aporte ou resgate sem registro. Usando o rendimento informado por você.'
+  return 'Sem saldo anterior para comparar. Usando o rendimento informado por você como referência.'
+}
 
 const returnTypeLabels = {
   default: 'Padrão',
@@ -370,6 +382,7 @@ function investmentList() {
       const linked = state.cashFlow.items.filter(item => item.pensionInvestmentId === investment.id)
       const movements = state.cashFlow.items.filter(item => item.statementInternalTransfer && item.statementInvestmentId === investment.id).sort((left, right) => String(right.startDate).localeCompare(String(left.startDate)))
       const usesDefault = investment.returnType === 'default'
+      const usesCalculated = Boolean(activeCalculatedReturn(investment))
       return `
         <article class="investment-card">
           <div class="investment-card__header">
@@ -377,7 +390,7 @@ function investmentList() {
               <span>${escapeHtml(classLabels[investment.assetClass] || classLabels.other)}</span>
               <h3>${escapeHtml(investment.name)}</h3>
             </div>
-            <span class="investment-rate-badge ${usesDefault ? '' : 'is-specific'}">${returnTypeLabels[investment.returnType]}</span>
+            <span class="investment-rate-badge ${usesCalculated || usesDefault ? '' : 'is-specific'}">${usesCalculated ? 'Calculado' : returnTypeLabels[investment.returnType]}</span>
           </div>
           <dl>
             <div><dt>Data do saldo</dt><dd>${investment.balanceAsOf ? escapeHtml(investment.balanceAsOf.split('-').reverse().join('/')) : 'Não informada'}${investment.balanceSource === 'statement' ? ' · Atualizado pelo extrato' : ''}</dd></div>
@@ -389,11 +402,13 @@ function investmentList() {
             ${movements.length ? `<div data-investment-movements><dt>Aplicações e resgates no Orçamento</dt><dd>${movements.slice(0, 3).map(item => `${escapeHtml(item.startDate.split('-').reverse().join('/'))} · ${item.type === 'expense' ? 'Aplicação' : 'Resgate'} · ${privateCurrency(item.amount, state.valuesHidden, true, item.currency)}`).join('<br>')}${movements.length > 3 ? `<br>e mais ${movements.length - 3}` : ''}<small>Fora das receitas e despesas. Entram no saldo os posteriores ao último saldo informado manualmente ou por extrato de saldo.</small></dd></div>` : ''}
             <div><dt>Exposição</dt><dd>${escapeHtml(investment.exposureCurrency || state.currency)}${investment.exposureCurrency && investment.exposureCurrency !== state.currency && investmentExposureShare(investment) < 1 ? ` ${preciseRate(investmentExposureShare(investment))}` : ''} · ${regionLabels[investment.region] || regionLabels.domestic}</dd></div>
             <div><dt>Custo anual</dt><dd>${state.valuesHidden ? 'Oculto' : investmentAnnualFee(investment) ? preciseRate(investmentAnnualFee(investment)) : 'Não informado'}</dd></div>
+            <div data-investment-calculated-return><dt>Rendimento calculado</dt><dd>${escapeHtml(calculatedStatusText(investment))}</dd></div>
             <div><dt>Retorno usado em ${new Date().getUTCFullYear()}</dt><dd>${state.valuesHidden ? 'Oculto' : `${toneRate(rate)} real ao ano`}</dd></div>
             <div data-investment-projection><dt>Projeção ${state.plan.retirementMonth ? `em ${escapeHtml(formatMonth(state.plan.retirementMonth))}` : 'na aposentadoria'}</dt><dd>${privateCurrency(futureValue, state.valuesHidden, false, state.currency)}<small>Não é o saldo de hoje. Saldo atual${investment.monthlyContribution ? ' e aporte mensal' : ''} com ${state.valuesHidden ? 'retorno real de taxa oculta' : rateText} por ${projectionPeriod(months)}${scheduled.some(item => item.investmentId === investment.id) ? ', mais as contribuições vinculadas no Orçamento' : ''}.</small></dd></div>
           </dl>
           ${investment.needsDetails ? '<p class="investment-needs-details" role="note"><strong>Completar detalhes.</strong> Criado a partir de um extrato. Edite para informar nome, classe, liquidez e retorno. Até lá, a projeção usa a taxa habitual do plano.</p>' : ''}
-          <div class="investment-return-source"><p>${sourceDetail(investment, resolveGrossInvestmentRealReturn(investment, state.plan))}${investmentAnnualFee(investment) && !state.valuesHidden ? `, antes do custo anual de ${preciseRate(investmentAnnualFee(investment))}` : ''}</p><p class="investment-return-source__origin" data-investment-return-source>${returnSourceHtml(investmentSourceItem(investment))}</p></div>
+          <div class="investment-return-source"><p>${usesCalculated ? `Rendimento manual de referência: ${sourceDetail(investment, resolveGrossInvestmentRealReturn(investment, state.plan))}` : sourceDetail(investment, resolveGrossInvestmentRealReturn(investment, state.plan))}${investmentAnnualFee(investment) && !state.valuesHidden && !usesCalculated ? `, antes do custo anual de ${preciseRate(investmentAnnualFee(investment))}` : ''}</p><p class="investment-return-source__origin" data-investment-return-source>${returnSourceHtml(investmentSourceItem(investment))}</p></div>
+          ${renderBalanceHistory(investment.balanceHistory, { currency: investment.currency || state.currency, hidden: state.valuesHidden })}
           ${investment.annualRealReturns?.length ? `<details class="disclosure"><summary>Retornos reais por ano (${investment.annualRealReturns.length})</summary>${state.valuesHidden ? '<p>Retornos ocultos.</p>' : `<dl>${investment.annualRealReturns.map(row => `<div><dt>${row.year}</dt><dd>${formatPercent(row.rate)}</dd></div>`).join('')}</dl>`}<p>Anos sem ajuste usam a taxa habitual deste investimento.</p></details>` : ''}
           <div class="investment-card__actions">
             <button class="button button--secondary" type="button" data-edit-investment="${escapeHtml(investment.id)}">Editar</button>
@@ -505,7 +520,15 @@ export function renderInvestments() {
         <fieldset class="investment-step" data-investment-step="2" hidden>
           <legend>Rendimento usado na projeção</legend>
           <label class="form-field">
-            <span class="form-field__label">Como o rendimento foi informado</span>
+            <span class="form-field__label">Origem do rendimento</span>
+            <span class="input-shell"><select name="returnMode" required>
+              <option value="calculated" selected>Calculado pelos saldos (recomendado)</option>
+              <option value="manual">Informado por mim</option>
+            </select></span>
+            <small>O app compara o saldo atual com o anterior, descontando aportes e resgates. Precisa de saldos com pelo menos ${minimumWindowDays} dias de intervalo. Sem isso, usa o rendimento informado abaixo.</small>
+          </label>
+          <label class="form-field">
+            <span class="form-field__label">Rendimento informado por mim (referência)</span>
             <span class="input-shell"><select name="returnType" required>
               <option value="default">Padrão do plano, ${defaultRate} real ao ano (${defaultOrigin.short})</option>
               <option value="real">Taxa real anual</option>

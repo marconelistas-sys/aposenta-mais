@@ -29,6 +29,7 @@ import { validatePensionInvestment } from '../domain/pension-investment-links.js
 import { upsertGoalsHistory } from '../domain/goal-settings.js'
 import { upsertWealthHistory, wealthSnapshot } from '../domain/wealth-history.js'
 import { applyMarketAssumptions } from '../domain/market-assumptions.js'
+import { recordBalanceSnapshot } from '../domain/calculated-return.js'
 import { applyPortfolioDefaultReturn, defaultReturnSources, effectiveDefaultReturnSource, validateReturnSource } from '../domain/portfolio-return.js'
 
 const unavailableStorage = {
@@ -214,15 +215,21 @@ export function upsertInvestment(candidate) {
   const previousRecord = { ...(existingIndex >= 0 ? current[existingIndex] : {}) }
   // Completing details keeps the movement base. A changed balance replaces it on the next recompute.
   // A form without the return source keeps the saved one. null removes it.
-  candidate = { ...(previousRecord.returnSource ? { returnSource: previousRecord.returnSource } : {}), ...(previousRecord.statementAccount ? { statementAccount: previousRecord.statementAccount, statementInvestmentName: previousRecord.statementInvestmentName } : {}), ...(previousRecord.movementBase ? { movementBase: previousRecord.movementBase } : {}), ...candidate, balanceAsOf, balanceSource: 'manual' }
+  candidate = { ...(previousRecord.balanceHistory ? { balanceHistory: previousRecord.balanceHistory } : {}), ...(previousRecord.returnSource ? { returnSource: previousRecord.returnSource } : {}), ...(previousRecord.statementAccount ? { statementAccount: previousRecord.statementAccount, statementInvestmentName: previousRecord.statementInvestmentName } : {}), ...(previousRecord.movementBase ? { movementBase: previousRecord.movementBase } : {}), ...candidate, balanceAsOf, balanceSource: 'manual' }
   const record = foreign
     ? { ...candidate, id, nativeAmount: round2(Number(candidate.amount)), nativeMonthlyContribution: round2(Number(candidate.monthlyContribution) || 0), amount: convertCurrency(Number(candidate.amount) || 0, candidate.currency, state.currency, state.exchangeRates), monthlyContribution: convertCurrency(Number(candidate.monthlyContribution) || 0, candidate.currency, state.currency, state.exchangeRates) }
     : { ...candidate, id }
   if (existingIndex >= 0) next[existingIndex] = record
   else next.push(record)
   const investments = syncInvestmentCurrencies(sanitizeInvestments(next), state.currency, state.exchangeRates)
-  const saved = investments.find((investment) => investment.id === id)
+  let saved = investments.find((investment) => investment.id === id)
   if (!saved) throw new TypeError('Revise os dados do investimento.')
+  // A balance typed now is a new point for the calculated return. Editing only other fields adds none.
+  const before = existingIndex >= 0 ? current[existingIndex] : null
+  if (!before || saved.balanceAsOf !== before.balanceAsOf || investmentNativeAmount(saved, state.currency) !== investmentNativeAmount(before, state.currency)) {
+    saved = { ...saved, balanceHistory: recordBalanceSnapshot(saved, before, { items: state.cashFlow.items, currency: state.currency, exchangeRates: state.exchangeRates }) }
+    investments[investments.findIndex(investment => investment.id === id)] = saved
+  }
   if (saved.assetClass !== 'pension' && state.cashFlow.items.some(item => item.pensionInvestmentId === id)) throw new TypeError('Desvincule as contribuições previdenciárias antes de mudar a classe deste investimento.')
   const method = state.plan.finappMethod || {}
   const releases = (method.releases || []).filter(row => row.investmentId !== id || !Object.hasOwn(candidate, 'releaseYear') && saved.liquidity !== 'available')
@@ -331,7 +338,13 @@ export function upsertStatementItems(items, { investmentBalances = [], accountBa
   const movementUpdates = [...portfolio.changed].filter(id => !createdIds.has(id) && !balances.updates.some(row => row.investmentId === id)).length
   const accountChanges = accounts.updated + accounts.created
   const portfolioChanged = balances.updates.length || accountChanges || linking.created || portfolio.changed.size
-  const investments = sanitizeInvestments(portfolio.investments)
+  const investments = sanitizeInvestments(portfolio.investments).map(investment => {
+    // Only balances read from the statement are real points. A balance derived from movements has no yield.
+    if (!balances.updates.some(row => row.investmentId === investment.id)) return investment
+    const reported = balances.investments.find(row => row.id === investment.id)
+    const history = recordBalanceSnapshot(reported, (state.plan.investments || []).find(row => row.id === investment.id), { items: plan.items, currency: state.currency, exchangeRates: state.exchangeRates })
+    return { ...investment, balanceHistory: history }
+  })
   if (portfolioChanged && investments.length !== portfolio.investments.length) throw new TypeError('Saldo de investimento inválido. Nenhuma alteração foi salva.')
   const nextPlan = portfolioChanged ? withPortfolioDefaultReturn({ ...state.plan, investments, ...investmentTotals(investments) }) : state.plan
   const next = { ...state, plan: nextPlan, cashFlow: { ...state.cashFlow, items: reconcileOwnTransfers(plan.items, state.cashFlow.ownStatementAccounts) }, isDemo: false, lastUpdatedAt: new Date().toISOString() }

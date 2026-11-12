@@ -1,5 +1,13 @@
 # Backlog inicial
 
+## Próxima entrega: resgate de aplicação (planejada)
+
+Concebida em 2026-11-12 e ainda não implementada. Hoje o app já tira aplicações e resgates do BB do orçamento e atualiza o saldo de investimentos vinculados, mas não há registro manual de resgate, o caixa não recebe o dinheiro, resgate maior que o saldo é cortado em zero sem aviso e o imposto retido não entra no saldo. A proposta tem dois caminhos para o mesmo movimento: detecção por extrato, sempre como sugestão a confirmar (viável só para o BB, nunca como decisão automática), e registro manual na Carteira. Resgate é movimento de capital: nunca receita nem rendimento.
+
+MVP: aviso de saldo defasado (R3, RICE 4,8), registro manual com conta de destino (R1 + R4, 4,3 e 2,0), revisão do extrato com confirmação e "Não é investimento" (R5, 3,0). Depois: retenções e resgate total (R2, 3,0), sugestão por nome em bancos sem regra (R6), previdência e câmbio da data. Esforço do MVP estimado em cerca de 4,25 sessões de agente, a confirmar pelo desenvolvimento. [Decisões, histórias e critérios](resgate-aplicacao.md). Avaliação de UX em [avaliacao-ux-resgate.md](avaliacao-ux-resgate.md).
+
+Pendências [validar]: resgate nunca cria investimento; linhas detectadas continuam fora da importação até confirmar; aviso de excedente uma vez por investimento nos dados antigos. Perguntar ao dono, antes de começar, quais bancos e investimentos ele resgata, como o BB lança IR e IOF, e pedir descrições reais de N26, TKB e Swissquote.
+
 ## Próxima entrega: reajuste de receitas na projeção (planejada)
 
 Planejada em 2026-11-08, a partir da auditoria da projeção de aposentadoria, e ainda não implementada. Toda receita planejada fica constante em termos reais, então a renda fixa do 2º pilar suíço aparece sem perder poder de compra. Nesta entrega:
