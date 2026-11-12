@@ -6,7 +6,7 @@
 import { escapeHtml, formatMonth } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 import { renderTabbedPanels } from '../../shared/page-tabs.js'
-import { allocationRows, bridgeRows, currencyPairs, divergingRows, emptyState, fanChart, figure, historyLine, projectionLine, quotaRows, reserveBullet, segmentedBar, shortMonth, sparkline, statusBadge } from './report-charts.js'
+import { allocationRows, balanceInvestedLine, bridgeRows, currencyPairs, divergingRows, emptyState, fanChart, figure, historyLine, projectionLine, quotaRows, reserveBullet, segmentedBar, shortMonth, sparkline, statusBadge } from './report-charts.js'
 import { fixedIncomeAssumptionText } from '../../shared/income-indexation.js'
 import { formatReportDate, formatReportMoney, formatReportMonths, formatReportPercent, formatReportPoints, formatReportText, withMaskedMoney } from './report-text.js'
 
@@ -320,7 +320,21 @@ function portfolioBody(report) {
     : emptyState(t(chapter.allocation.emptyReason), { title: 'Alocação-alvo' })
   const contribution = chapter.suggestedContribution?.byKey?.length ? `<p class="report-note">Aporte mensal de ${money(chapter.suggestedContribution.monthly)} sugerido por classe: ${chapter.suggestedContribution.byKey.map(row => `${e(row.label)} ${money(row.monthly)}`).join('; ')}.</p>` : ''
   const fee = chapter.feeImpact ? `<p class="report-note">Custos: sem eles, o patrimônio financeiro de ${chapter.feeImpact.year} seria até ${money(chapter.feeImpact.difference)} maior (${money(chapter.feeImpact.withoutFees)} contra ${money(chapter.feeImpact.withFees)}), em valor real.</p>` : ''
-  return head + allocation + contribution + fee + diagnostics
+  const balanceFigure = (() => {
+    const history = chapter.balanceHistory
+    if (!history?.available) return emptyState('Cada investimento precisa de pelo menos dois saldos informados, com data, para o gráfico aparecer.', { title: 'Saldo e valor aportado' })
+    const first = history.series[0], last = history.series.at(-1)
+    const gain = last.balance - last.invested
+    const foreign = history.foreign.length ? `Valores em ${history.foreign.join(', ')} convertidos pelo câmbio de hoje em todas as datas; a variação cambial entra no saldo e no aportado.` : ''
+    return figure({
+      title: `Saldo de ${money(last.balance)} contra ${money(last.invested)} aportado: ${money(gain, { signed: true })} de rendimento acumulado`,
+      body: balanceInvestedLine({ series: history.series, currency, label: `Saldo e valor aportado da carteira de ${shortMonth(first.date.slice(0, 7))} a ${shortMonth(last.date.slice(0, 7))}` }) + `<div class="sr-only">${table({ caption: 'Saldo e valor aportado da carteira por data de saldo', head: ['Data', 'Saldo', 'Aportado'], rows: history.series.map(row => [e(row.date.split('-').reverse().join('/')), money(row.balance), money(row.invested)]) })}</div>`,
+      howToRead: 'Linha cheia: saldo informado. Linha em degraus: valor aportado (primeiro saldo mais aplicações menos resgates). A distância entre elas é o rendimento acumulado.',
+      source: `Saldos informados de ${history.count} ${history.count === 1 ? 'investimento' : 'investimentos'} com histórico, e aplicações e resgates vinculados.`,
+      premise: `${foreign}${history.estimated ? ' Parte do aportado é estimada pelo aporte mensal declarado.' : ''} Um investimento entra a partir do seu primeiro saldo. Sem queda da carteira: o patrimônio mistura aportes e resgates.`.trim()
+    })
+  })()
+  return head + allocation + balanceFigure + contribution + fee + diagnostics
 }
 
 function liquidityBody(report) {

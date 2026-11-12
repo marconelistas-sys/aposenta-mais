@@ -102,3 +102,8 @@ Fora de escopo: dois eixos (regra do dataviz; as duas séries têm a mesma unida
 
 - [validar] Um agregado "aportado × saldo" da carteira no Panorama entra depois?
 - [validar] Aceita ficar de fora a queda da carteira inteira, por falta de dado ajustado por fluxo?
+
+## Decisões do dono (2026-11-12)
+
+- Agregado "aportado × saldo" da carteira entra no Panorama, aba Carteira. Implementado com saldos em moeda estrangeira convertidos pelo câmbio de hoje em todas as datas, com aviso na premissa do gráfico (`src/domain/portfolio-balance-history.js`).
+- Fica de fora a queda desde o pico da carteira inteira, por falta de dado ajustado por fluxo.
