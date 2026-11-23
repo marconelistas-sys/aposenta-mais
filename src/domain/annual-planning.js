@@ -19,7 +19,9 @@ export function sanitizeAnnualRows(raw) {
     // Goal priority for goals-based planning. Kept only when present and valid.
     if (['essential', 'important', 'aspirational'].includes(value?.priority)) row.priority = value.priority
     if (category === 'real-estate' && typeof value.includeInSolvency === 'boolean') row.includeInSolvency = value.includeInSolvency
-    try { validateAnnualRow(row); if (!result.some(item => item.id === row.id)) result.push(category !== undefined ? { ...row, category } : row) } catch {}
+    // Value follows the linked purchases until you type another one.
+    const fromPurchases = category !== undefined && value.fromPurchases === true ? { fromPurchases: true } : {}
+    try { validateAnnualRow(row); if (!result.some(item => item.id === row.id)) result.push(category !== undefined ? { ...row, category, ...fromPurchases } : row) } catch {}
   }
   return result
 }

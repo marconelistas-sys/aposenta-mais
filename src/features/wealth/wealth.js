@@ -3,7 +3,9 @@ import { wealthByCurrency, wealthComposition } from '../../domain/wealth-composi
 import { escapeHtml, formatMonth, privateCurrency } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 import { categoryDonut } from '../../shared/category-donut.js'
-import { renderAnnualPlanning } from '../plan/annual-planning.js'
+import { annualPlanningForm } from '../plan/annual-planning.js'
+import { nonFinancialAssetsSummary } from '../../domain/non-financial-assets.js'
+import { assetTrend } from '../../shared/asset-trend.js'
 import { renderPropertyFilter } from '../../shared/property-solvency.js'
 import { classLabels } from '../../data/asset-classes.js'
 import { renderAssetAllocation } from '../../shared/asset-allocation.js'
@@ -38,6 +40,63 @@ function largestItems(composition, money) {
   const color = key => composition.groups.find(group => group.key === key)?.color
   const label = key => composition.groups.find(group => group.key === key)?.label
   return `<ol class="wealth-ranking">${top.map(item => `<li><div class="wealth-ranking__heading"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.assetClass ? classLabels[item.assetClass] || item.kind : item.kind)} · ${escapeHtml(label(item.group))}</small></span><span class="wealth-ranking__value">${nativeLabel(item)}<strong class="money-value">${money(item.amount)}</strong><small>${percent(item.share)}</small></span></div><div class="wealth-ranking__track" aria-hidden="true"><span style="width:${(item.amount / max * 100).toFixed(2)}%;background:${color(item.group)}"></span></div></li>`).join('')}</ol>${rest > 0 ? `<p>Demais itens: <strong class="money-value">${money(rest)}</strong>.</p>` : ''}`
+}
+
+const assetTypeLabels = { 'real-estate': 'Imóvel', vehicle: 'Veículo', other: 'Outro bem', unclassified: 'Tipo não informado' }
+const statusOrder = { active: 0, planned: 1, ended: 2 }
+
+function assetCard(row, { summary, range, hidden, money }) {
+  const year = summary.year, retirementYear = summary.retirementYear
+  const native = row.currency !== state.currency ? `<small class="wealth-native">${privateCurrency(row.nativeValueNow, hidden, false, row.currency)}</small>` : ''
+  const status = row.status === 'planned' ? `<span class="badge badge--info">Entra em ${row.startYear}</span>` : row.status === 'ended' ? `<span class="badge badge--info">Fora do patrimônio desde ${row.exitYear}</span>` : ''
+  const purchases = row.origin.purchases ? `<span class="badge badge--neutral" data-asset-purchases>${row.origin.fromPurchases ? 'Valor de compra: soma de' : 'Vinculado a'} ${row.origin.purchases} pagamento(s), fora das despesas</span>` : ''
+  const solvency = row.inSolvency === null ? '' : `<span class="badge badge--neutral">${row.inSolvency ? 'Conta na solvência' : 'Fora da solvência'}</span>`
+  const review = row.warnings.length ? `<span class="badge badge--warn">${row.warnings.length} ${row.warnings.length > 1 ? 'pontos' : 'ponto'} para revisar</span>` : ''
+  const atRetirement = !retirementYear || row.status === 'ended' ? '' : `<div><dt>Na aposentadoria (${retirementYear})</dt><dd class="money-value">${row.leavesBeforeRetirement ? `Sai em ${row.exitYear}` : money(row.valueAtRetirement)}</dd></div>`
+  const depreciation = row.depreciationThisYear > 0 ? `<div data-tone="negative"><dt>Desvalorização em ${year}</dt><dd class="money-value">▼ −${money(row.depreciationThisYear)}</dd></div>` : ''
+  const name = escapeHtml(row.name)
+  return `<li class="asset-card" data-asset-id="${escapeHtml(row.id)}" data-status="${row.status}">
+    <div class="asset-card__head"><h4>${name}</h4>
+      <p class="asset-card__badges"><span class="badge badge--neutral">${assetTypeLabels[row.category]}</span>${status}${purchases}${solvency}${review}</p></div>
+    <dl class="asset-card__figures">
+      <div><dt>Hoje (${year})</dt><dd class="money-value">${money(row.valueNow)}${native}</dd></div>
+      ${atRetirement}${depreciation}
+      <div><dt>No patrimônio</dt><dd>${row.startYear} a ${row.endYear}</dd></div>
+    </dl>
+    ${row.status === 'ended' ? '' : assetTrend(row, { range, year, retirementYear, currency: state.currency, hidden })}
+    <div class="asset-card__actions">${hidden ? '' : `<button class="button button--secondary" type="button" data-annual-edit="${escapeHtml(row.id)}" data-annual-kind="nonFinancialAssets" aria-label="Editar ${name}">${icon('pencil', 16)} Editar</button>`}<button class="button button--secondary" type="button" data-annual-remove="${escapeHtml(row.id)}" data-annual-kind="nonFinancialAssets" aria-label="Excluir ${name}">${icon('trash', 16)} Excluir</button></div>
+  </li>`
+}
+
+// Bens: what they are worth today and at retirement, how much they lose per year and
+// when they leave. Today's money, no sale, rent or running costs.
+function assetsSection(composition, hidden, money) {
+  const summary = nonFinancialAssetsSummary(state, { composition })
+  const { totals, rows, retirementYear, year } = summary
+  // One year scale for every chart, so cards compare. Assets that already left have no chart.
+  const charted = rows.filter(row => row.status !== 'ended')
+  const range = [Math.min(year, ...charted.map(row => row.startYear)), Math.max(retirementYear || year, ...charted.map(row => row.endYear + 1))]
+  const precise = value => privateCurrency(value, hidden, true, state.currency)
+  const totalsStrip = rows.length ? `<dl class="metric-row asset-totals">
+      <div><dt>Bens hoje</dt><dd class="money-value">${money(totals.total)}</dd><small>${hidden ? 'Oculto' : `${percent(totals.shareOfGross)} do que você tem`}</small></div>
+      <div><dt>Patrimônio líquido sem bens</dt><dd class="money-value">${money(totals.netWorthWithoutAssets)}</dd><small>É ele que paga a aposentadoria.</small></div>
+      ${retirementYear ? `<div><dt>Bens na aposentadoria (${retirementYear})</dt><dd class="money-value">${money(totals.valueAtRetirement)}</dd><small>Valor estimado, em valores de hoje.</small></div>` : '<div><dt>Bens na aposentadoria</dt><dd>Sem data</dd><small>Informe a aposentadoria no Plano.</small></div>'}
+      ${totals.vehicleDepreciationThisYear > 0 ? `<div data-tone="negative"><dt>Desvalorização dos veículos em ${year}</dt><dd class="money-value">▼ −${money(totals.vehicleDepreciationThisYear)}</dd><small>Estimada. Não é saída de dinheiro.</small></div>` : ''}
+    </dl>
+    ${totals.perAvailable !== null && !hidden ? `<p class="asset-totals__ratio">Para cada ${precise(1)} disponível para usar, ${precise(totals.perAvailable)} estão em bens.</p>` : ''}` : ''
+  const alerts = [...summary.warnings.map(text => ({ text })), ...rows.flatMap(row => row.warnings.map(text => ({ row, text })))]
+  const alertList = alerts.length ? `<ul class="asset-alerts" aria-label="Pontos para revisar nos bens">${alerts.map(({ row, text }) => `<li data-tone="${row ? 'warn' : 'info'}">${icon('alertTriangle', 18)}<div>${row ? `<strong>${escapeHtml(row.name)}</strong>` : ''}<span>${escapeHtml(text)}</span></div>${row && !hidden ? `<button class="button button--secondary" type="button" data-annual-edit="${escapeHtml(row.id)}" data-annual-kind="nonFinancialAssets" aria-label="Revisar ${escapeHtml(row.name)}">Revisar</button>` : '<span></span>'}</li>`).join('')}</ul>` : ''
+  const groups = summary.groups.map(group => `<section class="asset-group" aria-labelledby="asset-group-${group.category}"><h3 id="asset-group-${group.category}">${escapeHtml(group.label)} <span class="money-value">${money(group.total)}</span></h3>
+      <ul class="asset-cards">${[...group.rows].sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || b.valueNow - a.valueNow).map(row => assetCard(row, { summary, range, hidden, money })).join('')}</ul></section>`).join('')
+  const empty = rows.length ? '' : '<p class="asset-empty">Nenhum bem cadastrado. Imóveis, veículos e outros bens entram no patrimônio sem gerar caixa. Cadastre abaixo ou, no extrato, marque o pagamento como “Compra de bem”.</p>'
+  const solvency = rows.some(row => row.category === 'real-estate') ? `<details class="disclosure"><summary>Imóveis na solvência</summary>${renderPropertyFilter(state.cashFlow, hidden, { link: false })}</details>` : ''
+  return `<section class="panel wealth-panel asset-section" id="cadastro-bens" aria-labelledby="wealth-assets-title">
+    <p class="eyebrow">BENS</p><h2 id="wealth-assets-title">Imóveis, veículos e outros bens</h2>
+    <p>Valores estimados, em valores de hoje. Entram no patrimônio sem gerar caixa e não pagam a aposentadoria sem uma venda.</p>
+    ${empty}${totalsStrip}${alertList}${groups ? `<div class="asset-groups">${groups}</div>` : ''}${solvency}
+    ${hidden ? '' : annualPlanningForm('nonFinancialAssets', { open: !rows.length, summary: 'Adicionar ou editar um bem' })}
+    <details class="disclosure"><summary>Como os bens entram no plano</summary><p>O valor de cada ano é o valor inicial corrigido pelo crescimento real anual, do ano inicial ao ano final. Fora desse intervalo o bem sai do patrimônio sem gerar venda nem entrada de dinheiro. Um bem criado a partir de compras vale a soma paga, que é valor de compra e não de mercado. Desvalorização é estimativa contábil: não é despesa nem saída de dinheiro. Manutenção, impostos e seguro entram como despesas no Orçamento. Confira a origem do bem e evite cadastrá-lo também como investimento ou consórcio.</p></details>
+  </section>`
 }
 
 // Fixed colour per currency, so BRL and CHF keep the same colour on every screen.
@@ -93,6 +152,7 @@ export function renderWealth() {
       ${renderAssetAllocation(state)}
       <a href="/carteira" data-route>Ver diagnóstico e alocação-alvo ${icon('arrowRight', 16)}</a>
     </section>
+    ${assetsSection(composition, hidden, money)}
     <div class="wealth-grid">
       <section class="panel wealth-panel" aria-labelledby="wealth-liquidity-title">
         <p class="eyebrow">QUANDO VIRA DINHEIRO</p><h2 id="wealth-liquidity-title">Dinheiro disponível com as liberações</h2>
@@ -112,6 +172,5 @@ export function renderWealth() {
     </section>
 
     ${table}
-    <div id="cadastro-bens">${renderPropertyFilter(state.cashFlow, hidden)}${renderAnnualPlanning('nonFinancialAssets')}</div>
   `
 }

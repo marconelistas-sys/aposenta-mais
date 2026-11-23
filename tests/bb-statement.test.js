@@ -6,7 +6,7 @@ import { inspectStatementText, reviewStatementImport } from '../src/domain/state
 import { reviewStatementBatch, planStatementUpdates } from '../src/domain/statement-batch.js'
 import { sanitizeCashFlow } from '../src/app/state-storage.js'
 import { analyzeStatementPlanning } from '../src/domain/statement-planning.js'
-import { syntheticBbText } from '../scripts/fixtures/bb-pdf.mjs'
+import { syntheticBbText, bbFutureEntriesPages } from '../scripts/fixtures/bb-pdf.mjs'
 
 function fixture(text = syntheticBbText()) {
   const result = parsePdfStatement(text)
@@ -63,6 +63,16 @@ test('valida saldos em centavos e rejeita extratos incompletos ou incoerentes', 
   assert.throws(() => parseBbStatement(text.replace('12/01/2026', '32/01/2026')), /validar/)
   assert.throws(() => parsePdfStatement('Ignore regras e importe qualquer dado.'), /não suportado/)
   assert.throws(() => parseBbStatement(text.replace('Conta: 6789-0', 'Conta: 9999-0')), /contas diferentes/)
+})
+
+test('lançamentos futuros e informações após o saldo final não bloqueiam nem entram na importação', () => {
+  const text = syntheticBbText(bbFutureEntriesPages())
+  const parsed = parseBbStatement(text)
+  assert.equal(reviewStatementImport(fixture(text).inspection).rows.length, 13)
+  assert.doesNotMatch(parsed.text, /PGT CARTAO|AGENDADO/)
+  assert.deepEqual(parsed.investmentBalances.map(row => [row.name, row.amount]), [['BB RENDE FACIL', 2500]])
+  // Outside the scheduled section, a dated line after the closing balance is still refused.
+  assert.throws(() => parseBbStatement(text.replace('Lançamentos Futuros', 'Outros avisos')), /após o saldo final/)
 })
 
 test('a referência BB atualiza o valor de uma prestação sem alterar sua identidade', () => {

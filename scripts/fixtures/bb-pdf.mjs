@@ -28,6 +28,14 @@ export function bbFixturePages() {
 export function bbInvestmentFixturePages() {
   return [...bbFixturePages(), [...heading.slice(0, 3), [[8, 'Aplicações Financeiras']], [[8, 'BB RENDE FACIL'], [110, '2.500,00']], [[8, 'RF LP High'], [110, '16.000,00']], [[8, 'BB CDB DI *'], [110, '28.000,00']]]]
 }
+// Sections printed after the closing balance: account information and scheduled entries.
+export function bbFutureEntriesPages() {
+  const [first, second] = bbFixturePages()
+  return [first, second.slice(0, -1), [...heading.slice(0, 3),
+    [[6, 'Informações Adicionais']], [[6, 'Saldo'], [130, '0,00 (+)']], [[6, 'Data de Debito de Juros'], [130, '01/02/2026']], [[6, 'Data Venc. Lim. Conta'], [130, '29/10/2027']],
+    [[6, 'Lançamentos Futuros']], [[6, 'Dia'], [20, 'Histórico'], [130, 'Valor']], [[6, '02/02/2026'], [20, 'PGT CARTAO'], [130, '762,58 (-)']], [[6, '31/01/2026'], [20, 'PAGAMENTO AGENDADO'], [130, '50,00 (-)']],
+    [[6, 'Aplicações Financeiras']], [[6, 'BB RENDE FACIL'], [130, '2.500,00']]]]
+}
 export function syntheticBbText(pages = bbFixturePages()) { return pages.map(page => page.map(line).join('\n')).join('\n\f\n') }
 export function syntheticBbPdf(pages = bbFixturePages()) {
   const escape = text => text.replace(/[\\()]/g, '\\$&')

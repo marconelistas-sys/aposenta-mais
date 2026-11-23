@@ -32,7 +32,7 @@ export function parseBbStatement(text) {
   if (!agency || !account) throw new TypeError('Agência ou conta ausente no extrato BB.')
   const sourceAccount = `BB:${agency}:${account}`
   const rows = [], occurrences = new Map()
-  let columns = null, pending = [], current = null, opening = null, balance = null, closed = false
+  let columns = null, pending = [], current = null, opening = null, balance = null, closed = false, future = false
   const appendDetail = details => {
     if (current && details.length) current.description += ` · ${details.join(' · ')}`
     pending = []
@@ -76,7 +76,14 @@ export function parseBbStatement(text) {
       current = null
       continue
     }
-    if (closed) { if (dateMatch) throw new TypeError('Há movimentos após o saldo final do extrato BB.'); continue }
+    if (closed) {
+      // Scheduled entries are listed after the closing balance, which already reconciles without them.
+      // The next statement brings them as movements. Any other dated line still stops the import.
+      if (/^\s*lancamentos futuros\b/.test(clean)) { future = true; continue }
+      if (/^\s*(aplicacoes financeiras|informacoes)\b/.test(clean)) future = false
+      if (dateMatch && !future) throw new TypeError('Há movimentos após o saldo final do extrato BB.')
+      continue
+    }
     if (dateMatch) {
       const date = iso(dateMatch[1])
       if (!date || date < start || date > end || !amount || opening === null) throw new TypeError('Não foi possível validar a data ou o valor de um movimento do extrato BB.')

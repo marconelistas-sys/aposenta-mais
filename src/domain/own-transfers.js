@@ -1,5 +1,6 @@
 import { ignoresCreditCardPayment } from './credit-card-payments.js'
 import { isStatementInvestmentMovement } from './statement-classification.js'
+import { isAssetPurchase } from './asset-purchases.js'
 
 // Statement amounts remain intact. Only the identified fee enters the budget.
 const normalized = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -35,7 +36,7 @@ function receivedEvidence(out, incoming) {
 export function reconcileOwnTransfers(items, ownAccounts = []) {
   const owned = new Set(ownAccounts)
   const result = items.map(item => { const copy = { ...item }; delete copy.transferMatch; delete copy.transferPending; return copy })
-  const candidates = result.filter(item => item.recordKind === 'actual' && item.statementImportKey && !item.statementInternalTransfer && item.transferDecision !== 'payment' && owned.has(statementAccount(item)) && !transferEvidence(item).fee)
+  const candidates = result.filter(item => item.recordKind === 'actual' && item.statementImportKey && !item.statementInternalTransfer && !item.assetPurchaseId && !item.assetPurchaseTarget && item.transferDecision !== 'payment' && owned.has(statementAccount(item)) && !transferEvidence(item).fee)
   for (const item of candidates) if (transferEvidence(item).own) item.transferPending = true
   const options = new Map()
   for (const out of candidates.filter(item => item.type === 'expense')) {
@@ -70,6 +71,8 @@ export function reconcileOwnTransfers(items, ownAccounts = []) {
 }
 export function transferBudgetAmount(item) {
   if (ignoresCreditCardPayment(item)) return 0
+  // An asset purchase moves money into a car or property. It is not consumption.
+  if (isAssetPurchase(item)) return 0
   if (item.statementInternalTransfer || ((item.imported || item.source === 'txt' || item.statementImportKey) && isStatementInvestmentMovement(item.statementDescription || item.description))) return 0
   if (item.transferMatch || item.transferPending || item.transferDecision === 'own') return item.type === 'expense' ? (item.transferMatch?.fee || feeCents(item) / 100) : 0
   return item.amount

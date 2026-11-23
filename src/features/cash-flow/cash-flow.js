@@ -21,6 +21,7 @@ import { escapeHtml, formatPercent, privateCurrency } from '../../shared/formatt
 import { icon } from '../../shared/icons.js'
 import { currencies, currencySymbol } from '../../shared/currencies.js'
 import { categoriesForType, categoryById } from '../../data/cash-flow-categories.js'
+import { newAssetTargets } from '../../domain/asset-purchases.js'
 
 import { renderCashFlowTimeline } from './timeline.js'
 import { budgetEntriesView, filterBudgetEntries } from './budget-entries-view.js'
@@ -112,14 +113,14 @@ function cashFlowItems(result) {
           <div class="cash-item__identity">
             <strong>${escapeHtml(item.description || item.category.name)}</strong>
             ${transactionDate ? `<span class="budget-item-date" data-budget-item-date>${escapeHtml(transactionDate)}</span>` : ''}
-            <span>${item.statementInternalTransfer ? `Investimento${investmentName(item) ? `: ${escapeHtml(investmentName(item))}` : ''}` : item.transferMatch || item.transferPending || item.transferDecision === 'own' ? 'Transferência entre contas próprias ou do casal' : recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']}${item.statementInternalTransfer || item.transferMatch || item.transferPending || item.transferDecision === 'own' ? '' : ` · ${escapeHtml(item.category.name)}`}${indexation ? `<span data-indexation-label> · ${indexation}</span>` : ''}</span>
-            ${item.type === 'expense' && item.recordKind === 'actual' && !item.statementInternalTransfer && state.cashFlow.items.some(row => row.id === item.id) ? `<label data-credit-card-payment><input type="checkbox" data-ignore-credit-card-payment="${escapeHtml(item.id)}" ${ignoresCreditCardPayment(item) ? 'checked' : ''} /> Ignorar pagamento de cartão nas despesas</label>${isCreditCardPayment(item) ? `<span>Pagamento de cartão detectado pela descrição. ${ignoresCreditCardPayment(item) ? 'Fora do orçamento.' : 'Incluído no orçamento.'}</span>` : ''}` : ''}
+            <span>${item.assetPurchaseId ? `Compra de bem${assetName(item) ? `: ${escapeHtml(assetName(item))}` : ''}` : item.statementInternalTransfer ? `Investimento${investmentName(item) ? `: ${escapeHtml(investmentName(item))}` : ''}` : item.transferMatch || item.transferPending || item.transferDecision === 'own' ? 'Transferência entre contas próprias ou do casal' : recordKindLabels[item.recordKind]} · ${householdOwners[item.householdOwner || 'unspecified']}${item.assetPurchaseId || item.statementInternalTransfer || item.transferMatch || item.transferPending || item.transferDecision === 'own' ? '' : ` · ${escapeHtml(item.category.name)}`}${indexation ? `<span data-indexation-label> · ${indexation}</span>` : ''}</span>
+            ${item.type === 'expense' && item.recordKind === 'actual' && !item.statementInternalTransfer && !item.assetPurchaseId && state.cashFlow.items.some(row => row.id === item.id) ? `<label data-credit-card-payment><input type="checkbox" data-ignore-credit-card-payment="${escapeHtml(item.id)}" ${ignoresCreditCardPayment(item) ? 'checked' : ''} /> Ignorar pagamento de cartão nas despesas</label>${isCreditCardPayment(item) ? `<span>Pagamento de cartão detectado pela descrição. ${ignoresCreditCardPayment(item) ? 'Fora do orçamento.' : 'Incluído no orçamento.'}</span>` : ''}` : ''}
             ${pensionOutsideBudget(state, item) ? '<span data-payroll-pension>Desconto em folha / aporte externo · Fora do orçamento</span>' : ''}
             ${item.plannedExpenseLink ? `<span data-planned-expense-link="${escapeHtml(item.plannedExpenseLink.id)}">Vinculado automaticamente ao planejado: ${escapeHtml(item.plannedExpenseLink.description)}</span>` : item.plannedExpenseLinkStatus === 'ambiguous' ? '<span>Mais de um planejamento compatível, sem vínculo automático</span>' : ''}
             <details class="budget-item-details"><summary>${frequencyLabels[item.frequency]}${item.isActive ? '' : ' · Fora do mês'}${item.frequency === 'occasional' && !item.startDate ? ' · Data pendente' : ''} · Detalhes</summary><p>${periodLabel(item)}${item.source === 'txt' ? ' · Importado de extrato' : ''}</p></details>
           </div>
           <div class="cash-item__amount">
-            ${item.statementInternalTransfer ? '<span>Fora do orçamento</span>' : (item.transferMatch || item.transferPending || item.transferDecision === 'own') ? `<span>${item.budgetAmount ? `Somente tarifa no orçamento: ${privateCurrency(item.budgetAmount, state.valuesHidden, true, item.currency)}` : 'Fora do orçamento'}</span>` : ''}
+            ${item.statementInternalTransfer || item.assetPurchaseId ? '<span>Fora do orçamento</span>' : (item.transferMatch || item.transferPending || item.transferDecision === 'own') ? `<span>${item.budgetAmount ? `Somente tarifa no orçamento: ${privateCurrency(item.budgetAmount, state.valuesHidden, true, item.currency)}` : 'Fora do orçamento'}</span>` : ''}
             <strong class="money-value">${original}${item.frequency === 'annual' ? ' <small>por ano</small>' : ''}</strong>
             ${item.consortiumId && !state.valuesHidden && Number.isFinite(item.consortiumSavings) ? `<span class="consortium-item-split">${privateCurrency(item.consortiumSavings, false, true, item.currency)} vira cota · ${privateCurrency(item.consortiumCosts, false, true, item.currency)} custo</span>` : ''}
             ${item.frequency === 'annual' && !state.valuesHidden ? `<span class="monthly-equivalent money-value">${privateCurrency(item.amount / 12, false, true, item.currency)}/mês</span>` : ''}
@@ -167,6 +168,13 @@ function pensionInvestmentField() {
 }
 
 const investmentName = item => (state.plan.investments || []).find(investment => investment.id === item.statementInvestmentId)?.name || ''
+const assetName = item => (state.cashFlow.nonFinancialAssets || []).find(asset => asset.id === item.assetPurchaseId)?.name || ''
+const newAssetLabels = { 'new:vehicle': 'Novo veículo', 'new:real-estate': 'Novo imóvel', 'new:other': 'Novo bem de outro tipo' }
+// Options shared by the statement review and the edit dialog.
+export function assetTargetOptions(selected = '') {
+  const assets = state.cashFlow.nonFinancialAssets || []
+  return `<optgroup label="Cadastrar em Patrimônio">${Object.keys(newAssetTargets).map(value => `<option value="${value}" ${selected === value ? 'selected' : ''}>${newAssetLabels[value]}</option>`).join('')}</optgroup>${assets.length ? `<optgroup label="Somar a um bem cadastrado">${assets.map(asset => `<option value="${escapeHtml(asset.id)}" ${selected === asset.id ? 'selected' : ''}>${escapeHtml(asset.name)}</option>`).join('')}</optgroup>` : ''}`
+}
 
 function cashItemEditDialog() {
   return `
@@ -186,8 +194,14 @@ function cashItemEditDialog() {
               <option value="own">Transferência entre contas próprias ou do casal</option>
               <option value="payment">Pagamento ou recebimento de terceiros</option>
               <option value="investment">Investimento: aplicação ou resgate</option>
+              <option value="asset" data-expense-only>Compra de bem: carro, imóvel ou outro bem</option>
             </select></span>
             <small>Para realizados. Transferências próprias e investimentos ficam fora das receitas e despesas. Transferências mantêm as tarifas identificadas. A decisão permanece na reimportação.</small>
+          </label>
+          <label class="form-field" data-asset-target-field hidden>
+            <span class="form-field__label">Bem em Patrimônio</span>
+            <span class="input-shell"><select name="assetTarget" disabled>${assetTargetOptions()}</select></span>
+            <small>O pagamento sai das despesas e o bem entra no patrimônio. Um bem novo vale a soma das compras vinculadas até você editar o valor em Patrimônio. Veículo novo começa com depreciação de 10% ao ano por 10 anos. Revise em Patrimônio.</small>
           </label>
           <label class="form-field" data-investment-target-field hidden>
             <span class="form-field__label">Investimento na Carteira</span>
@@ -345,6 +359,7 @@ function statementMappingField(review, field) {
 
 export const ownTransferChoice = '__own-transfer'
 export const investmentChoice = '__investment'
+export const assetChoice = '__asset'
 const ownTransferLabel = 'Transferência entre contas próprias ou do casal'
 const isOwnTransfer = item => Boolean(item.transferMatch || item.transferPending || item.transferDecision === 'own')
 
@@ -362,6 +377,15 @@ function statementInvestmentTarget(row) {
         <small>${target === 'new' ? 'O investimento entra na Carteira com este valor. Classe, liquidez e retorno ficam para você completar.' : target ? `${row.item.type === 'expense' ? 'Soma ao' : 'Subtrai do'} saldo, se o movimento for posterior ao último saldo informado manualmente ou por extrato de saldo.` : 'O movimento fica registrado fora do orçamento. Você pode vinculá-lo a um investimento ao reimportar.'}</small>`
 }
 
+function statementAssetTarget(row) {
+  const target = row.item.assetPurchaseTarget || ''
+  return `
+        <label class="statement-investment-target"><small>Em Patrimônio</small>
+          <select data-statement-asset-target="${row.rowNumber}" aria-label="Bem da linha ${row.rowNumber}">${assetTargetOptions(target)}</select>
+        </label>
+        <small>${newAssetTargets[target] ? 'Compras marcadas com o mesmo tipo novo nesta importação formam um só bem, com a soma dos valores. Ano final e depreciação ficam para revisar em Patrimônio.' : 'O pagamento fica vinculado a este bem. Se o bem foi criado a partir de compras, o valor dele passa a ser a soma.'}</small>`
+}
+
 function statementReviewRow(row) {
   if (!row.item) {
     return `
@@ -374,7 +398,7 @@ function statementReviewRow(row) {
   }
   const category = categoryById(row.item.categoryId, state.customCategories)
   const classification = row.classification
-  const label = row.internalTransfer ? (row.selected ? 'Aplicação ou resgate, fora do orçamento' : 'Aplicação ou resgate detectado. Marque a linha para importar.') : row.item.transferPending ? 'Transferência própria a conciliar, somente tarifa entra no orçamento' : row.item.transferMatch ? 'Transferência conciliada, somente tarifa entra no orçamento' : row.item.transferDecision === 'own' ? 'Transferência confirmada, fora do orçamento' : classification?.needsReview ? 'Revisar categoria' : classification?.origin === 'confirmed' ? 'Confirmado' : classification?.origin === 'history' ? 'Aprendido com sua revisão' : classification?.origin === 'file' ? 'Do arquivo' : 'Confiança alta'
+  const label = row.assetPurchase ? 'Compra de bem, fora do orçamento' : row.internalTransfer ? (row.selected ? 'Aplicação ou resgate, fora do orçamento' : 'Aplicação ou resgate detectado. Marque a linha para importar.') : row.item.transferPending ? 'Transferência própria a conciliar, somente tarifa entra no orçamento' : row.item.transferMatch ? 'Transferência conciliada, somente tarifa entra no orçamento' : row.item.transferDecision === 'own' ? 'Transferência confirmada, fora do orçamento' : classification?.needsReview ? 'Revisar categoria' : classification?.origin === 'confirmed' ? 'Confirmado' : classification?.origin === 'history' ? 'Aprendido com sua revisão' : classification?.origin === 'file' ? 'Do arquivo' : 'Confiança alta'
   const duplicateLabel = row.duplicateSource === 'existing'
     ? 'Já está nos lançamentos'
     : row.duplicateSource === 'file' ? 'Repetido no arquivo' : ''
@@ -387,17 +411,19 @@ function statementReviewRow(row) {
         <select data-statement-category="${row.rowNumber}" aria-label="Categoria da linha ${row.rowNumber}" ${row.duplicate || (row.internalTransfer && !row.investmentMarked) ? 'disabled' : ''}>
           <option value="${ownTransferChoice}" ${!row.internalTransfer && isOwnTransfer(row.item) ? 'selected' : ''}>${ownTransferLabel}</option>
           <option value="${investmentChoice}" ${row.internalTransfer ? 'selected' : ''}>Investimento: aplicação ou resgate</option>
+          ${row.item.type === 'expense' ? `<option value="${assetChoice}" ${row.assetPurchase ? 'selected' : ''}>Compra de bem: carro, imóvel ou outro bem</option>` : ''}
           <optgroup label="${row.item.type === 'income' ? 'Receitas' : 'Despesas'}">
-          ${categoriesForType(row.item.type, state.customCategories).map(option => `<option value="${escapeHtml(option.id)}" ${!row.internalTransfer && !isOwnTransfer(row.item) && option.id === category?.id ? 'selected' : ''}>${escapeHtml(option.name)}</option>`).join('')}
+          ${categoriesForType(row.item.type, state.customCategories).map(option => `<option value="${escapeHtml(option.id)}" ${!row.internalTransfer && !row.assetPurchase && !isOwnTransfer(row.item) && option.id === category?.id ? 'selected' : ''}>${escapeHtml(option.name)}</option>`).join('')}
           </optgroup>
         </select>
         <small title="${escapeHtml(classification?.reason || '')}">${escapeHtml(label)}</small>
         ${row.internalTransfer && !row.duplicate ? statementInvestmentTarget(row) : ''}
+        ${row.assetPurchase && !row.duplicate ? statementAssetTarget(row) : ''}
         ${ignoresCreditCardPayment(row.item) ? '<small data-credit-card-payment>Pagamento de cartão detectado. Será ignorado nas despesas. Você pode alterar essa opção após importar.</small>' : ''}
         ${classification?.matchedDescription ? `<small data-statement-similar-description>Categoria do lançamento semelhante: ${escapeHtml(classification.matchedDescription)}</small>` : ''}
       </div>
       <strong class="money-value">${privateCurrency(row.item.amount, state.valuesHidden, true, row.item.currency)}</strong>
-      <span class="statement-row-status">${duplicateLabel || (row.item.transferPending ? 'Transferência a conciliar' : row.item.transferMatch || row.item.transferDecision === 'own' ? 'Transferência própria' : row.internalTransfer ? 'Aplicação/resgate' : row.updateTargetId ? 'Atualizar existente' : 'Novo lançamento')}</span>
+      <span class="statement-row-status">${duplicateLabel || (row.assetPurchase ? 'Compra de bem' : row.item.transferPending ? 'Transferência a conciliar' : row.item.transferMatch || row.item.transferDecision === 'own' ? 'Transferência própria' : row.internalTransfer ? 'Aplicação/resgate' : row.updateTargetId ? 'Atualizar existente' : 'Novo lançamento')}</span>
     </li>
   `
 }
