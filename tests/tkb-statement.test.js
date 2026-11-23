@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { tkbStatementToDelimited } from '../src/domain/tkb-statement.js'
 import { parseStatementText, reviewStatementImport, inspectStatementText } from '../src/domain/statement-import.js'
 import { pdfTextLines, readStatementFile } from '../src/domain/statement-file.js'
+import { reviewStatementBatch, planStatementUpdates } from '../src/domain/statement-batch.js'
+import { sanitizeCashFlow } from '../src/app/state-storage.js'
 
 const header = 'Datum   Text                                                Belastung     Gutschrift      Valuta           Saldo'
 const statement = [
@@ -39,6 +41,19 @@ test('TKB preserva data contábil, CHF, contrapartes e total de pagamentos agrup
   assert.equal(result.items[2].type, 'income')
   const review = reviewStatementImport(inspectStatementText(tkbStatementToDelimited(statement)), { existingItems: result.items })
   assert.ok(review.rows.every(row => row.duplicateSource === 'existing'))
+})
+
+test('reler o mesmo extrato TKB, mesmo renomeado, atualiza os lançamentos sem duplicar', () => {
+  const file = fileName => { const inspection = inspectStatementText(tkbStatementToDelimited(statement)); return { fileName, inspection, mapping: inspection.suggestedMapping } }
+  const selected = review => review.rows.filter(row => row.item && !row.duplicate).map(row => row.item)
+  const first = planStatementUpdates([], selected(reviewStatementBatch([file('agosto.pdf')])))
+  assert.deepEqual([first.added, first.updated], [3, 0])
+  const saved = sanitizeCashFlow(JSON.parse(JSON.stringify({ items: first.items })), 'CHF').items
+  const review = reviewStatementBatch([file('agosto (1).pdf')], { existingItems: saved })
+  assert.ok(review.rows.every(row => row.updateTargetId && !row.duplicate))
+  const again = planStatementUpdates(saved, selected(review))
+  assert.deepEqual([again.added, again.updated, again.items.length], [0, 3, 3])
+  assert.deepEqual(again.items.map(item => item.id), saved.map(item => item.id))
 })
 
 test('TKB rejeita movimentos ilegíveis, saldo inconsistente e formatos desconhecidos', () => {

@@ -84,3 +84,30 @@ test('confirma os dois lados como transferências, mantendo somente a tarifa com
   assert.equal(result.annual.actual.expenses, 2)
   assert.equal(budgetExpenseCategories(result.months[7]).totals.actual, 2)
 })
+
+test('reler extratos já gravados não duplica: mesmo arquivo, ordem invertida, lançamento editado e período sobreposto', () => {
+  state.currency = 'CHF'
+  state.cashFlow.items = []
+  state.cashFlow.ownStatementAccounts = []
+  // Same path as the review dialog: duplicates and applications stay out, then the page reloads from storage.
+  const read = text => {
+    const inspection = inspectStatementText(text, { maximumRows: 2000, analysisOnly: true })
+    const review = reviewStatementBatch([{ fileName: 'extrato.csv', inspection, mapping: inspection.suggestedMapping }], { existingItems: state.cashFlow.items })
+    const result = upsertStatementItems(review.rows.filter(row => row.item && !row.duplicate && !row.internalTransfer).map(row => row.item))
+    state.cashFlow = sanitizeCashFlow(JSON.parse(JSON.stringify(state.cashFlow)), 'CHF')
+    return result
+  }
+  const header = 'data;descricao;valor;moeda'
+  const january = ['2026-01-05;Migros;-12;CHF', '2026-01-05;Migros;-12;CHF', '2026-01-20;Salário;5000;CHF', '2026-02-03;Coop;-30;CHF']
+  assert.deepEqual(read([header, ...january].join('\n')), { added: 4, updated: 0 })
+  const ids = state.cashFlow.items.map(item => item.id).sort()
+  assert.deepEqual(read([header, ...january].join('\n')), { added: 0, updated: 4 })
+  assert.deepEqual(read([header, ...[...january].reverse()].join('\n')), { added: 0, updated: 4 })
+  const coop = state.cashFlow.items.find(item => item.description === 'Coop')
+  updateCashFlowItem(coop.id, { description: 'Supermercado', categoryId: 'groceries' })
+  assert.deepEqual(read([header, ...january].join('\n')), { added: 0, updated: 4 })
+  assert.deepEqual(state.cashFlow.items.map(item => item.id).sort(), ids)
+  // February overlaps: Coop is already stored, SBB is new.
+  assert.deepEqual(read([header, '2026-02-03;Coop;-30;CHF', '2026-02-10;SBB;-50;CHF'].join('\n')), { added: 1, updated: 1 })
+  assert.equal(state.cashFlow.items.length, 5)
+})
