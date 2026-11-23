@@ -66,3 +66,51 @@ export function reconcileAssetPurchases(items, assets) {
 export function assetPurchaseCount(items, assetId) {
   return items.filter(item => item.assetPurchaseId === assetId).length
 }
+
+const sameName = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+const compatible = (a, b) => !a.category || !b.category || a.category === b.category
+
+// Two rows that look like one asset: the same name, or a bem built from purchases next
+// to one of the same type that has no payment, e.g. a car planned for later and bought now.
+// Two cars are legitimate, so this is only a suggestion. The row without payments is kept.
+export function possibleDuplicateAssets(assets, items) {
+  const paid = new Set(items.map(item => item.assetPurchaseId).filter(Boolean))
+  const pairs = []
+  for (const [index, first] of assets.entries()) {
+    for (const second of assets.slice(index + 1)) {
+      if (!compatible(first, second) || first.currency !== second.currency) continue
+      if (first.distinctFrom?.includes(second.id) || second.distinctFrom?.includes(first.id)) continue
+      const firstPaid = paid.has(first.id) || first.fromPurchases === true
+      const secondPaid = paid.has(second.id) || second.fromPurchases === true
+      const named = sameName(first.name) === sameName(second.name)
+      const bought = paid.has(first.id) !== paid.has(second.id) && (first.category === 'vehicle' || second.category === 'vehicle' || first.category === 'real-estate' || second.category === 'real-estate')
+      if (!named && !bought) continue
+      const [keep, remove] = paid.has(first.id) && !paid.has(second.id) ? [second, first] : paid.has(second.id) && !paid.has(first.id) ? [first, second] : firstPaid && !secondPaid ? [second, first] : [first, second]
+      pairs.push({ keepId: keep.id, keepName: keep.name, removeId: remove.id, removeName: remove.name })
+    }
+  }
+  return pairs
+}
+
+// The kept row receives the payments and keeps its name and end year. It starts in the year
+// of the first payment and keeps the depreciation of the row that has one, for a vehicle.
+export function mergeAssets(assets, items, keepId, removeId) {
+  const keep = assets.find(row => row.id === keepId)
+  const remove = assets.find(row => row.id === removeId)
+  if (!keep || !remove || keepId === removeId) throw new TypeError('Bens não encontrados. Atualize a página e tente de novo.')
+  if (keep.currency !== remove.currency) throw new TypeError('Os bens estão em moedas diferentes e não podem ser juntados.')
+  const nextItems = items.map(item => item.assetPurchaseId === removeId ? { ...item, assetPurchaseId: keepId } : item)
+  const linked = nextItems.filter(item => item.assetPurchaseId === keepId && item.startDate)
+  const category = keep.category || remove.category
+  const firstYear = linked.length ? Math.min(...linked.map(item => Number(item.startDate.slice(0, 4)))) : Math.min(keep.startYear, remove.startYear)
+  const realGrowth = category === 'vehicle' && keep.realGrowth >= 0 && remove.realGrowth < 0 ? remove.realGrowth : keep.realGrowth
+  const merged = {
+    ...keep,
+    ...(category ? { category } : {}),
+    startYear: firstYear,
+    endYear: Math.max(keep.endYear, firstYear),
+    realGrowth,
+    ...(linked.length || keep.fromPurchases || remove.fromPurchases ? { fromPurchases: true, amount: linked.length ? keep.amount : remove.fromPurchases ? remove.amount : keep.amount } : {})
+  }
+  return reconcileAssetPurchases(nextItems, assets.filter(row => row.id !== removeId).map(row => row.id === keepId ? merged : row))
+}

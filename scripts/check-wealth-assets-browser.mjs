@@ -93,8 +93,39 @@ try {
   await openWealth()
   assert.equal(await section.locator('.asset-card').count(), 0)
   assert.equal(await form.evaluate(element => element.closest('details').open), true)
+  // A car planned for later and the same car bought now: suggested as one, merged on confirmation.
+  page.on('dialog', dialog => dialog.accept())
+  const seedDuplicate = () => page.evaluate(async () => {
+    const { updateCashFlow, state } = await import('/src/app/state.js')
+    const payment = (id, amount, startDate) => ({ id, type: 'expense', categoryId: 'transport', description: `Pagamento ${id}`, amount, currency: 'BRL', frequency: 'occasional', startDate, endDate: startDate, endMode: 'none', recordKind: 'actual', source: 'txt', assetPurchaseId: 'new-car' })
+    updateCashFlow({
+      items: [...state.cashFlow.items.filter(item => !item.assetPurchaseId), payment('p1', 3000, '2026-11-11'), payment('p2', 134500, '2026-11-13')],
+      nonFinancialAssets: [
+        { id: 'finapp:assets:2', name: 'Automóvel', currency: 'BRL', amount: 90000, startYear: 2029, endYear: 2060, everyYears: 1, realGrowth: 0 },
+        { id: 'new-car', name: 'Veículo comprado em 11/2026', currency: 'BRL', amount: 137500, startYear: 2026, endYear: 2035, everyYears: 1, realGrowth: -0.1, category: 'vehicle', fromPurchases: true }
+      ]
+    })
+  })
+  await seedDuplicate()
+  await openWealth()
+  assert.match(await section.locator('[data-asset-duplicate]').innerText(), /“Veículo comprado em 11\/2026” e “Automóvel” podem ser o mesmo bem/)
+  await section.getByRole('button', { name: 'Juntar em “Automóvel”' }).click()
+  await section.locator('[data-asset-duplicate]').waitFor({ state: 'detached' })
+  assert.equal(await section.locator('.asset-card').count(), 1)
+  const merged = section.locator('.asset-card[data-asset-id="finapp:assets:2"]')
+  assert.match(await merged.innerText(), /Automóvel[\s\S]*Veículo[\s\S]*Valor de compra: soma de 2 pagamento\(s\)[\s\S]*R\$\s?137\.500[\s\S]*2026 a 2060/)
+  assert.match(await page.locator('.toast-region').innerText(), /Bens juntados em “Automóvel”/)
+  // Two different cars: the suggestion is dismissed and stays dismissed.
+  await seedDuplicate()
+  await openWealth()
+  await section.getByRole('button', { name: 'São bens diferentes' }).click()
+  await section.locator('[data-asset-duplicate]').waitFor({ state: 'detached' })
+  assert.equal(await section.locator('.asset-card').count(), 2)
+  await openWealth()
+  assert.equal(await section.locator('[data-asset-duplicate]').count(), 0)
+  if (shots) await section.screenshot({ path: `${shots}/bens-distintos.png` })
   assert.deepEqual(errors, [])
-  console.log('Bens validados em Patrimônio: totais, cards por tipo, status, desvalorização, gráfico com descrição, edição com foco, valores ocultos, 320 px e estado vazio.')
+  console.log('Bens validados em Patrimônio: bem repetido juntado ou mantido separado, totais, cards por tipo, status, desvalorização, gráfico com descrição, edição com foco, valores ocultos, 320 px e estado vazio.')
 } finally {
   await browser?.close()
   const exited = once(server, 'exit')

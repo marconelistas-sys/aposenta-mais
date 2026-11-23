@@ -4,7 +4,7 @@
  * hoje, sem venda, aluguel ou custos de manutenção, que não estão vinculados.
  */
 import { annualValue, sanitizeAnnualRows } from './annual-planning.js'
-import { assetPurchaseCount } from './asset-purchases.js'
+import { assetPurchaseCount, possibleDuplicateAssets } from './asset-purchases.js'
 import { retirementMonth } from './cash-flow-timeline.js'
 import { wealthComposition } from './wealth-composition.js'
 import { convertCurrency } from '../shared/exchange-rates.js'
@@ -82,9 +82,11 @@ export function nonFinancialAssetsSummary(state, { date = today(), composition =
     return { category, label: assetCategoryLabels[category], rows: members, total: cents(members.reduce((sum, row) => sum + row.valueNow, 0)) }
   }).filter(group => group.rows.length)
   const warnings = composition.gross > 0 && total / composition.gross > 0.5 ? ['Mais da metade do patrimônio está em bens, que não viram dinheiro sem venda.'] : []
+  const duplicates = possibleDuplicateAssets(sanitizeAnnualRows(state.cashFlow.nonFinancialAssets), items)
   return {
     year,
     retirementYear,
+    duplicates,
     currency,
     rows,
     groups,

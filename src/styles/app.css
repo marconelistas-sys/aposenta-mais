@@ -4300,9 +4300,10 @@ label:focus-within > .money-input-hint, .form-field:focus-within .money-input-hi
 .asset-alerts li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; border-left: 4px solid var(--color-warning); border-radius: var(--radius-sm); background: var(--color-warning-soft); }
 .asset-alerts li[data-tone="info"] { border-color: var(--chart-blue); background: var(--color-info-soft); }
 .asset-alerts li > svg { color: var(--color-warning); }
-@media (max-width: 520px) {
+.asset-alerts__actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+@media (max-width: 720px) {
   .asset-alerts li { grid-template-columns: auto 1fr; }
-  .asset-alerts li > .button { grid-column: 2; justify-self: start; }
+  .asset-alerts li > .button, .asset-alerts__actions { grid-column: 2; justify-self: start; justify-content: flex-start; }
 }
 .asset-alerts li div { display: grid; gap: 2px; min-width: 0; }
 .asset-alerts span { color: var(--color-ink-soft); font-size: 14px; }

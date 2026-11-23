@@ -11,7 +11,7 @@ import { createPageLoader } from './app/page-loading.js'
 import { saveBudgetCategory } from './app/budget-category-edit.js'
 import { bindRequestProgress, withRequestProgress } from './app/request-progress.js'
 import { reconcileOwnTransfers } from './domain/own-transfers.js'
-import { saveOwnTransferSettings } from './app/state.js'
+import { saveOwnTransferSettings, mergeNonFinancialAssets, markNonFinancialAssetsDistinct } from './app/state.js'
 import { bindBudgetOverviewInteractions, budgetOverviewView, revealSelectedBudgetPeriod } from './features/cash-flow/budget-overview.js'
 import { bindBudgetCategoriesInteractions, budgetCategoriesView } from './features/cash-flow/budget-categories.js'
 import { bindBudgetYearToDateInteractions } from './features/cash-flow/budget-year-to-date.js'
@@ -1153,6 +1153,25 @@ document.addEventListener('click', async (event) => {
     const form = scenarioReset.closest('[data-goals-scenario]')
     for (const field of form.querySelectorAll('input[type="range"]')) field.value = '0'
     updateGoalsScenario(form, { immediate: true })
+    return
+  }
+  const assetPair = event.target.closest('[data-asset-merge], [data-asset-distinct]')
+  if (assetPair) {
+    const { keep, remove } = assetPair.dataset
+    const assets = state.cashFlow.nonFinancialAssets || []
+    const keepName = assets.find(row => row.id === keep)?.name, removeName = assets.find(row => row.id === remove)?.name
+    try {
+      if (assetPair.matches('[data-asset-merge]')) {
+        if (!window.confirm(`Juntar “${removeName}” em “${keepName}”? Os pagamentos passam para “${keepName}” e “${removeName}” é excluído.`)) return
+        mergeNonFinancialAssets(keep, remove)
+        render()
+        showToast(`Bens juntados em “${keepName}”. Confira ano final e depreciação em Editar.`)
+      } else {
+        markNonFinancialAssetsDistinct(keep, remove)
+        render()
+        showToast(`“${keepName}” e “${removeName}” ficam como bens diferentes.`)
+      }
+    } catch (error) { showToast(error.message) }
     return
   }
   const annualAction = event.target.closest('[data-annual-edit], [data-annual-remove]')

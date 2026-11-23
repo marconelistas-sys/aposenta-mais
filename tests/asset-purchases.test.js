@@ -97,3 +97,44 @@ test('removing the asset returns its payments to the budget, and a typed value s
   const loaded = sanitizeCashFlow({ items: [{ ...state.cashFlow.items[0], assetPurchaseId: 'gone' }], nonFinancialAssets: [] }, 'BRL')
   assert.equal(loaded.items[0].assetPurchaseId, undefined)
 })
+
+const { possibleDuplicateAssets, mergeAssets } = await import('../src/domain/asset-purchases.js')
+const { mergeNonFinancialAssets, markNonFinancialAssetsDistinct } = await import('../src/app/state.js')
+const planned = { id: 'finapp:assets:2', name: 'Automóvel', currency: 'BRL', amount: 90000, startYear: 2029, endYear: 2060, everyYears: 1, realGrowth: 0 }
+const bought = { id: 'new-car', name: 'Veículo comprado em 11/2026', currency: 'BRL', amount: 137500, startYear: 2026, endYear: 2035, everyYears: 1, realGrowth: -0.1, category: 'vehicle', fromPurchases: true }
+const payments = [{ id: 'p1', type: 'expense', recordKind: 'actual', amount: 3000, currency: 'BRL', startDate: '2026-11-11', assetPurchaseId: 'new-car' }, { id: 'p2', type: 'expense', recordKind: 'actual', amount: 134500, currency: 'BRL', startDate: '2026-11-13', assetPurchaseId: 'new-car' }]
+
+test('a car planned for later and the same car bought now are suggested as one, keeping the planned row', () => {
+  assert.deepEqual(possibleDuplicateAssets([planned, bought], payments), [{ keepId: 'finapp:assets:2', keepName: 'Automóvel', removeId: 'new-car', removeName: 'Veículo comprado em 11/2026' }])
+  const { assets, items } = mergeAssets([planned, bought], payments, 'finapp:assets:2', 'new-car')
+  assert.deepEqual(assets, [{ ...planned, category: 'vehicle', startYear: 2026, endYear: 2060, realGrowth: -0.1, fromPurchases: true, amount: 137500 }])
+  assert.ok(items.every(item => item.assetPurchaseId === 'finapp:assets:2'))
+  // Already corrected row without payments next to a new bought car: same outcome.
+  const corrected = { ...planned, amount: 137500, startYear: 2026, realGrowth: -0.1, category: 'vehicle', fromPurchases: true }
+  assert.equal(possibleDuplicateAssets([corrected, bought], payments)[0].keepId, 'finapp:assets:2')
+  assert.equal(mergeAssets([corrected, bought], payments, 'finapp:assets:2', 'new-car').assets[0].amount, 137500)
+})
+
+test('two bought cars, different types or confirmed different assets are not suggested', () => {
+  const second = { ...bought, id: 'second', name: 'Moto' }
+  assert.deepEqual(possibleDuplicateAssets([bought, second], [...payments, { ...payments[0], id: 'p3', assetPurchaseId: 'second' }]), [])
+  assert.deepEqual(possibleDuplicateAssets([{ ...planned, category: 'other', name: 'Barco' }, bought], payments), [])
+  assert.deepEqual(possibleDuplicateAssets([{ ...planned, distinctFrom: ['new-car'] }, bought], payments), [])
+  assert.equal(possibleDuplicateAssets([planned, { ...planned, id: 'copy' }], []).length, 1)
+  assert.throws(() => mergeAssets([planned, { ...bought, currency: 'CHF' }], payments, 'finapp:assets:2', 'new-car'), /moedas diferentes/)
+})
+
+test('merging in the app keeps one car worth the payments, and marking distinct survives reload', () => {
+  reset()
+  importStatement()
+  const created = state.cashFlow.nonFinancialAssets[0]
+  updateCashFlow({ nonFinancialAssets: [planned, created] })
+  const kept = mergeNonFinancialAssets('finapp:assets:2', created.id)
+  assert.deepEqual([state.cashFlow.nonFinancialAssets.length, kept.amount, kept.startYear, kept.category], [1, 137500, 2026, 'vehicle'])
+  assert.ok(state.cashFlow.items.filter(isCar).every(item => item.assetPurchaseId === 'finapp:assets:2'))
+  assert.equal(actualExpenses(), 120)
+  updateCashFlow({ nonFinancialAssets: [...state.cashFlow.nonFinancialAssets, { ...planned, id: 'moto', name: 'Automóvel', amount: 20000 }] })
+  markNonFinancialAssetsDistinct('moto', 'finapp:assets:2')
+  const loaded = sanitizeCashFlow(JSON.parse(JSON.stringify(state.cashFlow)), 'BRL')
+  assert.deepEqual(possibleDuplicateAssets(loaded.nonFinancialAssets, loaded.items), [])
+})

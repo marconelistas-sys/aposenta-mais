@@ -26,7 +26,8 @@ export function saveAnnualPlanning(data) {
   // An asset built from purchases keeps following them while you leave the value as it is.
   const previous = existing.find(item => item.id === id)
   const fromPurchases = kind === 'nonFinancialAssets' && previous?.fromPurchases && previous.amount === row.amount && previous.currency === row.currency ? { fromPurchases: true } : {}
-  const saved = { ...row, ...fromPurchases, ...(goalCategory ? { categoryId: goalCategory.id } : {}), ...(priority ? { priority } : {}), ...(data.get('category') === 'unclassified' && kind === 'nonFinancialAssets' ? {} : { category }), ...(kind === 'nonFinancialAssets' && category === 'real-estate' ? { includeInSolvency: data.get('includeInSolvency') === 'on' } : {}) }
+  const distinctFrom = kind === 'nonFinancialAssets' && previous?.distinctFrom?.length ? { distinctFrom: previous.distinctFrom } : {}
+  const saved = { ...row, ...fromPurchases, ...distinctFrom, ...(goalCategory ? { categoryId: goalCategory.id } : {}), ...(priority ? { priority } : {}), ...(data.get('category') === 'unclassified' && kind === 'nonFinancialAssets' ? {} : { category }), ...(kind === 'nonFinancialAssets' && category === 'real-estate' ? { includeInSolvency: data.get('includeInSolvency') === 'on' } : {}) }
   const rows = [...existing.filter(item => item.id !== id), saved]
   if (kind === 'nonFinancialAssets') saveSolvencyAssets(rows)
   else updateCashFlow({ [kind]: rows })
