@@ -43,7 +43,7 @@ export function statementMerchantKey(description) {
 
 export function createStatementClassifier({ existingItems = [], customCategories = [] } = {}) {
   const categories = [...standardCashFlowCategories, ...customCategories]
-  const trusted = existingItems.filter(item => !item.transferMatch && !item.transferPending && item.transferDecision !== 'own' && !item.statementInternalTransfer && categories.some(category => category.id === item.categoryId && category.type === item.type) && !item.id?.startsWith('ledger:') && (item.categoryOrigin === 'confirmed' || item.categoryOrigin === 'file' || (!item.imported && item.source !== 'txt' && item.categoryOrigin !== 'automatic')))
+  const trusted = existingItems.filter(item => !item.transferMatch && !item.transferPending && item.transferDecision !== 'own' && !item.statementInternalTransfer && !item.assetPurchaseId && categories.some(category => category.id === item.categoryId && category.type === item.type) && !item.id?.startsWith('ledger:') && (item.categoryOrigin === 'confirmed' || item.categoryOrigin === 'file' || (!item.imported && item.source !== 'txt' && item.categoryOrigin !== 'automatic')))
   const history = trusted.map(item => ({ item, key: statementMerchantKey(item.categoryMerchantKey || item.description) }))
   const exact = new Map()
   for (const { item, key } of history) {

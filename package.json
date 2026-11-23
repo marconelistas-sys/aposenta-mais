@@ -22,6 +22,7 @@
     "test:loading-browser": "node scripts/check-request-progress-browser.mjs",
     "test:investment-statement-browser": "node scripts/check-investment-statement-browser.mjs",
     "test:bb-browser": "node scripts/check-bb-browser.mjs",
+    "test:asset-purchase-browser": "node scripts/check-asset-purchase-browser.mjs",
     "test:ourocard-browser": "node scripts/check-ourocard-browser.mjs",
     "test:allocation-browser": "node scripts/check-allocation-browser.mjs",
     "test:pension-browser": "node scripts/check-pension-links-browser.mjs",

@@ -1,6 +1,7 @@
 import { sanitizeCreditCardBill } from '../domain/credit-card-payments.js'
 import { transactionTime } from '../shared/transaction-date.js'
 import { reconcileOwnTransfers } from '../domain/own-transfers.js'
+import { reconcileAssetPurchases } from '../domain/asset-purchases.js'
 import { cashFlowItemLimit } from '../shared/limits.js'
 import { sanitizePaymentMatches } from '../domain/calendar-payments.js'
 import { sanitizeStatementHistory } from '../domain/statement-history.js'
@@ -217,6 +218,7 @@ export function sanitizeCashFlowItem(item, index = 0, customCategories = [], fal
     ...(['own', 'payment'].includes(item.transferDecision) ? { transferDecision: item.transferDecision } : {}),
     ...(item.statementInternalTransfer === true ? { statementInternalTransfer: true } : {}),
     ...(item.statementInternalTransfer === true && safeId(item.statementInvestmentId, null) ? { statementInvestmentId: safeId(item.statementInvestmentId, null) } : {}),
+    ...(type === 'expense' && recordKind === 'actual' && item.statementInternalTransfer !== true && safeId(item.assetPurchaseId, null) ? { assetPurchaseId: safeId(item.assetPurchaseId, null) } : {}),
     ...(typeof item.statementReference === 'string' && item.statementReference ? { statementReference: item.statementReference.slice(0, 256) } : {}),
     description: typeof item.description === 'string' ? item.description.trim().slice(0, 60) : '',
     amount,
@@ -349,6 +351,9 @@ export function sanitizeCashFlow(candidate = {}, currency = 'BRL', customCategor
     .map((item, index) => sanitizeCashFlowItem(item, index, customCategories, currency))
     .filter(Boolean)
     .slice(0, cashFlowItemLimit)
+  const purchases = reconcileAssetPurchases(cashFlow.items, cashFlow.nonFinancialAssets)
+  cashFlow.items = purchases.items
+  cashFlow.nonFinancialAssets = purchases.assets
   cashFlow.items = reconcileOwnTransfers(cashFlow.items.filter(item => !item.id.startsWith('ledger:')), cashFlow.ownStatementAccounts)
   for (const movement of cashFlow.ledger.movements) {
     if (!movement.budgetCategoryId) continue

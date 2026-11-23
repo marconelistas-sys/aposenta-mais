@@ -105,7 +105,8 @@ import { projectRetirementWithSchedules } from './domain/retirement.js'
 import { renderContent } from './features/content/content.js'
 import { renderDashboard } from './features/dashboard/dashboard.js'
 import { renderWealth } from './features/wealth/wealth.js'
-import { renderCashFlow, renderBudgetEntries, updateStatementReviewDialog, readStatementMapping, statementImportBlockReason, updateBudgetEntryResults, ownTransferChoice, investmentChoice } from './features/cash-flow/cash-flow.js'
+import { renderCashFlow, renderBudgetEntries, updateStatementReviewDialog, readStatementMapping, statementImportBlockReason, updateBudgetEntryResults, ownTransferChoice, investmentChoice, assetChoice } from './features/cash-flow/cash-flow.js'
+import { defaultNewAssetTarget } from './domain/asset-purchases.js'
 import { budgetEntriesView, resetBudgetEntriesView, readBudgetFilters } from './features/cash-flow/budget-entries-view.js'
 import { renderPlan } from './features/plan/plan.js'
 import { renderProfile } from './features/profile/profile.js'
@@ -508,9 +509,24 @@ function statementReviewView() {
   // A category choice applies to its own row only, never to similar movements.
   const overrideFor = item => statementReviewState.categoryOverrides.get(item.statementImportKey)
   const isTransfer = item => Boolean(item.transferMatch || item.transferPending || item.transferDecision === 'own')
+  // A payment already linked to an asset stays linked on reimport, unless you choose another treatment.
+  const assetTargetFor = item => {
+    if (item.type !== 'expense') return null
+    const override = overrideFor(item)
+    if (override !== assetChoice && (override !== undefined || !item.assetPurchaseId)) return null
+    return statementReviewState.assetTargets?.get(item.statementImportKey) ?? item.assetPurchaseId ?? defaultNewAssetTarget
+  }
+  const withoutAsset = item => {
+    if (!item.assetPurchaseId) return item
+    const { assetPurchaseId, ...rest } = item
+    return { ...rest, assetPurchaseUnlink: true }
+  }
   // Choosing a category for a movement shown as transfer turns it into a payment.
   const reconcile = (decisions = new Map()) => {
     const incoming = review.rows.filter(row => row.item && !row.duplicate).map(row => {
+      const assetTarget = assetTargetFor(row.item)
+      if (assetTarget) return { ...row.item, statementInternalTransfer: undefined, transferDecision: undefined, assetPurchaseTarget: assetTarget }
+      row = { ...row, item: withoutAsset(row.item) }
       if (overrideFor(row.item) === investmentChoice) return { ...row.item, statementInternalTransfer: true }
       const decision = overrideFor(row.item) === ownTransferChoice ? 'own' : decisions.get(row.item.statementImportKey)
       return decision ? { ...row.item, transferDecision: decision } : row.item
@@ -527,6 +543,15 @@ function statementReviewView() {
     row = { ...row, reviewFirst: Boolean(row.classification?.needsReview && !row.duplicate) }
     if (row.item) row = { ...row, item: previewByKey.get(row.item.statementImportKey) || row.item }
     const override = row.item && overrideFor(row.item)
+    if (row.item?.assetPurchaseTarget) {
+      return {
+        ...row,
+        internalTransfer: false,
+        assetPurchase: true,
+        classification: { categoryId: row.item.categoryId, confidence: 1, needsReview: false, origin: 'confirmed', reason: 'Compra de bem. Não compõe as despesas.' },
+        selected: !row.duplicate && !statementReviewState.excludedRows.has(row.rowNumber)
+      }
+    }
     if (override === ownTransferChoice && row.item.transferDecision === 'own') row = {
       ...row,
       classification: { categoryId: row.item.categoryId, confidence: 1, needsReview: false, reason: 'Transferência confirmada por você', origin: 'confirmed' }
@@ -660,7 +685,8 @@ function cashItemInputFromForm(form) {
 
 function investmentFieldsFromForm(form, recordKind) {
   const investment = recordKind === 'actual' && form.elements.namedItem('transferDecision').value === 'investment'
-  return { statementInternalTransfer: investment, ...(investment ? { investmentTarget: form.elements.namedItem('investmentTarget').value } : {}) }
+  const asset = recordKind === 'actual' && form.elements.namedItem('transferDecision').value === 'asset'
+  return { statementInternalTransfer: investment, ...(investment ? { investmentTarget: form.elements.namedItem('investmentTarget').value } : {}), ...(form.elements.namedItem('assetTarget') ? { assetTarget: asset ? form.elements.namedItem('assetTarget').value : '' } : {}) }
 }
 
 function syncCashItemRecordFields(form) {
@@ -683,6 +709,15 @@ function syncCashItemRecordFields(form) {
     const createOption = target.querySelector('[data-expense-only]')
     createOption.disabled = !expense
     if (!expense && target.value === 'new') target.value = ''
+    const assetOption = transferDecision.querySelector('option[value="asset"]')
+    if (assetOption) assetOption.disabled = !expense
+    if (!expense && transferDecision.value === 'asset') transferDecision.value = 'auto'
+  }
+  const assetField = form.querySelector('[data-asset-target-field]')
+  if (assetField) {
+    const asset = isActual && transferDecision.value === 'asset'
+    assetField.hidden = !asset
+    form.elements.namedItem('assetTarget').disabled = !asset
   }
 }
 
@@ -701,7 +736,9 @@ function openCashItemDialog(id) {
   if (pensionCapital) pensionCapital.value = item.pensionCapitalRelease === false ? 'no' : 'yes'
   prepareIndexationField(form, sanitizeIncomeIndexation(item.indexation))
   const imported = item.source === 'txt'
-  form.elements.namedItem('transferDecision').value = item.statementInternalTransfer ? 'investment' : item.transferDecision || 'auto'
+  form.elements.namedItem('transferDecision').value = item.assetPurchaseId ? 'asset' : item.statementInternalTransfer ? 'investment' : item.transferDecision || 'auto'
+  const assetTarget = form.elements.namedItem('assetTarget')
+  if (assetTarget) assetTarget.value = (state.cashFlow.nonFinancialAssets || []).some(asset => asset.id === item.assetPurchaseId) ? item.assetPurchaseId : defaultNewAssetTarget
   // An existing classification keeps its link. Suggestions apply only when classifying now.
   const linked = (state.plan.investments || []).some(investment => investment.id === item.statementInvestmentId) ? item.statementInvestmentId : ''
   form.elements.namedItem('investmentTarget').value = item.statementInternalTransfer ? linked : suggestStatementInvestment(item, state.plan.investments || [], state.cashFlow.items) || (item.type === 'expense' ? newInvestmentTarget : '')
@@ -1126,7 +1163,7 @@ document.addEventListener('click', async (event) => {
     const row = (state.cashFlow[kind] || []).find(item => item.id === id)
     if (!row) return
     if (annualAction.dataset.annualRemove) {
-      if (window.confirm(`Excluir ${row.name} do plano?`)) { updateCashFlow({ [kind]: state.cashFlow[kind].filter(item => item.id !== id) }); render() }
+      if (window.confirm(`Excluir ${row.name} do plano?${kind === 'nonFinancialAssets' && state.cashFlow.items.some(item => item.assetPurchaseId === id) ? ' Os pagamentos da compra voltam a contar como despesas.' : ''}`)) { updateCashFlow({ [kind]: state.cashFlow[kind].filter(item => item.id !== id) }); render() }
     } else {
       const form = document.querySelector(`[data-annual-planning="${kind}"]`)
       if (!form) return
@@ -1949,6 +1986,15 @@ document.addEventListener('change', async (event) => {
     }
     return
   }
+  if (event.target.matches('[data-statement-asset-target]')) {
+    const row = statementReviewView()?.rows.find(row => row.rowNumber === Number(event.target.dataset.statementAssetTarget))
+    if (row?.item) {
+      statementReviewState.assetTargets.set(row.item.statementImportKey, event.target.value)
+      statementReviewState.excludedRows.delete(row.rowNumber)
+      updateStatementReviewDialog(app, statementReviewView())
+    }
+    return
+  }
   if (event.target.matches('[data-statement-category]')) {
     const row = statementReviewView()?.rows.find(row => row.rowNumber === Number(event.target.dataset.statementCategory))
     if (row?.item) {
@@ -2058,7 +2104,7 @@ document.addEventListener('change', async (event) => {
       return
     }
     const generation = ownedStorage.generation
-    const batch = { files: [], activeFile: 0, loading: true, expectedFiles: files.length, excludedRows: new Set(), excludedInvestmentBalances: new Set(), initialInvestmentBalances: new Set(), accountTargets: new Map(), categoryOverrides: new Map(), investmentTargets: new Map(), includedRows: new Set() }
+    const batch = { files: [], activeFile: 0, loading: true, expectedFiles: files.length, excludedRows: new Set(), excludedInvestmentBalances: new Set(), initialInvestmentBalances: new Set(), accountTargets: new Map(), categoryOverrides: new Map(), investmentTargets: new Map(), assetTargets: new Map(), includedRows: new Set() }
     statementReviewState = batch
     showToast(`Lendo e classificando ${files.length} extratos...`)
     try {
@@ -2539,7 +2585,7 @@ document.addEventListener('submit', async (event) => {
       const budgetPage = Boolean(app.querySelector('.budget-workspace'))
       revealInPageTab(app, app.querySelector('.budget-workspace'))
       app.querySelector('[data-budget-filters] [name="search"]')?.focus({ preventScroll: true })
-      showToast(`${result.added} lançamentos importados. ${result.updated} atualizados.${result.investmentUpdated ? ` ${result.investmentUpdated} saldos de aplicações atualizados.` : ''}${result.investmentCreated ? ` ${result.investmentCreated} investimentos criados na Carteira para completar os detalhes.` : ''}${result.accountUpdated ? ` ${result.accountUpdated} saldos de conta atualizados no Patrimônio.` : ''}${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''}${budgetPage ? ' A lista mostra os realizados de todos os períodos.' : ' Confira os lançamentos no Orçamento.'}`)
+      showToast(`${result.added} lançamentos importados. ${result.updated} atualizados.${result.investmentUpdated ? ` ${result.investmentUpdated} saldos de aplicações atualizados.` : ''}${result.investmentCreated ? ` ${result.investmentCreated} investimentos criados na Carteira para completar os detalhes.` : ''}${result.assetLinked ? ` ${result.assetLinked} compras de bem fora das despesas${result.assetCreated ? `, ${result.assetCreated} bem(ns) criado(s) em Patrimônio para revisar ano final e depreciação` : ''}.` : ''}${result.accountUpdated ? ` ${result.accountUpdated} saldos de conta atualizados no Patrimônio.` : ''}${skippedCount ? ` ${skippedCount} linhas não foram adicionadas.` : ''}${budgetPage ? ' A lista mostra os realizados de todos os períodos.' : ' Confira os lançamentos no Orçamento.'}`)
     } catch (error) {
       showToast(error.message)
     }
@@ -2664,7 +2710,8 @@ document.addEventListener('submit', async (event) => {
       recordDataOperation('correction')
       const change = saved.investmentChange
       const date = value => value.split('-').reverse().join('/')
-      const message = !change ? 'Lançamento atualizado.' : change.created ? `Lançamento classificado como investimento. ${change.name} foi criado na Carteira para completar os detalhes.` : !change.counted ? `Lançamento vinculado a ${change.name}. O saldo informado em ${date(change.baseDate)} já inclui os movimentos até essa data e foi mantido.` : change.applied ? `Lançamento classificado como investimento. Saldo de ${change.name} recalculado.` : `Lançamento vinculado a ${change.name}. O saldo já considerava este lançamento.`
+      const asset = saved.assetPurchaseId && (state.cashFlow.nonFinancialAssets || []).find(row => row.id === saved.assetPurchaseId)
+      const message = asset ? `Compra de bem registrada: ${asset.name}. O pagamento saiu das despesas. Revise ano final e depreciação em Patrimônio.` : !change ? 'Lançamento atualizado.' : change.created ? `Lançamento classificado como investimento. ${change.name} foi criado na Carteira para completar os detalhes.` : !change.counted ? `Lançamento vinculado a ${change.name}. O saldo informado em ${date(change.baseDate)} já inclui os movimentos até essa data e foi mantido.` : change.applied ? `Lançamento classificado como investimento. Saldo de ${change.name} recalculado.` : `Lançamento vinculado a ${change.name}. O saldo já considerava este lançamento.`
       const context = categoryEntryContext(cashItemEditForm)
       if (context) finishCategoryEntrySave(change ? message : 'Lançamento atualizado. Os totais foram recalculados.', context)
       else finishBudgetSave(message, id)
