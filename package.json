@@ -23,6 +23,7 @@
     "test:investment-statement-browser": "node scripts/check-investment-statement-browser.mjs",
     "test:bb-browser": "node scripts/check-bb-browser.mjs",
     "test:asset-purchase-browser": "node scripts/check-asset-purchase-browser.mjs",
+    "test:wealth-assets-browser": "node scripts/check-wealth-assets-browser.mjs",
     "test:ourocard-browser": "node scripts/check-ourocard-browser.mjs",
     "test:allocation-browser": "node scripts/check-allocation-browser.mjs",
     "test:pension-browser": "node scripts/check-pension-links-browser.mjs",

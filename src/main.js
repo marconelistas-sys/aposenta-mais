@@ -1180,6 +1180,7 @@ document.addEventListener('click', async (event) => {
       }
       form.closest('details').open = true
       form.scrollIntoView({ block: 'center' })
+      form.elements.namedItem('name')?.focus({ preventScroll: true })
     }
     return
   }

@@ -98,7 +98,7 @@ try {
   // Patrimônio shows the link on the asset.
   await page.evaluate(() => { history.pushState({}, '', '/patrimonio'); window.dispatchEvent(new PopStateEvent('popstate')) })
   await page.locator('#cadastro-bens').waitFor()
-  assert.match(await page.locator('[data-asset-purchases]').first().innerText(), /Valor = soma de 2 pagamento\(s\), fora das despesas/)
+  assert.match(await page.locator('[data-asset-purchases]').first().innerText(), /Valor de compra: soma de 2 pagamento\(s\), fora das despesas/)
   assert.deepEqual(errors, [])
   console.log('Compra de bem validada: revisão do extrato, bem único com a soma, fora do orçamento, reimportação sem duplicar, edição desvincula e revincula, selo em Patrimônio.')
 } finally {
