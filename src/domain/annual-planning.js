@@ -21,7 +21,10 @@ export function sanitizeAnnualRows(raw) {
     if (category === 'real-estate' && typeof value.includeInSolvency === 'boolean') row.includeInSolvency = value.includeInSolvency
     // Value follows the linked purchases until you type another one.
     const fromPurchases = category !== undefined && value.fromPurchases === true ? { fromPurchases: true } : {}
-    try { validateAnnualRow(row); if (!result.some(item => item.id === row.id)) result.push(category !== undefined ? { ...row, category, ...fromPurchases } : row) } catch {}
+    // Rows you confirmed are different assets, so the duplicate suggestion stays quiet.
+    const distinct = Array.isArray(value?.distinctFrom) ? [...new Set(value.distinctFrom.filter(id => typeof id === 'string' && /^[\w:-]{1,80}$/.test(id)))].slice(0, 50) : []
+    const distinctFrom = distinct.length ? { distinctFrom: distinct } : {}
+    try { validateAnnualRow(row); if (!result.some(item => item.id === row.id)) result.push(category !== undefined ? { ...row, category, ...fromPurchases, ...distinctFrom } : { ...row, ...distinctFrom }) } catch {}
   }
   return result
 }

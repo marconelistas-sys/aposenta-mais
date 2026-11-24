@@ -4,7 +4,10 @@ import { createExportableState } from '../src/app/state-storage.js'
 import { buildFinancialReport, reportChapters } from '../src/domain/financial-report.js'
 import { confidenceStatus } from '../src/domain/goals-planning.js'
 import { bridgeRows, categorySegments, divergingRows, fanChart, quotaRows, segmentedBar, statusBadge } from '../src/features/report/report-charts.js'
-import { chapterTitles, compactReference, panoramaTabs, renderReportDocument, renderReportScreen, reportDocumentTitle, reportPageStyle } from '../src/features/report/report-view.js'
+import { chapterNumber, chapterTitles, compactReference, panoramaTabs, renderReportDocument, renderReportScreen, reportDocumentTitle, reportPageStyle } from '../src/features/report/report-view.js'
+import { withMaskedMoney } from '../src/features/report/report-text.js'
+import { retirementMultiple, retirementMultipleSensitivity } from '../src/domain/retirement-multiple.js'
+import { bundledEconomicIndicators } from '../src/shared/economic-indicators.js'
 import { readFileSync } from 'node:fs'
 import { pageTabState } from '../src/shared/page-tabs.js'
 import { printReport, reportView } from '../src/features/report/report.js'
@@ -32,8 +35,9 @@ test('o documento traz capa, sumário e os capítulos na ordem do modelo, sem <d
   assert.match(html, /<h2 id="report-title" class="report-cover__heading"/)
   assert.doesNotMatch(html, /<h1/, 'o h1 é o da tela (Panorama financeiro)')
   // Long chapters start a new A4 page; short ones continue on the sheet before.
-  for (const key of ['cashFlow', 'spending', 'balanceSheet', 'retirement']) assert.match(html, new RegExp(`report-chapter--page"? data-report-chapter="${key}"|class="report-chapter report-chapter--page" data-report-chapter="${key}"`))
-  assert.match(html, /class="report-chapter report-chapter--flow" data-report-chapter="appendix"/)
+  // Page budget of 14 A4 pages: the real portfolio opens a page; the retirement multiple, retirement and appendix flow.
+  for (const key of ['cashFlow', 'spending', 'balanceSheet', 'portfolioReality']) assert.match(html, new RegExp(`class="report-chapter report-chapter--page" data-report-chapter="${key}"`), key)
+  for (const key of ['retirementMultiple', 'retirement', 'appendix']) assert.match(html, new RegExp(`class="report-chapter report-chapter--flow" data-report-chapter="${key}"`), key)
 })
 
 test('textos do modelo resolvidos: sem {chave}, NaN, undefined ou hífen como sinal', () => {
@@ -84,10 +88,15 @@ test('cada figura tem título-conclusão, Como ler e Fonte', () => {
 test('estado vazio explícito em cada capítulo sem dados', () => {
   const empty = buildFinancialReport(createExportableState({ currency: 'BRL', isDemo: false, plan: { currentAge: 40, retirementAge: 65, targetAge: 90, currentAssets: 0, monthlyContribution: 0, horizonReferenceMonth: '2026-11', retirementMonth: '2051-11', investments: [] }, cashFlow: { referenceMonth: '2026-10', items: [], commitments: [] } }), { today, goals: null })
   const markup = renderReportDocument(empty)
-  for (const key of reportChapters.filter(key => !['checklist', 'appendix'].includes(key))) {
+  for (const key of reportChapters.filter(key => !['checklist', 'appendix', 'retirementMultiple'].includes(key))) {
     const section = markup.match(new RegExp(`data-report-chapter="${key}"[\\s\\S]*?</section>`))[0]
     assert.match(section, /class="report-empty"/, key)
   }
+  // Without budget and portfolio, the multiple falls back to the desired income of Meu plano.
+  const multiple = markup.match(/data-report-chapter="retirementMultiple"[\s\S]*?<\/section>/)[0]
+  assert.equal(empty.retirementMultiple.basis, 'plan')
+  assert.match(multiple, /<dt>Base<\/dt><dd>Renda desejada de Meu plano<\/dd>/)
+  assert.equal((multiple.match(/data-report-scenario=/g) || []).length, 3)
   assert.match(markup, /Nenhum indicador em atenção ou risco/)
   assert.equal((markup.match(/report-indicator--unavailable/g) || []).length, 11)
   assert.doesNotMatch(textOf(markup), /\{[a-zA-Z]+\}|NaN|undefined/)
@@ -205,9 +214,9 @@ test('Panorama: 7 abas na ordem do relatório, capítulos contíguos e links par
   assert.match(panels.resumo, /data-report-cover/)
   assert.deepEqual(chaptersOf('gastos'), ['cashFlow', 'spending'])
   assert.deepEqual(chaptersOf('patrimonio'), ['balanceSheet', 'wealth'])
-  assert.deepEqual(chaptersOf('carteira'), ['portfolio'])
+  assert.deepEqual(chaptersOf('carteira'), ['portfolioReality', 'portfolio'])
   assert.deepEqual(chaptersOf('reserva'), ['liquidity', 'debts', 'currency'])
-  assert.deepEqual(chaptersOf('aposentadoria'), ['retirement'])
+  assert.deepEqual(chaptersOf('aposentadoria'), ['retirementMultiple', 'retirement'])
   assert.deepEqual(chaptersOf('premissas'), ['checklist', 'appendix'])
   // Only the first tab is visible; the others are in the page, hidden.
   assert.match(html, /data-page-tab-panel="panorama:resumo" >/)
@@ -248,4 +257,153 @@ test('impressão: só pelo botão; todas as abas saem, sem a barra de abas nem o
   for (const rule of rules) for (const selector of rule.slice(0, rule.indexOf('{')).split(/,(?![^()]*\))/)) assert.match(selector.trim(), /^:root\[data-report-printing\]/, selector)
   // The A4 @page is not in the screen document either.
   assert.doesNotMatch(renderReportDocument(report), /@page|data-report-page-style/)
+})
+
+const sectionOf = (markup, key) => markup.match(new RegExp(`<section[^>]*data-report-chapter="${key}"[\\s\\S]*?</section>`))[0]
+
+test('números de capítulo calculados pela chave, nunca fixos', () => {
+  assert.equal(chapterNumber(report, 'summary'), 1)
+  assert.equal(chapterNumber(report, 'portfolioReality'), 6)
+  assert.equal(chapterNumber(report, 'portfolio'), 7)
+  assert.equal(chapterNumber(report, 'retirementMultiple'), 11)
+  assert.equal(chapterNumber(report, 'retirement'), 12)
+  assert.equal(chapterNumber(report, 'appendix'), 14)
+  assert.match(sectionOf(html, 'portfolioReality'), /report-chapter__eyebrow">Capítulo 6</)
+  assert.match(sectionOf(html, 'retirementMultiple'), /report-chapter__eyebrow">Capítulo 11</)
+  assert.match(html, /detalhes no capítulo 14\./)
+  assert.match(sectionOf(html, 'appendix'), /estão no capítulo 1, ao lado das ações/)
+  assert.match(sectionOf(html, 'portfolioReality'), /Quanto seria preciso na aposentadoria: <strong>capítulo 11<\/strong>/)
+  // Another order renumbers every reference.
+  const shorter = renderReportDocument({ ...report, chapterOrder: report.chapterOrder.filter(key => key !== 'portfolioReality') })
+  assert.match(shorter, /detalhes no capítulo 13\./)
+  assert.match(sectionOf(shorter, 'retirementMultiple'), /Capítulo 10</)
+  assert.doesNotMatch(shorter, /data-report-chapter="portfolioReality"/)
+})
+
+test('Sua carteira de verdade: três perguntas com resposta, tabela, custos e meses de custo de vida', () => {
+  const section = sectionOf(html, 'portfolioReality')
+  assert.match(section, /<h2 id="report-portfolioReality-title" tabindex="-1">Sua carteira de verdade<\/h2>/)
+  const questions = [...section.matchAll(/<h3 class="report-question__title"[^>]*><span class="report-question__number" aria-hidden="true">(\d)<\/span>([^<]+)<\/h3>/g)].map(match => [match[1], match[2]])
+  assert.deepEqual(questions, [['1', 'Quanto rende de verdade acima da inflação?'], ['2', 'Quanto custa em taxas e comissões?'], ['3', 'Quantas vezes cabe no seu custo de vida?']])
+  assert.equal((section.match(/class="report-answer"/g) || []).length, 3)
+  // Without history: only the premise, how to get the realized, link only on screen.
+  assert.match(section, /pelo menos 90 dias de intervalo/)
+  assert.match(section, /<a class="report-screen-only report-inline-link" href="\/carteira" data-route>/)
+  assert.match(section, /<caption>Rendimento real de cada investimento/)
+  assert.match(section, /<th scope="col">Moeda e índice<\/th>/)
+  assert.match(section, /CHF · IPC suíço<span class="report-muted"> \(estimativa\)<\/span>/, 'sem o snapshot, a inflação é a esperada')
+  assert.match(section, /ETF &lt;img src=x/)
+  assert.doesNotMatch(section, /<img/)
+  assert.match(section, /Antes do imposto de renda/)
+  assert.match(section, /report-num--unfavorable">−CHF\s[\d.]+<\/span>/, 'perda de patrimônio pelos custos com sinal e cor')
+  assert.match(section, /<h4 class="report-minor-title">O que o app não vê<\/h4>/)
+  assert.match(section, /Stempelsteuer/)
+  assert.match(section, /Sem custo cadastrado; pode ser zero<\/strong> em 1 investimento/)
+  assert.match(section, /report-answer__value">\d+ meses<\/span> \([\d,]+ anos?\) do seu custo de vida de hoje/)
+  assert.match(section, /class="report-meter"/)
+  assert.doesNotMatch(section, /<details|<h1/)
+})
+
+test('Sua carteira de verdade: realizado com cobertura, sinal negativo e custo provavelmente faltando', () => {
+  const state = reportFixtureState()
+  state.plan.investments = state.plan.investments.map(item => item.id === 'conta-poupanca'
+    ? { ...item, balanceHistory: [{ date: '2025-10-31', amount: 20000, flow: 0 }, { date: '2026-10-31', amount: 20600, flow: 0 }] }
+    : item.id === 'pilar-3a' ? { ...item, annualFee: 0, balanceHistory: [{ date: '2025-10-31', amount: 38000, flow: 0 }, { date: '2026-10-31', amount: 37620, flow: 0 }] } : item)
+  const reality = buildFinancialReport(state, { today, goals: null, indicators: bundledEconomicIndicators })
+  const section = sectionOf(renderReportDocument(reality), 'portfolioReality')
+  assert.match(section, /<dt>Realizado<\/dt>/)
+  assert.match(section, /2 investimentos, [\d,]+% da carteira com histórico/)
+  assert.match(section, /<th scope="row">Conta poupança<\/th>[\s\S]*?report-num--favorable">\+2,0%<\/span>[\s\S]*?out\/25 a out\/26/)
+  assert.match(section, /<th scope="row">Pilar 3a<\/th>[\s\S]*?report-num--unfavorable">−2,0%<\/span>/)
+  assert.match(section, /Provavelmente falta o custo anual<\/strong> em 1 investimento[^<]*: Pilar 3a/)
+  assert.match(section, /<th scope="row">Conta poupança<\/th>[\s\S]*?report-num--unfavorable">−1,0 p\.p\.<\/span>/, 'diferença negativa com sinal, cor e uma casa')
+})
+
+// Golden case of the slide (H6): cost 30.000, capital 3 mi, 40 → 50 → 85.
+function goldenChapter(overrides = {}) {
+  const input = { schedule: [{ from: 0, monthly: 30000 }], monthlyCost: 30000, currentCapital: 3000000, monthlyContribution: 0, monthsToRetirement: 120, startAge: 50, targetAge: 85, realRate: 0.04, ...overrides }
+  const result = retirementMultiple(input)
+  const status = rate => rate > 0.05 ? 'risk' : rate > 0.035 ? 'attention' : 'ok'
+  return {
+    available: true,
+    headline: { template: 'Entre {low}x e {high}x o custo mensal', params: { low: { value: 229, unit: 'count' }, high: { value: 306, unit: 'count' } } },
+    basis: 'plan', basisYear: null,
+    assumptions: { realRate: 0.04, monthlyRate: result.monthlyRate, monthlyCost: 30000, guaranteedIncome: 0, gap: 30000, currentCapital: 3000000, monthlyContribution: 0, monthsToRetirement: result.monthsToRetirement, retirementAge: result.startAge, currentAge: 40, targetAge: 85, horizonYears: result.horizonMonths / 12, grownCapital: result.grownCapital, planRate: 0, gapSteps: [] },
+    scenarios: result.scenarios.map(row => row.available ? { ...row, withdrawalStatus: status(row.withdrawalRate) } : row),
+    current: result.current ? { ...result.current, withdrawalStatus: status(result.current.withdrawalRate), officialFirstShortfall: { year: 2051, age: 65 }, officialAvailable: true } : null,
+    sensitivity: retirementMultipleSensitivity(input, [0.03, 0.04, 0.05, 0].map((rate, index) => ({ rate, source: index === 3 ? 'plan' : 'fixed' }))),
+    withdrawalReference: { ok: 0.035, attention: 0.05 },
+    taxOnWithdrawals: true,
+    hasGoals: true
+  }
+}
+
+test('Quantas vezes o custo mensal: três cartões do caso ouro, plano atual, premissas e sensibilidade', () => {
+  const golden = { ...report, retirementMultiple: goldenChapter() }
+  const section = sectionOf(renderReportDocument(golden), 'retirementMultiple')
+  assert.match(section, /<h2 id="report-retirementMultiple-title" tabindex="-1">Quantas vezes o custo mensal você precisa ter<\/h2>/)
+  assert.match(section, /report-headline">Entre 229x e 306x o custo mensal/)
+  const cards = [...section.matchAll(/<li class="report-scenario report-scenario--(\w+)" data-report-scenario="\w+"><h3 class="report-scenario__name">([^<]+)<\/h3>([\s\S]*?)<\/li>/g)]
+  assert.deepEqual(cards.map(match => [match[1], match[2]]), [['onePercent', 'Regra do 1%'], ['freedom', 'Liberdade'], ['legacy', 'Legado']])
+  assert.match(section, /<ul class="report-scenarios" aria-label="[^"]+">/)
+  const [one, freedom, legacy] = cards.map(match => match[3])
+  assert.match(one, /CHF\s3\.000\.000[\s\S]*<strong>100x<\/strong> o custo mensal/)
+  assert.match(one, /report-status--risk[^>]*>[\s\S]*?O dinheiro acaba aos 60/)
+  assert.match(one, /12,0% <span class="report-status report-status--risk">/)
+  assert.match(one, /Você já tem/)
+  assert.match(freedom, /CHF\s6\.863\.9\d\d[\s\S]*<strong>229x<\/strong>/)
+  assert.match(freedom, /Dura até os 85/)
+  assert.match(freedom, /5,2% <span class="report-status report-status--risk">/)
+  assert.match(freedom, /CHF\s16\.519 por mês/)
+  assert.match(freedom, /report-status--attention report-status--wrap[\s\S]*?Faltam CHF\s/)
+  assert.match(legacy, /CHF\s9\.193\.8\d\d[\s\S]*<strong>306x<\/strong>/)
+  assert.match(legacy, /Não acaba/)
+  assert.match(legacy, /3,9% <span class="report-status report-status--attention">/)
+  assert.match(legacy, /CHF\s32\.401 por mês/)
+  // Current plan next to the official projection.
+  assert.match(section, /Seu plano atual[\s\S]*CHF\s4\.440\.733 <span class="report-current__multiple">148x o custo/)
+  assert.match(section, /O dinheiro acaba aos 66/)
+  assert.match(section, /Primeira insuficiência em 2051, aos 65/)
+  assert.match(section, /a projeção oficial usa a taxa do plano|A projeção oficial usa a taxa do plano/)
+  // Assumptions and sensitivity.
+  assert.match(section, /0,327% ao mês/)
+  assert.match(section, /<dt>Até a aposentadoria<\/dt><dd>120 meses \(10,0 anos\)<\/dd>/)
+  assert.match(section, /<th scope="row">0,0%<span class="report-muted">, taxa do plano \(líquida de custos, antes de imposto\)<\/span><\/th><td>420x<\/td>[\s\S]*?sem capital finito/)
+  assert.match(section, /<th scope="row">3,0%<\/th><td>262x<\/td><td>[^<]+<\/td><td>406x<\/td>/)
+  assert.match(section, /<th scope="row">5,0%<\/th><td>202x<\/td><td>[^<]+<\/td><td>246x<\/td>/)
+  // Mandatory notes.
+  assert.match(section, /Os 306x do Legado são uma perpetuidade/)
+  assert.match(section, /“regra dos 4%” americana/)
+  assert.match(section, /acima de 5,0% ao ano estão na faixa de risco/)
+  assert.match(section, /href="\/objetivos" data-route/)
+  assert.match(section, /objetivos pontuais ficam fora deste capital: os seus objetivos/)
+  assert.match(section, /imposto nos resgates/)
+  assert.match(section, /não recomendação/)
+  assert.doesNotMatch(textOf(section), /NaN|undefined|\{[a-zA-Z]+\}/)
+})
+
+test('Quantas vezes o custo mensal: valores ocultos mascaram só o dinheiro', () => {
+  const golden = { ...report, retirementMultiple: goldenChapter() }
+  const masked = withMaskedMoney(true, () => renderReportDocument(golden))
+  const section = textOf(sectionOf(masked, 'retirementMultiple'))
+  assert.match(section, /CHF •••••/)
+  assert.doesNotMatch(section, /CHF\s?[−+]?\d/)
+  for (const visible of ['100x', '229x', '306x', '148x', '12,0%', '5,2%', '3,9%', 'aos 60', 'aos 66', 'Dura até os 85', '0,327% ao mês', '120 meses', '420x']) assert.ok(section.includes(visible), visible)
+  const reality = textOf(sectionOf(masked, 'portfolioReality'))
+  assert.doesNotMatch(reality, /CHF\s?[−+]?\d/)
+  assert.match(reality, /\d+ meses\s+\([\d,]+ anos?\)/)
+  assert.match(reality, /\d+% da carteira|0,36%/)
+})
+
+test('Quantas vezes o custo mensal: cenário indisponível mostra o motivo; já aposentado não tem aporte', () => {
+  const noAges = sectionOf(renderReportDocument({ ...report, retirementMultiple: goldenChapter({ monthsToRetirement: null, startAge: null }) }), 'retirementMultiple')
+  assert.match(noAges, /report-scenario--freedom report-scenario--unavailable[\s\S]*?Informe a idade atual e a de aposentadoria em Meu plano/)
+  assert.match(noAges, /Informe as idades para saber quando acaba/)
+  assert.match(noAges, /Informe a idade atual e a de aposentadoria em Meu plano para comparar/)
+  const late = sectionOf(renderReportDocument({ ...report, retirementMultiple: goldenChapter({ startAge: 86 }) }), 'retirementMultiple')
+  assert.match(late, /depois da idade-alvo/)
+  const retired = sectionOf(renderReportDocument({ ...report, retirementMultiple: goldenChapter({ monthsToRetirement: 0 }) }), 'retirementMultiple')
+  assert.match(retired, /Não se aplica: já aposentado/)
+  const zeroRate = sectionOf(renderReportDocument({ ...report, retirementMultiple: goldenChapter({ realRate: 0 }) }), 'retirementMultiple')
+  assert.match(zeroRate, /report-scenario--legacy report-scenario--unavailable[\s\S]*?Sem capital finito com retorno real de 0% ou menos/)
 })

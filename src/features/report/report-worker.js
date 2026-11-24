@@ -5,7 +5,7 @@ import { buildFinancialReport, reportRiskSettings } from '../../domain/financial
 import { analyzeGoals } from '../../domain/goals-planning.js'
 import { calculateFinappRisk } from '../../domain/finapp-risk.js'
 
-export function runReport({ state, today: iso, goals }, post) {
+export function runReport({ state, today: iso, goals, indicators = null }, post) {
   const today = new Date(iso)
   let goalsResult = goals
   if (goalsResult === undefined) {
@@ -13,14 +13,14 @@ export function runReport({ state, today: iso, goals }, post) {
     try { goalsResult = analyzeGoals(state, today) } catch (error) { goalsResult = { error: String(error?.message || error) } }
   }
   post({ stage: 'progress', step: 'report' })
-  const partial = buildFinancialReport(state, { today, goals: goalsResult })
+  const partial = buildFinancialReport(state, { today, goals: goalsResult, indicators })
   post({ stage: 'partial', report: partial })
   let risk
   try { risk = calculateFinappRisk(state, reportRiskSettings(state), today) } catch (error) {
     post({ stage: 'complete', report: partial, riskError: String(error?.message || error) })
     return
   }
-  post({ stage: 'complete', report: buildFinancialReport(state, { today, goals: goalsResult, risk }) })
+  post({ stage: 'complete', report: buildFinancialReport(state, { today, goals: goalsResult, risk, indicators }) })
 }
 
 if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typeof window === 'undefined') {
