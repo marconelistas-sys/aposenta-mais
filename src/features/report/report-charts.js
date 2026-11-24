@@ -1,6 +1,6 @@
 // Gráficos do Relatório financeiro. Funções puras que devolvem HTML/SVG
 // estático, sem bibliotecas e sem <details>, para servir à tela e à impressão.
-// Gráficos de linhas usam a mesma interpolação monotônica de planning-chart.js.
+// Projeções usam interpolação monotônica. Históricos ligam registros por retas.
 // Rótulos e valores são texto HTML; as marcas coloridas ficam aria-hidden e o
 // conteúdo segue legível em tabela ou legenda (nunca só pela cor).
 import { escapeHtml, formatCompactCurrency } from '../../shared/formatters.js'
@@ -38,6 +38,10 @@ export function emptyState(message, { title = '' } = {}) {
 
 function tableWrap(label, table) {
   return `<div class="report-table-scroll" role="region" tabindex="0" aria-label="${escapeHtml(label)}">${table}</div>`
+}
+
+function chartKey(items) {
+  return `<div class="report-key">${items.map(([mark, text]) => `<span><span class="report-swatch report-swatch--${mark}" aria-hidden="true"></span>${escapeHtml(text)}</span>`).join('')}</div>`
 }
 
 // ── Category colours ─────────────────────────────────────────────────────
@@ -87,7 +91,7 @@ export function divergingRows({ rows, currency, caption }) {
 }
 
 // ── Bullet: share of the annual quota used against the months elapsed ───
-const quotaStatus = { exceeded: ['risk', 'Cota ultrapassada'], ahead: ['attention', 'Acima do ritmo'], 'on-track': ['ok', 'No ritmo'] }
+const quotaStatus = { exceeded: ['risk', 'Cota ultrapassada'], ahead: ['attention', 'Acima do ritmo linear'], 'on-track': ['ok', 'No ritmo linear'] }
 export function quotaRows({ rows, currency, caption }) {
   if (!rows.length) return emptyState('Sem cotas anuais com gastos registrados.')
   const scale = clamp(Math.max(1.2, ...rows.map(row => row.usedShare)), 1.2, 1.6)
@@ -96,7 +100,7 @@ export function quotaRows({ rows, currency, caption }) {
     const overflow = row.usedShare > scale
     return `<tr><th scope="row">${escapeHtml(row.category)}</th><td class="report-chart-cell" aria-hidden="true"><span class="report-bullet"><span class="report-bullet__quota" style="width:${pct(100 / scale)}"></span><span class="report-bar report-bar--${status === 'ok' ? 'brand' : status === 'risk' ? 'unfavorable' : 'warning'}" style="width:${pct(Math.min(row.usedShare, scale) / scale * 100)}"></span><span class="report-bullet__tick" style="left:${pct(row.elapsedShare / scale * 100)}"></span>${overflow ? '<span class="report-bullet__overflow">▶</span>' : ''}</span></td><td>${escapeHtml(formatReportMoney(row.actual, currency))} de ${escapeHtml(formatReportMoney(row.annualPlanned, currency))}</td><td>${escapeHtml(formatReportPercent(row.usedShare))}</td><td>${statusBadge(status, label)}</td></tr>`
   }).join('')
-  return tableWrap(caption, `<table class="report-table report-table--chart"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Categoria</th><th scope="col" class="report-chart-cell"><span class="sr-only">Uso da cota</span></th><th scope="col">Realizado de cota anual</th><th scope="col">Cota usada</th><th scope="col">Situação</th></tr></thead><tbody>${body}</tbody></table>`)
+  return chartKey([['brand', 'Gasto realizado'], ['quota', 'Fundo: cota anual (100%)'], ['tick', 'Traço: referência linear do ano']]) + tableWrap(caption, `<table class="report-table report-table--chart"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Categoria</th><th scope="col" class="report-chart-cell"><span class="report-axis-label"><span>0%</span><span>${escapeHtml(formatReportPercent(scale))}</span></span></th><th scope="col">Realizado de cota anual</th><th scope="col">Cota usada</th><th scope="col">Situação</th></tr></thead><tbody>${body}</tbody></table>`) + `<p class="report-note">Referência linear: ${escapeHtml(formatReportPercent(rows[0].elapsedShare))} do ano decorrido, sem considerar gastos sazonais. ▶ indica barra além da escala. O percentual exato está em Cota usada.</p>`
 }
 
 // ── Horizontal waterfall (bridge) ────────────────────────────────────────
@@ -122,9 +126,9 @@ export function bridgeRows({ steps, currency, caption, totalKinds = ['total', 's
     const tone = total ? 'total' : rounded === 0 ? 'neutral' : rounded > 0 ? 'favorable' : 'unfavorable'
     const left = position(Math.min(step.from, step.to)), width = Math.abs(position(step.to) - position(step.from))
     const bar = !total && rounded === 0 ? `<span class="report-bridge__zero" style="left:${pct(position(step.from))}"></span>` : `<span class="report-bar report-bar--${tone}" style="left:${pct(left)};width:${pct(Math.max(width, 0.6))}"></span>`
-    return `<tr class="${total ? 'report-bridge__total' : ''}"><th scope="row">${escapeHtml(step.label)}</th><td class="report-chart-cell" aria-hidden="true"><span class="report-bridge">${min < 0 ? `<span class="report-bridge__axis" style="left:${pct(zero)}"></span>` : ''}${bar}</span></td><td class="report-num--${tone}">${escapeHtml(formatReportMoney(step.value, currency, { signed: !total }))}</td></tr>`
+    return `<tr class="${total ? 'report-bridge__total' : ''}"><th scope="row">${escapeHtml(step.label)}</th><td class="report-chart-cell" aria-hidden="true"><span class="report-bridge"><span class="report-bridge__axis" style="left:${pct(zero)}"></span>${bar}</span></td><td class="report-num--${tone}">${total ? 'Saldo total' : escapeHtml(formatReportMoney(step.value, currency, { signed: true }))}</td><td>${escapeHtml(formatReportMoney(step.to, currency))}</td></tr>`
   }).join('')
-  return tableWrap(caption, `<table class="report-table report-table--chart report-table--bridge"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Etapa</th><th scope="col" class="report-chart-cell"><span class="sr-only">Barra</span></th><th scope="col">Valor</th></tr></thead><tbody>${body}</tbody></table>`)
+  return tableWrap(caption, `<table class="report-table report-table--chart report-table--bridge"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Etapa</th><th scope="col" class="report-chart-cell"><span class="report-axis-label"><span>${escapeHtml(formatReportMoney(min, currency))}</span><span>${escapeHtml(formatReportMoney(max, currency))}</span></span></th><th scope="col">Efeito da etapa</th><th scope="col">Saldo após a etapa</th></tr></thead><tbody>${body}</tbody></table>`)
 }
 
 // ── Current × target with the tolerance band ─────────────────────────────
@@ -137,24 +141,30 @@ export function allocationRows({ rows, currency, caption }) {
     const [status, label] = allocationStatus[row.status] || allocationStatus.within
     return `<tr><th scope="row">${escapeHtml(row.label)}</th><td class="report-chart-cell" aria-hidden="true"><span class="report-dot-band"><span class="report-dot-band__band" style="left:${at(row.low)};width:${pct((row.high - row.low) / scale * 100)}"></span><span class="report-dot-band__target" style="left:${at(row.targetShare)}"></span><span class="report-dot-band__dot report-dot-band__dot--${row.status === 'within' ? 'within' : 'outside'}" style="left:${at(row.currentShare)}"></span></span></td><td>${escapeHtml(formatReportPercent(row.currentShare))}</td><td>${escapeHtml(formatReportPercent(row.targetShare))}</td><td>${escapeHtml(formatReportPoints(row.deviation, { signed: true }))}</td><td>${statusBadge(status, label)}</td><td>${escapeHtml(formatReportMoney(row.amountToTarget, currency, { signed: true }))}</td></tr>`
   }).join('')
-  return tableWrap(caption, `<table class="report-table report-table--chart"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Item</th><th scope="col" class="report-chart-cell"><span class="report-axis-label"><span>0%</span><span>${escapeHtml(formatReportPercent(scale))}</span></span></th><th scope="col">Atual</th><th scope="col">Alvo</th><th scope="col">Desvio</th><th scope="col">Situação</th><th scope="col">Para chegar ao alvo</th></tr></thead><tbody>${body}</tbody></table>`)
+  return chartKey([['dot', 'Ponto: parcela atual'], ['target', 'Traço: alvo'], ['band-inner', 'Faixa: tolerância']]) + tableWrap(caption, `<table class="report-table report-table--chart"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Item</th><th scope="col" class="report-chart-cell"><span class="report-axis-label"><span>0%</span><span>${escapeHtml(formatReportPercent(scale))}</span></span></th><th scope="col">Atual</th><th scope="col">Alvo</th><th scope="col">Desvio</th><th scope="col">Situação</th><th scope="col">Para chegar ao alvo</th></tr></thead><tbody>${body}</tbody></table>`)
 }
 
 // ── Reserve months against the target, with risk and attention zones ───
 export function reserveBullet({ months, targetMonths, riskMonths }) {
-  const scale = Math.max(targetMonths * 1.5, Math.ceil(months + 1))
+  if (![months, targetMonths, riskMonths].every(finite) || months < 0 || targetMonths <= 0 || riskMonths < 0 || riskMonths > targetMonths) return emptyState('Sem base válida para calcular os meses de reserva.')
+  const scale = Math.ceil(Math.max(targetMonths * 1.5, months + 1))
   const capped = Math.min(months, scale)
   const at = value => pct(value / scale * 100)
   const status = months >= targetMonths ? 'brand' : months >= riskMonths ? 'warning' : 'unfavorable'
-  const ticks = [0, riskMonths, targetMonths, Math.round(scale)].map(value => `<span style="left:${at(value)}">${escapeHtml(String(value))}</span>`).join('')
-  return `<div class="report-reserve" aria-hidden="true"><div class="report-reserve__track"><span class="report-reserve__zone report-reserve__zone--risk" style="width:${at(riskMonths)}"></span><span class="report-reserve__zone report-reserve__zone--attention" style="left:${at(riskMonths)};width:${pct((targetMonths - riskMonths) / scale * 100)}"></span><span class="report-bar report-bar--${status}" style="width:${at(capped)}"></span><span class="report-bullet__tick report-bullet__tick--target" style="left:${at(targetMonths)}"></span></div><div class="report-reserve__scale">${ticks}</div></div>`
+  const tickValues = [0]
+  for (const value of [...new Set([riskMonths, targetMonths])]) {
+    if ((value - tickValues.at(-1)) / scale >= 0.1 && (scale - value) / scale >= 0.1) tickValues.push(value)
+  }
+  tickValues.push(scale)
+  const ticks = tickValues.map(value => `<span style="left:${at(value)}">${escapeHtml(String(value))}</span>`).join('')
+  return chartKey([['brand', 'Barra: reserva atual'], ['tick', `Traço: meta de ${targetMonths} meses`]]) + `<p class="report-note">Escala em meses de despesas.</p><div class="report-reserve" aria-hidden="true"><div class="report-reserve__track"><span class="report-reserve__zone report-reserve__zone--risk" style="width:${at(riskMonths)}"></span><span class="report-reserve__zone report-reserve__zone--attention" style="left:${at(riskMonths)};width:${pct((targetMonths - riskMonths) / scale * 100)}"></span><span class="report-bar report-bar--${status}" style="width:${at(capped)}"></span><span class="report-bullet__tick report-bullet__tick--target" style="left:${at(targetMonths)}"></span></div><div class="report-reserve__scale">${ticks}</div></div>`
 }
 
 // Paired bars per currency: share of assets and share of expenses.
 export function currencyPairs({ rows, caption }) {
   if (!rows.length) return emptyState('Sem moedas para comparar.')
   const body = rows.map(row => `<tr><th scope="row">${escapeHtml(row.currency)}</th><td class="report-chart-cell" aria-hidden="true"><span class="report-pair"><span class="report-bar report-bar--brand" style="width:${pct(row.assetShare * 100)}"></span><span class="report-bar report-bar--slate" style="width:${pct(row.expenseShare * 100)}"></span></span></td><td>${escapeHtml(formatReportPercent(row.assetShare))}</td><td>${escapeHtml(formatReportPercent(row.expenseShare))}</td><td>${escapeHtml(formatReportPoints(row.gap, { signed: true }))}</td></tr>`).join('')
-  return `<div class="report-key" aria-hidden="true"><span><span class="report-swatch report-swatch--brand"></span>Parcela dos ativos</span><span><span class="report-swatch report-swatch--slate"></span>Parcela das despesas</span></div>` + tableWrap(caption, `<table class="report-table report-table--chart"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Moeda</th><th scope="col" class="report-chart-cell"><span class="sr-only">Barras</span></th><th scope="col">Ativos</th><th scope="col">Despesas</th><th scope="col">Diferença</th></tr></thead><tbody>${body}</tbody></table>`)
+  return chartKey([['brand', 'Parcela dos ativos'], ['slate', 'Parcela das despesas']]) + tableWrap(caption, `<table class="report-table report-table--chart"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Moeda</th><th scope="col" class="report-chart-cell"><span class="report-axis-label"><span>0%</span><span>100%</span></span></th><th scope="col">Ativos</th><th scope="col">Despesas</th><th scope="col">Diferença</th></tr></thead><tbody>${body}</tbody></table>`)
 }
 
 // ── SVG line charts ──────────────────────────────────────────────────────
@@ -178,50 +188,85 @@ function spread(labels, gap, top, bottom) {
   return labels
 }
 
-const lineFrame = { width: 680, height: 224, left: 84, right: 520, top: 16, bottom: 190 }
+const lineFrame = { width: 680, height: 224, left: 84, right: 500, top: 30, bottom: 190 }
 const axisMoney = (value, currency) => isMoneyMasked() ? maskedMoney(currency) : (value < 0 ? minusSign : '') + formatCompactCurrency(Math.abs(value), currency)
+
+function chartFrame(svg, { label, currency, basis = '', values = [], key = '' }) {
+  return `<p class="report-chart-unit">${escapeHtml([`Valores em ${currency}`, basis].filter(Boolean).join(' · '))}</p>${key}<div class="report-chart-scroll" role="region" tabindex="0" aria-label="${escapeHtml(label)}. Gráfico com rolagem horizontal">${svg}</div><p class="report-chart-hint report-screen-only">Deslize o gráfico na horizontal para ler as datas e a escala.</p>${values.length ? `<ul class="report-chart-values">${values.map(([name, value]) => `<li><span>${escapeHtml(name)}</span><strong>${escapeHtml(formatReportMoney(value, currency))}</strong></li>`).join('')}</ul>` : ''}`
+}
+
+const monthPosition = month => {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(month))
+  return match ? Number(match[1]) * 12 + Number(match[2]) - 1 : NaN
+}
+const datePosition = date => /^\d{4}-\d{2}-\d{2}$/.test(String(date)) ? Date.parse(`${date}T00:00:00Z`) / 86400000 : NaN
+const straightLine = points => points.map(([x, y], index) => `${index ? 'L' : 'M'}${round(x)},${round(y)}`).join(' ')
+
+function timeAxis(positions, frame) {
+  const start = positions[0], end = positions.at(-1)
+  return index => frame.left + (end === start ? 0.5 : (positions[index] - start) / (end - start)) * (frame.right - frame.left)
+}
+
+// Select ticks by visual distance, so close observations do not overlap.
+function timeLabels(series, x, text, minimumGap = 72) {
+  const last = series.length - 1
+  const labels = []
+  series.forEach((row, index) => {
+    if (index === last || ((!labels.length || x(index) - labels.at(-1).x >= minimumGap) && x(last) - x(index) >= minimumGap)) labels.push({ x: x(index), text: text(row) })
+  })
+  return labels
+}
+
+function endLabels(items, frame, y, endX = frame.right) {
+  const labels = spread(items.map(item => ({ ...item, y: y(item.value) + 4 })), 20, frame.top + 4, frame.bottom + 4)
+  return labels.map(item => `<path class="report-svg-leader" d="M${round(endX)},${round(y(item.value))} L${frame.right + 10},${round(item.y - 4)}"/><text class="report-svg-label${item.strong ? ' report-svg-label--strong' : ''}" x="${frame.right + 16}" y="${round(item.y)}">${escapeHtml(item.name)}</text>`).join('')
+}
 
 function lineAxes({ ticks, y, xLabels, frame }) {
   const grid = ticks.map(tick => `<line class="report-svg-grid${tick.value === 0 ? ' report-svg-grid--zero' : ''}" x1="${frame.left}" x2="${frame.right}" y1="${round(y(tick.value))}" y2="${round(y(tick.value))}"/><text class="report-svg-tick" x="${frame.left - 8}" y="${round(y(tick.value) + 4)}" text-anchor="end">${escapeHtml(tick.text)}</text>`)
   return grid.join('') + xLabels.map(label => `<text class="report-svg-tick" x="${round(label.x)}" y="${frame.bottom + 20}" text-anchor="middle">${escapeHtml(label.text)}</text>`).join('')
 }
 
-// Monthly net-worth line (≥ 2 photos). Baseline need not be zero: the axis
-// labels state the scale and the first and last values are labelled in full.
+// Monthly net-worth line. The date scale preserves missing months.
+// Baseline need not be zero. First and last values also appear in HTML.
 export function historyLine({ series, currency, label }) {
+  series = series.filter(row => finite(row.netWorth) && finite(monthPosition(row.month))).sort((a, b) => monthPosition(a.month) - monthPosition(b.month))
+  if (!series.length) return emptyState('Sem fotos mensais válidas do patrimônio.')
   const frame = lineFrame
   const values = series.map(row => row.netWorth)
   const low = Math.min(...values), high = Math.max(...values)
   const pad = (high - low) * 0.15 || Math.abs(high) * 0.05 || 1
   const tickValues = niceTicks(low - pad, high + pad)
   const min = tickValues[0], max = tickValues.at(-1)
-  const x = index => frame.left + (series.length === 1 ? 0.5 : index / (series.length - 1)) * (frame.right - frame.left)
+  const x = timeAxis(series.map(row => monthPosition(row.month)), frame)
   const y = value => frame.bottom - (value - min) / (max - min) * (frame.bottom - frame.top)
   const ticks = tickValues.map(value => ({ value, text: axisMoney(value, currency) }))
   const points = series.map((row, index) => [x(index), y(row.netWorth)])
-  const step = Math.max(1, Math.ceil(series.length / 8))
-  const xLabels = series.map((row, index) => (index % step === 0 && series.length - 1 - index >= step / 2) || index === series.length - 1 ? { x: x(index), text: shortMonth(row.month) } : null).filter(Boolean)
+  const xLabels = timeLabels(series, x, row => shortMonth(row.month))
   const last = series.at(-1)
-  return `<svg class="report-svg" viewBox="0 0 ${frame.width} ${frame.height}" role="img" aria-label="${escapeHtml(label)}">${lineAxes({ ticks, y, xLabels, frame })}<path class="report-svg-line" d="${planningChartLine(points)}"/>${points.map(([px, py]) => `<circle class="report-svg-dot" cx="${round(px)}" cy="${round(py)}" r="4"/>`).join('')}<text class="report-svg-label" x="${round(points[0][0] + 8)}" y="${round(points[0][1] + (series.length > 1 && series[1].netWorth >= series[0].netWorth ? 18 : -10))}" text-anchor="start">${escapeHtml(formatReportMoney(series[0].netWorth, currency))}</text><text class="report-svg-label report-svg-label--strong" x="${frame.right + 10}" y="${round(points.at(-1)[1] + 4)}">${escapeHtml(formatReportMoney(last.netWorth, currency))}</text></svg>`
+  const svg = `<svg class="report-svg" viewBox="0 0 ${frame.width} ${frame.height}" role="img" aria-label="${escapeHtml(label)}">${lineAxes({ ticks, y, xLabels, frame })}<path class="report-svg-line" d="${straightLine(points)}"/>${points.map(([px, py]) => `<circle class="report-svg-dot" cx="${round(px)}" cy="${round(py)}" r="4"/>`).join('')}${endLabels([{ name: 'Patrimônio líquido', value: last.netWorth, strong: true }], frame, y, points.at(-1)[0])}</svg>`
+  return chartFrame(svg, { label, currency, basis: 'Saldos registrados, sem ajuste pela inflação', values: [[shortMonth(series[0].month), series[0].netWorth], [shortMonth(last.month), last.netWorth]] })
 }
 
 // Balance x amount invested of the whole portfolio. Same scale for both lines.
-// Dates are real balance dates, so the x axis is by order, not by calendar.
+// The x axis follows elapsed calendar days, including gaps between records.
 export function balanceInvestedLine({ series, currency, label }) {
+  series = series.filter(row => finite(row.balance) && finite(row.invested) && finite(datePosition(row.date))).sort((a, b) => datePosition(a.date) - datePosition(b.date))
+  if (!series.length) return emptyState('Sem saldos válidos com data para comparar.')
   const frame = lineFrame
   const values = series.flatMap(row => [row.balance, row.invested])
   const low = Math.min(0, ...values), high = Math.max(...values)
   const tickValues = niceTicks(low, high + (high - low) * 0.08)
   const min = tickValues[0], max = tickValues.at(-1)
-  const x = index => frame.left + (series.length === 1 ? 0.5 : index / (series.length - 1)) * (frame.right - frame.left)
+  const x = timeAxis(series.map(row => datePosition(row.date)), frame)
   const y = value => frame.bottom - (value - min) / (max - min) * (frame.bottom - frame.top)
   const ticks = tickValues.map(value => ({ value, text: axisMoney(value, currency) }))
-  const step = Math.max(1, Math.ceil(series.length / 6))
-  const xLabels = series.map((row, index) => (index % step === 0 && series.length - 1 - index >= step / 2) || index === series.length - 1 ? { x: x(index), text: shortMonth(row.date.slice(0, 7)) } : null).filter(Boolean)
+  const xLabels = timeLabels(series, x, row => `${row.date.slice(8, 10)}/${row.date.slice(5, 7)}/${row.date.slice(2, 4)}`, 84)
   const balance = series.map((row, index) => [x(index), y(row.balance)])
   const invested = series.map((row, index) => `${index ? `H${round(x(index))} V` : 'M'}${index ? '' : `${round(x(index))} `}${round(y(row.invested))}`).join(' ')
   const last = series.at(-1)
-  return `<svg class="report-svg" viewBox="0 0 ${frame.width} ${frame.height}" role="img" aria-label="${escapeHtml(label)}">${lineAxes({ ticks, y, xLabels, frame })}<path class="report-svg-line report-svg-line--muted" d="${invested}" fill="none"/><path class="report-svg-line" d="${planningChartLine(balance)}"/>${balance.map(([px, py]) => `<circle class="report-svg-dot" cx="${round(px)}" cy="${round(py)}" r="4"/>`).join('')}<text class="report-svg-label report-svg-label--strong" x="${frame.right + 10}" y="${round(y(last.balance) + 4)}">Saldo</text><text class="report-svg-label" x="${frame.right + 10}" y="${round(y(last.invested) + 16)}">Aportado</text></svg>`
+  const svg = `<svg class="report-svg" viewBox="0 0 ${frame.width} ${frame.height}" role="img" aria-label="${escapeHtml(label)}">${lineAxes({ ticks, y, xLabels, frame })}<path class="report-svg-line report-svg-line--muted" d="${invested}" fill="none"/><path class="report-svg-line" d="${straightLine(balance)}"/>${balance.map(([px, py]) => `<circle class="report-svg-dot" cx="${round(px)}" cy="${round(py)}" r="4"/>`).join('')}${endLabels([{ name: 'Saldo', value: last.balance, strong: true }, { name: 'Aportado', value: last.invested }], frame, y, balance.at(-1)[0])}</svg>`
+  return chartFrame(svg, { label, currency, basis: 'Datas dos saldos informados', key: chartKey([['line', 'Linha contínua: saldo'], ['dashed', 'Degraus tracejados: aportado']]), values: [['Saldo final', last.balance], ['Aportado até a data', last.invested]] })
 }
 
 export function shortMonth(month) {
@@ -232,11 +277,13 @@ export function shortMonth(month) {
 
 // Median with P10–P90 and P25–P75 bands, retirement marker, real values.
 export function fanChart({ series, currency, retirementYear, label, bands = true }) {
+  series = series.filter(row => finite(Number(row.year)) && ['p10', 'p25', 'p50', 'p75', 'p90'].every(key => finite(row[key]))).map(row => ({ ...row, year: Number(row.year) })).sort((a, b) => a.year - b.year)
+  if (!series.length) return emptyState('Sem cenários válidos para a projeção.')
   const frame = lineFrame
   const values = series.flatMap(row => [row.p10, row.p90]).filter(finite)
   const tickValues = niceTicks(Math.min(0, ...values), Math.max(...values), 5)
   const min = tickValues[0], max = tickValues.at(-1)
-  const x = index => frame.left + (series.length === 1 ? 0.5 : index / (series.length - 1)) * (frame.right - frame.left)
+  const x = timeAxis(series.map(row => row.year), frame)
   const y = value => frame.bottom - (value - min) / (max - min) * (frame.bottom - frame.top)
   const ticks = tickValues.map(value => ({ value, text: axisMoney(value, currency) }))
   const band = (low, high) => {
@@ -244,13 +291,13 @@ export function fanChart({ series, currency, retirementYear, label, bands = true
     const lower = series.map((row, index) => [x(index), y(row[low])]).reverse()
     return `${planningChartLine(upper)} ${planningChartLine(lower).replace(/^M/, 'L')} Z`
   }
-  const step = Math.max(1, Math.ceil(series.length / 7))
-  const xLabels = series.map((row, index) => (index % step === 0 && series.length - 1 - index >= step / 2) || index === series.length - 1 ? { x: x(index), text: String(row.year) } : null).filter(Boolean)
+  const xLabels = timeLabels(series, x, row => String(row.year))
   const retirementIndex = series.findIndex(row => row.year === retirementYear)
-  const marker = retirementIndex >= 0 ? `<line class="report-svg-marker" x1="${round(x(retirementIndex))}" x2="${round(x(retirementIndex))}" y1="${frame.top}" y2="${frame.bottom}"/><text class="report-svg-tick report-svg-tick--strong" x="${round(x(retirementIndex) + 6)}" y="${frame.top + 10}">Aposentadoria ${escapeHtml(String(retirementYear))}</text>` : ''
+  const marker = retirementIndex >= 0 ? `<line class="report-svg-marker" x1="${round(x(retirementIndex))}" x2="${round(x(retirementIndex))}" y1="${frame.top}" y2="${frame.bottom}"/><text class="report-svg-tick report-svg-tick--strong" x="${round(x(retirementIndex))}" y="${frame.top - 10}" text-anchor="${x(retirementIndex) > (frame.left + frame.right) / 2 ? 'end' : 'start'}">Aposentadoria ${escapeHtml(String(retirementYear))}</text>` : ''
   const last = series.at(-1)
-  const ends = spread((bands ? [['p90', 'P90'], ['p50', 'Mediana'], ['p10', 'P10']] : [['p50', 'Cenário base']]).map(([key, name]) => ({ key, y: y(last[key]) + 4, text: `${name} ${formatReportMoney(last[key], currency)}` })), 14, frame.top + 4, frame.bottom + 4)
-  return `<svg class="report-svg" viewBox="0 0 ${frame.width} ${frame.height}" role="img" aria-label="${escapeHtml(label)}">${lineAxes({ ticks, y, xLabels, frame })}${bands ? `<path class="report-svg-band report-svg-band--outer" d="${band('p10', 'p90')}"/><path class="report-svg-band report-svg-band--inner" d="${band('p25', 'p75')}"/>` : ''}<path class="report-svg-line" d="${planningChartLine(series.map((row, index) => [x(index), y(row.p50)]))}"/>${marker}${ends.map(item => `<text class="report-svg-label${item.key === 'p50' ? ' report-svg-label--strong' : ''}" x="${frame.right + 10}" y="${round(item.y)}">${escapeHtml(item.text)}</text>`).join('')}</svg>`
+  const ends = (bands ? [['p90', 'Superior (P90)'], ['p50', 'Mediana (P50)'], ['p10', 'Inferior (P10)']] : [['p50', 'Cenário base']]).map(([key, name]) => ({ value: last[key], name, strong: key === 'p50' }))
+  const svg = `<svg class="report-svg" viewBox="0 0 ${frame.width} ${frame.height}" role="img" aria-label="${escapeHtml(label)}">${lineAxes({ ticks, y, xLabels, frame })}${bands ? `<path class="report-svg-band report-svg-band--outer" d="${band('p10', 'p90')}"/><path class="report-svg-band report-svg-band--inner" d="${band('p25', 'p75')}"/>` : ''}<path class="report-svg-line" d="${planningChartLine(series.map((row, index) => [x(index), y(row.p50)]))}"/>${series.length === 1 ? `<circle class="report-svg-dot" cx="${round(x(0))}" cy="${round(y(last.p50))}" r="4"/>` : ''}${marker}${endLabels(ends, frame, y, x(series.length - 1))}</svg>`
+  return chartFrame(svg, { label, currency, basis: 'Patrimônio financeiro · poder de compra de hoje', values: ends.map(item => [`${item.name} em ${last.year}`, item.value]) })
 }
 
 // Single-series line for the deterministic projection when the bands are not available.

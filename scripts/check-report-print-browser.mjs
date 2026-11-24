@@ -7,6 +7,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { chromium } from 'playwright'
 import { reportFixtureState, reportFixtureToday } from '../tests/fixtures/report-state.js'
+import { bundledExchangeRates } from '../src/shared/exchange-rates.js'
 
 // Panorama financeiro (tela em abas) e Relatório financeiro (impressão). Sempre com servidor, banco e
 // perfil temporários e dados sintéticos (tests/fixtures/report-state.js):
@@ -39,6 +40,7 @@ try {
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
   await page.clock.setFixedTime(reportFixtureToday)
+  await page.route('**/api/exchange-rates*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bundledExchangeRates) }))
 
   await page.goto(`http://127.0.0.1:${port}`)
   await page.locator('[data-open-local]').click()
@@ -151,7 +153,7 @@ try {
   assert.equal(await page.evaluate(() => 'reportPrinting' in document.documentElement.dataset), true, 'o botão liga o layout do PDF')
   assert.equal(await page.locator('head style[data-report-page-style]').count(), 1)
 
-  for (const width of [390, 360, 320]) {
+  for (const width of [768, 390, 360, 320]) {
     await page.setViewportSize({ width, height: 900 })
     for (const key of tabKeys) {
       await page.locator(`[data-page-tab="panorama:${key}"]`).click()
@@ -181,6 +183,8 @@ try {
   assert.deepEqual(overflow, [], 'nenhum elemento passa da largura útil do A4')
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'estouro horizontal na impressão')
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.report-bar--unfavorable')).printColorAdjust), 'exact')
+  assert.ok(await page.locator('.report-chart-values').count() >= 2, 'valores finais disponíveis na impressão')
+  assert.equal(await page.locator('[data-report-chapter="retirement"] .report-chart-values').isVisible(), true, 'P10, mediana e P90 continuam numéricos no PDF')
   const pdfPath = join(output, 'relatorio-exemplo.pdf')
   await page.pdf({ path: pdfPath, format: 'A4', preferCSSPageSize: true, printBackground: true })
   const pages = (String(await readFile(pdfPath, 'latin1')).match(/\/Type\s*\/Page(?!s)/g) || []).length
@@ -208,7 +212,7 @@ try {
   assert.equal(await page.locator('[data-page-tab="panorama:carteira"]').getAttribute('aria-selected'), 'true', 'ao revelar, continua na aba em que estava')
 
   assert.deepEqual(errors, [])
-  console.log(`Panorama validado: barra principal e grupo Entender, 7 abas, links Ajustar em, URLs antigas, carregamento em segundo plano (abas em ${(partialAt / 1000).toFixed(1)} s, faixas P10–P90 em ${(completeAt / 1000).toFixed(1)} s${sawPartial ? ', PDF liberado com aviso antes das faixas' : ''}), sem <details>, teclado nas abas, telas de 1440, 390, 360 e 320 px sem estouro em todas as abas, impressão de todas as abas sem a moldura do app, PDF A4 com ${pages} páginas só pelo botão (Ctrl+P imprime a tela) e valores ocultos mascarando o panorama e bloqueando o PDF.`)
+  console.log(`Panorama validado: barra principal e grupo Entender, 7 abas, links Ajustar em, URLs antigas, carregamento em segundo plano (abas em ${(partialAt / 1000).toFixed(1)} s, faixas P10–P90 em ${(completeAt / 1000).toFixed(1)} s${sawPartial ? ', PDF liberado com aviso antes das faixas' : ''}), sem <details>, teclado nas abas, telas de 1440, 768, 390, 360 e 320 px sem estouro em todas as abas, impressão de todas as abas sem a moldura do app, PDF A4 com ${pages} páginas só pelo botão (Ctrl+P imprime a tela) e valores ocultos mascarando o panorama e bloqueando o PDF.`)
   console.log(`PDF e capturas em ${output}${rasterized.status === 0 ? ' (páginas em PNG via pdftoppm)' : ' (pdftoppm indisponível: sem PNG das páginas)'}.`)
 } finally {
   await browser?.close()
