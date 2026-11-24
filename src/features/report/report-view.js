@@ -179,7 +179,7 @@ function spendingBody(report) {
   const quotaFigure = figure({
     title: exceeded ? `${exceeded} ${exceeded === 1 ? 'categoria já passou' : 'categorias já passaram'} da cota anual com ${e(formatReportPercent(quota[0]?.elapsedShare ?? 0))} do ano decorrido` : 'Nenhuma categoria passou da cota anual',
     body: quotaRows({ rows: quota, currency, caption: 'Uso da cota anual por categoria' }),
-    howToRead: 'O fundo claro é a cota anual planejada; a barra é o realizado; o traço vertical marca a parte do ano já decorrida. Barra além do traço: acima do ritmo.',
+    howToRead: 'O fundo claro é a cota anual planejada e a barra é o realizado. O traço mostra uma referência linear: mês de referência dividido por 12. Estar além do traço indica uso antecipado da cota, sem considerar a sazonalidade das despesas.',
     source: 'Cota anual planejada no orçamento.'
   })
   const unplanned = chapter.unplanned.length ? figure({
@@ -256,7 +256,7 @@ function wealthBody(report) {
   const historyFigure = history?.available
     ? figure({
       title: `Patrimônio líquido de ${money(history.series.at(-1).netWorth)} em ${e(shortMonth(history.change.to))}: ${money(history.change.absolute, { signed: true })}${finite(history.change.percent) ? ` (${e(formatReportPercent(history.change.percent, { signed: true }))})` : ''} em ${history.change.months} ${history.change.months === 1 ? 'mês' : 'meses'}`,
-      body: historyLine({ series: history.series, currency, label: `Patrimônio líquido mensal de ${shortMonth(history.change.from)} a ${shortMonth(history.change.to)}` }) + `<div class="sr-only">${table({ caption: 'Fotos mensais do patrimônio', head: ['Mês', 'Ativos brutos', 'Dívidas', 'Patrimônio líquido'], rows: history.series.map(row => [e(shortMonth(row.month)), money(row.gross), money(row.debtTotal), money(row.netWorth)]) })}</div>`,
+      body: historyLine({ series: history.series, currency, label: `Patrimônio líquido mensal de ${shortMonth(history.change.from)} a ${shortMonth(history.change.to)}` }) + `<div class="report-chart-data">${table({ caption: 'Fotos mensais do patrimônio', head: ['Mês', 'Ativos brutos', 'Dívidas', 'Patrimônio líquido'], rows: history.series.map(row => [e(shortMonth(row.month)), money(row.gross), money(row.debtTotal), money(row.netWorth)]) })}</div>`,
       howToRead: `Cada ponto é a foto do balanço gravada no mês.${history.gaps ? ` ${history.gaps} ${history.gaps === 1 ? 'mês sem foto' : 'meses sem foto'} no intervalo: a linha liga as fotos existentes.` : ''}`,
       source: 'Fotos mensais do patrimônio gravadas pelo aplicativo.',
       premise: 'Valores declarados na época, convertidos pelo câmbio de cada foto. Sem estimativa do passado.'
@@ -300,7 +300,7 @@ function portfolioBody(report) {
   const money = (value, options) => e(formatReportMoney(value, currency, options))
   const metrics = chapter.metrics
   const head = kpis([
-    { label: 'Total investido', value: money(metrics.total), note: `${metrics.count} ${metrics.count === 1 ? 'investimento' : 'investimentos'}` },
+    { label: 'Saldo atual da carteira', value: money(metrics.total), note: `${metrics.count} ${metrics.count === 1 ? 'investimento' : 'investimentos'}` },
     { label: 'Custo médio', value: e(formatReportPercent(metrics.weightedFee)), note: 'Ao ano, ponderado; referência: abaixo de 0,5%' },
     { label: 'Retorno real assumido', value: e(formatReportPercent(metrics.assumedRealReturn ?? metrics.weightedRealReturn)), note: 'Ao ano, acima da inflação' },
     { label: 'Ações e renda variável', value: e(formatReportPercent(metrics.equityShare)) },
@@ -314,7 +314,7 @@ function portfolioBody(report) {
         body: allocationRows({ rows: dimension.rows, currency, caption: `Alocação atual e alvo por ${dimensionTitles[dimension.dimension] || dimension.dimension}` }),
         howToRead: 'Ponto: parcela atual. Traço: alvo. Faixa clara: banda de tolerância. Ponto vazado fora da faixa pede rebalanceamento.',
         source: 'Saldos cadastrados e alocação-alvo definida na Carteira.',
-        premise: dimension.monthsToCloseWithContributions > 0 ? `Só com aportes, o maior desvio fecha em cerca de ${dimension.monthsToCloseWithContributions} meses.` : 'Valor para o alvo: positivo é compra, negativo é excesso.'
+        premise: `Valor para o alvo: positivo é compra, negativo é excesso.${dimension.monthsToCloseWithContributions > 0 ? ` Só com aportes, o maior desvio fecha em cerca de ${dimension.monthsToCloseWithContributions} meses.` : ''}`
       })
     }).join('')
     : emptyState(t(chapter.allocation.emptyReason), { title: 'Alocação-alvo' })
@@ -328,10 +328,10 @@ function portfolioBody(report) {
     const foreign = history.foreign.length ? `Valores em ${history.foreign.join(', ')} convertidos pelo câmbio de hoje em todas as datas; a variação cambial entra no saldo e no aportado.` : ''
     return figure({
       title: `Saldo de ${money(last.balance)} contra ${money(last.invested)} aportado: ${money(gain, { signed: true })} de rendimento acumulado`,
-      body: balanceInvestedLine({ series: history.series, currency, label: `Saldo e valor aportado da carteira de ${shortMonth(first.date.slice(0, 7))} a ${shortMonth(last.date.slice(0, 7))}` }) + `<div class="sr-only">${table({ caption: 'Saldo e valor aportado da carteira por data de saldo', head: ['Data', 'Saldo', 'Aportado'], rows: history.series.map(row => [e(row.date.split('-').reverse().join('/')), money(row.balance), money(row.invested)]) })}</div>`,
-      howToRead: 'Linha cheia: saldo informado. Linha em degraus: valor aportado (primeiro saldo mais aplicações menos resgates). A distância entre elas é o rendimento acumulado.',
+      body: balanceInvestedLine({ series: history.series, currency, label: `Saldo e valor aportado da carteira de ${shortMonth(first.date.slice(0, 7))} a ${shortMonth(last.date.slice(0, 7))}` }) + `<div class="report-chart-data">${table({ caption: 'Saldo e valor aportado da carteira por data de saldo', head: ['Data', 'Saldo', 'Aportado'], rows: history.series.map(row => [e(row.date.split('-').reverse().join('/')), money(row.balance), money(row.invested)]) })}</div>`,
+      howToRead: 'Linha contínua: saldo informado. Degraus tracejados: primeiro saldo mais aplicações menos resgates. O espaço entre datas é proporcional ao tempo. Os pontos são registros, os trechos entre eles não são saldos medidos. A diferença entre as linhas é o ganho acumulado em dinheiro, não uma taxa de retorno.',
       source: `Saldos informados de ${history.count} ${history.count === 1 ? 'investimento' : 'investimentos'} com histórico, e aplicações e resgates vinculados.`,
-      premise: `${foreign}${history.estimated ? ' Parte do aportado é estimada pelo aporte mensal declarado.' : ''} Um investimento entra a partir do seu primeiro saldo. Sem queda da carteira: o patrimônio mistura aportes e resgates.`.trim()
+      premise: `${foreign}${history.estimated ? ' Parte do aportado é estimada pelo aporte mensal declarado.' : ''} Um investimento entra a partir do seu primeiro saldo. Mudanças no saldo também refletem aplicações e resgates.`.trim()
     })
   })()
   return head + allocation + balanceFigure + contribution + fee + diagnostics
@@ -418,11 +418,11 @@ function retirementBody(report, { fanPending = false } = {}) {
   const last = fan.available ? fan.series.at(-1) : null
   const fanFigure = fan.available
     ? figure({
-      title: `Patrimônio financeiro em ${last.year}: mediana de ${money(last.p50)}; em 1 de cada 10 cenários, abaixo de ${money(last.p10)}`,
-      body: `<div class="report-key" aria-hidden="true"><span><span class="report-swatch report-swatch--line"></span>Mediana (P50)</span><span><span class="report-swatch report-swatch--band-inner"></span>P25 a P75</span><span><span class="report-swatch report-swatch--band-outer"></span>P10 a P90</span></div>${fanChart({ series: fan.series, currency, retirementYear: chapter.retirementYear, label: `Faixas de cenários do patrimônio financeiro de ${fan.series[0].year} a ${last.year}` })}`,
-      howToRead: 'A linha é a mediana dos cenários. A faixa escura reúne metade dos cenários; a clara, oito em cada dez. O traço vertical marca a aposentadoria.',
+      title: `Patrimônio financeiro em ${last.year}: mediana de ${money(last.p50)}, com P10 de ${money(last.p10)} como referência inferior`,
+      body: `<div class="report-key"><span><span class="report-swatch report-swatch--line" aria-hidden="true"></span>Mediana (P50)</span><span><span class="report-swatch report-swatch--band-inner" aria-hidden="true"></span>50% centrais (P25 a P75)</span><span><span class="report-swatch report-swatch--band-outer" aria-hidden="true"></span>80% centrais (P10 a P90)</span></div>${fanChart({ series: fan.series, currency, retirementYear: chapter.retirementYear, label: `Faixas de cenários do patrimônio financeiro de ${fan.series[0].year} a ${last.year}` })}`,
+      howToRead: 'Em cada ano, a faixa escura reúne os 50% centrais dos cenários e a clara, os 80% centrais. A linha liga as medianas anuais e não representa um cenário individual. O traço vertical marca a aposentadoria.',
       source: `Simulação de Monte Carlo do aplicativo${fan.simulations ? `, ${fan.simulations} cenários` : ''}.`,
-      premise: 'Valores reais, a preços de hoje. Faixas não são garantia nem limite de perda.'
+      premise: 'Valores reais, a preços de hoje. As faixas mostram patrimônio, não a probabilidade de cumprir o plano. Não são garantia nem limite de perda.'
     }) + (chapter.volatilityNote ? `<p class="report-note" data-volatility-note>${e(chapter.volatilityNote)}</p>` : '')
     : chapter.deterministic?.length
       ? `${fanPending ? '<p class="report-pending report-screen-only" role="status">Calculando as faixas P10 a P90…</p>' : ''}${figure({
