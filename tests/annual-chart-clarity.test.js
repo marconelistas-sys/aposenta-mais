@@ -51,7 +51,7 @@ test('comparison and financial views preserve the meaning of overlapping wealth 
   assert.match(html, /não devem ser somadas/)
   assert.match(financial, /Variação do patrimônio financeiro no ano/)
   assert.match(financial, /Créditos previdenciários/)
-  assert.match(html, /Saldo do orçamento \+ rendimentos \+ créditos previdenciários = variação/)
+  assert.match(html, /Saldo do orçamento \+ rendimentos \+ créditos previdenciários − imposto sobre resgates = variação/)
   assert.doesNotMatch(financial, /Resultado final do ano/)
 })
 

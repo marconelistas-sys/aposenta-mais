@@ -9,7 +9,7 @@ export function annualPriceFactor(year, baseYear, annualInflation) {
   return factor
 }
 
-const monetaryKeys = ['income', 'costs', 'goals', 'pensionCredits', 'releases', 'freeCashFlow', 'financialAssets', 'liquidAssets', 'restrictedFinancial', 'netFinancial', 'netWorth', 'assets', 'liabilities', 'realEstateAssets', 'excludedRealEstateAssets', 'solvencyNetWorth', 'netWorthWithoutRealEstate']
+const monetaryKeys = ['income', 'costs', 'goals', 'pensionCredits', 'withdrawalTax', 'releases', 'freeCashFlow', 'financialAssets', 'liquidAssets', 'restrictedFinancial', 'netFinancial', 'netWorth', 'assets', 'liabilities', 'realEstateAssets', 'excludedRealEstateAssets', 'solvencyNetWorth', 'netWorthWithoutRealEstate']
 
 // Price index of a year. With a market trajectory (inflationPath) it is the
 // accumulated index Π(1 + π(y)), the same one used by fixed incomes, so a fixed

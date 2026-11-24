@@ -260,7 +260,10 @@ test('visão nominal da Evolução patrimonial é exata com a trajetória: renda
       const html = renderCashFlowTimeline({ part: 'annual' })
       const table = html.match(/<caption>CHF · Valores nominais de cada ano<\/caption>[\s\S]*?<\/table>/g).find(markup => markup.includes('Receitas previstas'))
       for (const target of [year + 25, year + 40]) {
-        const row = table.match(new RegExp(`<tr><th scope="row">${target}</th><td>([^<]*)</td>`))[1]
+        const headers = [...table.matchAll(/<th scope="col">([^<]*)<\/th>/g)].map(match => match[1])
+        const markup = table.match(new RegExp(`<tr><th scope="row">${target}</th>[\\s\\S]*?</tr>`))[0]
+        const cells = [...markup.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map(match => match[1])
+        const row = cells[headers.indexOf('Receitas previstas')]
         assert.match(row.replace(/\s+/g, ' '), /^CHF 30\.000 /, `${target}: ${row}`)
       }
       const path = marketInflationPath(state.plan, 'CHF')

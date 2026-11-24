@@ -64,6 +64,7 @@ export function bindPlanningChartInteractions(root) {
     const group = chart.closest?.('[data-cash-flow-line-view]')
     if (chart.dataset.chartInlineReadout !== undefined) {
       chart.dataset.chartSelectedIndex = String(index)
+      for (const marker of chart.querySelectorAll('[data-chart-milestone]')) marker.setAttribute('aria-pressed', String(Number(marker.dataset.chartMilestone) === index))
       const state = chart.querySelector('[data-chart-readout-state]')
       if (state) state.textContent = 'Ano selecionado'
     }
@@ -110,6 +111,12 @@ export function bindPlanningChartInteractions(root) {
       const index = Number(button.dataset.chartToggle)
       for (const group of chart.querySelectorAll(`[data-chart-series="${index}"]`)) group.setAttribute('visibility', pressed ? 'visible' : 'hidden')
       for (const row of chart.querySelectorAll(`[data-chart-readout-series="${index}"]`)) row.hidden = !pressed
+      return
+    }
+    const milestone = event.target.closest?.('[data-chart-milestone]')
+    if (milestone) {
+      const chart = chartFor(milestone)
+      if (chart) select(chart, Number(milestone.dataset.chartMilestone), true)
       return
     }
     const step = event.target.closest?.('[data-chart-step]')
