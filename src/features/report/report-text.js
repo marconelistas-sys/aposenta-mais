@@ -9,9 +9,11 @@ import { currencySymbol } from '../../shared/currencies.js'
 
 export const minusSign = '−'
 const numberFormats = new Map()
-function decimal(value, digits) {
-  if (!numberFormats.has(digits)) numberFormats.set(digits, new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: digits }))
-  return numberFormats.get(digits).format(value)
+// `fixed` keeps trailing zeros ("4,0%"); otherwise they are dropped ("4%").
+function decimal(value, digits, fixed = false) {
+  const key = `${digits}:${fixed}`
+  if (!numberFormats.has(key)) numberFormats.set(key, new Intl.NumberFormat('pt-BR', { minimumFractionDigits: fixed ? digits : 0, maximumFractionDigits: digits }))
+  return numberFormats.get(key).format(value)
 }
 
 // Rounds first, so the sign follows the value that is shown: 0,004 shows "0%".
@@ -43,19 +45,28 @@ export function formatReportMoney(value, currency, options = {}) {
 }
 
 // Percent from a fraction (0,2 = 20%). Small values keep two decimals, so a
-// fee of 0,36% does not read as 0%.
+// fee of 0,36% does not read as 0%. `digits` fixes the decimals, zeros kept
+// (rates of the real-portfolio and retirement-multiple chapters: "4,0%").
 export function formatReportPercent(value, options = {}) {
   if (!Number.isFinite(value)) return 'indisponível'
   const percent = value * 100
-  const digits = Math.abs(percent) < 1 ? 2 : 1
+  const fixed = Number.isInteger(options.digits)
+  const digits = fixed ? options.digits : Math.abs(percent) < 1 ? 2 : 1
   const rounded = roundTo(percent, digits)
-  return signed(`${decimal(Math.abs(rounded), digits)}%`, rounded, options)
+  return signed(`${decimal(Math.abs(rounded), digits, fixed)}%`, rounded, options)
 }
 
 export function formatReportPoints(value, options = {}) {
   if (!Number.isFinite(value)) return 'indisponível'
   const rounded = roundTo(value * 100, 1)
-  return signed(`${decimal(Math.abs(rounded), 1)} p.p.`, rounded, options)
+  return signed(`${decimal(Math.abs(rounded), 1, options.fixed === true)} p.p.`, rounded, options)
+}
+
+// Plain number in pt-BR, rounded to `digits` decimals (multiples, years).
+export function formatReportNumber(value, digits = 0) {
+  if (!Number.isFinite(value)) return 'indisponível'
+  const rounded = roundTo(value, digits)
+  return signed(decimal(Math.abs(rounded), digits, true), rounded)
 }
 
 export function formatReportMonths(value) {

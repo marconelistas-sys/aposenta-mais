@@ -3,7 +3,7 @@ import { accountBalanceKey, applyAccountBalances, previewAccountBalances } from 
 import { applyPensionBalance } from '../domain/pension-balance-import.js'
 import { reconcileOwnTransfers } from '../domain/own-transfers.js'
 import { planStatementUpdates } from '../domain/statement-batch.js'
-import { linkAssetPurchases, reconcileAssetPurchases } from '../domain/asset-purchases.js'
+import { linkAssetPurchases, reconcileAssetPurchases, mergeAssets } from '../domain/asset-purchases.js'
 import { linkStatementInvestments, recomputeInvestmentMovements, newInvestmentTarget } from '../domain/statement-investment-movements.js'
 import { cashFlowItemLimit } from '../shared/limits.js'
 import { categoryById } from '../data/cash-flow-categories.js'
@@ -389,6 +389,19 @@ export function removeCashFlowItem(id) {
   const items = state.cashFlow.items.filter((item) => item.id !== id)
   recomputeLinkedInvestments(items, [removed?.statementInvestmentId])
   updateCashFlow({ ...state.cashFlow, items })
+}
+
+// Two rows for one asset, e.g. a car planned for later and bought now: payments move to the kept row.
+export function mergeNonFinancialAssets(keepId, removeId) {
+  const result = mergeAssets(state.cashFlow.nonFinancialAssets || [], state.cashFlow.items, keepId, removeId)
+  updateCashFlow({ items: result.items, nonFinancialAssets: result.assets })
+  return state.cashFlow.nonFinancialAssets.find(row => row.id === keepId)
+}
+
+export function markNonFinancialAssetsDistinct(firstId, secondId) {
+  const assets = state.cashFlow.nonFinancialAssets || []
+  if (!assets.some(row => row.id === firstId) || !assets.some(row => row.id === secondId)) throw new TypeError('Bens não encontrados. Atualize a página e tente de novo.')
+  updateCashFlow({ nonFinancialAssets: assets.map(row => row.id === firstId ? { ...row, distinctFrom: [...new Set([...(row.distinctFrom || []), secondId])] } : row) })
 }
 
 export function updateCashFlowItem(id, patch) {

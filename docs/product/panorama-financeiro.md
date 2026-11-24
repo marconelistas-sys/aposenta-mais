@@ -57,12 +57,13 @@ Rota `/panorama`. Aba padrão `resumo`. Capítulos em blocos contíguos de `repo
 | 1 | Resumo | `resumo` | Capa e parâmetros, 1 Sumário executivo |
 | 2 | Fluxo e gastos | `gastos` | 2 Fluxo de caixa e poupança, 3 Onde o gasto está alto |
 | 3 | Patrimônio | `patrimonio` | 4 Balanço patrimonial hoje, 5 Patrimônio por dimensão e evolução |
-| 4 | Carteira | `carteira` | 6 Carteira |
-| 5 | Reserva, dívidas e câmbio | `reserva` | 7 Liquidez e reserva, 8 Dívidas e compromissos, 9 Câmbio |
-| 6 | Aposentadoria | `aposentadoria` | 10 Aposentadoria e objetivos |
-| 7 | Verificação e premissas | `premissas` | 11 Lista de verificação, 12 Premissas, dados e avisos |
+| 4 | Carteira | `carteira` | 6 Sua carteira de verdade, 7 Carteira |
+| 5 | Reserva, dívidas e câmbio | `reserva` | 8 Liquidez e reserva, 9 Dívidas e compromissos, 10 Câmbio |
+| 6 | Aposentadoria | `aposentadoria` | 11 Quantas vezes o custo mensal você precisa ter, 12 Aposentadoria e objetivos |
+| 7 | Verificação e premissas | `premissas` | 13 Lista de verificação, 14 Premissas, dados e avisos |
 
-- Os capítulos mantêm o número ("Capítulo 3"), igual ao PDF. Textos como "detalhes no capítulo 12" ficam como estão.
+- Os capítulos mantêm o número ("Capítulo 3"), igual ao PDF. **Desde 2026-11-16** o número vem da posição em `reportChapters` (`chapterNumber` em `report-view.js`; sumário = 1): textos como "detalhes no capítulo 14" se ajustam sozinhos quando um capítulo entra ou sai.
+- Capítulos 6 e 11: `docs/product/carteira-real-e-multiplo-aposentadoria.md`.
 - A barra de impressão fica compacta: status, botão, aviso de privacidade. As dicas de impressão vão para um `<details>` fora do documento.
 - Data-base = mês de referência do Orçamento (`cashFlow.referenceMonth`). Trocar o mês no Orçamento muda o Panorama. [fato]
 
@@ -78,7 +79,7 @@ Rota `/panorama`. Aba padrão `resumo`. Capítulos em blocos contíguos de `repo
 | Aposentadoria | Meu plano, Objetivos e confiança | Simulações, Riscos anuais, Após aposentadoria |
 | Verificação e premissas | Meu plano (premissas), Perfil e dados | Viabilidade do plano |
 
-Os links "Revisar" da qualidade dos dados (capítulo 12) continuam. [fato: `dataQuality[].href`]
+Os links "Revisar" da qualidade dos dados (capítulo 14, antes 12) continuam. [fato: `dataQuality[].href`]
 
 ## Destino do Orçamento
 
@@ -123,7 +124,7 @@ Sem telemetria (dados ficam no navegador). Medida = testes + avaliação do dono
 |---|---|---|---|
 | Cliques do topo até o diagnóstico | 2 (Menu → Planejar → 8º item) | 1 (barra principal) | Playwright |
 | Abas + blocos de análise no Orçamento | 5 abas, 2 visões de análise de gasto | 4 abas, 0 | Teste de renderização |
-| PDF | ≤ 12 páginas, sem estouro | Igual, a partir de qualquer aba | `check-report-print-browser.mjs` |
+| PDF | ≤ 12 páginas, sem estouro | Igual, a partir de qualquer aba (≤ 14 páginas desde 2026-11-16, com os capítulos 6 e 11) | `check-report-print-browser.mjs` |
 | Compreensão | Relato do dono | Dono responde "onde o gasto está alto?", "quantos meses de reserva?", "como está a aposentadoria?" em até 2 cliques cada | Sessão observada, 15 min |
 | Reversão | — | Se em 2 semanas o dono sentir falta do Acumulado do ano, ele volta como período "Acumulado até o mês" em Categorias | Pergunta ao dono em 2026-11-18 |
 
@@ -154,7 +155,7 @@ Como dono do plano, quero ler as abas enquanto as faixas P10–P90 são calculad
 
 Como dono do plano, quero salvar o PDF de qualquer aba, para não perder capítulos por estar na aba errada.
 
-- Dada a aba Carteira ativa e o relatório `complete`, quando aciono "Salvar relatório em PDF", então a prévia traz capa e capítulos 1 a 12 na ordem, sem barra de abas nem links "Ajustar em", em até 12 páginas A4.
+- Dada a aba Carteira ativa e o relatório `complete`, quando aciono "Salvar relatório em PDF", então a prévia traz capa e capítulos 1 a 14 na ordem, sem barra de abas nem links "Ajustar em", em até 14 páginas A4 (até 12 capítulos e 12 páginas antes de 2026-11-16).
 - Dado o Panorama aberto, quando uso Ctrl+P sem o botão, então a impressão é a da tela (barra de abas, só a aba aberta), sem o layout A4 do relatório.
 - Dados os valores ocultos, quando abro `/panorama`, então vejo as 7 abas com os valores em dinheiro mascarados, o aviso, "Mostrar valores" e o botão de PDF desabilitado com motivo lido por leitor de tela.
 - Dados os valores ocultos com `?aba=aposentadoria`, quando clico "Mostrar valores", então continuo na aba Aposentadoria, com os valores.

@@ -7,6 +7,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { chromium } from 'playwright'
 import { reportFixtureState, reportFixtureToday } from '../tests/fixtures/report-state.js'
+import { bundledEconomicIndicators } from '../src/shared/economic-indicators.js'
 import { bundledExchangeRates } from '../src/shared/exchange-rates.js'
 
 // Panorama financeiro (tela em abas) e Relatório financeiro (impressão). Sempre com servidor, banco e
@@ -40,6 +41,8 @@ try {
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
   await page.clock.setFixedTime(reportFixtureToday)
+  // Official inflation embedded in the app: no call to BCB/SNB, same numbers on every run.
+  await page.route('**/api/economic-indicators*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bundledEconomicIndicators) }))
   await page.route('**/api/exchange-rates*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bundledExchangeRates) }))
 
   await page.goto(`http://127.0.0.1:${port}`)
@@ -103,7 +106,11 @@ try {
   assert.equal(await page.locator('[data-report-chapter="retirement"] .report-svg-band--outer').count(), 1, 'leque P10–P90 depois da simulação')
   assert.equal(await page.locator('[data-report] details').count(), 0, 'nada dentro de <details>')
   assert.equal(await page.locator('[data-report-indicator]').count(), 11)
-  assert.deepEqual(await page.locator('[data-report-chapter]').evaluateAll(nodes => nodes.map(node => node.dataset.reportChapter)), ['summary', 'cashFlow', 'spending', 'balanceSheet', 'wealth', 'portfolio', 'liquidity', 'debts', 'currency', 'retirement', 'checklist', 'appendix'])
+  assert.deepEqual(await page.locator('[data-report-chapter]').evaluateAll(nodes => nodes.map(node => node.dataset.reportChapter)), ['summary', 'cashFlow', 'spending', 'balanceSheet', 'wealth', 'portfolioReality', 'portfolio', 'liquidity', 'debts', 'currency', 'retirementMultiple', 'retirement', 'checklist', 'appendix'])
+  // The two new chapters open their tabs: the short answer before the detail.
+  assert.deepEqual(await page.locator('[data-page-tab-panel="panorama:carteira"] [data-report-chapter]').evaluateAll(nodes => nodes.map(node => node.dataset.reportChapter)), ['portfolioReality', 'portfolio'])
+  assert.deepEqual(await page.locator('[data-page-tab-panel="panorama:aposentadoria"] [data-report-chapter]').evaluateAll(nodes => nodes.map(node => node.dataset.reportChapter)), ['retirementMultiple', 'retirement'])
+  assert.equal(await page.locator('[data-report-scenario]').count(), 3)
   const reportText = await page.locator('[data-report]').evaluate(node => node.textContent)
   assert.doesNotMatch(reportText, /\{[a-zA-Z]+\}|NaN|undefined|•••/)
   assert.match(reportText, /Patrimônio líquido de CHF/)
@@ -120,6 +127,11 @@ try {
   assert.equal(await page.locator('[data-page-tab-panel="panorama:gastos"]').isVisible(), true)
   assert.equal(await page.locator('[data-page-tab-panel="panorama:resumo"]').isVisible(), false)
   await page.screenshot({ path: join(output, 'tela-1440-gastos.png'), fullPage: true })
+  for (const key of ['carteira', 'aposentadoria']) {
+    await page.locator(`[data-page-tab="panorama:${key}"]`).click()
+    await page.screenshot({ path: join(output, `tela-1440-${key}.png`), fullPage: true })
+  }
+  await page.locator('[data-page-tab="panorama:gastos"]').click()
 
   // "Ajustar em": from reading to the screen that changes the number, and back without recalculating.
   await page.locator('[data-report-adjust="gastos"] a[href="/orcamento?aba=lancamentos"]').click()
@@ -158,7 +170,7 @@ try {
     for (const key of tabKeys) {
       await page.locator(`[data-page-tab="panorama:${key}"]`).click()
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `estouro horizontal na aba ${key} a ${width}px`)
-      if (width === 390 && ['resumo', 'gastos'].includes(key)) await page.screenshot({ path: join(output, `tela-390-${key}.png`), fullPage: true })
+      if (width === 390 && ['resumo', 'gastos', 'carteira', 'aposentadoria'].includes(key)) await page.screenshot({ path: join(output, `tela-390-${key}.png`), fullPage: true })
     }
     const target = await print.boundingBox()
     assert.ok(target.height >= 44, 'botão com alvo de toque de 44 px')
@@ -174,7 +186,7 @@ try {
     const shown = await page.locator(selector).evaluateAll(nodes => nodes.filter(node => getComputedStyle(node).display !== 'none').length)
     assert.equal(shown, 0, `${selector} não pode sair na impressão`)
   }
-  assert.equal(await page.locator('[data-report-chapter]').evaluateAll(nodes => nodes.filter(node => node.getBoundingClientRect().height > 0).length), 12, 'todos os capítulos na impressão, de qualquer aba')
+  assert.equal(await page.locator('[data-report-chapter]').evaluateAll(nodes => nodes.filter(node => node.getBoundingClientRect().height > 0).length), 14, 'todos os capítulos na impressão, de qualquer aba')
   assert.equal(await page.locator('[data-report-cover]').isVisible(), true)
   const overflow = await page.evaluate(() => {
     const limit = document.querySelector('[data-report]').getBoundingClientRect().right + 1
@@ -188,7 +200,7 @@ try {
   const pdfPath = join(output, 'relatorio-exemplo.pdf')
   await page.pdf({ path: pdfPath, format: 'A4', preferCSSPageSize: true, printBackground: true })
   const pages = (String(await readFile(pdfPath, 'latin1')).match(/\/Type\s*\/Page(?!s)/g) || []).length
-  assert.ok(pages >= 6 && pages <= 12, `PDF com ${pages} páginas; a meta é até 12`)
+  assert.ok(pages >= 6 && pages <= 14, `PDF com ${pages} páginas; a meta é até 14`)
   const rasterized = spawnSync('pdftoppm', ['-r', '80', '-png', pdfPath, join(output, 'pagina')], { stdio: 'ignore' })
   await page.emulateMedia({ media: 'screen' })
   await page.setViewportSize({ width: 1440, height: 1000 })

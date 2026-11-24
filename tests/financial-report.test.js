@@ -225,7 +225,10 @@ test('ações ordenadas pela confiança, no máximo duas alternativas e reserva 
 
 test('estado vazio: cada capítulo sem dados traz motivo, e os indicadores ficam indisponíveis', () => {
   const report = buildFinancialReport(fixture(), { today, goals: null })
-  for (const chapter of reportChapters.filter(key => !['checklist', 'appendix'].includes(key))) {
+  // Without budget and portfolio, the multiple falls back to the desired income of Meu plano.
+  assert.equal(report.retirementMultiple.available, true)
+  assert.equal(report.retirementMultiple.basis, 'plan')
+  for (const chapter of reportChapters.filter(key => !['checklist', 'appendix', 'retirementMultiple'].includes(key))) {
     assert.equal(report[chapter].available, false, chapter)
     assert.equal(typeof report[chapter].emptyReason.template, 'string', chapter)
     assert.equal(typeof report[chapter].headline.template, 'string', chapter)

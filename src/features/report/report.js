@@ -6,6 +6,8 @@ import { ownedStorage } from '../../app/owned-storage.js'
 import { riskRevision } from '../plan/risk.js'
 import { goalsView } from '../goals/goals.js'
 import { runReport } from './report-worker.js'
+import { economicIndicatorsState } from '../../app/economic-indicators-state.js'
+import { bundledEconomicIndicators } from '../../shared/economic-indicators.js'
 import { renderReportScreen, reportDocumentTitle, reportPageStyle } from './report-view.js'
 
 // The bands take long on large plans; past this limit the report stays with
@@ -49,7 +51,10 @@ export function ensureReport(onChange, { today = new Date() } = {}) {
   cancelReport(true)
   Object.assign(reportView, { status: 'running', step: 'goals', revision })
   const goals = goalsView.result && goalsView.revision === riskRevision() ? goalsView.result : undefined
-  const input = { state: snapshot(), today: today.toISOString(), goals }
+  // Official 12-month inflation (IPCA, Swiss CPI) for the realized return: the
+  // snapshot of this session, or the one embedded in the app (stale but official).
+  const indicators = economicIndicatorsState.snapshot || bundledEconomicIndicators
+  const input = { state: snapshot(), today: today.toISOString(), goals, indicators: JSON.parse(JSON.stringify(indicators)) }
   if (typeof Worker === 'undefined') {
     try { runReport(input, message => apply(message, revision)) } catch (error) { apply({ stage: 'error', error: String(error?.message || error) }, revision) }
     return
