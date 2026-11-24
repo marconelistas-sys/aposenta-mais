@@ -1061,6 +1061,22 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
 .annual-chart-table th, .annual-chart-table td { padding: .65rem; border-bottom: 1px solid #e1e7f0; text-align: end; font-variant-numeric: tabular-nums; }
 .annual-chart-table td { white-space: nowrap; }
 .annual-chart-table th:first-child { text-align: start; }
+.projection-milestones { margin-block: 1rem; }
+.projection-milestones > p { margin-block: 0 .5rem; font-size: .85rem; font-weight: 600; }
+.projection-milestones ul { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; }
+.projection-milestones li { flex: 1 1 10rem; min-width: 0; }
+.projection-milestones button { display: grid; gap: .3rem; width: 100%; min-height: 44px; padding: .65rem .75rem; border: 1px solid var(--color-border-strong); border-radius: .4rem; background: var(--color-surface); color: var(--color-ink); font: inherit; font-size: .8rem; text-align: start; cursor: pointer; }
+.projection-milestones button[aria-pressed="true"] { border-color: var(--color-brand); background: var(--color-brand-soft); box-shadow: inset 0 0 0 1px var(--color-brand); }
+.projection-milestones button:hover { border-color: var(--color-brand); }
+.projection-milestones button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; }
+.annual-chart-life { margin-block: 0 .75rem; color: var(--color-ink-soft); font-weight: 600; }
+.financial-year-breakdown { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--color-border); }
+.financial-year-breakdown h4 { margin-block: 0 .5rem; font-size: .95rem; }
+[data-chart-inline-readout] .financial-year-breakdown dl { display: grid; grid-template-columns: 1fr; gap: 0; }
+[data-chart-inline-readout] .financial-year-breakdown dl > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .4rem 1rem; padding: .25rem 0; border: 0; background: none; }
+[data-chart-inline-readout] .financial-year-breakdown dd { font-size: .9rem; text-align: end; }
+[data-chart-inline-readout] .financial-year-breakdown dl > div:first-child, [data-chart-inline-readout] .financial-year-breakdown dl > div:last-child { font-weight: 700; }
+.financial-year-breakdown p { margin-block: .5rem 0; font-size: .8rem; line-height: 1.5; color: var(--color-ink-soft); }
 @media (max-width: 640px) {
   .annual-chart-heading > label { flex-basis: 100%; }
   [data-chart-inline-readout] .planning-chart-readout { padding: .65rem; }
