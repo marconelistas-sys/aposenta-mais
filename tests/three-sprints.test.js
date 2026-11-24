@@ -97,7 +97,7 @@ test('aporte sem distribuição conserva hipótese de taxa padrão e entradas va
 test('comparação de cenários mostra premissas e remove gráficos e percentuais com privacidade', () => {
   family(); addScenario('Alternativa', state.plan)
   state.valuesHidden = false
-  assert.match(renderSimulations(), /O que muda entre os cenários/)
+  assert.match(renderSimulations(), /O que sua decisão muda ao longo da vida/)
   assert.match(renderSimulations(), /data-edit-scenario/)
   state.valuesHidden = true
   const html = renderSimulations()

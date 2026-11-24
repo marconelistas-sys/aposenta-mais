@@ -1,5 +1,7 @@
 import { state } from '../../app/state.js'
 import { validateProjectionInput } from '../../domain/retirement.js'
+import { investmentBalanceCurrency, round2 } from '../../domain/investment-currency.js'
+import { convertCurrency } from '../../shared/exchange-rates.js'
 
 export const scenarioEditor = { scenario: null }
 export function clearScenarioEditor() { scenarioEditor.scenario = null }
@@ -13,11 +15,18 @@ export function simulationContext() {
 }
 
 function distribute(investments, key, total) {
+  const currency = simulationContext().currency
+  const nativeKey = key === 'amount' ? 'nativeAmount' : 'nativeMonthlyContribution'
   const previous = investments.reduce((sum, item) => sum + item[key], 0)
   let assigned = 0
   investments.forEach((item, index) => {
     const amount = index === investments.length - 1 ? total - assigned : previous > 0 ? total * item[key] / previous : index === 0 ? total : 0
     item[key] = Math.max(0, amount)
+    // The annual engine reads native balances first. Keep the edited hypothesis
+    // in both currencies so synchronizing it cannot restore the old balance.
+    const nativeCurrency = investmentBalanceCurrency(item, currency)
+    if (nativeCurrency !== currency) item[nativeKey] = round2(convertCurrency(item[key], currency, nativeCurrency, state.exchangeRates))
+    else delete item[nativeKey]
     assigned += item[key]
   })
 }
@@ -50,5 +59,7 @@ export function simulationInputFromData(data, base = simulationContext().plan) {
 }
 
 export function simulationCashFlow(plan = simulationContext().plan) {
-  return { ...structuredClone(simulationContext().cashFlow), retirementMonth: plan.retirementMonth || simulationContext().cashFlow.retirementMonth }
+  const context = simulationContext()
+  const changed = plan.retirementMonth !== context.plan.retirementMonth || plan.retirementAge !== context.plan.retirementAge || plan.currentAge !== context.plan.currentAge
+  return { ...structuredClone(context.cashFlow), retirementMonth: changed ? plan.retirementMonth : context.cashFlow.retirementMonth || plan.retirementMonth }
 }

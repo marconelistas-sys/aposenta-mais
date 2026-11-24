@@ -113,6 +113,7 @@ import { renderProfile } from './features/profile/profile.js'
 import { renderDeletedState, renderPrivacy } from './features/privacy/privacy.js'
 import {
   renderSimulationResult,
+  renderScenarioComparison,
   renderSimulations
 } from './features/simulations/simulations.js'
 import { formatCurrency, parseNumber, percentInputValue, privateCurrency } from './shared/formatters.js'
@@ -288,10 +289,36 @@ function refreshReport() {
   else if (link) Array.from(app.querySelectorAll('[data-report] a')).find(node => node.getAttribute('href') === link.href && node.textContent === link.text && !node.closest('[hidden]'))?.focus({ preventScroll: true })
 }
 
+let simulationFormSnapshot = null
+let simulationFormCurrency = null
+let simulationComparisonSnapshot = null
+
+function captureSimulationComparison() {
+  const comparison = document.querySelector('#simulation-comparison-content')
+  const reference = comparison?.querySelector('[data-simulation-reference]')
+  if (!reference) return simulationComparisonSnapshot
+  const chart = comparison.querySelector('[data-planning-chart]')
+  const years = comparison.querySelector('[data-simulation-years]')?.dataset.simulationYears.split(',').map(Number) || []
+  simulationComparisonSnapshot = {
+    referenceId: reference.value,
+    metric: comparison.querySelector('[data-simulation-metric]')?.value || 'financial',
+    selectedYear: years[Number(chart?.dataset.chartSelectedIndex || 0)]
+  }
+  return simulationComparisonSnapshot
+}
+
 function captureSimulationForm() {
   const form = document.querySelector('[data-simulation-form]')
-  if (!form) return null
-  return Object.fromEntries(new FormData(form).entries())
+  if (form) {
+    simulationFormSnapshot = Object.fromEntries(new FormData(form).entries())
+    simulationFormCurrency = form.dataset.simulationCurrency
+    captureSimulationComparison()
+  }
+  if (simulationFormCurrency !== simulationContext().currency) {
+    simulationFormSnapshot = null
+    simulationComparisonSnapshot = null
+  }
+  return simulationFormSnapshot
 }
 
 function restoreSimulationForm(values) {
@@ -313,7 +340,11 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
   const normalizedLocation = window.location.href ? normalizePlanningHref(window.location.href) : null
   if (normalizedLocation && normalizedLocation !== window.location.href && normalizedLocation !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState({}, '', normalizedLocation)
   const pathname = currentPath()
-  const simulationValues = pathname === '/simulacoes' && !resetSimulation ? captureSimulationForm() : null
+  if (pathname !== '/simulacoes' || resetSimulation || state.dataDeleted) {
+    simulationFormSnapshot = null
+    simulationComparisonSnapshot = null
+  }
+  const simulationValues = pathname === '/simulacoes' && !resetSimulation && !state.dataDeleted ? captureSimulationForm() : null
   const selectedRenderer = pathname === '/inicio' || !canRenderFinancialPage(pathname) ? renderWelcome : pathname.startsWith('/construir/') ? () => renderGuidedPlan(pathname.split('/')[2]) : routes[pathname] || renderDashboard
   const pageRenderer = state.dataDeleted && canRenderFinancialPage(pathname) && !isPublicPage(pathname) && pathname !== '/perfil'
     ? renderDeletedState
@@ -331,6 +362,7 @@ function render({ focusMain = false, resetSimulation = false, indicateRecalculat
   bindPaymentDialog(app)
   enhanceMoneyInputs(app, { hidden: state.valuesHidden })
   restoreSimulationForm(simulationValues)
+  if (simulationValues && !state.valuesHidden) updateSimulationResults(app.querySelector('[data-simulation-form]'), simulationComparisonSnapshot)
   document.querySelectorAll('[data-guided-budget], [data-cash-item-form], [data-cash-item-edit-form]').forEach(form => guideBudgetForm(form, state.customCategories, incomeIndexationContext(state)))
   guideCommitmentForm(document.querySelector('[data-commitment-form]'))
   guideConsortiumForm(document.querySelector('[data-consortium-form]'))
@@ -436,6 +468,31 @@ function showToast(message) {
 
 function simulationInputFromForm(form) {
   return simulationInputFromData(readMoneyFormData(form))
+}
+
+function updateSimulationResults(form, options = captureSimulationComparison()) {
+  if (!form || state.valuesHidden) return false
+  const resultContainer = document.querySelector('#simulation-result-content')
+
+  try {
+    const simulationPlan = simulationInputFromForm(form)
+    const result = projectRetirementWithSchedules(simulationPlan, simulationSchedules(simulationPlan))
+    const comparison = document.querySelector('#simulation-comparison-content')
+    const focusControl = document.activeElement?.matches('[data-simulation-reference]') ? '[data-simulation-reference]' : document.activeElement?.matches('[data-simulation-metric]') ? '[data-simulation-metric]' : null
+    resultContainer.innerHTML = renderSimulationResult(result, simulationPlan, simulationContext().currency)
+    if (comparison) comparison.innerHTML = renderScenarioComparison(simulationPlan, simulationCashFlow(simulationPlan), simulationContext().currency, options || {})
+    captureSimulationComparison()
+    if (focusControl) comparison?.querySelector(focusControl)?.focus({ preventScroll: true })
+    return true
+  } catch (error) {
+    const errorBox = document.createElement('div')
+    errorBox.className = 'form-error'
+    errorBox.setAttribute('role', 'alert')
+    errorBox.textContent = String(error.message)
+    resultContainer.replaceChildren(errorBox)
+    document.querySelector('#simulation-comparison-content')?.replaceChildren(errorBox.cloneNode(true))
+    return false
+  }
 }
 
 function showInvestmentStep(form, step) {
@@ -1655,8 +1712,7 @@ document.addEventListener('click', async (event) => {
     try {
       const plan = simulationInputFromForm(form)
       projectRetirementWithSchedules(plan, simulationSchedules(plan))
-      if (scenarioEditor.scenario) replaceFinancialData({ ...state, currency: simulationContext().currency, cashFlow: simulationCashFlow(plan), plan })
-      else updatePlan(plan)
+      replaceFinancialData({ ...state, currency: simulationContext().currency, cashFlow: simulationCashFlow(plan), plan })
       await navigate('/')
       showToast('Simulação aplicada ao plano principal.')
     } catch (error) {
@@ -1944,6 +2000,11 @@ document.addEventListener('change', async (event) => {
   if (event.target.matches('[name="householdOwner"]')) { guideBudgetForm(event.target.closest('form'), state.customCategories, incomeIndexationContext(state)); return }
   if (event.target.matches('[data-income-indexation] input[name="indexation"]')) markIndexationTouched(event.target)
   if (event.target.matches('[data-login-provider]')) { authState.loginProvider = event.target.value; return }
+
+  if (event.target.matches('[data-simulation-reference], [data-simulation-metric]')) {
+    app.querySelector('[data-simulation-form]')?.requestSubmit()
+    return
+  }
 
   if (event.target.matches('[data-property-solvency], [data-cash-flow-price-basis], [data-annual-chart-mode]')) {
     const yearControl = event.target.closest('[data-cash-flow-line-view]')?.querySelector('[data-cash-flow-year], [data-chart-year]')
@@ -2864,24 +2925,16 @@ document.addEventListener('submit', async (event) => {
   if (!form) return
   event.preventDefault()
 
-  const resultContainer = document.querySelector('#simulation-result-content')
-
-  try {
-    const simulationPlan = simulationInputFromForm(form)
-    const result = projectRetirementWithSchedules(simulationPlan, simulationSchedules(simulationPlan))
-    resultContainer.innerHTML = renderSimulationResult(result, simulationPlan, simulationContext().currency)
-    resultContainer.closest('.simulation-result')?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    })
+  const changingComparison = document.activeElement?.matches('[data-simulation-reference], [data-simulation-metric]')
+  if (updateSimulationResults(form)) {
+    if (!changingComparison) {
+      const heading = app.querySelector('#scenario-comparison-title')
+      heading?.focus({ preventScroll: true })
+      heading?.scrollIntoView({ block: 'start' })
+    }
     showToast('Projeção atualizada.')
-  } catch (error) {
-    const errorBox = document.createElement('div')
-    errorBox.className = 'form-error'
-    errorBox.setAttribute('role', 'alert')
-    errorBox.textContent = String(error.message)
-    resultContainer.replaceChildren(errorBox)
   }
+
 })
 
 window.addEventListener('popstate', () => {

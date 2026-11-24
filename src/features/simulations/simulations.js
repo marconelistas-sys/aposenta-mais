@@ -1,9 +1,11 @@
 import { scenarioEditor, simulationContext, simulationCashFlow } from './scenario-editor.js'
 import { state } from '../../app/state.js'
-import { projectAssetSeriesWithSchedules, projectRetirementWithSchedules } from '../../domain/retirement.js'
+import { projectRetirementWithSchedules } from '../../domain/retirement.js'
 import { retirementContributionSchedules } from '../../domain/cash-flow.js'
 import { escapeHtml, formatPercent, percentInputValue, privateCurrency } from '../../shared/formatters.js'
 import { retirementTargetBasis } from '../../shared/retirement-target.js'
+import { prepareScenarioComparison } from '../../domain/scenario-comparison.js'
+import { scenarioComparisonView } from './comparison-view.js'
 import { icon } from '../../shared/icons.js'
 import { currencySymbol } from '../../shared/currencies.js'
 import { convertCurrency } from '../../shared/exchange-rates.js'
@@ -17,8 +19,6 @@ function scenarioReturnOrigin(plan, { current = false } = {}) {
   if (current) return defaultReturnOrigin(plan).short
   return effectiveDefaultReturnSource(plan) === 'portfolio' ? 'derivado da carteira ao salvar' : 'informado no cenário'
 }
-
-const comparisonColors = ['#167454', '#2855c7', '#64748b', '#7c69a8']
 
 function planInDashboardCurrency(plan, sourceCurrency) {
   if (sourceCurrency === state.currency) return plan
@@ -81,33 +81,19 @@ export function renderSimulationResult(result, plan = state.plan, currency = sta
     <div class="simulation-result__status ${result.goalReached ? 'is-success' : ''}">
       <span>${icon(result.goalReached ? 'check' : 'trendUp', 20)}</span>
       <div>
-        <strong>${result.goalReached ? 'Meta alcançada neste cenário' : `Este cenário cobre ${formatPercent(incomeProgress)} da renda desejada`}</strong>
-        <p>${result.goalReached ? 'Você criou uma margem para o plano.' : `A diferença estimada é ${money(gap)} por mês.`}</p>
+        <strong>${result.goalReached ? 'Meta de renda atingida no cálculo complementar' : `O indicador complementar cobre ${formatPercent(incomeProgress)} da renda desejada`}</strong>
+        <p>${result.goalReached ? 'Confira abaixo se o orçamento e a liquidez sustentam o plano até o horizonte.' : `A diferença estimada é ${money(gap)} por mês.`}</p>
       </div>
     </div>
-    <div class="simulation-result__hero simulation-result__hero--ring">
-      <div>
-        <span>Renda mensal projetada</span>
-        <strong>${money(result.projectedMonthlyIncome)}</strong>
-        <small>em valores de hoje</small>
-      </div>
-      ${state.valuesHidden ? '' : `<svg class="simulation-ring" viewBox="0 0 120 120" role="img" aria-label="Progresso da simulação: ${formatPercent(incomeProgress)} da renda desejada"><circle cx="60" cy="60" r="50" fill="none" stroke="#e8edf5" stroke-width="12"/><circle cx="60" cy="60" r="50" fill="none" stroke="${result.goalReached ? '#167454' : '#64748b'}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(Math.min(1, Math.max(0, incomeProgress)) * 314.16).toFixed(2)} 314.16" transform="rotate(-90 60 60)"/><text x="60" y="66" text-anchor="middle" font-size="20" font-weight="700" fill="#17243b">${Math.round(incomeProgress * 100)}%</text></svg>`}
-    </div>
+    <div class="simulation-result__hero"><div><span>Renda mensal estimada por aporte fixo</span><strong>${money(result.projectedMonthlyIncome)}</strong><small>Indicador complementar, em valores de hoje</small></div></div>
     <div class="simulation-result__metrics">
       <div>${icon('pie', 18, 'metric-glyph')}<span>Patrimônio projetado</span><strong>${money(result.projectedAssets)}</strong></div>
       <div>${icon('target', 18, 'metric-glyph')}<span>Meta de patrimônio</span><strong>${money(result.targetAssets)}</strong></div>
       <div>${icon('calendar', 18, 'metric-glyph')}<span>Aporte sugerido</span><strong>${money(result.requiredMonthlyContribution)}</strong></div>
-      <div>${icon('trendUp', 18, 'metric-glyph')}<span>Progresso da renda</span><strong>${formatPercent(incomeProgress)}</strong></div>
     </div>
     <p class="annual-chart-basis" data-retirement-target-basis>${escapeHtml(retirementTargetBasis(result, plan))}</p>
-    <div class="simulation-result__actions">
-      <button class="button button--primary button--full" type="button" data-apply-simulation>
-        Usar como plano principal
-      </button>
-      <button class="button button--secondary button--full" type="button" data-save-scenario>
-        ${scenarioEditor.scenario ? 'Salvar alterações do cenário' : 'Salvar para comparar'}
-      </button>
-    </div>
+    <p class="annual-chart-basis">Este cálculo supõe aporte fixo até a aposentadoria. Não comprova cobertura do orçamento. Receitas, despesas e liquidez são avaliadas na comparação do planejamento completo.</p>
+    <p><a href="#scenario-comparison-title">Ver comparação completa</a></p>
     <p class="result-disclaimer">Projeção educacional. Ela não substitui uma análise previdenciária ou financeira individual.</p>
   `
 }
@@ -128,10 +114,11 @@ function renderSavedScenarios() {
             <button class="icon-button" type="button" data-remove-scenario="${escapeHtml(scenario.id)}" aria-label="Excluir cenário ${escapeHtml(scenario.name)}">×</button>
           </div>
           <dl>
-            <div><dt>Renda projetada</dt><dd>${privateCurrency(result.projectedMonthlyIncome, state.valuesHidden, false, state.currency)}</dd></div>
-            <div><dt>Patrimônio</dt><dd>${privateCurrency(result.projectedAssets, state.valuesHidden, false, state.currency)}</dd></div>
+            <div><dt>Renda complementar por aporte fixo</dt><dd>${privateCurrency(result.projectedMonthlyIncome, state.valuesHidden, false, state.currency)}</dd></div>
+            <div><dt>Saldo na aposentadoria, por aporte fixo</dt><dd>${privateCurrency(result.projectedAssets, state.valuesHidden, false, state.currency)}</dd></div>
             <div><dt>Aporte necessário</dt><dd>${privateCurrency(result.requiredMonthlyContribution, state.valuesHidden, false, state.currency)}</dd></div>
-            <div><dt>Idade planejada</dt><dd>${scenario.plan.retirementAge} anos</dd></div>
+            <div><dt>Aposentadoria planejada</dt><dd>${scenario.plan.retirementAge} anos</dd></div>
+            <div><dt>Horizonte</dt><dd>${scenario.plan.targetAge} anos</dd></div>
             <div><dt>Retorno real</dt><dd>${formatPercent(scenario.plan.annualRealReturn)} ao ano<small>${scenarioReturnOrigin(scenario.plan)}</small></dd></div>
             <div><dt>Moeda original</dt><dd>${scenario.currency}</dd></div>
           </dl>
@@ -143,89 +130,10 @@ function renderSavedScenarios() {
   </div>`
 }
 
-function scenarioAssumptions() {
-  if (!state.scenarios.length) return ''
-  if (state.valuesHidden) return '<p>Premissas dos cenários ocultas.</p>'
-  const rows = [{ name: 'Plano atual', plan: state.plan, currency: state.currency }, ...state.scenarios]
-  return `<section class="panel"><h2>O que muda entre os cenários</h2><div class="table-scroll" tabindex="0"><table><caption>Valores convertidos para ${state.currency}, na cotação do plano atual</caption><thead><tr><th>Cenário</th><th>Patrimônio inicial</th><th>Aporte mensal</th><th>Aposentadoria</th><th>Renda desejada</th></tr></thead><tbody>${rows.map(row => {
-    const plan = planInDashboardCurrency(row.plan, row.currency)
-    const money = value => privateCurrency(value, false, true, state.currency)
-    return `<tr><th scope="row">${escapeHtml(row.name)}</th><td>${money(plan.currentAssets)}</td><td>${money(plan.monthlyContribution)}</td><td>${plan.retirementAge} anos</td><td>${money(plan.targetMonthlyIncome)}</td></tr>`
-  }).join('')}</tbody></table></div></section>`
-}
-
-function scenarioComparisonChart() {
-  if (state.valuesHidden) return '<section class="panel"><h2>Comparação de cenários</h2><p>Valores e gráficos ocultos.</p></section>'
-  const scenarios = [
-    { name: 'Plano atual', plan: state.plan, currency: state.currency, cashFlow: state.cashFlow },
-    ...state.scenarios
-  ]
-  const prepared = scenarios.map((scenario, index) => {
-    const plan = planInDashboardCurrency(scenario.plan, scenario.currency)
-    return {
-      ...scenario,
-      plan,
-      color: comparisonColors[index],
-      series: projectAssetSeriesWithSchedules(
-        plan,
-        schedulesFor(scenario.cashFlow),
-        undefined
-      )
-    }
-  })
-  const maximumYears = Math.max(...prepared.map((scenario) => scenario.series.at(-1).year), 1)
-  const rawMaximumAssets = Math.max(...prepared.flatMap((scenario) => scenario.series.map((point) => point.assets)), 1)
-  const magnitude = 10 ** Math.floor(Math.log10(rawMaximumAssets))
-  const maximumAssets = Math.ceil(rawMaximumAssets / magnitude) * magnitude
-  const plot = { left: 100, right: 620, top: 24, bottom: 212 }
-  const paths = prepared.map((scenario) => {
-    const points = scenario.series.map((point) => {
-      const x = plot.left + ((plot.right - plot.left) * point.year) / maximumYears
-      const ratio = Math.min(Math.max(point.assets / maximumAssets, 0), 1)
-      const y = plot.bottom - (plot.bottom - plot.top) * ratio
-      return `${x.toFixed(2)},${y.toFixed(2)}`
-    }).join(' ')
-    return `<polyline points="${points}" fill="none" stroke="${scenario.color}" stroke-width="3" vector-effect="non-scaling-stroke" clip-path="url(#comparison-plot-clip)" />`
-  }).join('')
-  const currentYear = new Date().getFullYear()
-
-  return `
-    <section class="panel scenario-comparison" aria-labelledby="scenario-comparison-title">
-      <div class="panel__header">
-        <div>
-          <p class="eyebrow">PROJEÇÃO COMPOSTA</p>
-          <h2 id="scenario-comparison-title">Saldo projetado por cenário</h2>
-        </div>
-        <span class="step-badge">Valores reais em ${state.currency}</span>
-      </div>
-      <p class="scenario-comparison__intro">Cada linha aplica capitalização mensal equivalente à taxa anual acima da inflação definida no cenário.</p>
-      <div class="comparison-chart" role="img" aria-label="Comparação dos saldos projetados de ${prepared.length} cenários">
-        <svg viewBox="0 0 640 260" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <defs><clipPath id="comparison-plot-clip"><rect x="98" y="21" width="524" height="194" /></clipPath></defs>
-          <g class="chart__grid"><line x1="100" y1="24" x2="620" y2="24"/><line x1="100" y1="118" x2="620" y2="118"/><line x1="100" y1="212" x2="620" y2="212"/></g>
-          <g class="chart__labels">
-            <text x="90" y="28" text-anchor="end">${state.valuesHidden ? '•••' : privateCurrency(maximumAssets, false, false, state.currency)}</text>
-            <text x="90" y="122" text-anchor="end">${state.valuesHidden ? '•••' : privateCurrency(maximumAssets / 2, false, false, state.currency)}</text>
-            <text x="90" y="216" text-anchor="end">${currencySymbol(state.currency)} 0</text>
-            <text x="100" y="244" text-anchor="start">Hoje</text>
-            <text x="360" y="244" text-anchor="middle">${currentYear + Math.round(maximumYears / 2)}</text>
-            <text x="620" y="244" text-anchor="end">${currentYear + maximumYears}</text>
-          </g>
-          ${paths}
-        </svg>
-      </div>
-      <div class="comparison-legend">
-        ${prepared.map((scenario, index) => {
-          const last = scenario.series.at(-1)
-          return `<div>
-            <span style="--scenario-color:${scenario.color}"></span>
-            <p><strong>${escapeHtml(scenario.name)}</strong><small>${formatPercent(scenario.plan.annualRealReturn)} real ao ano, ${scenarioReturnOrigin(scenario.plan, { current: index === 0 })} · ${privateCurrency(last.assets, state.valuesHidden, false, state.currency)}</small></p>
-          </div>`
-        }).join('')}
-      </div>
-      <p class="result-disclaimer">As curvas mostram o saldo total projetado. O cálculo considera capital, aportes e rendimento composto, incluindo eventos únicos do fluxo de caixa (compra de casa, faculdade, ano sabático) no mês em que ocorrem. Impostos, taxas e variação cambial futura não são previstos.</p>
-    </section>
-  `
+export function renderScenarioComparison(plan = simulationContext().plan, cashFlow = simulationCashFlow(plan), currency = simulationContext().currency, options = {}) {
+  if (state.valuesHidden) return '<section class="panel"><h2>Comparação do planejamento completo</h2><p>Valores e gráficos ocultos.</p></section>'
+  const model = prepareScenarioComparison(state, { plan, cashFlow, currency }, options)
+  return scenarioComparisonView(model, { metric: options.metric, selectedYear: options.selectedYear, references: state.scenarios, editing: Boolean(scenarioEditor.scenario) })
 }
 
 // Hint of the return field: where today's rate comes from and what typing another does.
@@ -239,6 +147,7 @@ function returnHint(plan) {
 export function renderSimulations() {
   const context = simulationContext()
   const plan = context.plan
+  if (state.valuesHidden) return `<section class="page-heading page-heading--inner"><h1>Teste decisões antes de mudar seu plano.</h1></section><section class="panel"><p>Valores, premissas e diagnósticos da simulação ocultos. Mostre os valores para comparar.</p></section><section class="panel saved-scenarios"><h2>Cenários salvos</h2>${renderSavedScenarios()}</section>`
   const initialResult = projectRetirementWithSchedules(plan, schedulesFor(context.cashFlow, context.currency))
   const moneySymbol = currencySymbol(context.currency)
 
@@ -247,13 +156,13 @@ export function renderSimulations() {
       <div>
         <p class="eyebrow">SIMULADOR</p>
         <h1>Teste decisões antes de mudar seu plano.</h1>
-        <p>Compare idade, aporte e retorno usando valores de hoje.</p>
+        <p>Compare sua hipótese com o plano atual. Veja o impacto na aposentadoria, no patrimônio e na disponibilidade de dinheiro até o horizonte.</p>
       </div>
       <div class="privacy-chip">${icon('lock', 16)} Cálculo feito no seu dispositivo</div>
     </section>
 
     <section class="simulator-layout">
-      <form class="panel simulation-form" data-simulation-form>
+      <form class="panel simulation-form" data-simulation-form data-simulation-currency="${context.currency}">
         <div class="panel__header">
           <div>
             <p class="eyebrow">${scenarioEditor.scenario ? 'EDITAR CENÁRIO' : 'NOVO CENÁRIO'}</p>
@@ -265,7 +174,7 @@ export function renderSimulations() {
         ${field({ label: 'Nome do cenário', name: 'scenarioName', value: escapeHtml(context.name || `Cenário ${state.scenarios.length + 1}`), type: 'text', maxLength: 40, hint: 'Exemplo: aposentar aos 60' })}
 
         ${scenarioEditor.scenario ? '<button type="button" class="button button--secondary" data-cancel-scenario-edit>Cancelar edição</button>' : ''}
-        <p>Valores em ${context.currency}. Alterações de patrimônio e aporte mantêm a distribuição da carteira. Quando não há aportes distribuídos, o novo aporte usa a taxa padrão do plano.</p>
+        <p>Horizonte salvo: até ${plan.targetAge} anos. Valores em ${context.currency}. Alterações de patrimônio e aporte mantêm a distribuição da carteira. Quando não há aportes distribuídos, o novo aporte usa a taxa padrão do plano.</p>
         <fieldset class="form-section">
           <legend>Prazo</legend>
           <div class="form-grid form-grid--two">
@@ -278,15 +187,15 @@ export function renderSimulations() {
           <legend>Patrimônio e aportes</legend>
           <div class="form-grid form-grid--two">
             ${field({ label: 'Patrimônio atual', name: 'currentAssets', value: plan.currentAssets, min: 0, max: 1000000000, step: 'any', prefix: moneySymbol })}
-            ${field({ label: 'Aporte mensal', name: 'monthlyContribution', value: plan.monthlyContribution, min: 0, max: 10000000, step: 'any', prefix: moneySymbol })}
+            ${field({ label: 'Aporte mensal', name: 'monthlyContribution', value: plan.monthlyContribution, min: 0, max: 10000000, step: 'any', prefix: moneySymbol, hint: 'No planejamento completo, distribui a sobra do orçamento. No cálculo complementar, supõe aporte fixo mensal.' })}
           </div>
         </fieldset>
 
         <fieldset class="form-section">
-          <legend>Renda desejada</legend>
+          <legend>Meta de renda, cálculo complementar</legend>
           <div class="form-grid form-grid--two">
             ${field({ label: 'Renda mensal desejada', name: 'targetMonthlyIncome', value: plan.targetMonthlyIncome, min: 0, max: 10000000, step: 'any', prefix: moneySymbol })}
-            ${field({ label: 'Benefício mensal esperado', name: 'expectedMonthlyBenefit', value: plan.expectedMonthlyBenefit, min: 0, max: 1000000, step: 'any', prefix: moneySymbol, hint: 'Use uma estimativa conservadora.' })}
+            ${field({ label: 'Benefício mensal esperado', name: 'expectedMonthlyBenefit', value: plan.expectedMonthlyBenefit, min: 0, max: 1000000, step: 'any', prefix: moneySymbol, hint: 'Estimativa para a meta de renda. Para entrar na projeção anual, cadastre o benefício como receita no orçamento.' })}
           </div>
         </fieldset>
 
@@ -307,8 +216,8 @@ export function renderSimulations() {
       <aside class="panel simulation-result" aria-live="polite" aria-atomic="true">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">RESULTADO</p>
-            <h2>Sua projeção</h2>
+            <p class="eyebrow">INDICADOR COMPLEMENTAR</p>
+            <h2>Meta de renda complementar</h2>
           </div>
           ${icon('calculator', 21, 'panel__header-icon')}
         </div>
@@ -318,8 +227,7 @@ export function renderSimulations() {
       </aside>
     </section>
 
-    ${scenarioAssumptions()}
-    ${scenarioComparisonChart()}
+    <div id="simulation-comparison-content">${renderScenarioComparison(plan, context.cashFlow, context.currency)}</div>
 
     <section class="panel saved-scenarios" aria-labelledby="saved-scenarios-title">
       <div class="panel__header">
