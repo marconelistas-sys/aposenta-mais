@@ -151,7 +151,7 @@ test('gráficos: zero neutro, vermelho só material, ponte e categorias com Outr
   assert.match(fan, /role="img" aria-label="Leque"/)
   assert.match(fan, /report-svg-grid--zero/)
   assert.match(fan, /Aposentadoria 2027/)
-  assert.match(fan, /P10 −CHF 20/)
+  assert.match(fan, /Inferior \(P10\) em 2027<\/span><strong>−CHF 20/)
   assert.match(statusBadge('attention'), /aria-hidden="true">!<\/span>Atenção/)
 })
 
