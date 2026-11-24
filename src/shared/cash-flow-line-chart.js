@@ -1,3 +1,4 @@
+import { projectionLifeContext, projectionPeriodLabel } from './projection-life.js'
 import { annualRowsInPriceBasis, priceBasisInflation } from '../domain/inflation-display.js'
 import { escapeHtml } from './formatters.js'
 import { planningChart } from './planning-chart.js'
@@ -30,11 +31,14 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
   const financialView = hasReturn && cashFlowChartView.flow === 'financial'
   const readoutCaption = `${currency} · ${basisLabel}`
   const rateLabel = inflationRateLabel(plan, currency, baseYear)
+  display = display.map(row => ({ ...row, withdrawalTaxEffect: -(row.withdrawalTax ?? 0) }))
+  const life = projectionLifeContext(rows, { ...plan, retirementMonth: cashFlow?.retirementMonth || plan.retirementMonth }, markers, baseYear)
   const fixedNote = fixedIncomeChartNote(fixedIncomeCount(cashFlow), basis, baseYear)
   const series = financialView ? [
     { key: 'freeCashFlow', label: 'Saldo do orçamento', color: '#2855c7', monthly: true },
     { key: 'financialReturn', label: nominal ? 'Rendimento nominal implícito' : 'Rendimento real', color: '#7c69a8', dash: '2 3' },
     { key: 'pensionCredits', label: 'Créditos previdenciários', color: '#64748b', dash: '8 4', monthly: true },
+    ...(display.some(row => row.withdrawalTax > 0.005) ? [{ key: 'withdrawalTaxEffect', label: 'Imposto sobre resgates', color: '#9a6b00', dash: '4 4' }] : []),
     { key: 'financialChange', label: 'Variação do patrimônio financeiro no ano', color: '#17243b', width: 3, emphasize: true }
   ] : [
     { key: 'income', label: 'Receitas', color: '#2855c7', monthly: true },
@@ -52,22 +56,23 @@ export function renderCashFlowLineChart({ rows, plan, cashFlow, currency, hidden
   const wealth = wealthSeries.length ? `<section class="cash-flow-wealth-chart annual-chart-section" aria-label="Patrimônio que sustenta o orçamento"><div class="annual-chart-heading"><div><span class="annual-chart-kind">SALDO ACUMULADO</span><h3>Quanto resta ao fim de cada ano</h3></div><label>Visão do patrimônio<select data-annual-chart-mode="wealth"><option value="essential" ${wealthComparison ? '' : 'selected'}>Essencial: patrimônio e liquidez</option><option value="comparison" ${wealthComparison ? 'selected' : ''}>Comparar todos os patrimônios</option></select></label></div>
     <p>Patrimônio considerado é o saldo após dívidas e o filtro de imóveis. Liquidez é o recurso disponível para pagar despesas. As linhas compartilham valores e não devem ser somadas.</p>
     <p class="annual-chart-basis">${escapeHtml(readoutCaption)} · Saldos no fechamento de dezembro · Escala própria.</p>
-    ${planningChart({ title: 'Patrimônio ao fim de cada ano', rows: display, series: wealthSeries, currency, markers, selectedYear, linkedSelection: true, interpolation: 'linear', annualReadout: true, readoutCaption: `${readoutCaption} · Saldo no fim do ano` })}
+    ${planningChart({ title: 'Patrimônio ao fim de cada ano', rows: display, series: wealthSeries, currency, markers, selectedYear, linkedSelection: true, interpolation: 'linear', annualReadout: true, lifeContext: life, financialBreakdown: true, readoutCaption: `${readoutCaption} · Saldo no fim do ano` })}
     <details class="disclosure"><summary>Entender os tipos de patrimônio</summary><p>Patrimônio bruto soma saldos financeiros e todos os bens antes das dívidas. Financeiro líquido desconta todas as dívidas e exclui os bens. O filtro de imóveis altera somente o patrimônio considerado. Patrimônio positivo pode coexistir com falta de liquidez. Saldos negativos representam insuficiência projetada.</p></details></section>` : ''
   return `<section class="cash-flow-line-view" data-cash-flow-line-view>
     <p class="annual-chart-basis">Esta avaliação usa receitas, despesas e metas cadastradas para calcular o saldo do orçamento. O aporte mensal fixo de Meu plano não é somado a esse saldo. <a href="/plano" data-route>Entender a diferença entre as projeções</a>.</p>
     ${hasReturn ? renderPropertyFilter(cashFlow) : ''}
-    <div class="annual-chart-toolbar"><label class="cash-flow-price-control">Base dos valores <select data-cash-flow-price-basis><option value="real" ${nominal ? '' : 'selected'}>Poder de compra de ${baseYear}</option><option value="nominal" ${nominal ? 'selected' : ''}>Valores nominais de cada ano</option></select></label><label>Ano selecionado nos dois gráficos<select data-cash-flow-year>${display.map((row, index) => `<option value="${index}" ${index === selectedIndex ? 'selected' : ''}>${escapeHtml(row.year)}</option>`).join('')}</select></label></div>
+    <div class="annual-chart-toolbar"><label class="cash-flow-price-control">Base dos valores <select data-cash-flow-price-basis><option value="real" ${nominal ? '' : 'selected'}>Poder de compra de ${baseYear}</option><option value="nominal" ${nominal ? 'selected' : ''}>Valores nominais de cada ano</option></select></label><label>Ano selecionado nos dois gráficos<select data-cash-flow-year>${display.map((row, index) => `<option value="${index}" ${index === selectedIndex ? 'selected' : ''}>${escapeHtml(projectionPeriodLabel(row, life.periods[index]))}</option>`).join('')}</select></label></div>
     <p class="annual-chart-basis">${escapeHtml(readoutCaption)}. ${nominal ? nominalBasisSentence(plan, currency) : 'Todos os anos usam o mesmo poder de compra, permitindo comparar valores ao longo do tempo.'} ${escapeHtml(rateLabel)}. A base e o ano selecionado valem para ambos os gráficos e para a composição.${fixedNote ? ` ${escapeHtml(fixedNote)}` : ''}</p>
     ${renderCashFlowResult(display.at(-1), currency, { final: true })}
     ${renderSolvencyAssessment(display, currency)}
     ${renderSolvencyShortcuts(display)}
+    <p class="annual-chart-basis">O primeiro ponto é o fechamento do ano-base, não o saldo de hoje. No ano da aposentadoria, o ponto mostra dezembro, não o mês exato da aposentadoria.</p>
     ${wealth}
     <section class="annual-chart-section" aria-label="Fluxos anuais"><div class="annual-chart-heading"><div><span class="annual-chart-kind">TOTAL DURANTE O ANO</span><h3>O que entra e sai durante o ano</h3></div>${hasReturn ? `<label>Visão dos fluxos<select data-annual-chart-mode="flow"><option value="budget" ${financialView ? '' : 'selected'}>Orçamento: receitas, despesas e saldo</option><option value="financial" ${financialView ? 'selected' : ''}>Resultado: saldo, rendimentos e previdência</option></select></label>` : ''}</div>
-    <p class="annual-chart-equation">${financialView ? 'Saldo do orçamento + rendimentos + créditos previdenciários = variação do patrimônio financeiro no ano.' : 'Receitas − despesas e metas = saldo do orçamento, antes dos rendimentos.'}</p>
+    <p class="annual-chart-equation">${financialView ? 'Saldo do orçamento + rendimentos + créditos previdenciários − imposto sobre resgates = variação do patrimônio financeiro no ano.' : 'Receitas − despesas e metas = saldo do orçamento, antes dos rendimentos.'}</p>
     <p>${financialView ? 'A variação indica quanto os ativos financeiros aumentam ou diminuem durante o ano. Não é o patrimônio acumulado. Créditos previdenciários podem permanecer restritos.' : `Receitas e despesas aparecem como valores positivos para comparação. Quando as despesas superam as receitas, o saldo fica abaixo de zero. ${hasReturn ? 'Rendimentos e créditos previdenciários estão na visão Resultado.' : 'Este recorte não projeta rendimentos.'}`} ${financialView ? 'Variação abaixo de zero indica redução dos ativos financeiros no ano.' : 'Saldo abaixo de zero indica déficit no orçamento.'} Liberações transferem saldo existente, sem criar receita.</p>
     <p class="annual-chart-basis">${escapeHtml(readoutCaption)} · Totais dos meses incluídos em cada ano, com a média mensal ao lado · Escala independente do patrimônio.</p>
-    ${planningChart({ title: financialView ? 'Variação anual do patrimônio financeiro' : title || 'Fluxos anuais do orçamento', rows: display, series, currency, markers, selectedYear, interpolation: 'linear', annualReadout: true, readoutCaption: `${readoutCaption} · Total anual e média mensal`, details: cashFlowDetailPanels(display, plan, currency, false, { wealthTargetAge }) })}</section>
+    ${planningChart({ title: financialView ? 'Variação anual do patrimônio financeiro' : title || 'Fluxos anuais do orçamento', rows: display, series, currency, markers, selectedYear, interpolation: 'linear', annualReadout: true, lifeContext: { ...life, milestones: [], periodBasis: 'Total durante o ano' }, readoutCaption: `${readoutCaption} · Total anual e média mensal`, details: cashFlowDetailPanels(display, plan, currency, false, { wealthTargetAge }) })}</section>
     <details class="disclosure"><summary>Como a inflação entra nesta projeção</summary><p>Na visão real, os valores já estão em poder de compra de ${baseYear} e o retorno já desconta inflação. Não se deve aumentar apenas as despesas pela inflação e manter receitas e rendimento em valores reais.</p><p>${escapeHtml(nominalIndexExplanation(plan, currency, baseYear))}</p><p>${escapeHtml(indexationRuleText)}</p><p>A conversão usa a inflação da moeda de apresentação após o câmbio fixo. Não projeta inflação ou câmbio de cada país. Dados originais na composição e os demais gráficos, tabelas e riscos continuam em valores reais. Alternar a visão não altera a viabilidade, não acrescenta receita e não duplica inflação.</p><a href="/plano" data-route>Revisar inflação e retorno do plano</a></details>
   </section>`
 }
