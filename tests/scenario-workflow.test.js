@@ -106,26 +106,18 @@ test('rejeita edição inválida sem alterar o lançamento', () => {
   assert.deepEqual(state.cashFlow.items[0], original)
 })
 
-test('simulações exibem projeção composta e ação para carregar cenário', () => {
+test('simulações comparam o planejamento completo sem exigir salvar e preservam carregar cenário', () => {
   resetState()
   addScenario('Conservador', { ...state.plan, annualRealReturn: 0.03 })
-
   const html = renderSimulations()
-
-  assert.match(html, /Saldo projetado por cenário/)
-  assert.match(html, /capitalização mensal equivalente/)
+  assert.match(html, /O que sua decisão muda ao longo da vida/)
+  assert.match(html, /Patrimônio financeiro, ano a ano/)
+  assert.match(html, /data-simulation-reference/)
+  assert.match(html, /Conservador<\/option>/)
   assert.match(html, /data-load-scenario=/)
   assert.match(html, /3% real ao ano/)
-  assert.match(html, /viewBox="0 0 640 260"/)
-  assert.match(html, /preserveAspectRatio="xMidYMid meet"/)
-  assert.match(html, /comparison-plot-clip/)
-  const pointSets = [...html.matchAll(/<polyline points="([^"]+)"/g)].map((match) => match[1])
-  assert.ok(pointSets.length >= 2)
-  for (const pointSet of pointSets) {
-    for (const point of pointSet.split(' ')) {
-      const [x, y] = point.split(',').map(Number)
-      assert.ok(x >= 100 && x <= 620)
-      assert.ok(y >= 24 && y <= 212)
-    }
-  }
+  assert.match(html, /Consultar valores de todos os anos/)
+  assert.equal((html.match(/data-chart-toggle=/g) || []).length, 2)
+  assert.match(html, /Hipótese em teste/)
+  assert.match(html, /Primeiro ano com falta de liquidez/)
 })

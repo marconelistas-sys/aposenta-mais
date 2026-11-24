@@ -1061,6 +1061,23 @@ form[data-compare-analyses] { display: flex; flex-wrap: wrap; gap: 1rem; align-i
 .annual-chart-table th, .annual-chart-table td { padding: .65rem; border-bottom: 1px solid #e1e7f0; text-align: end; font-variant-numeric: tabular-nums; }
 .annual-chart-table td { white-space: nowrap; }
 .annual-chart-table th:first-child { text-align: start; }
+.scenario-comparison { min-width: 0; }
+.simulation-decision-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 1rem; margin-block: 1rem; }
+.simulation-decision-summary > div { display: grid; align-content: start; gap: .4rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-2); min-width: 0; }
+.simulation-decision-summary span, .simulation-decision-summary small { color: var(--color-ink-soft); font-size: .85rem; line-height: 1.5; }
+.simulation-decision-summary strong { font-size: 1.2rem; overflow-wrap: anywhere; }
+.simulation-comparison-note { padding: .8rem 1rem; border-left: 3px solid var(--color-brand); background: var(--color-brand-soft); font-size: .9rem; line-height: 1.6; }
+.simulation-outcomes { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.simulation-outcomes caption { text-align: start; padding-block: .75rem; font-weight: 600; }
+.simulation-outcomes th, .simulation-outcomes td { padding: .75rem; border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: top; min-width: 10rem; }
+.simulation-outcomes th:first-child { min-width: 13rem; }
+.simulation-review-list { padding-left: 1.5rem; font-size: .9rem; line-height: 1.6; }
+.simulation-status-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: .75rem; margin-block: 1rem; }
+.simulation-status-summary > div { display: grid; gap: .3rem; padding: .85rem; border: 1px solid var(--color-border-strong); border-radius: .5rem; }
+.simulation-status-summary span { color: var(--color-ink-soft); font-size: .85rem; }
+.simulation-status-summary strong { font-size: 1rem; overflow-wrap: anywhere; }
+#scenario-comparison-title { scroll-margin-top: 150px; }
+#scenario-comparison-title:focus { outline: 2px solid var(--color-focus); outline-offset: 4px; }
 .projection-milestones { margin-block: 1rem; }
 .projection-milestones > p { margin-block: 0 .5rem; font-size: .85rem; font-weight: 600; }
 .projection-milestones ul { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; }
