@@ -323,6 +323,68 @@
 .report-deflist--glossary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4em 1.6em; }
 .report-deflist--glossary > div { grid-template-columns: 1fr; gap: 0; }
 
+/* ── Sua carteira de verdade: pergunta → número → contexto ─────────────── */
+.report-questions { display: grid; gap: 1.6em; }
+.report-question { display: grid; gap: 0.75em; min-width: 0; }
+.report-question + .report-question { padding-top: 1.4em; border-top: 1px solid var(--report-rule); }
+.report-question__title { display: flex; align-items: baseline; gap: 0.55em; font-size: 1.2em; font-weight: 720; line-height: 1.25; }
+.report-question__number { flex: none; display: inline-grid; place-items: center; width: 1.55em; height: 1.55em; border-radius: 50%; background: var(--color-brand-soft); color: var(--color-brand-deep); font-size: 0.8em; font-weight: 800; transform: translateY(-0.1em); }
+.report-answer { display: grid; gap: 0.2em; padding-left: 0.85em; border-left: 3px solid var(--color-brand); }
+.report-answer__line { font-size: 1.05em; line-height: 1.35; }
+.report-answer__line .report-status { margin-left: 0.25em; }
+.report-answer__value { font-size: 1.75em; font-weight: 750; line-height: 1.1; letter-spacing: -0.01em; font-variant-numeric: normal; }
+.report-answer__context { color: var(--color-ink-soft); font-size: 0.92em; }
+.report-minor-title { margin: 0.3em 0 -0.2em; font-size: 0.95em; font-weight: 700; color: var(--color-ink); }
+.report-muted { color: var(--color-ink-muted); font-weight: 500; }
+.report-inline-link { color: var(--color-brand); font-weight: 650; }
+.report-list--columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25em 1.6em; }
+.report-table--reality td:nth-child(2) { min-width: 11em; }
+.report-table--reality :is(td, thead th):is(:nth-child(2), :nth-child(5)) { text-align: left; }
+.report-table--sensitivity th[scope="row"] { min-width: 9em; font-weight: 600; }
+.report-bridge-link { font-size: 0.92em; }
+/* Status that may wrap (cards, long sentences): icon on the first line. */
+.report-status--wrap { align-items: flex-start; padding-block: 0.2em; border-radius: 0.8em; white-space: normal; line-height: 1.35; text-align: left; }
+.report-status--wrap .report-status__icon { flex: none; }
+
+.report-meter { display: grid; gap: 0.4em; padding: 0.75em 0.9em; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-2); break-inside: avoid; }
+.report-meter__title { font-size: 0.92em; font-weight: 700; }
+.report-meter__rows { display: grid; gap: 0.35em; }
+.report-meter__rows li { display: grid; grid-template-columns: minmax(8em, 13em) minmax(0, 1fr) 4.5em; align-items: center; gap: 0.7em; font-size: 0.9em; }
+.report-meter__name { font-weight: 650; }
+.report-meter__track { position: relative; height: 0.85em; border-radius: 999px; background: var(--color-track); overflow: hidden; }
+.report-meter__fill { position: absolute; inset: 0 auto 0 0; min-width: 2px; border-radius: 999px; background: var(--color-brand); }
+.report-meter__fill--done { background: var(--color-green); }
+.report-meter__value { font-weight: 700; text-align: right; }
+
+/* ── Quantas vezes o custo mensal: três cartões lado a lado ─────────────── */
+.report-scenarios { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.7em; }
+.report-scenario { display: grid; align-content: start; gap: 0.35em; padding: 0.85em 0.95em; border: 1px solid var(--color-border); border-top: 4px solid var(--color-ink-muted); border-radius: var(--radius-sm); background: var(--color-surface); break-inside: avoid; min-width: 0; }
+.report-scenario--onePercent { border-top-color: var(--color-danger); background: linear-gradient(180deg, var(--color-danger-soft), var(--color-surface) 38%); }
+.report-scenario--freedom { border-top-color: var(--color-brand); }
+.report-scenario--legacy { border: 2px solid var(--color-green); border-top-width: 4px; background: linear-gradient(180deg, var(--color-green-soft), var(--color-surface) 38%); }
+.report-scenario--unavailable { border-top-color: var(--color-border-strong); background: var(--color-surface-2); }
+.report-scenario__name { color: var(--color-ink-soft); font-size: 0.79em; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.report-scenario__rule { color: var(--color-ink-soft); font-size: 0.84em; line-height: 1.3; }
+.report-scenario__capital { margin-top: 0.15em; font-size: 1.6em; font-weight: 750; line-height: 1.1; letter-spacing: -0.01em; font-variant-numeric: normal; overflow-wrap: anywhere; }
+.report-scenario__multiple { font-size: 0.95em; }
+.report-scenario__multiple strong { font-size: 1.2em; font-weight: 750; }
+.report-scenario__outcome .report-status { font-size: 0.87em; }
+.report-scenario__facts { display: grid; gap: 0.35em; margin-top: 0.2em; padding-top: 0.55em; border-top: 1px solid var(--report-rule); font-size: 0.87em; }
+.report-scenario__facts dt { color: var(--color-ink-muted); font-size: 0.88em; font-weight: 700; }
+.report-scenario__facts dd { margin: 0.1em 0 0; }
+
+.report-current { display: grid; gap: 0.5em; padding: 0.85em 1em; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-2); break-inside: avoid; }
+.report-current__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8em 1.6em; }
+.report-current__side { display: grid; align-content: start; gap: 0.3em; font-size: 0.92em; min-width: 0; }
+.report-current__side + .report-current__side { padding-left: 1.6em; border-left: 1px solid var(--report-rule); }
+.report-current__label { color: var(--color-ink-soft); font-size: 0.87em; font-weight: 700; }
+.report-current__value { font-size: 1.35em; font-weight: 720; line-height: 1.2; font-variant-numeric: normal; }
+.report-current__value--status { font-size: 1em; }
+.report-current__multiple { color: var(--color-ink-soft); font-size: 0.7em; font-weight: 650; }
+.report-multiple-assumptions, .report-multiple-notes { display: grid; gap: 0.5em; }
+.report-deflist--two { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35em 1.6em; }
+.report-deflist--two > div { grid-template-columns: minmax(7em, 42%) minmax(0, 1fr); }
+
 /* ── Small screens ─────────────────────────────────────────────────────── */
 @media (max-width: 760px) {
   .report { font-size: 14px; }
@@ -338,6 +400,11 @@
   .report-plan__arrow { transform: rotate(90deg); justify-self: center; }
   .report-diagnostics li { grid-template-columns: 1fr; gap: 0.2em; }
   .report-chart-cell { min-width: 7em; }
+  .report-scenarios, .report-current__grid, .report-deflist--two, .report-list--columns { grid-template-columns: 1fr; }
+  .report-current__side + .report-current__side { padding: 0.8em 0 0; border-left: 0; border-top: 1px solid var(--report-rule); }
+  .report-meter__rows li { grid-template-columns: minmax(0, 1fr) 4em; }
+  .report-meter__track { grid-column: 1 / -1; grid-row: 2; }
+  .report-answer__value { font-size: 1.55em; }
 }
 
 /* ── Print: A4, chapters on new pages, nothing outside the report ──────── */
@@ -386,6 +453,13 @@
   :root[data-report-printing] [data-report-chapter="appendix"] { line-height: 1.3; }
   :root[data-report-printing] [data-report-chapter="appendix"] > * + * { margin-top: 0.35em; }
   :root[data-report-printing] .report-deflist--glossary > div { break-inside: avoid; }
+  :root[data-report-printing] .report-scenario, :root[data-report-printing] .report-current, :root[data-report-printing] .report-meter, :root[data-report-printing] .report-answer { break-inside: avoid; }
+  :root[data-report-printing] .report-question__title, :root[data-report-printing] .report-minor-title, :root[data-report-printing] .report-answer { break-after: avoid; }
+  :root[data-report-printing] .report-questions { gap: 1.1em; }
+  :root[data-report-printing] .report-question + .report-question { padding-top: 0.9em; }
+  :root[data-report-printing] .report-answer__value { font-size: 1.55em; }
+  :root[data-report-printing] .report-scenario { padding: 0.6em 0.7em; }
+  :root[data-report-printing] .report-scenario__capital { font-size: 1.45em; }
   :root[data-report-printing] [data-report-chapter="appendix"] { font-size: 8.6pt; }
   :root[data-report-printing] [data-report-chapter="appendix"] .report-deflist--glossary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }

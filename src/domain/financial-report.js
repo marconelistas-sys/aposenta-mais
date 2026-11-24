@@ -41,6 +41,8 @@ import { convertCurrency } from '../shared/exchange-rates.js'
 import { portfolioReturnSummary } from './portfolio-return.js'
 import { portfolioBalanceHistory } from './portfolio-balance-history.js'
 import { activeMarketAssumptions } from './market-assumptions.js'
+import { portfolioReality, portfolioRealitySettings } from './portfolio-reality.js'
+import { retirementMultiple, retirementMultipleSensitivity, retirementMultipleSettings } from './retirement-multiple.js'
 
 export const reportModelVersion = 1
 
@@ -77,12 +79,14 @@ export const reportThresholds = deepFreeze({
   },
   incomeWeights: { needs: 0.5, wants: 0.3, savings: 0.2 },
   currencyShock: 0.2,
+  // Report B: fixed net real rate of the scenarios (the video premise) and the sensitivity rates.
+  retirementMultiple: { realRate: retirementMultipleSettings.realRate, sensitivityRates: retirementMultipleSettings.sensitivityRates, onePercentMultiple: retirementMultipleSettings.onePercentMultiple },
   staleBalanceDays: 90,
   findings: 3,
   actions: 3
 })
 
-export const reportChapters = Object.freeze(['cashFlow', 'spending', 'balanceSheet', 'wealth', 'portfolio', 'liquidity', 'debts', 'currency', 'retirement', 'checklist', 'appendix'])
+export const reportChapters = Object.freeze(['cashFlow', 'spending', 'balanceSheet', 'wealth', 'portfolioReality', 'portfolio', 'liquidity', 'debts', 'currency', 'retirementMultiple', 'retirement', 'checklist', 'appendix'])
 export const reportStatuses = Object.freeze(['ok', 'attention', 'risk', 'unavailable'])
 
 const eps = 1e-9
@@ -206,7 +210,9 @@ function plannedItems(state, categoryId) {
     .sort((a, b) => b.monthly - a.monthly || String(a.item.id).localeCompare(String(b.item.id)))
 }
 
-export function buildFinancialReport(state, { today = new Date(), goals, risk = null } = {}) {
+// options.indicators: snapshot of the official indicators (IPCA, Swiss CPI), used
+// to deflate the realized return of the portfolio. Optional.
+export function buildFinancialReport(state, { today = new Date(), goals, risk = null, indicators: economicIndicators = null } = {}) {
   if (!(today instanceof Date) || !finite(today.getTime())) throw new TypeError('Data de referência inválida.')
   const errors = []
   const currency = state.currency
@@ -619,6 +625,20 @@ export function buildFinancialReport(state, { today = new Date(), goals, risk = 
     return { available: true, year: Number(row.year), basis: 'real', steps: steps.map(step => ({ ...step, value: money(step.value) })) }
   }
 
+  // One projection without product costs, shared by the Carteira chapter (end of
+  // the horizon) and Sua carteira de verdade (retirement year and end).
+  const withoutFeesRun = (() => {
+    if (!(metrics.weightedFee > 0) || !base?.rows?.length) return null
+    try { return finappViability({ ...state, plan: { ...state.plan, investments: state.plan.investments.map(item => ({ ...item, annualFee: 0 })) } }, state.plan.finappMethod, today) } catch { return null }
+  })()
+  function feeComparison(withRow, withoutRow) {
+    if (!withRow || !withoutRow) return null
+    return { year: Number(withRow.year), withFees: money(withRow.financialAssets), withoutFees: money(withoutRow.financialAssets), difference: money(withoutRow.financialAssets - withRow.financialAssets) }
+  }
+
+  const portfolioRealityChapter = safeRun(errors, 'portfolioReality', () => buildPortfolioReality(), empty('Não foi possível analisar a carteira de verdade.', 'Sua carteira de verdade'))
+  const retirementMultipleChapter = safeRun(errors, 'retirementMultiple', () => buildRetirementMultiple(), empty('Não foi possível calcular quantas vezes o custo mensal é preciso ter.', 'Quantas vezes o custo mensal você precisa ter'))
+
   const portfolio = safeRun(errors, 'portfolio', () => {
     if (!metrics.count) return { ...empty('Carteira não detalhada. Cadastre cada investimento com classe, liquidez e custo.', 'Carteira'), diagnostics: (diagnosis?.findings || []).map(item => ({ id: item.id, level: item.level, title: item.title, detail: item.detail, action: item.action })) }
     const target = state.plan.targetAllocation
@@ -626,14 +646,7 @@ export function buildFinancialReport(state, { today = new Date(), goals, risk = 
       dimension: analysis.dimension, band: analysis.band, total: money(analysis.total), needsRebalance: analysis.needsRebalance, monthsToCloseWithContributions: analysis.monthsToCloseWithContributions,
       rows: analysis.rows.map(row => ({ key: row.key, label: analysis.dimension === 'class' ? classLabels[row.key] : analysis.dimension === 'region' ? regionLabels[row.key] : row.key, amount: money(row.amount), currentShare: row.currentShare, targetShare: row.targetShare, low: Math.max(0, row.targetShare - analysis.band), high: Math.min(1, row.targetShare + analysis.band), deviation: row.deviation, status: row.status, amountToTarget: money(row.amountToTarget), monthlyContribution: money(row.monthlyContribution) }))
     })) : []
-    const feeImpact = (() => {
-      if (!(metrics.weightedFee > 0) || !base) return null
-      try {
-        const withoutFees = finappViability({ ...state, plan: { ...state.plan, investments: state.plan.investments.map(item => ({ ...item, annualFee: 0 })) } }, state.plan.finappMethod, today)
-        const difference = withoutFees.rows.at(-1).financialAssets - base.rows.at(-1).financialAssets
-        return { year: Number(base.rows.at(-1).year), withFees: money(base.rows.at(-1).financialAssets), withoutFees: money(withoutFees.rows.at(-1).financialAssets), difference: money(difference) }
-      } catch { return null }
-    })()
+    const feeImpact = withoutFeesRun ? feeComparison(base.rows.at(-1), withoutFeesRun.rows.at(-1)) : null
     const classAnalysis = allocation.find(row => row.dimension === 'class')
     const largest = metrics.largestClass
     return {
@@ -709,6 +722,155 @@ export function buildFinancialReport(state, { today = new Date(), goals, risk = 
       exchangeRates: { date: state.exchangeRates?.date || null, stale: state.exchangeRates?.stale !== false }
     }
   }, empty('Não foi possível analisar o câmbio.', 'Câmbio'))
+
+  // ── Sua carteira de verdade (docs/product/carteira-real-e-multiplo-aposentadoria.md, Relatório A)
+  function buildPortfolioReality() {
+    const costMonthly = flow.monthCount ? flow.consumption / flow.monthCount : 0
+    const model = portfolioReality(state.plan, { currency, year: todayYear, indicators: economicIndicators, monthlyCost: costMonthly, costBasis: flow.basis, costMonths: flow.monthCount })
+    if (!model.count) return empty('Carteira não detalhada. Cadastre cada investimento com saldo, rendimento e custo anual na Carteira.', 'Sua carteira de verdade')
+    const { returns, costs, coverage } = model
+    const aboveName = returns.inflationName === 'IPCA' ? 'do IPCA' : 'da inflação'
+    const direction = value => word(value >= 0 ? 'acima' : 'abaixo')
+    const retirementRow = withoutFeesRun && base?.retirement ? base.rows.find(row => Number(row.year) === Number(base.retirement.slice(0, 4))) : null
+    const retirementWithout = retirementRow ? withoutFeesRun.rows.find(row => row.year === retirementRow.year) : null
+    return {
+      available: true,
+      headline: finite(returns.realized)
+        ? text('Nos investimentos com histórico ({coverage} da carteira), o rendimento foi {rate} {direction} {index}. A premissa para eles é {expected}', { coverage: pct(returns.coverage), rate: pct(Math.abs(returns.realized)), direction: direction(returns.realized), index: word(aboveName), expected: pct(returns.coveredExpected, { signed: true }) })
+        : text('A premissa é render {rate} {direction} {index}. Ainda não há histórico de saldos para medir o realizado', { rate: pct(Math.abs(returns.expected ?? 0)), direction: direction(returns.expected ?? 0), index: word(aboveName) }),
+      returns: {
+        inflationName: returns.inflationName,
+        expected: returns.expected,
+        realized: returns.realized,
+        coveredExpected: returns.coveredExpected,
+        coverage: returns.coverage,
+        coveredCount: returns.coveredCount,
+        anyEstimatedInflation: returns.anyEstimatedInflation,
+        anyApproximated: returns.anyApproximated,
+        anyEstimatedFlows: returns.anyEstimatedFlows,
+        minimumWindowDays: 90,
+        items: model.items.map(row => ({
+          id: row.id, name: row.name, currency: row.currency, amount: money(row.amount), share: row.share, expected: row.expected, difference: row.difference,
+          inflation: { label: row.inflation.label, source: row.inflation.source, rate: row.inflation.rate, lastMonth: row.inflation.lastMonth },
+          realized: row.realized ? { real: row.realized.real, nominal: row.realized.nominal, from: row.realized.from, to: row.realized.to, days: row.realized.days, approximated: row.realized.approximated, estimatedFlows: row.realized.estimatedFlows } : null
+        }))
+      },
+      costs: {
+        annualAmount: money(costs.annualAmount),
+        monthlyAmount: money(costs.monthlyAmount),
+        weightedFee: costs.weightedFee,
+        status: indicators.portfolioCost.status,
+        okBelow: t.portfolioCost.ok,
+        top: costs.top.map(row => ({ ...row, amount: money(row.amount), annualCost: money(row.annualCost) })),
+        missing: { likely: { ...costs.missing.likely, amount: money(costs.missing.likely.amount) }, maybeZero: { ...costs.missing.maybeZero, amount: money(costs.missing.maybeZero.amount) } },
+        signals: costs.signals,
+        signalGap: portfolioRealitySettings.costSignalGap,
+        impact: withoutFeesRun ? { atRetirement: feeComparison(retirementRow, retirementWithout), atEnd: feeComparison(base.rows.at(-1), withoutFeesRun.rows.at(-1)) } : null,
+        notMeasured: [
+          'Taxa de performance de fundos',
+          'Taxa de carregamento de PGBL e VGBL',
+          'Spread embutido na taxa de CDB, LCI, LCA e títulos bancários',
+          'Corretagem e taxa de custódia',
+          'Spread de câmbio e IOF em remessas ao exterior',
+          'Taxa de custódia e imposto de selo (Stempelsteuer) na Suíça'
+        ]
+      },
+      coverage: coverage.available
+        ? { available: true, capital: money(coverage.capital), availableCapital: money(coverage.availableCapital), monthlyCost: money(coverage.monthlyCost), basis: coverage.basis, basisMonths: coverage.basisMonths, months: coverage.months, years: coverage.years, availableMonths: coverage.availableMonths }
+        : { available: false, capital: money(coverage.capital), emptyReason: text(coverage.reason === 'cost' ? 'Sem custo de vida no orçamento. Cadastre as despesas no Orçamento para comparar.' : 'Sem saldo na carteira.') }
+    }
+  }
+
+  // ── Quantas vezes o custo mensal você precisa ter (Relatório B)
+  // Gap = cost of living minus guaranteed income. 1st source: the official
+  // projection from the first full calendar year of retirement (same rule as the
+  // withdrawal indicator); 2nd: desired income of Meu plano minus benefits;
+  // 3rd: today's consumption, without guaranteed income.
+  function retirementGap() {
+    const plan = state.plan
+    let monthsToRetirement = null
+    try { monthsToRetirement = finite(plan.currentAge) && finite(plan.retirementAge) || plan.retirementMonth ? retirementMonths(plan, today) : null } catch { monthsToRetirement = null }
+    if (!finite(monthsToRetirement)) monthsToRetirement = null
+    const startAge = monthsToRetirement !== null && finite(plan.currentAge) ? plan.currentAge + monthsToRetirement / 12 : null
+    const horizonMonths = startAge !== null && finite(plan.targetAge) && plan.targetAge > startAge ? Math.round((plan.targetAge - startAge) * 12) : 0
+    const timing = { monthsToRetirement, startAge }
+    if (base?.retirement && base.rows?.length) {
+      const retirementYear = Number(base.retirement.slice(0, 4))
+      const firstYear = base.retirement.slice(5, 7) === '01' ? retirementYear : retirementYear + 1
+      const byYear = new Map(base.rows.map(row => [Number(row.year), row]))
+      const gapOf = row => Math.max(0, row.costs - row.income) / 12
+      // Reference year: the first one with withdrawals (the gap the rule of thumb uses).
+      const first = base.rows.find(row => Number(row.year) >= firstYear && gapOf(row) > 0.005) || byYear.get(firstYear)
+      if (first && first.costs > 0.005) {
+        const startMonth = Number(base.retirement.slice(5, 7)) - 1
+        const last = base.rows.at(-1)
+        const schedule = []
+        for (let month = 0; month <= horizonMonths; month++) {
+          const calendarYear = retirementYear + Math.floor((startMonth + month) / 12)
+          const row = byYear.get(Math.max(calendarYear, firstYear)) || last
+          const gap = gapOf(row)
+          if (!schedule.length || Math.abs(schedule.at(-1).monthly - gap) > 0.005) schedule.push({ from: month, monthly: gap, year: Math.max(calendarYear, firstYear) })
+        }
+        return { basis: 'projection', basisYear: Number(first.year), monthlyCost: first.costs / 12, guaranteedIncome: Math.min(first.costs, first.income) / 12, schedule, ...timing }
+      }
+    }
+    if (plan.targetMonthlyIncome > 0.005) {
+      const guaranteed = (Number(plan.expectedMonthlyBenefit) || 0) + (plan.spouseEnabled ? Number(plan.spouseExpectedMonthlyBenefit) || 0 : 0)
+      return { basis: 'plan', basisYear: null, monthlyCost: plan.targetMonthlyIncome, guaranteedIncome: Math.min(plan.targetMonthlyIncome, guaranteed), schedule: [{ from: 0, monthly: Math.max(0, plan.targetMonthlyIncome - guaranteed) }], ...timing }
+    }
+    const consumption = flow.monthCount ? flow.consumption / flow.monthCount : 0
+    if (consumption > 0.005) return { basis: 'budget', basisYear: null, monthlyCost: consumption, guaranteedIncome: 0, schedule: [{ from: 0, monthly: consumption }], ...timing }
+    return null
+  }
+
+  function buildRetirementMultiple() {
+    const gap = retirementGap()
+    if (!gap) return empty('Sem custo de vida para calcular. Cadastre o orçamento ou a renda desejada em Meu plano.', 'Quantas vezes o custo mensal você precisa ter')
+    // Current contribution: the monthly savings of the budget, which is what the
+    // official projection invests; without budget savings, the Aporte mensal of Meu plano.
+    const budgetSavings = flow.monthCount ? flow.savings / flow.monthCount : 0
+    const contributionSource = budgetSavings > 0.005 ? flow.basis === 'actual' ? 'budget-actual' : 'budget-planned' : 'plan'
+    const input = { schedule: gap.schedule.map(({ from, monthly }) => ({ from, monthly })), monthlyCost: gap.monthlyCost, currentCapital: metrics.total, monthlyContribution: contributionSource === 'plan' ? Number(state.plan.monthlyContribution) || 0 : budgetSavings, monthsToRetirement: gap.monthsToRetirement, startAge: gap.startAge, targetAge: state.plan.targetAge, realRate: t.retirementMultiple.realRate }
+    const result = retirementMultiple(input)
+    const planRate = Number(state.plan.annualRealReturn)
+    const sensitivity = retirementMultipleSensitivity(input, [...t.retirementMultiple.sensitivityRates.map(rate => ({ rate, source: 'fixed' })), ...(finite(planRate) ? [{ rate: planRate, source: 'plan' }] : [])])
+    const scenario = row => row.available
+      ? { key: row.key, available: true, capital: money(row.capital), multiple: row.multiple, withdrawalRate: row.withdrawalRate, withdrawalStatus: finite(row.withdrawalRate) ? indicatorStatus('withdrawalRate', row.withdrawalRate) : null, requiredContribution: finite(row.requiredContribution) ? money(row.requiredContribution) : null, status: row.status, shortfall: finite(row.shortfall) ? money(row.shortfall) : null, depletionAge: row.depletionAge, lastsUntilAge: row.lastsUntilAge ?? null }
+      : { key: row.key, available: false, reason: row.reason }
+    const freedom = result.scenarios.find(row => row.key === 'freedom')
+    const legacy = result.scenarios.find(row => row.key === 'legacy')
+    const firstFailureYear = base?.firstFailure ? Number(base.firstFailure.year) : null
+    const multiple = value => ({ value: Math.round(value), unit: 'count' })
+    const noGap = result.firstGap <= 0.005
+    return {
+      available: true,
+      headline: noGap
+        ? text('A renda garantida cobre o custo de vida na aposentadoria. O capital fica para objetivos e imprevistos')
+        : freedom.available && legacy.available
+          ? text('Entre {low}x e {high}x o custo mensal: {freedom} para a Liberdade e {legacy} para o Legado', { low: multiple(freedom.multiple), high: multiple(legacy.multiple), freedom: cur(freedom.capital), legacy: cur(legacy.capital) })
+          : legacy.available
+            ? text('O Legado pede {high}x o custo mensal: {legacy}', { high: multiple(legacy.multiple), legacy: cur(legacy.capital) })
+            : text('A Regra do 1% pede 100x a lacuna mensal'),
+      basis: gap.basis,
+      basisYear: gap.basisYear,
+      assumptions: {
+        realRate: result.realRate, monthlyRate: result.monthlyRate,
+        monthlyCost: money(result.monthlyCost), guaranteedIncome: money(gap.guaranteedIncome), gap: money(result.firstGap),
+        currentCapital: money(result.currentCapital), monthlyContribution: money(result.monthlyContribution), contributionSource,
+        monthsToRetirement: result.monthsToRetirement, retirementAge: finite(result.startAge) ? Math.round(result.startAge) : null, currentAge: state.plan.currentAge ?? null,
+        targetAge: result.targetAge, horizonYears: finite(result.horizonMonths) ? result.horizonMonths / 12 : null,
+        grownCapital: finite(result.grownCapital) ? money(result.grownCapital) : null,
+        planRate: finite(planRate) ? planRate : null,
+        gapSteps: gap.schedule.length > 1 ? gap.schedule.map(row => ({ year: row.year ?? null, monthly: money(row.monthly) })) : []
+      },
+      scenarios: result.scenarios.map(scenario),
+      current: result.current ? { capital: money(result.current.capital), multiple: result.current.multiple, withdrawalRate: result.current.withdrawalRate, withdrawalStatus: finite(result.current.withdrawalRate) ? indicatorStatus('withdrawalRate', result.current.withdrawalRate) : null, monthlyContribution: money(result.current.monthlyContribution), depletionAge: result.current.depletionAge, officialFirstShortfall: firstFailureYear ? { year: firstFailureYear, age: finite(state.plan.currentAge) ? state.plan.currentAge + firstFailureYear - todayYear : null } : null, officialAvailable: Boolean(base) } : null,
+      sensitivity: sensitivity.map(row => ({ rate: row.rate, source: row.source, freedom: { multiple: row.freedom.multiple, capital: money(row.freedom.capital), requiredContribution: money(row.freedom.requiredContribution), reason: row.freedom.reason ?? null }, legacy: { multiple: row.legacy.multiple, capital: money(row.legacy.capital), requiredContribution: money(row.legacy.requiredContribution), reason: row.legacy.reason ?? null } })),
+      withdrawalReference: { ok: t.withdrawalRate.ok, attention: t.withdrawalRate.attention },
+      taxOnWithdrawals: Boolean(base?.settings?.taxRegime && base.settings.taxRegime !== 'none'),
+      hasGoals: Boolean((state.plan.goals || []).length) || (base?.rows || []).some(row => row.goals > 0.005)
+    }
+  }
 
   const retirement = safeRun(errors, 'retirement', () => {
     const deterministic = (base?.rows || []).map(row => ({ year: Number(row.year), financialAssets: money(row.financialAssets), liquidAssets: money(row.liquidAssets), netWorth: money(row.netWorth) }))
@@ -915,7 +1077,7 @@ export function buildFinancialReport(state, { today = new Date(), goals, risk = 
     indicators: reportIndicatorIds.map(id => indicators[id]),
     findings, actions,
     chapterOrder: reportChapters,
-    cashFlow, spending, balanceSheet, wealth, portfolio, liquidity: liquidityChapter, debts, currency: currencyChapter, retirement, checklist, appendix
+    cashFlow, spending, balanceSheet, wealth, portfolioReality: portfolioRealityChapter, portfolio, liquidity: liquidityChapter, debts, currency: currencyChapter, retirementMultiple: retirementMultipleChapter, retirement, checklist, appendix
   }
   return normalize(report)
 }

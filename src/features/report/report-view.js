@@ -6,9 +6,9 @@
 import { escapeHtml, formatMonth } from '../../shared/formatters.js'
 import { icon } from '../../shared/icons.js'
 import { renderTabbedPanels } from '../../shared/page-tabs.js'
-import { allocationRows, balanceInvestedLine, bridgeRows, currencyPairs, divergingRows, emptyState, fanChart, figure, historyLine, projectionLine, quotaRows, reserveBullet, segmentedBar, shortMonth, sparkline, statusBadge } from './report-charts.js'
+import { allocationRows, balanceInvestedLine, bridgeRows, currencyPairs, divergingRows, emptyState, fanChart, figure, historyLine, projectionLine, quotaRows, reserveBullet, segmentedBar, shortMonth, sparkline, statusBadge, statusMeta } from './report-charts.js'
 import { fixedIncomeAssumptionText } from '../../shared/income-indexation.js'
-import { formatReportDate, formatReportMoney, formatReportMonths, formatReportPercent, formatReportPoints, formatReportText, withMaskedMoney } from './report-text.js'
+import { formatReportDate, formatReportMoney, formatReportMonths, formatReportNumber, formatReportPercent, formatReportPoints, formatReportText, withMaskedMoney } from './report-text.js'
 
 const finite = Number.isFinite
 const t = formatReportText
@@ -20,19 +20,31 @@ export const chapterTitles = Object.freeze({
   spending: 'Onde o gasto está alto',
   balanceSheet: 'Balanço patrimonial hoje',
   wealth: 'Patrimônio por dimensão e evolução',
+  portfolioReality: 'Sua carteira de verdade',
   portfolio: 'Carteira',
   liquidity: 'Liquidez e reserva',
   debts: 'Dívidas e compromissos',
   currency: 'Câmbio',
+  retirementMultiple: 'Quantas vezes o custo mensal você precisa ter',
   retirement: 'Aposentadoria e objetivos',
   checklist: 'Lista de verificação',
   appendix: 'Premissas, dados e avisos'
 })
-// In print, cash flow, spending, balance sheet and retirement start a new A4
-// page; the other chapters continue on the sheet before (balance sheet →
-// wealth → portfolio → liquidity → debts → currency; retirement → checklist →
-// appendix), so the report stays within twelve pages without half-empty sheets.
-const flowingChapters = new Set(['wealth', 'portfolio', 'liquidity', 'debts', 'currency', 'checklist', 'appendix'])
+// In print, cash flow, spending, balance sheet and the real portfolio start a
+// new A4 page; the other chapters continue on the sheet before (balance sheet →
+// wealth; real portfolio → portfolio → liquidity → debts → currency → retirement
+// multiple → retirement → checklist → appendix), so the report stays within
+// fourteen pages without half-empty sheets.
+const flowingChapters = new Set(['wealth', 'portfolio', 'liquidity', 'debts', 'currency', 'retirementMultiple', 'retirement', 'checklist', 'appendix'])
+
+// Chapter number from the model order: the summary is 1, the others follow
+// chapterOrder from 2. Null when the chapter is not in the report.
+export function chapterNumber(report, key) {
+  if (key === 'summary') return 1
+  const index = report?.chapterOrder?.indexOf(key) ?? -1
+  return index < 0 ? null : index + 2
+}
+const chapterRef = (report, key, fallback) => { const number = chapterNumber(report, key); return number ? `capítulo ${number}` : fallback }
 
 function periodLabel(start, end) {
   return start && end ? `${shortMonth(start)} a ${shortMonth(end)}` : ''
@@ -102,7 +114,7 @@ function cover(report) {
     ['Carteira', coverage.investments.count ? `${coverage.investments.count} ${coverage.investments.count === 1 ? 'investimento' : 'investimentos'}${coverage.investments.newestBalanceAsOf ? `, saldos de ${e(formatReportDate(coverage.investments.oldestBalanceAsOf))}${coverage.investments.oldestBalanceAsOf !== coverage.investments.newestBalanceAsOf ? ` a ${e(formatReportDate(coverage.investments.newestBalanceAsOf))}` : ''}` : ', sem data de saldo'}` : 'Não detalhada'],
     ['Histórico do patrimônio', coverage.wealthHistory.count ? `${coverage.wealthHistory.count} ${coverage.wealthHistory.count === 1 ? 'foto mensal' : 'fotos mensais'}, ${e(periodLabel(coverage.wealthHistory.firstMonth, coverage.wealthHistory.lastMonth))}` : 'Ainda sem fotos mensais']
   ]
-  return `<header class="report-cover" data-report-cover><div class="report-cover__title"><p class="report-cover__brand">Aposenta<span>+</span></p><h2 id="report-title" class="report-cover__heading" tabindex="-1">Relatório financeiro</h2><p class="report-cover__subtitle">Data-base: ${e(formatMonth(meta.referenceMonth))} · gerado em ${e(formatReportDate(meta.date))}</p>${meta.isDemo ? `<p class="report-cover__demo">${statusBadge('info', 'Dados de demonstração')}</p>` : ''}</div><dl class="report-params">${params.map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('')}</dl>${quality.length ? `<div class="report-quality" role="note"><p><strong>Qualidade dos dados:</strong> ${quality.length} ${quality.length === 1 ? 'ponto pede' : 'pontos pedem'} revisão antes de usar os números. ${quality.slice(0, 2).map(row => t(row.message)).join(' ')}${quality.length > 2 ? ` Os demais estão no capítulo 12.` : ''}</p></div>` : ''}</header>`
+  return `<header class="report-cover" data-report-cover><div class="report-cover__title"><p class="report-cover__brand">Aposenta<span>+</span></p><h2 id="report-title" class="report-cover__heading" tabindex="-1">Relatório financeiro</h2><p class="report-cover__subtitle">Data-base: ${e(formatMonth(meta.referenceMonth))} · gerado em ${e(formatReportDate(meta.date))}</p>${meta.isDemo ? `<p class="report-cover__demo">${statusBadge('info', 'Dados de demonstração')}</p>` : ''}</div><dl class="report-params">${params.map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('')}</dl>${quality.length ? `<div class="report-quality" role="note"><p><strong>Qualidade dos dados:</strong> ${quality.length} ${quality.length === 1 ? 'ponto pede' : 'pontos pedem'} revisão antes de usar os números. ${quality.slice(0, 2).map(row => t(row.message)).join(' ')}${quality.length > 2 ? ` Os demais estão no ${chapterRef(report, 'appendix', 'apêndice')}.` : ''}</p></div>` : ''}</header>`
 }
 
 function summary(report) {
@@ -114,7 +126,7 @@ function summary(report) {
   const actions = report.actions.length
     ? `<ol class="report-actions">${report.actions.map(item => `<li class="report-action"><p class="report-action__title">${t(item.title)}</p><p>${t(item.detail)}</p>${impactChips(item.impact, currency, `${t(item.title)} ${t(item.detail)}`)}</li>`).join('')}</ol>`
     : emptyState('Sem ações prioritárias com os dados atuais. Revise os pontos de qualidade dos dados.')
-  return `<section class="report-chapter report-chapter--summary" data-report-chapter="summary" aria-labelledby="report-summary-title"><header class="report-chapter__header"><p class="report-chapter__eyebrow">Capítulo 1</p><h2 id="report-summary-title" tabindex="-1">${chapterTitles.summary}</h2></header><div class="report-summary-head"><h3 class="report-subtitle">Indicadores</h3><p class="report-note">✓ Ok · ! Atenção · ✕ Risco · ○ Sem dado. Limites são convenções de mercado, não regras regulatórias; detalhes no capítulo 12.</p></div><ul class="report-indicators">${cards}</ul><div class="report-plan"><div><h3 class="report-subtitle">Principais achados</h3>${findings}</div><div class="report-plan__arrow" aria-hidden="true">→</div><div><h3 class="report-subtitle">Ações com impacto</h3>${actions}</div></div><div class="report-disclaimers" role="note"><h3 class="report-subtitle">Avisos</h3><ul class="report-list report-list--notes">${report.appendix.disclaimers.map(row => `<li>${t(row)}</li>`).join('')}<li>${t(report.appendix.privacyNotice)}</li></ul></div></section>`
+  return `<section class="report-chapter report-chapter--summary" data-report-chapter="summary" aria-labelledby="report-summary-title"><header class="report-chapter__header"><p class="report-chapter__eyebrow">Capítulo ${chapterNumber(report, 'summary')}</p><h2 id="report-summary-title" tabindex="-1">${chapterTitles.summary}</h2></header><div class="report-summary-head"><h3 class="report-subtitle">Indicadores</h3><p class="report-note">✓ Ok · ! Atenção · ✕ Risco · ○ Sem dado. Limites são convenções de mercado, não regras regulatórias; detalhes no ${chapterRef(report, 'appendix', 'apêndice')}.</p></div><ul class="report-indicators">${cards}</ul><div class="report-plan"><div><h3 class="report-subtitle">Principais achados</h3>${findings}</div><div class="report-plan__arrow" aria-hidden="true">→</div><div><h3 class="report-subtitle">Ações com impacto</h3>${actions}</div></div><div class="report-disclaimers" role="note"><h3 class="report-subtitle">Avisos</h3><ul class="report-list report-list--notes">${report.appendix.disclaimers.map(row => `<li>${t(row)}</li>`).join('')}<li>${t(report.appendix.privacyNotice)}</li></ul></div></section>`
 }
 
 // ── Chapters ─────────────────────────────────────────────────────────────
@@ -517,10 +529,268 @@ function appendixBody(report) {
   const quality = meta.dataQuality.length ? `<ul class="report-diagnostics">${meta.dataQuality.map(row => `<li>${statusBadge(row.severity === 'info' ? 'info' : 'attention')}<p>${t(row.message)}${row.href ? ` <a class="report-screen-only" href="${e(row.href)}" data-route>Revisar</a>` : ''}</p></li>`).join('')}</ul>` : '<p>Sem pontos de qualidade dos dados.</p>'
   const coverage = meta.coverage.yearToDate
   const errors = meta.errors.length ? `<div class="report-callout report-callout--risk"><p><strong>Partes não calculadas:</strong> ${meta.errors.map(row => `${e(chapterTitles[row.chapter] || row.chapter)} (${e(row.message)})`).join('; ')}.</p></div>` : ''
-  return `<p class="report-note">Os avisos sobre o uso deste relatório estão no capítulo 1, ao lado das ações.</p><div class="report-columns"><div><h3 class="report-subtitle">Premissas</h3><dl class="report-deflist">${rows.map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('')}</dl><h3 class="report-subtitle">Cobertura e qualidade dos dados</h3>${coverage ? `<p class="report-note">Despesas realizadas em ${coverage.expenses.monthsWithActual.length} de ${coverage.months} meses; receitas realizadas em ${coverage.income.monthsWithActual.length} de ${coverage.months}.</p>` : ''}${quality}${errors}<h3 class="report-subtitle">Metodologia</h3><ul class="report-list report-list--notes">${appendix.methodology.map(row => `<li>${t(row)}</li>`).join('')}</ul></div><div><h3 class="report-subtitle">Limites dos indicadores</h3><dl class="report-deflist report-deflist--stacked">${report.indicators.map(item => `<div><dt>${e(item.label)}</dt><dd>${e(item.reference)}</dd></div>`).join('')}</dl></div></div>${returnTable(assumptions.portfolioReturn)}<h3 class="report-subtitle">Glossário</h3><dl class="report-deflist report-deflist--glossary">${appendix.glossary.map(row => `<div><dt>${e(row.term)}</dt><dd>${e(row.definition)}</dd></div>`).join('')}</dl>`
+  return `<p class="report-note">Os avisos sobre o uso deste relatório estão no ${chapterRef(report, 'summary', 'sumário')}, ao lado das ações.</p><div class="report-columns"><div><h3 class="report-subtitle">Premissas</h3><dl class="report-deflist">${rows.map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('')}</dl><h3 class="report-subtitle">Cobertura e qualidade dos dados</h3>${coverage ? `<p class="report-note">Despesas realizadas em ${coverage.expenses.monthsWithActual.length} de ${coverage.months} meses; receitas realizadas em ${coverage.income.monthsWithActual.length} de ${coverage.months}.</p>` : ''}${quality}${errors}<h3 class="report-subtitle">Metodologia</h3><ul class="report-list report-list--notes">${appendix.methodology.map(row => `<li>${t(row)}</li>`).join('')}</ul></div><div><h3 class="report-subtitle">Limites dos indicadores</h3><dl class="report-deflist report-deflist--stacked">${report.indicators.map(item => `<div><dt>${e(item.label)}</dt><dd>${e(item.reference)}</dd></div>`).join('')}</dl></div></div>${returnTable(assumptions.portfolioReturn)}<h3 class="report-subtitle">Glossário</h3><dl class="report-deflist report-deflist--glossary">${appendix.glossary.map(row => `<div><dt>${e(row.term)}</dt><dd>${e(row.definition)}</dd></div>`).join('')}</dl>`
 }
 
-const bodies = { cashFlow: cashFlowBody, spending: spendingBody, balanceSheet: balanceSheetBody, wealth: wealthBody, portfolio: portfolioBody, liquidity: liquidityBody, debts: debtsBody, currency: currencyBody, retirement: retirementBody, checklist: checklistBody, appendix: appendixBody }
+// ── Sua carteira de verdade and Quantas vezes o custo mensal ─────────────
+// docs/product/carteira-real-e-multiplo-aposentadoria.md. Money without cents;
+// multiples without decimals ("229x"); rates with one decimal; ages whole.
+// With the values hidden, only money is masked: multiples, rates, months and
+// ages stay visible.
+const pct1 = (value, options = {}) => formatReportPercent(value, { digits: 1, ...options })
+const multipleText = value => finite(value) ? `${formatReportNumber(value, 0)}x` : '—'
+const ageText = value => finite(value) ? formatReportNumber(value, 0) : '—'
+
+// Signed rate with tone: zero is neutral, a negative rate is never neutral.
+function toneRate1(value) {
+  if (!finite(value)) return '—'
+  const rounded = Math.round(value * 1000)
+  return `<span class="report-num--${rounded === 0 ? 'neutral' : rounded > 0 ? 'favorable' : 'unfavorable'}">${e(pct1(value, { signed: true }))}</span>`
+}
+function tonePoints(value) {
+  if (!finite(value)) return '—'
+  const rounded = Math.round(value * 1000)
+  return `<span class="report-num--${rounded === 0 ? 'neutral' : rounded > 0 ? 'favorable' : 'unfavorable'}">${e(formatReportPoints(value, { signed: true, fixed: true }))}</span>`
+}
+
+// State as icon + text that may wrap (cards and long sentences).
+function statusLine(status, html) {
+  const meta = statusMeta[status] || statusMeta.unavailable
+  return `<span class="report-status report-status--${status in statusMeta ? status : 'unavailable'} report-status--wrap"><span class="report-status__icon" aria-hidden="true">${meta.icon}</span><span>${html}</span></span>`
+}
+
+// Question → answer → context, one block per question of the chapter.
+function questionBlock({ key, number, title, answer, body }) {
+  return `<div class="report-question" data-report-question="${key}"><h3 class="report-question__title" id="report-question-${key}"><span class="report-question__number" aria-hidden="true">${number}</span>${title}</h3><div class="report-answer">${answer}</div>${body}</div>`
+}
+
+const pluralize = (count, one, many) => `${count} ${count === 1 ? one : many}`
+const screenLink = (href, text) => `<a class="report-screen-only report-inline-link" href="${e(href)}" data-route>${e(text)}</a>`
+
+function inflationCell(item) {
+  const inflation = item.inflation || {}
+  const label = String(inflation.label || '').replace(/ \([A-Z]{3}\)$/, '')
+  const when = inflation.source === 'estimated' ? '<span class="report-muted"> (estimativa)</span>' : inflation.lastMonth ? `, 12 meses até ${e(shortMonth(inflation.lastMonth))}` : ''
+  return `${e(item.currency || '')} · ${e(label)}${when}`
+}
+
+function realReturnQuestion(report, chapter) {
+  const returns = chapter.returns
+  const brl = returns.inflationName === 'IPCA'
+  const after = brl ? 'descontado o IPCA' : 'descontada a inflação'
+  const hasRealized = finite(returns.realized)
+  const answer = hasRealized
+    ? `<p class="report-answer__line"><span class="report-answer__value">${toneRate1(returns.realized)}</span> ao ano, ${after}, nos investimentos com histórico de saldos</p><p class="report-answer__context">Premissa para os mesmos investimentos: ${toneRate1(returns.coveredExpected)} ao ano.</p>`
+    : `<p class="report-answer__line"><span class="report-answer__value">${toneRate1(returns.expected)}</span> ao ano, ${after}, pela premissa</p>`
+  const head = hasRealized ? kpis([
+    { label: 'Realizado', value: toneRate1(returns.realized), note: `${pluralize(returns.coveredCount, 'investimento', 'investimentos')}, ${e(pct1(returns.coverage))} da carteira com histórico` },
+    { label: 'Premissa para eles', value: toneRate1(returns.coveredExpected), note: 'Mesmos investimentos' },
+    { label: 'Premissa da carteira inteira', value: toneRate1(returns.expected), note: 'Todos os investimentos' }
+  ]) : `<div class="report-empty" role="note"><p>Para medir o realizado, informe na Carteira os saldos de cada investimento com pelo menos ${returns.minimumWindowDays || 90} dias de intervalo. ${screenLink('/carteira', 'Informar saldos na Carteira')}</p></div>`
+  const items = returns.items || []
+  const rows = items.map(item => {
+    const realized = item.realized
+    const window = realized ? `${e(shortMonth(String(realized.from).slice(0, 7)))} a ${e(shortMonth(String(realized.to).slice(0, 7)))}${realized.approximated ? '<span class="report-muted">, anualizada</span>' : ''}` : '<span class="report-muted">Sem histórico</span>'
+    return [e(item.name), { wrap: inflationCell(item) }, toneRate1(item.expected), realized ? toneRate1(realized.real) : '<span class="report-muted">—</span>', window, finite(item.difference) ? tonePoints(item.difference) : '—']
+  })
+  const tableHtml = items.length ? table({ caption: `Rendimento real de cada investimento, ${after}, ao ano`, head: ['Investimento', 'Moeda e índice', 'Esperado', 'Realizado', 'Janela', 'Diferença'], rows, className: 'report-table--compact report-table--reality' }) : ''
+  const notes = [
+    'Antes do imposto de renda. O realizado vem dos saldos informados e já está líquido de custos e do come-cotas; o esperado é a premissa do investimento, já sem o custo anual cadastrado.',
+    'Diferença: realizado menos esperado, em pontos percentuais.',
+    returns.anyApproximated && 'Janela fora de 10 a 14 meses: o rendimento foi anualizado e a inflação dos últimos 12 meses entra como aproximação.',
+    returns.anyEstimatedFlows && 'Parte das aplicações e dos resgates foi estimada pelo aporte mensal declarado.',
+    returns.anyEstimatedInflation && 'Sem índice oficial de 12 meses para a moeda (EUR, USD ou sem dado de mercado): o realizado usa a inflação esperada do plano, marcada como estimada.'
+  ].filter(Boolean)
+  return questionBlock({
+    key: 'returns',
+    number: 1,
+    title: `Quanto rende de verdade acima ${brl ? 'do IPCA' : 'da inflação'}?`,
+    answer,
+    body: head + tableHtml + `<ul class="report-list report-list--notes">${notes.map(note => `<li>${e(note)}</li>`).join('')}</ul>`
+  })
+}
+
+function costQuestion(report, chapter) {
+  const costs = chapter.costs
+  const currency = report.meta.currency
+  const money = (value, options) => e(formatReportMoney(value, currency, options))
+  const answer = `<p class="report-answer__line"><span class="report-answer__value">${money(costs.annualAmount)}</span> por ano em custos cadastrados, ${e(formatReportPercent(costs.weightedFee))} da carteira ${statusBadge(costs.status)}</p><p class="report-answer__context">Cerca de ${money(costs.monthlyAmount)} por mês. Referência: abaixo de ${e(formatReportPercent(costs.okBelow))} ao ano.</p>`
+  const impactRows = [['atRetirement', 'aposentadoria'], ['atEnd', 'fim do horizonte']].map(([key, label]) => [key, label, costs.impact?.[key]]).filter(([, , row]) => row)
+  const impact = impactRows.length ? table({
+    caption: 'Patrimônio financeiro com e sem os custos cadastrados, em valor real',
+    head: ['Ano', 'Com custos', 'Sem custos', 'Efeito dos custos'],
+    rows: impactRows.map(([, label, row]) => [`${row.year} <span class="report-muted">(${label})</span>`, money(row.withFees), money(row.withoutFees), `<span class="report-num--${toneOf(-row.difference)}">${money(-row.difference)}</span>`]),
+    className: 'report-table--compact'
+  }) : ''
+  const top = costs.top?.length ? `<h4 class="report-minor-title">Maiores custos</h4>${table({
+    caption: `${costs.top.length === 1 ? 'Investimento' : `Os ${costs.top.length} investimentos`} com maior custo por ano em dinheiro`,
+    head: ['Investimento', 'Custo anual', 'Saldo', 'Custo por ano'],
+    rows: costs.top.map(row => [e(row.name), e(formatReportPercent(row.fee)), money(row.amount), money(row.annualCost)]),
+    className: 'report-table--compact'
+  })}` : ''
+  const group = (row, title, status, detail) => row?.count ? `<li>${statusBadge(status)}<p><strong>${title}</strong> em ${pluralize(row.count, 'investimento', 'investimentos')}, ${e(formatReportPercent(row.share))} da carteira (${money(row.amount)}): ${row.names.map(name => e(name)).join(', ')}. ${detail}</p></li>` : ''
+  const missingRows = group(costs.missing?.likely, 'Provavelmente falta o custo anual', 'attention', 'Fundos e previdência costumam cobrar taxa de administração.') + group(costs.missing?.maybeZero, 'Sem custo cadastrado; pode ser zero', 'info', 'Conta, ações diretas e caixa muitas vezes não têm taxa anual.')
+  const signalRows = (costs.signals || []).map(row => `<li>${statusBadge('attention')}<p><strong>${e(row.name)}</strong> rendeu ${e(formatReportPoints(row.gap, { fixed: true }))} abaixo do contratado (${e(pct1(row.realizedNominal))} contra ${e(pct1(row.contractedNominal))} nominal ao ano, já com o custo cadastrado). Pode ser custo não cadastrado, come-cotas, imposto ou aporte não registrado.</p></li>`).join('')
+  const missing = `<h4 class="report-minor-title">Custos que podem faltar</h4><ul class="report-diagnostics">${missingRows || `<li>${statusBadge('ok')}<p>Todos os investimentos têm custo anual cadastrado.</p></li>`}${signalRows}</ul>${missingRows || signalRows ? `<p class="report-note">${screenLink('/carteira', 'Revisar custos na Carteira')}</p>` : ''}`
+  const notMeasured = `<h4 class="report-minor-title">O que o app não vê</h4><ul class="report-list report-list--notes report-list--columns">${(costs.notMeasured || []).map(row => `<li>${e(row)}</li>`).join('')}</ul><p class="report-note">Come-cotas e imposto de renda são impostos, não custos: não entram nesta conta.</p>`
+  return questionBlock({ key: 'costs', number: 2, title: 'Quanto custa em taxas e comissões?', answer, body: impact + top + missing + notMeasured })
+}
+
+// How far today's portfolio is from each target capital, as a share.
+function capitalMeter(report, capital) {
+  const multiple = report.retirementMultiple
+  if (!multiple?.available || !finite(capital)) return ''
+  const currency = report.meta.currency
+  const rows = (multiple.scenarios || []).filter(row => ['freedom', 'legacy'].includes(row.key) && row.available && row.capital > 0.5)
+  if (!rows.length) return ''
+  const names = { freedom: 'Liberdade', legacy: 'Legado' }
+  const items = rows.map(row => {
+    const share = capital / row.capital
+    const done = share >= 0.9995
+    return `<li><span class="report-meter__name">${names[row.key]} <span class="report-muted">${e(formatReportMoney(row.capital, currency))}</span></span><span class="report-meter__track" aria-hidden="true"><span class="report-meter__fill${done ? ' report-meter__fill--done' : ''}" style="width:${Number(Math.min(100, share * 100).toFixed(2))}%"></span></span><span class="report-meter__value">${done ? statusLine('ok', 'Atingido') : e(formatReportPercent(share, { digits: 0 }))}</span></li>`
+  }).join('')
+  return `<div class="report-meter"><p class="report-meter__title">A carteira de hoje diante do capital da aposentadoria (${e(chapterRef(report, 'retirementMultiple', 'capítulo seguinte'))})</p><ul class="report-meter__rows">${items}</ul><p class="report-note">Parcela já acumulada, sem contar rendimento e aportes até a aposentadoria.</p></div>`
+}
+
+function coverageQuestion(report, chapter) {
+  const coverage = chapter.coverage
+  const currency = report.meta.currency
+  const money = (value, options) => e(formatReportMoney(value, currency, options))
+  const ref = chapterRef(report, 'retirementMultiple', 'capítulo seguinte')
+  const bridge = `<p class="report-bridge-link">Quanto seria preciso na aposentadoria: <strong>${e(ref)}</strong><span class="report-screen-only">, na aba Aposentadoria</span>.</p>`
+  if (!coverage?.available) return questionBlock({ key: 'coverage', number: 3, title: 'Quantas vezes cabe no seu custo de vida?', answer: emptyState(t(coverage?.emptyReason) || 'Sem dados para comparar.'), body: bridge })
+  const months = Math.round(coverage.months)
+  const basis = coverage.basis === 'actual' ? `Média de ${pluralize(coverage.basisMonths, 'mês realizado', 'meses realizados')}` : 'Pelo orçamento planejado'
+  const answer = `<p class="report-answer__line"><span class="report-answer__value">${months} ${months === 1 ? 'mês' : 'meses'}</span> (${e(formatReportNumber(coverage.years, 1))} ${Math.round(coverage.years * 10) === 10 ? 'ano' : 'anos'}) do seu custo de vida de hoje</p><p class="report-answer__context">A parte disponível para resgate equivale a ${Math.round(coverage.availableMonths)} ${Math.round(coverage.availableMonths) === 1 ? 'mês' : 'meses'}.</p>`
+  const head = kpis([
+    { label: 'Carteira', value: money(coverage.capital), note: 'Investimentos, com previdência; sem imóveis' },
+    { label: 'Parte disponível', value: money(coverage.availableCapital), note: `${Math.round(coverage.availableMonths)} ${Math.round(coverage.availableMonths) === 1 ? 'mês' : 'meses'} de custo de vida` },
+    { label: 'Custo de vida por mês', value: money(coverage.monthlyCost), note: `${basis}; sem Previdência e sem aportes` }
+  ])
+  return questionBlock({ key: 'coverage', number: 3, title: 'Quantas vezes cabe no seu custo de vida?', answer, body: head + capitalMeter(report, coverage.capital) + bridge })
+}
+
+function portfolioRealityBody(report) {
+  const chapter = report.portfolioReality
+  if (!chapter?.available) return ''
+  return `<div class="report-questions">${realReturnQuestion(report, chapter)}${costQuestion(report, chapter)}${coverageQuestion(report, chapter)}</div>`
+}
+
+const scenarioNames = { onePercent: 'Regra do 1%', freedom: 'Liberdade', legacy: 'Legado' }
+const scenarioRules = { onePercent: 'Retira 1% do capital por mês', freedom: 'Gasta o capital até a idade-alvo', legacy: 'Vive do rendimento; o capital fica' }
+const unavailableReasons = {
+  ages: 'Informe a idade atual e a de aposentadoria em Meu plano.',
+  horizon: 'A aposentadoria começa depois da idade-alvo do horizonte.',
+  rate: 'Sem capital finito com retorno real de 0% ou menos.'
+}
+
+function scenarioCard(report, chapter, row) {
+  const currency = report.meta.currency
+  const money = value => formatReportMoney(value, currency)
+  const name = scenarioNames[row.key] || row.key
+  const head = `<h3 class="report-scenario__name">${e(name)}</h3><p class="report-scenario__rule">${e(scenarioRules[row.key] || '')}</p>`
+  if (!row.available) return `<li class="report-scenario report-scenario--${row.key} report-scenario--unavailable" data-report-scenario="${row.key}">${head}<p class="report-scenario__outcome">${statusLine('unavailable', e(unavailableReasons[row.reason] || 'Indisponível com os dados atuais.'))}</p></li>`
+  const agesKnown = finite(chapter.assumptions?.retirementAge)
+  const outcome = row.key === 'legacy' ? statusLine('ok', 'Não acaba')
+    : row.key === 'freedom' ? statusLine('info', `Dura até os ${ageText(row.lastsUntilAge ?? chapter.assumptions?.targetAge)}`)
+      : finite(row.depletionAge) ? statusLine('risk', `O dinheiro acaba aos ${ageText(row.depletionAge)}`)
+        : agesKnown ? statusLine('ok', 'Não acaba') : statusLine('unavailable', 'Informe as idades para saber quando acaba')
+  const contribution = finite(row.requiredContribution) ? `${e(money(row.requiredContribution))} por mês`
+    : chapter.assumptions?.monthsToRetirement === 0 ? 'Não se aplica: já aposentado' : 'Informe as idades em Meu plano'
+  const situations = {
+    has: ['ok', 'Você já tem'],
+    'grows-there': ['ok', 'O capital atual chega lá sem novos aportes'],
+    'contribution-covers': ['ok', 'O aporte atual cobre'],
+    short: ['attention', `Faltam ${e(money(row.shortfall))}`],
+    'no-gap': ['ok', 'A renda garantida cobre o custo'],
+    unknown: ['unavailable', 'Informe as idades em Meu plano']
+  }
+  const [status, label] = situations[row.status] || situations.unknown
+  const withdrawal = finite(row.withdrawalRate) ? `${e(pct1(row.withdrawalRate))} ${row.withdrawalStatus ? statusBadge(row.withdrawalStatus) : ''}` : '—'
+  return `<li class="report-scenario report-scenario--${row.key}" data-report-scenario="${row.key}">${head}<p class="report-scenario__capital">${e(money(row.capital))}</p><p class="report-scenario__multiple"><strong>${e(multipleText(row.multiple))}</strong> o custo mensal</p><p class="report-scenario__outcome">${outcome}</p><dl class="report-scenario__facts"><div><dt>Retirada ao ano</dt><dd>${withdrawal}</dd></div><div><dt>Aporte necessário</dt><dd>${contribution}</dd></div><div><dt>Situação</dt><dd>${statusLine(status, label)}</dd></div></dl></li>`
+}
+
+function currentPlanBlock(report, chapter) {
+  const currency = report.meta.currency
+  const money = value => e(formatReportMoney(value, currency))
+  const current = chapter.current
+  const a = chapter.assumptions || {}
+  if (!current) return `<div class="report-current"><h3 class="report-subtitle">Seu plano atual</h3>${emptyState('Informe a idade atual e a de aposentadoria em Meu plano para comparar o plano atual com os cenários.')}</div>`
+  const lasts = finite(current.depletionAge) ? statusLine('risk', `O dinheiro acaba aos ${ageText(current.depletionAge)}`) : statusLine('ok', 'Não acaba')
+  const official = current.officialFirstShortfall
+    ? statusLine('risk', `Primeira insuficiência em ${current.officialFirstShortfall.year}${finite(current.officialFirstShortfall.age) ? `, aos ${ageText(current.officialFirstShortfall.age)}` : ''}`)
+    : current.officialAvailable ? statusLine('ok', `Sem insuficiência até os ${ageText(a.targetAge)}`) : statusLine('unavailable', 'Projeção oficial indisponível')
+  return `<div class="report-current"><h3 class="report-subtitle">Seu plano atual</h3><div class="report-current__grid">
+<div class="report-current__side"><p class="report-current__label">Por esta conta: ${e(pct1(a.realRate))} real e aporte de ${money(current.monthlyContribution)} por mês</p><p class="report-current__value">${money(current.capital)} <span class="report-current__multiple">${e(multipleText(current.multiple))} o custo</span></p>${finite(current.withdrawalRate) ? `<p>Retirada de ${e(pct1(current.withdrawalRate))} ao ano ${current.withdrawalStatus ? statusBadge(current.withdrawalStatus) : ''}</p>` : ''}<p>${lasts}</p></div>
+<div class="report-current__side"><p class="report-current__label">Projeção oficial do plano</p><p class="report-current__value report-current__value--status">${official}</p><p class="report-note">A projeção oficial usa a taxa do plano${finite(a.planRate) ? ` (${e(pct1(a.planRate))} real)` : ''}, o orçamento ano a ano, com poupança e rendas, os objetivos e o imposto. Esta conta usa ${e(pct1(a.realRate))} fixo, a carteira de hoje e um aporte constante (${e(contributionLabels[a.contributionSource] || contributionLabels.plan)}). Por isso as idades podem divergir.</p></div>
+</div></div>`
+}
+
+const contributionLabels = { 'budget-actual': 'poupança média dos meses realizados do orçamento', 'budget-planned': 'poupança do orçamento planejado', plan: 'o aporte mensal de Meu plano' }
+const basisLabels = { plan: 'Renda desejada de Meu plano', budget: 'Custo de vida de hoje, sem renda garantida' }
+
+function multipleAssumptions(report, chapter) {
+  const currency = report.meta.currency
+  const money = value => e(formatReportMoney(value, currency))
+  const a = chapter.assumptions || {}
+  const basis = chapter.basis === 'projection' ? `Projeção do plano, ano ${chapter.basisYear ?? '—'}` : basisLabels[chapter.basis] || '—'
+  const months = finite(a.monthsToRetirement) ? `${formatReportNumber(a.monthsToRetirement, 0)} ${a.monthsToRetirement === 1 ? 'mês' : 'meses'}${a.monthsToRetirement >= 12 ? ` (${e(formatReportNumber(a.monthsToRetirement / 12, 1))} anos)` : ''}` : 'Informe as idades em Meu plano'
+  const ages = finite(a.retirementAge) ? `Aos ${ageText(a.retirementAge)}, até os ${ageText(a.targetAge)}${finite(a.horizonYears) ? ` (${e(formatReportNumber(a.horizonYears, 1))} anos)` : ''}` : `Informe as idades em Meu plano${finite(a.targetAge) ? `; horizonte até os ${ageText(a.targetAge)}` : ''}`
+  const rows = [
+    ['Custo de vida na aposentadoria', `${money(a.monthlyCost)} por mês`],
+    ['Renda garantida', `${money(a.guaranteedIncome)} por mês`],
+    ['Lacuna a cobrir', `${money(a.gap)} por mês: custo menos renda garantida`],
+    ['Base', e(basis)],
+    ['Capital atual', `${money(a.currentCapital)}, a carteira de hoje`],
+    ['Aporte atual', `${money(a.monthlyContribution)} por mês, ${contributionLabels[a.contributionSource] || contributionLabels.plan}`],
+    ['Até a aposentadoria', months],
+    ['Aposentadoria e horizonte', ages],
+    ['Taxa real', `${e(pct1(a.realRate))} ao ano, líquida de custos e de imposto (${e(formatReportPercent(a.monthlyRate, { digits: 3 }))} ao mês)`]
+  ]
+  const steps = a.gapSteps?.length ? `<p class="report-note"><strong>A lacuna muda ao longo do tempo:</strong> ${a.gapSteps.map(step => `${step.year ? `a partir de ${step.year}` : 'depois'}, ${money(step.monthly)} por mês`).join('; ')}.</p>` : ''
+  return `<div class="report-multiple-assumptions"><h3 class="report-subtitle">Premissas</h3><dl class="report-deflist report-deflist--two">${rows.map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('')}</dl>${steps}<p class="report-note">O capital cobre a lacuna; o múltiplo divide o capital pelo custo total mensal. Valores reais, a preços de hoje.</p></div>`
+}
+
+function sensitivityTable(report, chapter) {
+  const rows = [...(chapter.sensitivity || [])].sort((a, b) => a.rate - b.rate)
+  if (!rows.length) return ''
+  const currency = report.meta.currency
+  const planRate = chapter.assumptions?.planRate
+  const used = chapter.assumptions?.realRate
+  const reasonText = { rate: 'sem capital finito', ages: 'informe as idades', horizon: 'após a idade-alvo' }
+  const cells = item => item.reason || !finite(item.multiple)
+    ? [`<span class="report-muted">${e(reasonText[item.reason] || '—')}</span>`, '—']
+    : [e(multipleText(item.multiple)), finite(item.requiredContribution) ? e(formatReportMoney(item.requiredContribution, currency)) : '—']
+  return `<h3 class="report-subtitle">E se a taxa for outra</h3>${table({
+    caption: 'Múltiplo do custo mensal e aporte necessário por mês, por taxa real ao ano',
+    head: ['Taxa real', 'Liberdade: múltiplo', 'Liberdade: aporte', 'Legado: múltiplo', 'Legado: aporte'],
+    rows: rows.map(row => {
+      const isPlan = row.source === 'plan' || (finite(planRate) && Math.abs(row.rate - planRate) < 1e-6)
+      const isUsed = finite(used) && Math.abs(row.rate - used) < 1e-6
+      const label = `${e(pct1(row.rate))}${isUsed ? '<span class="report-muted">, usada nos cartões</span>' : ''}${isPlan ? '<span class="report-muted">, taxa do plano (líquida de custos, antes de imposto)</span>' : ''}`
+      return [label, ...cells(row.freedom), ...cells(row.legacy)]
+    }),
+    className: 'report-table--compact report-table--sensitivity'
+  })}`
+}
+
+function retirementMultipleBody(report) {
+  const chapter = report.retirementMultiple
+  if (!chapter?.available) return ''
+  const reference = chapter.withdrawalReference || {}
+  const legacy = (chapter.scenarios || []).find(row => row.key === 'legacy')
+  const cards = `<ul class="report-scenarios" aria-label="Cenários de capital na aposentadoria">${(chapter.scenarios || []).map(row => scenarioCard(report, chapter, row)).join('')}</ul>`
+  const notes = [
+    `${legacy?.available ? `Os ${e(multipleText(legacy.multiple))} do Legado são` : 'O Legado é'} uma perpetuidade: supõem ${e(pct1(chapter.assumptions?.realRate))} real certo todos os anos. A “regra dos 4%” americana é outra coisa: a retirada inicial que resistiu a cerca de 30 anos do histórico dos EUA, sem juro fixo e sem garantir o capital para sempre.`,
+    `Retiradas acima de ${e(pct1(reference.attention))} ao ano estão na faixa de risco; de ${e(pct1(reference.ok))} a ${e(pct1(reference.attention))}, em atenção. Esta conta supõe o mesmo retorno todo ano; na prática, a volatilidade e a ordem dos retornos mudam o resultado. A confiança com cenários está em Objetivos e confiança${chapterNumber(report, 'retirement') ? ` e no ${chapterRef(report, 'retirement', '')}` : ''}. ${screenLink('/objetivos', 'Abrir Objetivos e confiança')}`,
+    `A reserva de emergência${chapterNumber(report, 'liquidity') ? ` (${chapterRef(report, 'liquidity', '')})` : ''} e os objetivos pontuais ficam fora deste capital${chapter.hasGoals ? ': os seus objetivos precisam de dinheiro à parte' : ''}.`,
+    chapter.taxOnWithdrawals && `O plano tem imposto nos resgates: a projeção oficial desconta o imposto à parte. Os ${e(pct1(chapter.assumptions?.realRate))} daqui já são líquidos de imposto.`,
+    'Conteúdo educativo: contas com premissas declaradas, não recomendação de produto, alocação, taxa de retirada ou data de aposentadoria.'
+  ].filter(Boolean)
+  return cards + currentPlanBlock(report, chapter) + multipleAssumptions(report, chapter) + sensitivityTable(report, chapter) + `<div class="report-multiple-notes"><h3 class="report-subtitle">Como ler estes números</h3><ul class="report-list report-list--notes">${notes.map(note => `<li>${note}</li>`).join('')}</ul></div>`
+}
+
+const bodies = { cashFlow: cashFlowBody, spending: spendingBody, balanceSheet: balanceSheetBody, wealth: wealthBody, portfolioReality: portfolioRealityBody, portfolio: portfolioBody, liquidity: liquidityBody, debts: debtsBody, currency: currencyBody, retirementMultiple: retirementMultipleBody, retirement: retirementBody, checklist: checklistBody, appendix: appendixBody }
 
 // Page footer of the printed file (Chrome draws @page margin boxes). Plain
 // text from the model dates only; quotes and backslashes are escaped for CSS.
@@ -540,9 +810,9 @@ export const panoramaTabs = Object.freeze([
   { key: 'resumo', label: 'Resumo', chapters: ['cover', 'summary'], adjust: [['Orçamento', '/orcamento?aba=resumo'], ['Carteira', '/carteira'], ['Objetivos e confiança', '/objetivos']], simulate: [['Viabilidade do plano', '/viabilidade']] },
   { key: 'gastos', label: 'Fluxo e gastos', chapters: ['cashFlow', 'spending'], adjust: [['Lançamentos', '/orcamento?aba=lancamentos'], ['Categorias do orçamento', '/orcamento?aba=categorias'], ['Extratos bancários', '/extratos']], simulate: [['Projeção patrimonial', '/fluxo-caixa?aba=anual']] },
   { key: 'patrimonio', label: 'Patrimônio', chapters: ['balanceSheet', 'wealth'], adjust: [['Patrimônio', '/patrimonio'], ['Carteira', '/carteira'], ['Consórcios', '/consorcios']], simulate: [['Projeção patrimonial', '/fluxo-caixa?aba=anual']] },
-  { key: 'carteira', label: 'Carteira', chapters: ['portfolio'], adjust: [['Carteira: saldos, liquidez e alocação-alvo', '/carteira']], simulate: [] },
+  { key: 'carteira', label: 'Carteira', chapters: ['portfolioReality', 'portfolio'], adjust: [['Carteira: saldos, liquidez e alocação-alvo', '/carteira']], simulate: [] },
   { key: 'reserva', label: 'Reserva, dívidas e câmbio', chapters: ['liquidity', 'debts', 'currency'], adjust: [['Carteira', '/carteira'], ['Calendário e dívidas', '/calendario']], simulate: [['Liquidez mensal', '/riscos-mensais'], ['Câmbio', '/cambio']] },
-  { key: 'aposentadoria', label: 'Aposentadoria', chapters: ['retirement'], adjust: [['Meu plano', '/plano'], ['Objetivos e confiança', '/objetivos']], simulate: [['Simulações', '/simulacoes'], ['Riscos anuais', '/riscos'], ['Após aposentadoria', '/apos-aposentadoria']] },
+  { key: 'aposentadoria', label: 'Aposentadoria', chapters: ['retirementMultiple', 'retirement'], adjust: [['Meu plano', '/plano'], ['Objetivos e confiança', '/objetivos']], simulate: [['Simulações', '/simulacoes'], ['Riscos anuais', '/riscos'], ['Após aposentadoria', '/apos-aposentadoria']] },
   { key: 'premissas', label: 'Verificação e premissas', chapters: ['checklist', 'appendix'], adjust: [['Meu plano', '/plano'], ['Perfil e dados', '/perfil']], simulate: [['Viabilidade do plano', '/viabilidade']] }
 ])
 
