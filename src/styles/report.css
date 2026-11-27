@@ -189,16 +189,50 @@
 .report-bar--brand { background: var(--color-brand); }
 .report-bar--slate { background: var(--report-cat-other); }
 .report-bar--total { background: var(--color-ink); }
-.report-diverge, .report-bullet, .report-bridge, .report-dot-band, .report-pair { position: relative; display: block; height: 1.25em; }
-.report-diverge::before { content: ''; position: absolute; left: 50%; top: -0.2em; bottom: -0.2em; width: 1px; background: var(--color-ink-muted); }
-.report-diverge__zero-dot { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border: 1.5px solid var(--color-ink-muted); border-radius: 50%; background: var(--color-surface); }
-.report-bullet__quota { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--color-track); }
-.report-bullet .report-bar { top: 0.35em; bottom: 0.35em; }
+.report-dot-band, .report-pair { position: relative; display: block; height: 1.25em; }
+/* Row charts (deviation, annual quota, bridge): name with the amounts, bar,
+   signed value next to the bar and the situation in words. The scale lives on
+   the chart's own header. Fixed value column, so every bar has the same width
+   and the reference lines align from row to row. */
+.report-rowchart { --rowchart-columns: minmax(10em, 1.2fr) minmax(6em, 1fr) 7em 11.5em; display: grid; font-size: 0.9em; }
+.report-rowchart__list { display: grid; }
+.report-rowchart__row { display: grid; grid-template-columns: var(--rowchart-columns); grid-template-areas: "name track value status"; align-items: center; gap: 0.2em 0.8em; padding: 0.34em 0; border-bottom: 1px solid var(--report-rule); break-inside: avoid; }
+.report-rowchart__head { align-items: end; padding: 0 0 0.3em; border-bottom-color: var(--color-border-strong); color: var(--color-ink-soft); font-size: 0.92em; font-weight: 700; }
+.report-rowchart__head .report-rowchart__value { color: var(--color-ink-soft); font-weight: 700; white-space: normal; text-align: right; }
+.report-rowchart__name { grid-area: name; display: grid; gap: 0.05em; min-width: 0; font-weight: 650; line-height: 1.3; }
+.report-rowchart__detail { color: var(--color-ink-soft); font-size: 0.88em; font-weight: 500; }
+.report-rowchart__track { grid-area: track; position: relative; display: block; height: 1.3em; }
+.report-rowchart__head .report-rowchart__track { height: auto; min-height: 1.3em; }
+.report-rowchart__value { grid-area: value; display: grid; justify-items: end; font-weight: 720; white-space: nowrap; }
+.report-rowchart__note { color: var(--color-ink-soft); font-size: 0.86em; font-weight: 500; }
+.report-rowchart__status { grid-area: status; justify-self: start; min-width: 0; }
+.report-rowchart__row--total .report-rowchart__name, .report-rowchart__row--total .report-rowchart__value { font-weight: 760; }
+/* Zero / plan line, the quota track, the expected-pace line and zero steps. */
+.report-rowchart__axis { position: absolute; top: -0.34em; bottom: -0.34em; width: 1.5px; margin-left: -0.75px; background: var(--color-ink-muted); }
+.report-rowchart__head .report-rowchart__axis { top: auto; bottom: -0.3em; height: 0.5em; }
+.report-rowchart__quota { position: absolute; inset: 0.15em 0; border-radius: 4px; background: var(--color-track); }
+.report-rowchart--quota .report-bar { top: 0.15em; bottom: 0.15em; border-radius: 4px; }
+.report-rowchart__row--over .report-bar { border-radius: 4px 0 0 4px; box-shadow: inset -3px 0 0 var(--color-danger); }
+.report-rowchart__pace { position: absolute; top: -0.2em; bottom: -0.2em; width: 2px; margin-left: -1px; background: var(--color-ink); }
+.report-rowchart__mark { position: absolute; top: 0.1em; bottom: 0.1em; width: 2px; margin-left: -1px; background: var(--color-ink-muted); }
+/* Scale words written on the header, anchored at the line they name. */
+.report-rowchart__tag { position: absolute; bottom: 0; max-width: 50%; font-size: 0.92em; font-weight: 650; line-height: 1.2; }
+.report-rowchart__tag--before { padding-right: 0.35em; text-align: right; }
+.report-rowchart__tag--after { padding-left: 0.35em; text-align: left; }
+/* Quota header: scale ends on the first line; the pace label in flow on the
+   second, pushed by a margin to end (or start) at the pace line, ▼ on it. */
+.report-rowchart--quota .report-rowchart__head .report-rowchart__track { display: grid; gap: 0.15em; }
+.report-rowchart__scale { display: flex; justify-content: space-between; gap: 0.5em; font-size: 0.92em; font-weight: 650; }
+.report-rowchart__pace-tag { color: var(--color-ink); font-size: 0.92em; font-weight: 700; line-height: 1.2; }
+.report-rowchart__pace-tag--before { text-align: right; transform: translateX(0.42em); }
+.report-rowchart__pace-tag--after { transform: translateX(-0.42em); }
+.report-rowchart__aside { margin-top: 0.5em; }
+.report-rowchart__halves { display: flex; font-size: 0.92em; font-weight: 650; line-height: 1.2; }
+.report-rowchart__halves > span { flex: 0 0 50%; padding-inline: 0.4em; }
+.report-rowchart__halves > span:first-child { text-align: right; }
+.report-rowchart__halves--right > span:first-child { flex-basis: 100%; text-align: left; }
+.report-effect { display: inline-flex; gap: 0.3em; font-size: 0.92em; font-weight: 650; white-space: nowrap; }
 .report-bullet__tick { position: absolute; top: -0.15em; bottom: -0.15em; width: 2px; margin-left: -1px; background: var(--color-ink); }
-.report-bullet__overflow { position: absolute; right: -0.2em; top: 50%; transform: translateY(-50%); color: var(--color-danger); font-size: 0.75em; }
-.report-bridge__axis { position: absolute; top: -0.2em; bottom: -0.2em; width: 1px; background: var(--color-ink-muted); }
-.report-bridge__zero { position: absolute; top: 0.1em; bottom: 0.1em; width: 2px; margin-left: -1px; background: var(--color-ink-muted); }
-.report-bridge__total th, .report-bridge__total td { font-weight: 700; }
 .report-dot-band { background: linear-gradient(var(--report-rule), var(--report-rule)) 0 50% / 100% 1px no-repeat; }
 .report-dot-band__band { position: absolute; top: 0.15em; bottom: 0.15em; border-radius: 3px; background: rgb(22 116 84 / 16%); }
 .report-dot-band__target { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--color-green); }
@@ -216,7 +250,6 @@
 .report-swatch--line { height: 3px; border-radius: 2px; background: var(--color-green); }
 .report-swatch--band-inner { background: rgb(22 116 84 / 38%); }
 .report-swatch--band-outer { background: rgb(22 116 84 / 16%); }
-.report-swatch--quota { background: var(--color-track); border: 1px solid var(--color-ink-muted); }
 .report-swatch--tick, .report-swatch--target { width: 2px; margin-inline: 0.35em; border-radius: 0; background: var(--color-ink); }
 .report-swatch--target { background: var(--color-green); }
 .report-swatch--dot { border-radius: 50%; background: var(--color-ink); }
@@ -400,6 +433,13 @@
   .report-plan__arrow { transform: rotate(90deg); justify-self: center; }
   .report-diagnostics li { grid-template-columns: 1fr; gap: 0.2em; }
   .report-chart-cell { min-width: 7em; }
+  /* Row charts: name, then bar with its value, then the situation. Fixed
+     value column, so the bar has the same width in every row. */
+  .report-rowchart { --rowchart-columns: minmax(0, 1fr) 6.8em; }
+  .report-rowchart__row { grid-template-areas: "name name" "track value" "status status"; row-gap: 0.3em; padding-block: 0.5em; }
+  .report-rowchart__status:empty { display: none; }
+  .report-rowchart__head { grid-template-areas: "track value"; }
+  .report-rowchart__head :is(.report-rowchart__name, .report-rowchart__status) { display: none; }
   .report-scenarios, .report-current__grid, .report-deflist--two, .report-list--columns { grid-template-columns: 1fr; }
   .report-current__side + .report-current__side { padding: 0.8em 0 0; border-left: 0; border-top: 1px solid var(--report-rule); }
   .report-meter__rows li { grid-template-columns: minmax(0, 1fr) 4em; }
@@ -446,6 +486,9 @@
   :root[data-report-printing] .report-indicator { padding: 0.55em 0.7em; }
   :root[data-report-printing] .report a { color: inherit; text-decoration: none; }
   :root[data-report-printing] .report-table th, :root[data-report-printing] .report-table td { padding-block: 0.26em; }
+  :root[data-report-printing] .report-rowchart__row { padding-block: 0.2em; }
+  :root[data-report-printing] .report-rowchart__name { line-height: 1.2; }
+  :root[data-report-printing] .report-rowchart__head, :root[data-report-printing] .report-rowchart__list > :first-child { break-after: avoid; }
   :root[data-report-printing] .report-chart-scroll { overflow: visible; }
   :root[data-report-printing] .report-chart-scroll .report-svg { min-width: 0; }
   :root[data-report-printing] .report-chart-values { gap: 0.3em 1.1em; font-size: 0.8em; }

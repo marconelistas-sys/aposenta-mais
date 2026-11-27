@@ -143,13 +143,14 @@ function cashFlowBody(report) {
     { label: 'Taxa de poupança', value: e(formatReportPercent(chapter.savingsRate)), note: 'Referência: 20% ou mais' },
     { label: 'Despesas fixas', value: e(formatReportPercent(chapter.fixedExpenseRatio)), note: 'Da receita; referência: até 50%' }
   ])
-  const steps = chapter.waterfall.steps
+  // A zero income deviation reads "iguais ao plano", never "acima do plano".
+  const steps = chapter.waterfall.steps.map(step => step.key === 'income' && Math.round(step.value) === 0 ? { ...step, label: 'Receitas iguais ao plano' } : step)
   const planned = steps.find(step => step.key === 'planned'), actual = steps.find(step => step.key === 'actual')
   const waterfall = chapter.waterfall.available
     ? figure({
       title: `Saldo realizado de ${money(actual.value)} contra ${money(planned.value)} planejado até ${e(shortMonth(chapter.period.end))}`,
       body: bridgeRows({ steps, currency, caption: 'Do saldo planejado ao realizado' }),
-      howToRead: 'Começa no saldo planejado e soma o efeito de cada desvio até o saldo realizado. Verde aumenta o saldo, vermelho reduz; desvio zero não tem barra.',
+      howToRead: 'Leia de cima para baixo: começa no saldo planejado, cada linha soma (+, verde, ↑) ou tira (−, vermelho com hachura, ↓) um desvio e termina no saldo realizado. Desvio zero aparece só como um traço.',
       source: `Orçamento do aplicativo, lançamentos planejados e realizados de ${e(periodLabel(chapter.period.start, chapter.period.end))}.`,
       premise: `Valores nominais em ${e(currency)}.`
     })
@@ -178,11 +179,11 @@ function spendingBody(report) {
   const period = periodLabel(chapter.period.start, chapter.period.end)
   const variance = chapter.variance.filter(row => row.hasActual)
   const material = variance.filter(row => row.material).length
-  const intro = `<p class="report-note">Desvio material: pelo menos ${e(formatReportPercent(chapter.materiality.percent))} acima do planejado e pelo menos ${money(chapter.materiality.minimumMonthly)} por mês (${e(formatReportPercent(chapter.materiality.incomeShare))} da receita mensal). Abaixo disso, a categoria não entra na lista de ação.</p>`
+  const intro = `<p class="report-note">“Bem acima do plano” (desvio material): pelo menos ${e(formatReportPercent(chapter.materiality.percent))} acima do planejado e pelo menos ${money(chapter.materiality.minimumMonthly)} por mês (${e(formatReportPercent(chapter.materiality.incomeShare))} da receita mensal). Abaixo disso, “pouco acima do plano”: a categoria não entra na lista de ação.</p>`
   const diverging = figure({
     title: `${material ? `${material} ${material === 1 ? 'categoria tem desvio material' : 'categorias têm desvio material'}` : 'Nenhum desvio material'}; no total, ${totalDelta(chapter.totals.delta, currency)} até ${e(shortMonth(chapter.period.end))}`,
     body: divergingRows({ rows: variance, currency, caption: `Desvio por categoria, ${period}` }),
-    howToRead: 'Barras à direita do centro: gasto acima do plano; à esquerda: abaixo. Vermelho com hachura só quando o desvio é material; cinza, acima do plano sem materialidade.',
+    howToRead: `Cada barra parte da linha do plano. Para a direita, gastou mais do que o planejado até ${e(shortMonth(chapter.period.end))}; para a esquerda, menos. Vermelho com hachura só quando o excesso é material; cinza, pouco acima; verde, abaixo do plano. A situação também vem escrita em cada linha.`,
     source: `Acumulado do ano no orçamento, ${e(period)}. ${chapter.variance.length - variance.length ? `${chapter.variance.length - variance.length} ${chapter.variance.length - variance.length === 1 ? 'categoria sem gastos registrados não aparece' : 'categorias sem gastos registrados não aparecem'}.` : ''}`,
     premise: 'Planejado até o mês: o previsto de janeiro até o mês de referência.'
   })
@@ -190,9 +191,11 @@ function spendingBody(report) {
   const exceeded = quota.filter(row => row.status === 'exceeded').length
   const quotaFigure = figure({
     title: exceeded ? `${exceeded} ${exceeded === 1 ? 'categoria já passou' : 'categorias já passaram'} da cota anual com ${e(formatReportPercent(quota[0]?.elapsedShare ?? 0))} do ano decorrido` : 'Nenhuma categoria passou da cota anual',
-    body: quotaRows({ rows: quota, currency, caption: 'Uso da cota anual por categoria' }),
-    howToRead: 'O fundo claro é a cota anual planejada e a barra é o realizado. O traço mostra uma referência linear: mês de referência dividido por 12. Estar além do traço indica uso antecipado da cota, sem considerar a sazonalidade das despesas.',
-    source: 'Cota anual planejada no orçamento.'
+    body: quotaRows({ rows: quota, currency, caption: 'Uso da cota anual por categoria', paceLabel: `em ${shortMonth(chapter.period.end)}` }),
+    howToRead: `A trilha inteira é a cota do ano (100%); a barra é o que já foi gasto. A linha vertical é o ritmo esperado: ${Math.round((quota[0]?.elapsedShare ?? 0) * 12)} de 12 meses passaram, e quem gasta o mesmo todo mês fica sobre ela. Passar da linha é gastar mais rápido do que o ano anda; gastos sazonais, como um seguro anual pago de uma vez, podem passar dela sem estourar a cota. Cota estourada: a barra fica cheia e o excesso vem escrito na linha.`,
+    source: 'Cota anual planejada no orçamento.',
+    // Tall list: in print it may continue on the next sheet, between rows.
+    className: 'report-figure--breakable'
   })
   const unplanned = chapter.unplanned.length ? figure({
     title: `Gastos sem orçamento: ${chapter.unplanned.length} ${chapter.unplanned.length === 1 ? 'categoria' : 'categorias'}`,
@@ -293,7 +296,7 @@ function wealthBody(report) {
   const bridgeFigure = bridge.available
     ? figure({
       title: `Ponte projetada de ${bridge.year}: de ${money(start.value)} para ${money(end.value)}`,
-      body: bridgeRows({ steps: bridge.steps, currency, caption: `Ponte do patrimônio financeiro em ${bridge.year}` }),
+      body: bridgeRows({ steps: bridge.steps, currency, caption: `Ponte do patrimônio financeiro em ${bridge.year}`, subject: 'o patrimônio', afterLabel: 'Patrimônio depois' }),
       howToRead: 'Do patrimônio financeiro no início do ano ao do fim, somando saldo do orçamento, rendimento e previdência.',
       source: 'Projeção anual do aplicativo.',
       premise: 'Valores reais, a preços de hoje. É projeção, não resultado realizado.'

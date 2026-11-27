@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { allocationRows, balanceInvestedLine, bridgeRows, currencyPairs, fanChart, historyLine, projectionLine, quotaRows, reserveBullet } from '../src/features/report/report-charts.js'
+import { allocationRows, balanceInvestedLine, bridgeRows, currencyPairs, divergingRows, fanChart, historyLine, projectionLine, quotaRows, reserveBullet } from '../src/features/report/report-charts.js'
 import { withMaskedMoney } from '../src/features/report/report-text.js'
 import { buildFinancialReport } from '../src/domain/financial-report.js'
 import { renderReportDocument } from '../src/features/report/report-view.js'
@@ -33,25 +33,70 @@ test('saldos usam dias reais e datas completas, aportado permanece em degraus', 
   assert.equal((html.match(/report-svg-leader/g) || []).length, 2)
 })
 
-test('ponte cruza zero e permite conferir o saldo depois de cada etapa', () => {
+test('ponte diz em palavras o efeito de cada etapa e o saldo depois dela', () => {
   const html = bridgeRows({ ...options, steps: [{ label: 'Início', kind: 'start', value: 100 }, { label: 'Despesa', kind: 'delta', value: -150 }, { label: 'Sem mudança', kind: 'delta', value: 0 }, { label: 'Fim', kind: 'end', value: -50 }] })
-  assert.match(html, /Efeito da etapa/)
-  assert.match(html, /Saldo após a etapa/)
-  assert.match(html, /Despesa<\/th>[\s\S]*?<td class="report-num--unfavorable">−CHF 150<\/td><td>−CHF 50<\/td>/)
-  assert.match(html, /Sem mudança<\/th>[\s\S]*?report-bridge__zero[\s\S]*?<td class="report-num--neutral">CHF 0<\/td><td>−CHF 50<\/td>/)
-  assert.equal((html.match(/class="report-bridge__axis"/g) || []).length, 4)
+  assert.match(html, /class="report-rowchart report-rowchart--bridge" aria-hidden="true"/)
+  assert.match(html, /<div class="sr-only"><table><caption>Valores<\/caption>/, "tabela acessível dentro de um bloco que não alarga a página")
+  assert.match(html, /<th scope="col">Efeito<\/th><th scope="col">Saldo depois<\/th>/)
+  assert.match(html, /<th scope="row">Despesa<\/th><td>−CHF\s150<\/td><td>reduziu o saldo<\/td><td>−CHF\s50<\/td>/)
+  assert.match(html, /<th scope="row">Sem mudança<\/th><td>CHF\s0<\/td><td>sem efeito<\/td><td>−CHF\s50<\/td>/)
+  assert.match(html, /report-rowchart__row--unfavorable[\s\S]*?Saldo depois: −CHF\s50[\s\S]*?−CHF\s150[\s\S]*?↓<\/span> reduziu<\/span>/)
+  assert.match(html, /report-rowchart__row--neutral[\s\S]*?report-rowchart__mark[\s\S]*?=<\/span> sem efeito/)
+  assert.equal((html.match(/class="report-rowchart__axis"/g) || []).length, 5, 'linha do zero no cabeçalho e em cada etapa')
   const positive = bridgeRows({ ...options, steps: [{ label: 'Início', kind: 'start', value: 100 }] })
-  assert.match(positive, /report-bridge__axis" style="left:0%/)
+  assert.match(positive, /report-rowchart__axis" style="left:0%/)
+  const wealth = bridgeRows({ ...options, subject: 'o patrimônio', afterLabel: 'Patrimônio depois', steps: [{ label: 'Rendimento', kind: 'delta', value: 10 }] })
+  assert.match(wealth, /↑<\/span> aumentou<\/span>/)
+  assert.match(wealth, /Efeito no patrimônio/)
+  assert.match(wealth, /<td>aumentou o patrimônio<\/td>/, 'tabela acessível com a frase inteira')
+  assert.match(wealth, /Patrimônio depois: CHF\s10/)
 })
 
-test('cota acima da escala mantém percentual exato e distingue referência linear de excesso anual', () => {
-  const html = quotaRows({ ...options, rows: [{ category: 'Seguro anual', actual: 900, annualPlanned: 300, usedShare: 3, elapsedShare: 1 / 12, status: 'exceeded' }] })
-  assert.match(html, /Fundo: cota anual \(100%\)/)
-  assert.match(html, /Referência linear: 8,3%/)
-  assert.match(html, /sem considerar gastos sazonais/)
-  assert.match(html, /report-bullet__overflow/)
-  assert.match(html, /<td>300%<\/td>/)
-  assert.match(html, /160%/)
+test('cota: a trilha é a cota inteira, o excesso vem escrito e o ritmo esperado tem rótulo próprio', () => {
+  const html = quotaRows({ ...options, paceLabel: 'em jan/26', rows: [
+    { category: 'Seguro anual', actual: 900, annualPlanned: 300, remaining: -600, usedShare: 3, elapsedShare: 1 / 12, status: 'exceeded' },
+    { category: 'Mercado', actual: 50, annualPlanned: 600, usedShare: 50 / 600, elapsedShare: 1 / 12, status: 'on-track' }
+  ] })
+  assert.match(html, /<span>0%<\/span><span>100% = cota do ano<\/span>/)
+  assert.match(html, /margin-left:8\.333%">▼ ritmo esperado em jan\/26: 8,3%/, 'no começo do ano o rótulo começa na linha')
+  assert.match(html, /report-bar--unfavorable" style="width:100%"/, 'barra para no fim da cota')
+  assert.match(html, /report-rowchart__row--over/)
+  assert.match(html, /<td>300%<\/td><td>CHF\s900 de CHF\s300<\/td><td>passou CHF\s600<\/td><td>Estourou a cota<\/td>/)
+  assert.match(html, /sobram CHF\s550/, 'sem `remaining`, a sobra vem da cota menos o gasto')
+  assert.match(html, /aria-hidden="true">✓<\/span>Dentro do ritmo/)
+  assert.doesNotMatch(html, /report-key|Fundo:|Traço:|▶/)
+  const late = quotaRows({ ...options, rows: [{ category: 'X', actual: 10, annualPlanned: 12, usedShare: 10 / 12, elapsedShare: 10 / 12, status: 'on-track' }] })
+  assert.match(late, /margin-right:16\.667%">ritmo esperado hoje: 83,3% ▼/, 'no fim do ano o rótulo termina na linha')
+  assert.match(late, /cota toda usada|sobram CHF\s2/)
+})
+
+test('desvio: material primeiro, categorias iguais ao plano viram uma frase e o zero se adapta', () => {
+  const rows = [
+    { category: 'Mercado', delta: 900, deltaPercent: 0.05, plannedToDate: 18000, actual: 18900, material: false },
+    { category: 'Lazer', delta: 600, deltaPercent: 0.4, plannedToDate: 1500, actual: 2100, material: true },
+    { category: 'Moradia', delta: 0.3, deltaPercent: 0, plannedToDate: 100, actual: 100.3, material: false }
+  ]
+  const html = divergingRows({ ...options, rows })
+  assert.ok(html.indexOf('Lazer') < html.indexOf('Mercado'), 'excesso material vem antes')
+  assert.match(html, /report-rowchart__axis" style="left:0%/, 'sem categoria abaixo do plano, o zero fica à esquerda')
+  assert.match(html, /0 = igual ao plano · gastou mais ▶/)
+  assert.match(html, /Iguais ao plano<\/strong> \(1\): Moradia\./)
+  assert.doesNotMatch(html.split('report-rowchart__aside')[0], /Moradia/)
+  assert.match(html, /<td>\+CHF\s600 \(\+40%\)<\/td><td>Bem acima do plano<\/td>/)
+  const flat = divergingRows({ ...options, rows: [rows[2]] })
+  assert.match(flat, /Todas as categorias estão iguais ao plano/)
+  assert.doesNotMatch(flat, /report-rowchart"|report-bar/)
+})
+
+test('fluxo de caixa: receita igual ao plano não é chamada de "acima do plano"', () => {
+  const report = buildFinancialReport(reportFixtureState(), { today: reportFixtureToday, goals: null })
+  assert.equal(Math.round(report.cashFlow.waterfall.steps.find(step => step.key === 'income').value), 0)
+  const html = renderReportDocument(report)
+  assert.match(html, /Receitas iguais ao plano/)
+  assert.doesNotMatch(html, /Receitas acima do plano/)
+  assert.match(html, /ritmo esperado em out\/26: 83,3% ▼/)
+  assert.match(html, /10 de 12 meses passaram[\s\S]*?sem estourar a cota/, 'linha do ritmo e sazonalidade explicadas em Como ler')
+  assert.match(html, /class="report-figure report-figure--breakable"[^>]*><figcaption class="report-figure__title">2 categorias já passaram da cota/)
 })
 
 test('leque coincidente separa três rótulos e mantém os valores em HTML', () => {
