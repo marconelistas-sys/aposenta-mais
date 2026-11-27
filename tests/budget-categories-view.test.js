@@ -16,12 +16,12 @@ test('H1 lista do mês: só a lista, sem gráficos, pizzas, controles deslizante
   assert.match(text(html), /^Despesas por categoria Outubro de 2026 · CHF Período Outubro Janeiro a outubro Ano de 2026 Ordenar por/)
   assert.doesNotMatch(html, /data-budget-expense-pies|data-budget-overruns|type="range"|<svg|budget-expense-pie|Gasto mensal por categoria|Gastos acima do planejado/)
   assert.deepEqual(order(html), ['dining', 'shopping', 'leisure', 'transport', 'travel'])
-  assert.equal(summary(html, 'dining'), '› Restaurantes e delivery CHF 450,00 CHF 820,00 +CHF 370,00 +82%')
-  assert.equal(summary(html, 'transport'), '› Transporte CHF 380,00 CHF 360,00 −CHF 20,00 −5%')
+  assert.equal(summary(html, 'dining'), '› Restaurantes e delivery CHF 450,00 CHF 820,00 +CHF 370,00 82% acima do planejado')
+  assert.equal(summary(html, 'transport'), '› Transporte CHF 380,00 CHF 360,00 −CHF 20,00 5% abaixo do planejado')
   assert.equal(summary(html, 'shopping'), '› Compras sem planejado Sem planejado CHF 240,00 +CHF 240,00')
   assert.equal(summary(html, 'travel'), '› Viagens CHF 400,00 Nada lançado —')
   assert.match(html, /<span aria-hidden="true">—<\/span><span class="sr-only">sem comparação<\/span>/)
-  assert.match(text(html.split('data-budget-category-total>')[1]), /^Total de despesas CHF 1\.530,00 CHF 1\.850,00 \+CHF 320,00 \+21% Inclui CHF 400,00 planejados sem realizado em 1 categoria\./)
+  assert.match(text(html.split('data-budget-category-total>')[1]), /^Total de despesas CHF 1\.530,00 CHF 1\.850,00 \+CHF 320,00 21% acima do planejado Inclui CHF 400,00 planejados sem realizado em 1 categoria\./)
   assert.doesNotMatch(text(html), /Ver lançamentos|Maior excesso|Sem registros|Sem realizado|Não calculado|Sem planejamento|podem estar incompletos|Variação/)
 })
 
@@ -88,7 +88,7 @@ test('H4 ano em andamento mostra "Usado", sem diferença anual negativa; ano enc
   budgetCategoriesView.period = 'year'
   const html = render({ items })
   assert.match(text(html), /^Despesas por categoria Ano de 2026 · CHF · em andamento/)
-  assert.match(summary(html, 'health'), /CHF 10\.440,00 CHF 11\.000,00 Usado: 105%$/)
+  assert.match(summary(html, 'health'), /CHF 10\.440,00 CHF 11\.000,00 Usado: 105% acima do planejado do ano$/)
   assert.match(html, /data-budget-category-details="health"[\s\S]*?data-tone="unfavorable"><span class="sr-only">Usado/)
   assert.match(summary(html, 'travel'), /CHF 1\.000,00 CHF 300,00 Usado: 30%$/)
   assert.match(text(html.split('data-budget-category-total>')[1]), /^Total de despesas CHF 11\.440,00 CHF 11\.300,00 Usado: 99%/)
@@ -96,7 +96,7 @@ test('H4 ano em andamento mostra "Usado", sem diferença anual negativa; ano enc
   assert.match(html, /<a href="\/panorama\?aba=gastos" data-route>Ver o ritmo do ano no Panorama<\/a>/)
   assert.doesNotMatch(text(html), /−CHF|economia/i)
   const closed = render({ items }, {}, new Date('2027-02-01T12:00:00Z'))
-  assert.match(summary(closed, 'health'), /\+CHF 560,00 \+5%$/)
+  assert.match(summary(closed, 'health'), /\+CHF 560,00 5% acima do planejado$/)
   assert.match(text(closed), /Realizados lançados em 10 de 12 meses\./)
   const future = render({ items: [plannedItem('p-saude', 'health', 870, 'Saúde')], month: '2027-03' })
   assert.match(text(future), /2027 ainda não começou\. Mostrando só o planejado\./)
@@ -151,6 +151,29 @@ test('H8 leitor de tela: rótulos de cada valor, cabeçalho visual oculto, perí
   assert.match(html, /<div class="category-list__head" aria-hidden="true">/)
   assert.match(html, /<span class="sr-only">Planejado: <\/span>CHF\s450,00/)
   assert.match(html, /<span class="sr-only">Realizado: <\/span>CHF\s820,00/)
-  assert.match(html, /<span class="sr-only">Diferença: <\/span>\+CHF\s370,00<span class="sr-only"> acima do planejado<\/span><small>\+82%<\/small>/)
+  assert.match(html, /<span class="sr-only">Diferença: <\/span>\+CHF\s370,00<small><span class="sr-only">, <\/span>82% acima do planejado<\/small>/)
   assert.match(html, /<p class="budget-category-period">Outubro de 2026 · CHF<\/p>/)
+})
+
+test('Barra legível sem conhecer o código: legenda em palavras, situação escrita e excesso hachurado', () => {
+  const html = render()
+  // One key above the list names every part of the bar; the bar column has a title.
+  assert.match(text(html), /Como ler a barra: gasto dentro do planejado gasto acima do planejado planejado não gasto valor planejado Categoria Planejado Realizado Diferença Gasto e planejado/)
+  assert.equal((html.match(/class="category-key"/g) || []).length, 1)
+  assert.match(html, /<p class="category-key" aria-hidden="true">/)
+  // The situation is written, never only colour or sign: above, below, equal.
+  const equal = render({ items: [plannedItem('p-lazer', 'leisure', 300, 'Lazer'), actualItem('a-lazer', 'leisure', 300, '2026-10-04', 'Cinema')] })
+  assert.equal(summary(equal, 'leisure'), '› Lazer CHF 300,00 CHF 300,00 CHF 0,00 igual ao planejado')
+  assert.match(equal, /data-tone="neutral"/)
+  const tiny = render({ items: [plannedItem('p-lazer', 'leisure', 1000, 'Lazer'), actualItem('a-lazer', 'leisure', 1004, '2026-10-04', 'Cinema')] })
+  assert.equal(summary(tiny, 'leisure'), '› Lazer CHF 1.000,00 CHF 1.004,00 +CHF 4,00 acima do planejado', 'sem "0%" quando o percentual arredonda a zero')
+  // Rows without plan keep the tag; rows without actual keep "—".
+  assert.equal(summary(html, 'shopping'), '› Compras sem planejado Sem planejado CHF 240,00 +CHF 240,00')
+  assert.equal(summary(html, 'travel'), '› Viagens CHF 400,00 Nada lançado —')
+  // The current year reads the key against the year plan.
+  budgetCategoriesView.period = 'year'
+  assert.match(text(render({}, {}, new Date('2026-11-04T12:00:00Z'))), /planejado do ano ainda não gasto/)
+  // Hidden values: no key, no bar title, no words.
+  const hidden = render({}, { valuesHidden: true })
+  assert.doesNotMatch(hidden, /category-key|Gasto e planejado|planejado não gasto/)
 })

@@ -36,14 +36,31 @@
 .category-row__planned, .category-row__actual, .category-row__diff { text-align: right; white-space: nowrap; }
 .category-row__diff { font-weight: 650; }
 .category-row__diff[data-tone="unfavorable"] { color: var(--color-danger); }
-.category-row__diff small { display: block; color: inherit; font-size: .8rem; font-weight: 500; opacity: .85; }
+.category-row__diff small { display: block; color: inherit; font-size: .8rem; font-weight: 550; white-space: normal; }
+/* The generic summary indent (budget-overview.css) does not apply to the status line. */
+.category-row__summary .category-row__diff small, .category-total .category-row__diff small { padding-left: 0; }
 
-.category-bar { position: relative; display: block; height: 10px; border-radius: 999px; background: transparent; overflow: hidden; }
+/* Bar of each row (same language as the Panorama row charts): a light track
+   for the plan, solid brand for what was spent within it, hatched red for
+   what went past it, and a dark tick at the plan that sticks out of the bar. */
+.budget-categories { --category-hatch: repeating-linear-gradient(135deg, rgb(255 255 255 / 45%) 0 2px, transparent 2px 5px); }
+.category-bar { position: relative; display: block; height: 12px; }
 .category-bar > span { position: absolute; top: 0; bottom: 0; left: 0; }
-.category-bar__planned { background: var(--color-border); border-radius: 999px; }
-.category-bar__actual { background: var(--color-brand); border-radius: 999px 0 0 999px; }
-.category-bar__over { background: var(--color-danger); }
-.category-bar__mark { width: 2px; margin-left: -1px; background: var(--color-ink); }
+.category-bar__planned { background: var(--color-track); box-shadow: inset 0 0 0 1px var(--color-border-strong); border-radius: 3px; }
+.category-bar__actual { background: var(--color-brand); border-radius: 3px 0 0 3px; }
+.category-bar__over { background: var(--color-danger) var(--category-hatch); border-radius: 0 3px 3px 0; }
+.category-bar__actual:only-child, .category-bar__over:only-child { border-radius: 3px; }
+.category-bar > .category-bar__mark { top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--color-ink); }
+
+/* Key: how to read the bar, in words, once above the list. */
+.category-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0; color: var(--color-ink-soft); font-size: .82rem; }
+.category-key > span { display: inline-flex; align-items: center; gap: 6px; }
+.category-key__title { font-weight: 650; color: var(--color-ink); }
+.category-key__swatch { display: inline-block; flex: none; width: 18px; height: 10px; border-radius: 2px; }
+.category-key__swatch--actual { background: var(--color-brand); }
+.category-key__swatch--over { background: var(--color-danger) var(--category-hatch); }
+.category-key__swatch--planned { background: var(--color-track); box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+.category-key__swatch--mark { width: 2px; height: 16px; margin-inline: 8px; border-radius: 0; background: var(--color-ink); }
 
 .category-total { padding: 12px 8px 4px; border-top: 2px solid var(--color-border-strong); font-weight: 700; }
 .category-total .category-row__diff small { font-weight: 600; }
@@ -81,8 +98,11 @@
   .category-row__summary, .category-total { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 4px; }
   .category-row__name { grid-column: 1 / -1; grid-row: 1; }
   .category-row__diff { grid-column: 1 / -1; grid-row: 2; text-align: left; }
-  .category-row__diff small { display: inline; margin-left: 8px; }
-  .category-row__planned, .category-row__actual { grid-row: 3; font-size: .85rem; font-weight: 500; color: var(--color-ink-soft); }
+  .category-row__diff { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+  .category-row__diff small { display: inline; white-space: nowrap; }
+  .category-key { gap: 4px 12px; }
+  /* Wrap between label and amount on narrow phones, never over each other. */
+  .category-row__planned, .category-row__actual { grid-row: 3; font-size: .85rem; font-weight: 500; color: var(--color-ink-soft); white-space: normal; }
   .category-row__planned { text-align: left; }
   .category-row__planned::before, .category-row__actual::before { content: attr(data-label) ' '; }
   .category-row__planned.is-empty::before, .category-row__actual.is-empty::before { content: none; }

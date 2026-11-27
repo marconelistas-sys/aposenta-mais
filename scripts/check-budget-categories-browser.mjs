@@ -90,7 +90,16 @@ try {
   assert.equal(await page.evaluate(() => document.activeElement?.dataset?.budgetCategoryControl), 'sort')
   assert.match(await tab.locator('[data-budget-category-details="leisure"]').innerText(), /Realizado \(3\)\s*Show\s*12\/10[\s\S]*Parque[\s\S]*Cinema/)
   assert.equal(await noOverflow(page), true)
+  // The bar is explained in words once, and each row writes its situation.
+  assert.match(await tab.locator('.category-key').innerText(), /Como ler a barra:\s*gasto dentro do planejado\s*gasto acima do planejado\s*planejado não gasto\s*valor planejado/)
+  assert.match(await tab.locator('[data-budget-category-details="dining"] > summary .category-row__diff').innerText(), /\+CHF\s370,00[\s,]*82% acima do planejado/)
+  assert.match(await tab.locator('[data-budget-category-details="transport"] > summary .category-row__diff').innerText(), /−CHF\s20,00[\s,]*5% abaixo do planejado/)
+  // The plan tick sticks out of the bar, so it is seen even under the actual.
+  const markHeight = await tab.locator('[data-budget-category-details="dining"] .category-bar__mark').evaluate(node => node.getBoundingClientRect().height)
+  const barHeight = await tab.locator('[data-budget-category-details="dining"] .category-bar').evaluate(node => node.getBoundingClientRect().height)
+  assert.ok(markHeight > barHeight, `marca do planejado ${markHeight} px, barra ${barHeight} px`)
   await page.screenshot({ path: join(output, 'categorias-1440.png'), fullPage: true })
+  await tab.screenshot({ path: join(output, 'categorias-1440-aba.png') })
 
   // T1: from "›" in Conferir o mês to editing the largest entry: 2 clicks.
   await page.locator('[data-page-tab="orcamento:resumo"]').click()
@@ -139,6 +148,14 @@ try {
     assert.equal(await noOverflow(phone.page), true, `estouro horizontal a ${width}px`)
     assert.ok(await phoneTab.locator('.category-list').evaluate(list => list.scrollWidth <= list.clientWidth + 1), `lista com rolagem lateral a ${width}px`)
     for (const summary of await phoneTab.locator('.category-row > summary').all()) assert.ok((await summary.boundingBox()).height >= 44, `alvo de toque a ${width}px`)
+    assert.ok(await phoneTab.locator('.category-key').evaluate(key => key.scrollWidth <= key.clientWidth + 1), `legenda da barra cortada a ${width}px`)
+    // Planned and actual never draw over each other on narrow phones.
+    const overlaps = await phoneTab.locator('.category-row > summary, .category-total').evaluateAll(rows => rows.filter(row => {
+      const [planned, actual] = ['.category-row__planned', '.category-row__actual'].map(selector => row.querySelector(selector).getBoundingClientRect())
+      return planned.right > actual.left + 0.5 && planned.bottom > actual.top + 0.5 && actual.bottom > planned.top + 0.5
+    }).length)
+    assert.equal(overlaps, 0, `planejado e realizado sobrepostos a ${width}px`)
+    if (width === 320) await phoneTab.screenshot({ path: join(output, 'categorias-320-aba.png') })
   }
   assert.deepEqual(phone.errors, [])
 
