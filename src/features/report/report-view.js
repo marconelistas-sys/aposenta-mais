@@ -129,6 +129,13 @@ function summary(report) {
   return `<section class="report-chapter report-chapter--summary" data-report-chapter="summary" aria-labelledby="report-summary-title"><header class="report-chapter__header"><p class="report-chapter__eyebrow">Capítulo ${chapterNumber(report, 'summary')}</p><h2 id="report-summary-title" tabindex="-1">${chapterTitles.summary}</h2></header><div class="report-summary-head"><h3 class="report-subtitle">Indicadores</h3><p class="report-note">✓ Ok · ! Atenção · ✕ Risco · ○ Sem dado. Limites são convenções de mercado, não regras regulatórias; detalhes no ${chapterRef(report, 'appendix', 'apêndice')}.</p></div><ul class="report-indicators">${cards}</ul><div class="report-plan"><div><h3 class="report-subtitle">Principais achados</h3>${findings}</div><div class="report-plan__arrow" aria-hidden="true">→</div><div><h3 class="report-subtitle">Ações com impacto</h3>${actions}</div></div><div class="report-disclaimers" role="note"><h3 class="report-subtitle">Avisos</h3><ul class="report-list report-list--notes">${report.appendix.disclaimers.map(row => `<li>${t(row)}</li>`).join('')}<li>${t(report.appendix.privacyNotice)}</li></ul></div></section>`
 }
 
+// "Saldo realizado CHF 25.241: CHF 308 abaixo dos CHF 25.549 planejados até nov/26".
+function bridgeGapTitle(actual, planned, money, until) {
+  const gap = actual - planned
+  if (Math.round(gap) === 0) return `Saldo realizado de ${money(actual)}, igual ao planejado até ${until}`
+  return `Saldo realizado de ${money(actual)}: ${money(Math.abs(gap))} ${gap > 0 ? 'acima' : 'abaixo'} dos ${money(planned)} planejados até ${until}`
+}
+
 // ── Chapters ─────────────────────────────────────────────────────────────
 function cashFlowBody(report) {
   const chapter = report.cashFlow
@@ -148,9 +155,9 @@ function cashFlowBody(report) {
   const planned = steps.find(step => step.key === 'planned'), actual = steps.find(step => step.key === 'actual')
   const waterfall = chapter.waterfall.available
     ? figure({
-      title: `Saldo realizado de ${money(actual.value)} contra ${money(planned.value)} planejado até ${e(shortMonth(chapter.period.end))}`,
-      body: bridgeRows({ steps, currency, caption: 'Do saldo planejado ao realizado' }),
-      howToRead: 'Leia de cima para baixo: começa no saldo planejado, cada linha soma (+, verde, ↑) ou tira (−, vermelho com hachura, ↓) um desvio e termina no saldo realizado. Desvio zero aparece só como um traço.',
+      title: bridgeGapTitle(actual.value, planned.value, money, e(shortMonth(chapter.period.end))),
+      body: bridgeRows({ steps, currency, caption: 'Do saldo planejado ao realizado', netLabel: 'Diferença no saldo', netDetail: 'Realizado menos planejado: soma das linhas acima' }),
+      howToRead: 'Cada linha é um desvio em relação ao plano, na mesma escala: para a direita (+, verde, ↑) aumentou o saldo; para a esquerda (−, vermelho com hachura, ↓) reduziu. A última linha soma os desvios e dá a diferença entre o saldo realizado e o planejado. Desvio zero aparece só como um traço.',
       source: `Orçamento do aplicativo, lançamentos planejados e realizados de ${e(periodLabel(chapter.period.start, chapter.period.end))}.`,
       premise: `Valores nominais em ${e(currency)}.`
     })
@@ -296,8 +303,8 @@ function wealthBody(report) {
   const bridgeFigure = bridge.available
     ? figure({
       title: `Ponte projetada de ${bridge.year}: de ${money(start.value)} para ${money(end.value)}`,
-      body: bridgeRows({ steps: bridge.steps, currency, caption: `Ponte do patrimônio financeiro em ${bridge.year}`, subject: 'o patrimônio', afterLabel: 'Patrimônio depois' }),
-      howToRead: 'Do patrimônio financeiro no início do ano ao do fim, somando saldo do orçamento, rendimento e previdência.',
+      body: bridgeRows({ steps: bridge.steps, currency, caption: `Ponte do patrimônio financeiro em ${bridge.year}`, subject: 'o patrimônio', afterLabel: 'Patrimônio depois', netLabel: 'Variação no ano', netDetail: 'Fim menos início: soma das linhas acima' }),
+      howToRead: 'Cada linha mostra quanto um item somou (para a direita) ou tirou (para a esquerda) do patrimônio financeiro no ano, na mesma escala. A última linha é a soma: a variação do início ao fim do ano.',
       source: 'Projeção anual do aplicativo.',
       premise: 'Valores reais, a preços de hoje. É projeção, não resultado realizado.'
     })
