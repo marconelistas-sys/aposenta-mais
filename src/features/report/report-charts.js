@@ -180,58 +180,65 @@ export function quotaRows({ rows, currency, caption, paceLabel = 'hoje' }) {
   return table
 }
 
-// ── Horizontal waterfall (bridge) ────────────────────────────────────────
-// Question: what took the balance from the start to the end? Totals start at
-// zero; each step floats from the running total. Positive steps are
-// favourable, negative unfavourable, zero neutral with a short mark only.
-// Each step says in words what it did ("reduziu", under "Efeito no saldo")
-// and the balance after it.
-export function bridgeRows({ steps, currency, caption, totalKinds = ['total', 'start', 'end'], subject = 'o saldo', afterLabel = 'Saldo depois' }) {
+// ── Bridge as diverging bars ─────────────────────────────────────────────
+// Question: what explains the gap between the first total and the last one
+// (planned → actual balance, wealth at the start → end of the year)? A
+// waterfall drawn from zero spends the width on the two big totals and leaves
+// the deviations as small floating pieces. Here the totals go to the figure
+// title; each step is a bar from zero on the same scale (right: added, left:
+// took away) and the last row is their sum, the net change. The running
+// balance after each step stays in the screen-reader table.
+export function bridgeRows({ steps, currency, caption, totalKinds = ['total', 'start', 'end'], subject = 'o saldo', afterLabel = 'Saldo depois', netLabel = 'Diferença total', netDetail = '' }) {
   if (!steps.length) return emptyState('Sem valores para a ponte.')
   const money = (value, options) => escapeHtml(formatReportMoney(value, currency, options))
+  const isTotal = step => totalKinds.includes(step.kind)
   let running = 0
   const placed = steps.map(step => {
-    if (totalKinds.includes(step.kind)) { running = step.value; return { ...step, from: 0, to: step.value } }
-    const from = running
+    if (isTotal(step)) { running = step.value; return { ...step, to: step.value } }
     running += step.value
-    return { ...step, from, to: running }
+    return { ...step, to: running }
   })
-  const values = placed.flatMap(step => [step.from, step.to, 0])
-  const min = Math.min(...values), max = Math.max(...values)
-  const span = max - min || 1
-  const position = value => (value - min) / span * 100
-  const zero = position(0)
+  const totals = placed.filter(isTotal)
+  const deltas = placed.filter(step => !isTotal(step))
+  const toneOf = value => Math.round(value) === 0 ? 'neutral' : value > 0 ? 'favorable' : 'unfavorable'
   const shortEffect = { favorable: 'aumentou', unfavorable: 'reduziu', neutral: 'sem efeito' }
-  const effectOf = (step, tone) => tone === 'favorable' ? `aumentou ${subject}` : tone === 'unfavorable' ? `reduziu ${subject}` : 'sem efeito'
-  const rows = placed.map(step => {
-    const total = totalKinds.includes(step.kind)
-    const rounded = Math.round(step.value)
-    const tone = total ? 'total' : rounded === 0 ? 'neutral' : rounded > 0 ? 'favorable' : 'unfavorable'
-    const left = position(Math.min(step.from, step.to)), width = Math.abs(position(step.to) - position(step.from))
-    const bar = !total && rounded === 0 ? `<span class="report-rowchart__mark" style="left:${pct(position(step.from))}"></span>` : `<span class="report-bar report-bar--${tone}" style="left:${pct(left)};width:${pct(Math.max(width, 0.8))}"></span>`
-    return chartRow({
-      tone,
-      className: total ? 'report-rowchart__row--total' : '',
-      name: escapeHtml(step.label),
-      detail: total ? '' : `${escapeHtml(afterLabel)}: ${money(step.to)}`,
-      track: `<span class="report-rowchart__axis" style="left:${pct(zero)}"></span>${bar}`,
-      value: total ? money(step.value) : money(step.value, { signed: true }),
-      status: total ? '' : effectText(tone, shortEffect[tone])
-    })
+  const effectOf = tone => tone === 'favorable' ? `aumentou ${subject}` : tone === 'unfavorable' ? `reduziu ${subject}` : 'sem efeito'
+  const net = totals.length >= 2 ? totals.at(-1).value - totals[0].value : deltas.reduce((sum, step) => sum + step.value, 0)
+  const values = [...deltas.map(step => step.value), net].filter(value => Math.round(value) !== 0)
+  const hasUp = values.some(value => value > 0), hasDown = values.some(value => value < 0)
+  const zero = hasUp && hasDown ? 50 : hasDown ? 100 : 0
+  const room = hasUp && hasDown ? 50 : 100
+  const max = Math.max(1, ...values.map(Math.abs))
+  const track = value => {
+    const axis = `<span class="report-rowchart__axis" style="left:${pct(zero)}"></span>`
+    if (Math.round(value) === 0) return `${axis}<span class="report-rowchart__mark" style="left:${pct(zero)}"></span>`
+    const width = Math.max(Math.abs(value) / max * room, 0.8)
+    return `${axis}<span class="report-bar report-bar--${toneOf(value)}" style="left:${pct(value > 0 ? zero : zero - width)};width:${pct(width)}"></span>`
+  }
+  const rows = deltas.map(step => {
+    const tone = toneOf(step.value)
+    return chartRow({ tone, name: escapeHtml(step.label), track: track(step.value), value: money(step.value, { signed: true }), status: effectText(tone, shortEffect[tone]) })
   })
-  const zeroTag = `<span class="report-rowchart__axis" style="left:${pct(zero)}"></span><span class="report-rowchart__tag ${zero > 50 ? 'report-rowchart__tag--before' : 'report-rowchart__tag--after'}" style="${zero > 50 ? `right:${pct(100 - zero)}` : `left:${pct(zero)}`}">${escapeHtml(formatReportMoney(0, currency))}</span>`
+  const netTone = toneOf(net)
+  const netBar = Math.round(net) === 0 ? track(0) : track(net).replace(`report-bar--${netTone}`, `report-bar--total`)
+  rows.push(chartRow({ tone: netTone, className: 'report-rowchart__row--total report-rowchart__row--net', name: escapeHtml(netLabel), detail: escapeHtml(netDetail), track: netBar, value: money(net, { signed: true }), status: effectText(netTone, shortEffect[netTone]) }))
+  // Short on purpose: the subject is in the column title and in each row.
+  const reduced = '◀ reduziu', added = 'aumentou ▶'
+  const axis = hasUp && hasDown
+    ? `<span class="report-rowchart__axis" style="left:50%"></span><span class="report-rowchart__halves"><span>${escapeHtml(reduced)}</span><span>${escapeHtml(added)}</span></span>`
+    : hasDown
+      ? `<span class="report-rowchart__axis" style="left:100%"></span><span class="report-rowchart__halves report-rowchart__halves--left"><span>${escapeHtml(reduced)} · 0</span></span>`
+      : `<span class="report-rowchart__axis" style="left:0%"></span><span class="report-rowchart__halves report-rowchart__halves--right"><span>0 · ${escapeHtml(added)}</span></span>`
   return rowChart({
     className: 'report-rowchart--bridge',
     caption,
-    head: { track: zeroTag, value: 'Valor', status: escapeHtml(`Efeito n${subject}`) },
+    head: { track: axis, value: 'Valor', status: escapeHtml(`Efeito n${subject}`) },
     rows,
     srHead: ['Etapa', 'Valor', 'Efeito', afterLabel],
-    srRows: placed.map(step => {
-      const total = totalKinds.includes(step.kind)
-      const rounded = Math.round(step.value)
-      const tone = total ? 'total' : rounded === 0 ? 'neutral' : rounded > 0 ? 'favorable' : 'unfavorable'
-      return [escapeHtml(step.label), total ? money(step.value) : money(step.value, { signed: true }), total ? 'Total' : escapeHtml(effectOf(step, tone)), money(step.to)]
-    })
+    srRows: [
+      ...placed.map(step => [escapeHtml(step.label), isTotal(step) ? money(step.value) : money(step.value, { signed: true }), isTotal(step) ? 'Total' : escapeHtml(effectOf(toneOf(step.value))), money(step.to)]),
+      [escapeHtml(netLabel), money(net, { signed: true }), escapeHtml(effectOf(netTone)), '—']
+    ]
   })
 }
 

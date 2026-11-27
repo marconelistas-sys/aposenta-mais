@@ -409,3 +409,10 @@ test('Quantas vezes o custo mensal: cenário indisponível mostra o motivo; já 
   const zeroRate = sectionOf(renderReportDocument({ ...report, retirementMultiple: goldenChapter({ realRate: 0 }) }), 'retirementMultiple')
   assert.match(zeroRate, /report-scenario--legacy report-scenario--unavailable[\s\S]*?Sem capital finito com retorno real de 0% ou menos/)
 })
+
+test('ponte do saldo: o título diz a diferença e a última linha soma os desvios', () => {
+  const section = html.slice(html.indexOf('data-report-chapter="cashFlow"'), html.indexOf('data-report-chapter="spending"'))
+  assert.match(section, /Saldo realizado de CHF\s18\.319: CHF\s6\.510 abaixo dos CHF\s24\.829 planejados até out\/26/)
+  assert.match(section, /Diferença no saldo[\s\S]*?Realizado menos planejado[\s\S]*?−CHF\s6\.510/)
+  assert.doesNotMatch(section.slice(0, section.indexOf('<div class="sr-only">')), /Saldo depois/)
+})

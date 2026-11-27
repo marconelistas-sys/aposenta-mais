@@ -33,23 +33,36 @@ test('saldos usam dias reais e datas completas, aportado permanece em degraus', 
   assert.equal((html.match(/report-svg-leader/g) || []).length, 2)
 })
 
-test('ponte diz em palavras o efeito de cada etapa e o saldo depois dela', () => {
-  const html = bridgeRows({ ...options, steps: [{ label: 'Início', kind: 'start', value: 100 }, { label: 'Despesa', kind: 'delta', value: -150 }, { label: 'Sem mudança', kind: 'delta', value: 0 }, { label: 'Fim', kind: 'end', value: -50 }] })
+test('ponte: desvios em barras a partir do zero, na mesma escala, e a última linha soma tudo', () => {
+  const html = bridgeRows({ ...options, netLabel: 'Diferença no saldo', netDetail: 'Realizado menos planejado', steps: [
+    { label: 'Planejado', kind: 'total', value: 1000 },
+    { label: 'Receitas', kind: 'delta', value: 400 },
+    { label: 'Desejos', kind: 'delta', value: -800 },
+    { label: 'Sem mudança', kind: 'delta', value: 0 },
+    { label: 'Realizado', kind: 'total', value: 600 }
+  ] })
   assert.match(html, /class="report-rowchart report-rowchart--bridge" aria-hidden="true"/)
-  assert.match(html, /<div class="sr-only"><table><caption>Valores<\/caption>/, "tabela acessível dentro de um bloco que não alarga a página")
-  assert.match(html, /<th scope="col">Efeito<\/th><th scope="col">Saldo depois<\/th>/)
-  assert.match(html, /<th scope="row">Despesa<\/th><td>−CHF\s150<\/td><td>reduziu o saldo<\/td><td>−CHF\s50<\/td>/)
-  assert.match(html, /<th scope="row">Sem mudança<\/th><td>CHF\s0<\/td><td>sem efeito<\/td><td>−CHF\s50<\/td>/)
-  assert.match(html, /report-rowchart__row--unfavorable[\s\S]*?Saldo depois: −CHF\s50[\s\S]*?−CHF\s150[\s\S]*?↓<\/span> reduziu<\/span>/)
-  assert.match(html, /report-rowchart__row--neutral[\s\S]*?report-rowchart__mark[\s\S]*?=<\/span> sem efeito/)
-  assert.equal((html.match(/class="report-rowchart__axis"/g) || []).length, 5, 'linha do zero no cabeçalho e em cada etapa')
-  const positive = bridgeRows({ ...options, steps: [{ label: 'Início', kind: 'start', value: 100 }] })
-  assert.match(positive, /report-rowchart__axis" style="left:0%/)
+  assert.match(html, /<div class="sr-only"><table><caption>Valores<\/caption>/, 'tabela acessível dentro de um bloco que não alarga a página')
+  const visual = html.slice(0, html.indexOf('<div class="sr-only">'))
+  assert.doesNotMatch(visual, /report-bar--total[^>]*width:100%/, 'totais não viram barras longas')
+  assert.doesNotMatch(visual, />Planejado</, 'os totais ficam no título da figura, não no gráfico')
+  assert.doesNotMatch(visual, /Saldo depois/, 'saldo corrente só na tabela acessível')
+  assert.match(visual, /◀ reduziu<\/span><span>aumentou ▶/, 'com desvios dos dois lados, o zero fica no centro')
+  assert.match(visual, /Receitas[\s\S]*?left:50%;width:25%[\s\S]*?\+CHF\s400[\s\S]*?↑<\/span> aumentou/, 'metade da maior barra')
+  assert.match(visual, /Desejos[\s\S]*?left:0%;width:50%[\s\S]*?−CHF\s800[\s\S]*?↓<\/span> reduziu/)
+  assert.match(visual, /report-rowchart__row--neutral[\s\S]*?report-rowchart__mark[\s\S]*?=<\/span> sem efeito/)
+  assert.match(visual, /report-rowchart__row--total report-rowchart__row--net[\s\S]*?Diferença no saldo[\s\S]*?Realizado menos planejado[\s\S]*?report-bar--total" style="left:25%;width:25%[\s\S]*?−CHF\s400/, 'soma = realizado − planejado')
+  assert.match(html, /<th scope="row">Desejos<\/th><td>−CHF\s800<\/td><td>reduziu o saldo<\/td><td>CHF\s600<\/td>/)
+  assert.match(html, /<th scope="row">Diferença no saldo<\/th><td>−CHF\s400<\/td><td>reduziu o saldo<\/td>/)
+  const onlyUp = bridgeRows({ ...options, steps: [{ label: 'Início', kind: 'start', value: 100 }, { label: 'Rendimento', kind: 'delta', value: 10 }, { label: 'Fim', kind: 'end', value: 110 }] })
+  assert.match(onlyUp, /0 · aumentou ▶/)
+  assert.match(onlyUp, /report-rowchart__axis" style="left:0%/)
+  const onlyDown = bridgeRows({ ...options, steps: [{ label: 'Imposto', kind: 'delta', value: -10 }] })
+  assert.match(onlyDown, /◀ reduziu · 0/)
+  assert.match(onlyDown, /left:0%;width:100%/)
   const wealth = bridgeRows({ ...options, subject: 'o patrimônio', afterLabel: 'Patrimônio depois', steps: [{ label: 'Rendimento', kind: 'delta', value: 10 }] })
-  assert.match(wealth, /↑<\/span> aumentou<\/span>/)
   assert.match(wealth, /Efeito no patrimônio/)
-  assert.match(wealth, /<td>aumentou o patrimônio<\/td>/, 'tabela acessível com a frase inteira')
-  assert.match(wealth, /Patrimônio depois: CHF\s10/)
+  assert.match(wealth, /<td>aumentou o patrimônio<\/td><td>CHF\s10<\/td>/, 'tabela acessível com a frase inteira e o patrimônio depois')
 })
 
 test('cota: a trilha é a cota inteira, o excesso vem escrito e o ritmo esperado tem rótulo próprio', () => {
