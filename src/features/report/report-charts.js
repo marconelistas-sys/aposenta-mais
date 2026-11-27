@@ -73,41 +73,122 @@ export function segmentedBar({ segments, currency, label }) {
   return `<div class="report-stack"><div class="report-stack__bar" aria-hidden="true">${bar}</div><ul class="report-legend" aria-label="${escapeHtml(label)}">${legend}</ul></div>`
 }
 
-// ── Diverging bars: deviation from plan, zero in the middle ─────────────
-// Red only for material excess; non-material excess is neutral; below plan is
-// favourable. Zero draws nothing and reads "0".
-export function divergingRows({ rows, currency, caption }) {
-  if (!rows.length) return emptyState('Sem categorias com gastos registrados no período.')
-  const max = Math.max(1, ...rows.map(row => Math.abs(row.delta)))
-  const body = rows.map(row => {
-    const rounded = Math.round(row.delta)
-    const tone = rounded === 0 ? 'neutral' : rounded < 0 ? 'favorable' : row.material ? 'unfavorable' : 'muted'
-    const width = Math.abs(row.delta) / max * 50
-    const bar = rounded === 0 ? '<span class="report-diverge__zero-dot"></span>' : `<span class="report-bar report-bar--${tone}" style="${rounded > 0 ? 'left:50%' : `left:${pct(50 - width)}`};width:${pct(Math.max(width, 0.6))}"></span>`
-    const percent = finite(row.deltaPercent) ? ` (${formatReportPercent(row.deltaPercent, { signed: true })})` : ''
-    return `<tr class="report-diverge__row--${tone}"><th scope="row">${escapeHtml(row.category)}${row.material ? ` ${statusBadge('risk', 'Material')}` : ''}</th><td class="report-chart-cell" aria-hidden="true"><span class="report-diverge">${bar}</span></td><td>${escapeHtml(formatReportMoney(row.plannedToDate, currency))}</td><td>${escapeHtml(formatReportMoney(row.actual, currency))}</td><td class="report-num--${tone}">${escapeHtml(formatReportMoney(row.delta, currency, { signed: true }))}${escapeHtml(percent)}</td></tr>`
-  }).join('')
-  return tableWrap(caption, `<table class="report-table report-table--chart"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Categoria</th><th scope="col" class="report-chart-cell"><span class="report-axis-label"><span>Abaixo do plano</span><span>Acima do plano</span></span></th><th scope="col">Planejado até o mês</th><th scope="col">Realizado</th><th scope="col">Desvio</th></tr></thead><tbody>${body}</tbody></table>`)
+// ── Row charts: one answer per row ───────────────────────────────────────
+// Name (with the amounts behind it), bar, signed value right next to the bar
+// and the situation in words with an icon. The scale is written on the bars'
+// own header, not in a legend. The visual layer is aria-hidden; the same
+// numbers go to a screen-reader table. Desktop: one line per row. Small
+// screens: name and situation, then bar and value; the bar keeps the same
+// width in every row, so the reference marks line up.
+function rowChart({ className = '', caption, head, rows, srHead, srRows }) {
+  const header = head ? `<div class="report-rowchart__row report-rowchart__head"><span class="report-rowchart__name">${head.name || ''}</span><span class="report-rowchart__track">${head.track || ''}</span><span class="report-rowchart__value">${head.value || ''}</span><span class="report-rowchart__status">${head.status || ''}</span></div>` : ''
+  const visual = `<div class="report-rowchart ${className}" aria-hidden="true">${header}<ol class="report-rowchart__list">${rows.join('')}</ol></div>`
+  // Block wrapper: a <table> grows to its content and ignores the 1px box.
+  const table = `<div class="sr-only"><table><caption>${escapeHtml(caption)}</caption><thead><tr>${srHead.map(cell => `<th scope="col">${cell}</th>`).join('')}</tr></thead><tbody>${srRows.map(row => `<tr>${row.map((cell, index) => index ? `<td>${cell}</td>` : `<th scope="row">${cell}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`
+  return visual + table
 }
 
-// ── Bullet: share of the annual quota used against the months elapsed ───
-const quotaStatus = { exceeded: ['risk', 'Cota ultrapassada'], ahead: ['attention', 'Acima do ritmo linear'], 'on-track': ['ok', 'No ritmo linear'] }
-export function quotaRows({ rows, currency, caption }) {
+function chartRow({ tone, name, detail = '', track, value, note = '', status = '', className = '' }) {
+  return `<li class="report-rowchart__row report-rowchart__row--${tone}${className ? ` ${className}` : ''}"><span class="report-rowchart__name">${name}${detail ? `<span class="report-rowchart__detail">${detail}</span>` : ''}</span><span class="report-rowchart__track">${track}</span><span class="report-rowchart__value report-num--${tone}">${value}${note ? `<span class="report-rowchart__note">${note}</span>` : ''}</span><span class="report-rowchart__status">${status}</span></li>`
+}
+
+// Text effect with arrow and sign words, for rows that are not a state badge.
+function effectText(tone, text) {
+  const arrow = tone === 'favorable' ? '↑' : tone === 'unfavorable' ? '↓' : '='
+  return `<span class="report-effect report-num--${tone}"><span aria-hidden="true">${arrow}</span> ${escapeHtml(text)}</span>`
+}
+
+// ── Diverging bars: deviation from plan to date ─────────────────────────
+// Question: which categories spent more (or less) than planned so far?
+// Red only for material excess; non-material excess is neutral; below plan is
+// favourable. Rows on plan (rounded zero) leave the chart and are named in one
+// sentence. Zero sits in the middle when some row is below plan, else at the
+// left edge, so a chart with only excesses uses the whole width.
+const divergingStatus = {
+  unfavorable: ['risk', 'Bem acima do plano'],
+  muted: ['info', 'Pouco acima do plano'],
+  favorable: ['ok', 'Abaixo do plano']
+}
+export function divergingRows({ rows, currency, caption }) {
+  if (!rows.length) return emptyState('Sem categorias com gastos registrados no período.')
+  const money = (value, options) => escapeHtml(formatReportMoney(value, currency, options))
+  const onPlan = rows.filter(row => Math.round(row.delta) === 0)
+  const moved = rows.filter(row => Math.round(row.delta) !== 0)
+    .map((row, index) => ({ ...row, index }))
+    .sort((a, b) => Number(Boolean(b.material)) - Number(Boolean(a.material)) || a.index - b.index)
+  const onPlanNote = onPlan.length ? `<p class="report-note report-rowchart__aside"><strong>${moved.length ? 'Iguais ao plano' : 'Todas as categorias estão iguais ao plano'}</strong> (${onPlan.length}): ${onPlan.map(row => escapeHtml(row.category)).join(', ')}.</p>` : ''
+  if (!moved.length) return onPlanNote
+  const centred = moved.some(row => row.delta < 0)
+  const zero = centred ? 50 : 0
+  const max = Math.max(1, ...moved.map(row => Math.abs(row.delta)))
+  const room = centred ? 50 : 100
+  const toneOf = row => row.delta < 0 ? 'favorable' : row.material ? 'unfavorable' : 'muted'
+  const percentOf = row => finite(row.deltaPercent) ? formatReportPercent(row.deltaPercent, { signed: true }) : ''
+  const visual = moved.map(row => {
+    const tone = toneOf(row)
+    const width = Math.abs(row.delta) / max * room
+    const bar = `<span class="report-rowchart__axis" style="left:${pct(zero)}"></span><span class="report-bar report-bar--${tone}" style="left:${pct(row.delta > 0 ? zero : zero - width)};width:${pct(Math.max(width, 0.8))}"></span>`
+    const [status, label] = divergingStatus[tone]
+    return chartRow({ tone, name: escapeHtml(row.category), detail: `${money(row.actual)} de ${money(row.plannedToDate)} previstos`, track: bar, value: money(row.delta, { signed: true }), note: escapeHtml(percentOf(row)), status: statusBadge(status, label) })
+  })
+  const axis = centred
+    ? `<span class="report-rowchart__axis" style="left:50%"></span><span class="report-rowchart__halves"><span>◀ gastou menos</span><span>gastou mais ▶</span></span>`
+    : `<span class="report-rowchart__axis" style="left:0%"></span><span class="report-rowchart__halves report-rowchart__halves--right"><span>0 = igual ao plano · gastou mais ▶</span></span>`
+  const table = rowChart({
+    className: 'report-rowchart--diverging',
+    caption,
+    head: { track: axis, value: 'Diferença', status: 'Situação' },
+    rows: visual,
+    srHead: ['Categoria', 'Planejado até o mês', 'Realizado', 'Diferença', 'Situação'],
+    srRows: moved.map(row => [escapeHtml(row.category), money(row.plannedToDate), money(row.actual), `${money(row.delta, { signed: true })}${percentOf(row) ? ` (${escapeHtml(percentOf(row))})` : ''}`, escapeHtml(divergingStatus[toneOf(row)][1])])
+  })
+  return table + onPlanNote
+}
+
+// ── Annual quota: how much of each yearly budget is gone ────────────────
+// Question: will a category run out of its yearly budget? The track is the
+// whole quota (0 to 100%), so the scale never changes. The bar stops at 100%;
+// what passed the quota is written next to it. The vertical line is the
+// expected pace (months elapsed / 12), labelled once on the header.
+const quotaStatus = { exceeded: ['risk', 'Estourou a cota', 'unfavorable'], ahead: ['attention', 'Acima do ritmo', 'warning'], 'on-track': ['ok', 'Dentro do ritmo', 'brand'] }
+export function quotaRows({ rows, currency, caption, paceLabel = 'hoje' }) {
   if (!rows.length) return emptyState('Sem cotas anuais com gastos registrados.')
-  const scale = clamp(Math.max(1.2, ...rows.map(row => row.usedShare)), 1.2, 1.6)
-  const body = rows.map(row => {
-    const [status, label] = quotaStatus[row.status] || quotaStatus['on-track']
-    const overflow = row.usedShare > scale
-    return `<tr><th scope="row">${escapeHtml(row.category)}</th><td class="report-chart-cell" aria-hidden="true"><span class="report-bullet"><span class="report-bullet__quota" style="width:${pct(100 / scale)}"></span><span class="report-bar report-bar--${status === 'ok' ? 'brand' : status === 'risk' ? 'unfavorable' : 'warning'}" style="width:${pct(Math.min(row.usedShare, scale) / scale * 100)}"></span><span class="report-bullet__tick" style="left:${pct(row.elapsedShare / scale * 100)}"></span>${overflow ? '<span class="report-bullet__overflow">▶</span>' : ''}</span></td><td>${escapeHtml(formatReportMoney(row.actual, currency))} de ${escapeHtml(formatReportMoney(row.annualPlanned, currency))}</td><td>${escapeHtml(formatReportPercent(row.usedShare))}</td><td>${statusBadge(status, label)}</td></tr>`
-  }).join('')
-  return chartKey([['brand', 'Gasto realizado'], ['quota', 'Fundo: cota anual (100%)'], ['tick', 'Traço: referência linear do ano']]) + tableWrap(caption, `<table class="report-table report-table--chart"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Categoria</th><th scope="col" class="report-chart-cell"><span class="report-axis-label"><span>0%</span><span>${escapeHtml(formatReportPercent(scale))}</span></span></th><th scope="col">Realizado de cota anual</th><th scope="col">Cota usada</th><th scope="col">Situação</th></tr></thead><tbody>${body}</tbody></table>`) + `<p class="report-note">Referência linear: ${escapeHtml(formatReportPercent(rows[0].elapsedShare))} do ano decorrido, sem considerar gastos sazonais. ▶ indica barra além da escala. O percentual exato está em Cota usada.</p>`
+  const money = value => escapeHtml(formatReportMoney(value, currency))
+  const elapsed = clamp(rows[0].elapsedShare, 0, 1)
+  const leftOver = row => finite(row.remaining) ? row.remaining : row.annualPlanned - row.actual
+  const balanceText = row => {
+    const rest = leftOver(row)
+    return Math.round(rest) < 0 ? `passou ${money(-rest)}` : Math.round(rest) === 0 ? 'cota toda usada' : `sobram ${money(rest)}`
+  }
+  const visual = rows.map(row => {
+    const [status, label, bar] = quotaStatus[row.status] || quotaStatus['on-track']
+    const tone = status === 'risk' ? 'unfavorable' : 'neutral'
+    const track = `<span class="report-rowchart__quota"></span><span class="report-bar report-bar--${bar}" style="width:${pct(Math.min(row.usedShare, 1) * 100)}"></span><span class="report-rowchart__pace" style="left:${pct(elapsed * 100)}"></span>`
+    return chartRow({ tone, className: row.usedShare > 1 ? 'report-rowchart__row--over' : '', name: escapeHtml(row.category), detail: `${money(row.actual)} de ${money(row.annualPlanned)} · ${balanceText(row)}`, track, value: escapeHtml(formatReportPercent(row.usedShare)), status: statusBadge(status, label) })
+  })
+  const paceTag = `ritmo esperado ${escapeHtml(paceLabel)}: ${escapeHtml(formatReportPercent(elapsed))}`
+  const after = elapsed <= 0.5
+  const axis = `<span class="report-rowchart__scale"><span>0%</span><span>100% = cota do ano</span></span><span class="report-rowchart__pace-tag report-rowchart__pace-tag--${after ? 'after' : 'before'}" style="${after ? `margin-left:${pct(elapsed * 100)}` : `margin-right:${pct(100 - elapsed * 100)}`}">${after ? `▼\u00a0${paceTag}` : `${paceTag}\u00a0▼`}</span>`
+  const table = rowChart({
+    className: 'report-rowchart--quota',
+    caption,
+    head: { track: axis, value: 'Usado da cota', status: 'Situação' },
+    rows: visual,
+    srHead: ['Categoria', 'Usado da cota anual', 'Gasto e cota do ano', 'Sobra ou excesso', 'Situação'],
+    srRows: rows.map(row => [escapeHtml(row.category), escapeHtml(formatReportPercent(row.usedShare)), `${money(row.actual)} de ${money(row.annualPlanned)}`, balanceText(row), escapeHtml((quotaStatus[row.status] || quotaStatus['on-track'])[1])])
+  })
+  return table
 }
 
 // ── Horizontal waterfall (bridge) ────────────────────────────────────────
-// Totals start at zero; deltas float from the running total. Positive deltas
-// are favourable, negative unfavourable, zero neutral with no bar.
-export function bridgeRows({ steps, currency, caption, totalKinds = ['total', 'start', 'end'] }) {
+// Question: what took the balance from the start to the end? Totals start at
+// zero; each step floats from the running total. Positive steps are
+// favourable, negative unfavourable, zero neutral with a short mark only.
+// Each step says in words what it did ("reduziu", under "Efeito no saldo")
+// and the balance after it.
+export function bridgeRows({ steps, currency, caption, totalKinds = ['total', 'start', 'end'], subject = 'o saldo', afterLabel = 'Saldo depois' }) {
   if (!steps.length) return emptyState('Sem valores para a ponte.')
+  const money = (value, options) => escapeHtml(formatReportMoney(value, currency, options))
   let running = 0
   const placed = steps.map(step => {
     if (totalKinds.includes(step.kind)) { running = step.value; return { ...step, from: 0, to: step.value } }
@@ -120,15 +201,38 @@ export function bridgeRows({ steps, currency, caption, totalKinds = ['total', 's
   const span = max - min || 1
   const position = value => (value - min) / span * 100
   const zero = position(0)
-  const body = placed.map(step => {
+  const shortEffect = { favorable: 'aumentou', unfavorable: 'reduziu', neutral: 'sem efeito' }
+  const effectOf = (step, tone) => tone === 'favorable' ? `aumentou ${subject}` : tone === 'unfavorable' ? `reduziu ${subject}` : 'sem efeito'
+  const rows = placed.map(step => {
     const total = totalKinds.includes(step.kind)
     const rounded = Math.round(step.value)
     const tone = total ? 'total' : rounded === 0 ? 'neutral' : rounded > 0 ? 'favorable' : 'unfavorable'
     const left = position(Math.min(step.from, step.to)), width = Math.abs(position(step.to) - position(step.from))
-    const bar = !total && rounded === 0 ? `<span class="report-bridge__zero" style="left:${pct(position(step.from))}"></span>` : `<span class="report-bar report-bar--${tone}" style="left:${pct(left)};width:${pct(Math.max(width, 0.6))}"></span>`
-    return `<tr class="${total ? 'report-bridge__total' : ''}"><th scope="row">${escapeHtml(step.label)}</th><td class="report-chart-cell" aria-hidden="true"><span class="report-bridge"><span class="report-bridge__axis" style="left:${pct(zero)}"></span>${bar}</span></td><td class="report-num--${tone}">${total ? 'Saldo total' : escapeHtml(formatReportMoney(step.value, currency, { signed: true }))}</td><td>${escapeHtml(formatReportMoney(step.to, currency))}</td></tr>`
-  }).join('')
-  return tableWrap(caption, `<table class="report-table report-table--chart report-table--bridge"><caption class="sr-only">${escapeHtml(caption)}</caption><thead><tr><th scope="col">Etapa</th><th scope="col" class="report-chart-cell"><span class="report-axis-label"><span>${escapeHtml(formatReportMoney(min, currency))}</span><span>${escapeHtml(formatReportMoney(max, currency))}</span></span></th><th scope="col">Efeito da etapa</th><th scope="col">Saldo após a etapa</th></tr></thead><tbody>${body}</tbody></table>`)
+    const bar = !total && rounded === 0 ? `<span class="report-rowchart__mark" style="left:${pct(position(step.from))}"></span>` : `<span class="report-bar report-bar--${tone}" style="left:${pct(left)};width:${pct(Math.max(width, 0.8))}"></span>`
+    return chartRow({
+      tone,
+      className: total ? 'report-rowchart__row--total' : '',
+      name: escapeHtml(step.label),
+      detail: total ? '' : `${escapeHtml(afterLabel)}: ${money(step.to)}`,
+      track: `<span class="report-rowchart__axis" style="left:${pct(zero)}"></span>${bar}`,
+      value: total ? money(step.value) : money(step.value, { signed: true }),
+      status: total ? '' : effectText(tone, shortEffect[tone])
+    })
+  })
+  const zeroTag = `<span class="report-rowchart__axis" style="left:${pct(zero)}"></span><span class="report-rowchart__tag ${zero > 50 ? 'report-rowchart__tag--before' : 'report-rowchart__tag--after'}" style="${zero > 50 ? `right:${pct(100 - zero)}` : `left:${pct(zero)}`}">${escapeHtml(formatReportMoney(0, currency))}</span>`
+  return rowChart({
+    className: 'report-rowchart--bridge',
+    caption,
+    head: { track: zeroTag, value: 'Valor', status: escapeHtml(`Efeito n${subject}`) },
+    rows,
+    srHead: ['Etapa', 'Valor', 'Efeito', afterLabel],
+    srRows: placed.map(step => {
+      const total = totalKinds.includes(step.kind)
+      const rounded = Math.round(step.value)
+      const tone = total ? 'total' : rounded === 0 ? 'neutral' : rounded > 0 ? 'favorable' : 'unfavorable'
+      return [escapeHtml(step.label), total ? money(step.value) : money(step.value, { signed: true }), total ? 'Total' : escapeHtml(effectOf(step, tone)), money(step.to)]
+    })
+  })
 }
 
 // ── Current × target with the tolerance band ─────────────────────────────
