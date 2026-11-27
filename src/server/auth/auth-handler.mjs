@@ -130,7 +130,7 @@ export function createAuthHandler({
       return true
     }
 
-    if (request.method !== 'GET' && requestOrigin(request) !== config.appOrigin) {
+    if (request.method !== 'GET' && !(config.allowedOrigins || [config.appOrigin]).includes(requestOrigin(request))) {
       json(response, 403, { error: 'Origem da requisição não permitida.' })
       return true
     }

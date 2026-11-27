@@ -86,8 +86,9 @@ function formatters(state) {
   return { hidden, money, signed, percent }
 }
 
-// One bar per row: actual within plan, the part above plan in alert colour,
-// planned without actual in a light tone, and a mark at the plan.
+// One bar per row: actual within plan, the part above plan in alert colour
+// with a hatch (not colour alone), planned not yet spent in a light tone, and
+// a mark at the plan. A key above the list names each part in words.
 function bar(row, scale) {
   const at = value => `${Math.min(100, value / scale * 100).toFixed(3)}%`
   const within = Math.min(row.actual, row.planned)
@@ -99,12 +100,20 @@ function differenceCell(row, f, usage, quota) {
   if (f.hidden) return `<span class="category-row__diff"><span class="sr-only">Diferença: </span>${row.difference === null ? '<span aria-hidden="true">—</span><span class="sr-only">sem comparação</span>' : f.money(0)}</span>`
   if (usage && row.planned > 0) {
     const used = Math.round(quota.get(row.categoryId) ?? 0)
-    return `<span class="category-row__diff" data-tone="${used > 100 ? 'unfavorable' : 'neutral'}"><span class="sr-only">Usado do planejado do ano: </span>Usado: ${used}%</span>`
+    return `<span class="category-row__diff" data-tone="${used > 100 ? 'unfavorable' : 'neutral'}"><span class="sr-only">Usado do planejado do ano: </span>Usado: ${used}%${used > 100 ? '<small><span class="sr-only">, </span>acima do planejado do ano</small>' : ''}</span>`
   }
   if (row.difference === null) return '<span class="category-row__diff" data-tone="neutral"><span class="sr-only">Diferença: </span><span aria-hidden="true">—</span><span class="sr-only">sem comparação</span></span>'
   const over = row.difference >= 0.005
-  const word = over ? ' acima do planejado' : row.difference <= -0.005 ? ' abaixo do planejado' : ''
-  return `<span class="category-row__diff" data-tone="${over ? 'unfavorable' : 'neutral'}"><span class="sr-only">Diferença: </span>${f.signed(row.difference)}${word ? `<span class="sr-only">${word}</span>` : ''}${row.percent !== null && row.difference !== 0 ? `<small>${f.percent(row.percent)}</small>` : ''}</span>`
+  return `<span class="category-row__diff" data-tone="${over ? 'unfavorable' : 'neutral'}"><span class="sr-only">Diferença: </span>${f.signed(row.difference)}${situation(row)}</span>`
+}
+
+// The situation in words under the difference, so over and under never rely
+// on colour or sign alone. Rows without plan carry the "sem planejado" tag.
+function situation(row) {
+  if (!row.hasPlanned || row.planned <= 0) return ''
+  const words = row.difference >= 0.005 ? 'acima do planejado' : row.difference <= -0.005 ? 'abaixo do planejado' : 'igual ao planejado'
+  const share = row.percent !== null && Math.abs(row.percent) >= 1 && words !== 'igual ao planejado' ? `${Math.abs(row.percent)}% ` : ''
+  return `<small><span class="sr-only">, </span>${share}${words}</small>`
 }
 
 function entryDate(entry, period) {
@@ -140,6 +149,13 @@ function categoryRow(row, context) {
     ${differenceCell(row, f, usage, quota)}
     ${f.hidden ? '' : bar(row, scale)}
   </summary><div class="category-entries">${entryList(row.entries.actual, 'actual', state, f, info.period)}${entryList(row.entries.planned, 'planned', state, f, info.period)}${addPlan}${suggestions}</div></details>`
+}
+
+// How to read the bar, in words, once above the list. The bar itself is
+// aria-hidden (each value is read in its column), so the key is too.
+function barKey(info) {
+  const item = (part, label) => `<span><span class="category-key__swatch category-key__swatch--${part}"></span>${label}</span>`
+  return `<p class="category-key" aria-hidden="true"><span class="category-key__title">Como ler a barra:</span>${item('actual', 'gasto dentro do planejado')}${item('over', 'gasto acima do planejado')}${item('planned', info.usage ? 'planejado do ano ainda não gasto' : 'planejado não gasto')}${item('mark', 'valor planejado')}</p>`
 }
 
 function header(state, info, f) {
@@ -187,9 +203,9 @@ export function renderBudgetCategories(state, { today = new Date() } = {}) {
   const totalQuota = info.usage ? new Map([['total', budgetAnnualQuota([{ ...total, annualPlanned: total.planned }]).categories[0]?.usedPercent ?? 0]]) : quota
   const missing = rows.filter(row => !row.hasActual && row.planned > 0)
   const missingNote = !f.hidden && !info.usage && anyActual && missing.length ? `<p class="category-total__note">Inclui ${f.money(missing.reduce((sum, row) => sum + toCents(row.planned), 0) / 100)} planejados sem realizado em ${plural(missing.length, 'categoria', 'categorias')}.</p>` : ''
-  const columns = `<div class="category-list__head" aria-hidden="true"><span>Categoria</span><span>Planejado</span><span>Realizado</span><span>${info.usage ? 'Usado' : 'Diferença'}</span><span></span></div>`
+  const columns = `<div class="category-list__head" aria-hidden="true"><span>Categoria</span><span>Planejado</span><span>Realizado</span><span>${info.usage ? 'Usado' : 'Diferença'}</span><span>${f.hidden ? '' : 'Gasto e planejado'}</span></div>`
   const totalRow = `<div class="category-total" data-budget-category-total><span class="category-row__name">Total de despesas</span><span class="category-row__planned" data-label="planejado"><span class="sr-only">Planejado: </span>${f.money(total.planned)}</span><span class="category-row__actual" data-label="realizado"><span class="sr-only">Realizado: </span>${anyActual ? f.money(total.actual) : 'Nada lançado'}</span>${differenceCell(total, f, info.usage, totalQuota)}<span></span></div>`
-  return `<section class="budget-categories panel" data-budget-categories>${head}<div class="category-list" role="list" aria-label="Despesas por categoria">${columns}${rows.map(row => `<div role="listitem">${categoryRow(row, context)}</div>`).join('')}${totalRow}${missingNote}</div>${footer(state, info)}</section>`
+  return `<section class="budget-categories panel" data-budget-categories>${head}${f.hidden ? '' : barKey(info)}<div class="category-list" role="list" aria-label="Despesas por categoria">${columns}${rows.map(row => `<div role="listitem">${categoryRow(row, context)}</div>`).join('')}${totalRow}${missingNote}</div>${footer(state, info)}</section>`
 }
 
 export function bindBudgetCategoriesInteractions(root, getState) {
