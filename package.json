@@ -1,6 +1,6 @@
 {
   "name": "aposenta-plus",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "type": "module",
   "description": "MVP web do Aposenta+, planejamento de aposentadoria com privacidade local.",
