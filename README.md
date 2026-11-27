@@ -109,6 +109,19 @@ Você precisa do Node.js 24 ou superior.
 
 Abra `http://127.0.0.1:4173`.
 
+### Usar no celular, na mesma rede Wi-Fi
+
+```bash
+./run-app.sh --rede
+```
+
+O script mostra o endereço do Mac na rede, por exemplo `http://192.168.1.21:4173`. Abra esse endereço no navegador do celular, conectado à mesma Wi-Fi. No iPhone, use Safari, Compartilhar e Adicionar à Tela de Início. No Android, use Chrome, menu e Adicionar à tela inicial. O app abre em tela cheia com o ícone do Aposenta+.
+
+- O Mac precisa estar ligado, na mesma rede e com o script rodando. Na primeira vez, o macOS pode pedir para permitir conexões de entrada do `node`.
+- A conexão é HTTP, sem criptografia. Use só em uma Wi-Fi de confiança, nunca em rede pública, e encerre com Ctrl+C ao terminar.
+- No Mac, continue usando `http://127.0.0.1:4173`. Os dois endereços aceitam login e gravação. Outras origens continuam bloqueadas.
+- Se o IP do Mac mudar, reinicie o script e abra o novo endereço. O atalho salvo na tela inicial usa o endereço antigo e precisa ser recriado.
+
 Para atualizar retornos, abra Carteira, escolha Editar e avance até Rendimento. Em “Ajustar retorno real por ano”, informe uma linha por ano, por exemplo `2027: 4,5%`. O ajuste vale apenas naquele ano. Anos sem ajuste usam a taxa habitual do investimento. Remover a linha restaura essa regra. Os ajustes não alteram o saldo atual. [Regras de cálculo e validação](docs/product/retornos-anuais-sustentabilidade.md).
 
 O script valida o Node.js e o npm antes de iniciar o servidor. Configure a URL e a chave pública Supabase no `.env` para o primeiro acesso. Como alternativa, execute `npm run dev` diretamente.

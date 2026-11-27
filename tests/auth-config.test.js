@@ -31,3 +31,11 @@ test('produção libera autenticação após aprovação, controlador e canal', 
     LEGAL_PRIVACY_CONTACT: 'privacidade@example.com'
   }).configured, true)
 })
+
+test('origens aceitas começam por APP_ORIGIN e incluem as extras sem duplicar', () => {
+  assert.deepEqual(readAuthConfig({}).allowedOrigins, ['http://127.0.0.1:4173'])
+  assert.deepEqual(readAuthConfig({
+    APP_ORIGIN: 'http://192.168.1.21:4173/',
+    APP_ALLOWED_ORIGINS: ' http://127.0.0.1:4173/ , ,http://192.168.1.21:4173'
+  }).allowedOrigins, ['http://192.168.1.21:4173', 'http://127.0.0.1:4173'])
+})

@@ -59,6 +59,21 @@ test('bloqueia requisição mutável de outra origem', async () => {
   assert.equal(result.status, 403)
 })
 
+test('na rede local aceita o endereço do Mac e 127.0.0.1, e continua bloqueando outras origens', async () => {
+  const lanEnv = { ...env, APP_ORIGIN: 'http://192.168.1.21:4173', APP_ALLOWED_ORIGINS: 'http://127.0.0.1:4173' }
+  const fetchImpl = async () => ({ ok: false, status: 400, json: async () => ({ error_code: 'invalid_credentials' }) })
+  const login = origin => call(createAuthHandler({ env: lanEnv, fetchImpl }), '/api/auth/login', {
+    method: 'POST',
+    body: { email: 'pessoa@example.com', password: 'incorreta' },
+    headers: { origin }
+  })
+
+  assert.equal((await login('http://192.168.1.21:4173')).status, 401)
+  assert.equal((await login('http://127.0.0.1:4173')).status, 401)
+  assert.equal((await login('http://192.168.1.99:4173')).status, 403)
+  assert.equal((await login('')).status, 403)
+})
+
 test('login cria cookies HttpOnly e não devolve tokens no JSON', async () => {
   const handler = createAuthHandler({
     env,

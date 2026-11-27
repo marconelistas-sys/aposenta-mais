@@ -10,6 +10,8 @@ import { createEconomicIndicatorsHandler } from '../src/server/economic-indicato
 
 const projectRoot = normalize(join(fileURLToPath(new URL('.', import.meta.url)), '..'))
 const requestedPort = Number(process.env.PORT || 4173)
+// 127.0.0.1 por padrão. HOST=0.0.0.0 abre o app para outros aparelhos da mesma rede.
+const listenHost = process.env.HOST || '127.0.0.1'
 const localStore = (await import('../src/server/data/local-store.mjs')).createLocalStore({ path: process.env.LOCAL_DB_PATH || join(projectRoot, '.data/aposenta.sqlite') })
 const handleAuth = createAuthHandler({ localStore })
 const handleExchangeRates = createExchangeRateHandler()
@@ -22,7 +24,9 @@ const mimeTypes = {
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml; charset=utf-8'
+  '.svg': 'image/svg+xml; charset=utf-8',
+  '.png': 'image/png',
+  '.webmanifest': 'application/manifest+json; charset=utf-8'
 }
 
 function safePath(pathname) {
@@ -95,8 +99,9 @@ server.on('error', (error) => {
   process.exitCode = 1
 })
 
-server.listen(requestedPort, '127.0.0.1', () => {
+server.listen(requestedPort, listenHost, () => {
   console.log(`Aposenta+ disponível em http://127.0.0.1:${requestedPort}`)
+  if (listenHost !== '127.0.0.1' && process.env.APP_ORIGIN) console.log(`Na mesma rede Wi-Fi: ${process.env.APP_ORIGIN}`)
   console.log('Acesso inicial pelo Supabase. Ative banco e login locais no Perfil.')
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
     console.log('Supabase Auth desativado. Configure SUPABASE_URL e SUPABASE_ANON_KEY para ativar contas.')
